@@ -7,10 +7,10 @@
 //!   one: the JUCE runtime calls it through a C ABI on the host's audio
 //!   thread, and the Web runtime runs it compiled to WebAssembly in an
 //!   AudioWorklet;
-//! - optionally its [`Controller`], on the control thread beside the UI: the
+//! - its required [`Controller`], on the control thread beside the UI: the
 //!   Rust behind `soundor:native`'s methods, with the plugin's parameters,
 //!   persistent state, History and presets, and async tasks that publish
-//!   the processor's resources. The JUCE runtime runs it natively.
+//!   the processor's resources. The JUCE runtime runs it natively; the web runtime through WASM.
 //!
 //! `soundor.config.ts` stays the one source of the plugin's contract: its
 //! parameters arrive here as the typed [`Parameters`], its audio layouts as
@@ -88,6 +88,8 @@ mod instance;
 #[doc(hidden)]
 pub mod json;
 mod layout;
+#[doc(hidden)]
+pub mod wasm_controller;
 // Generated from soundor.config.ts, as generated.
 #[rustfmt::skip]
 mod plugin;
@@ -111,6 +113,7 @@ pub use controller::{
     ProcessorHandle, ReadOnlyParameter, SharedStore, StateField, TaskContext, TaskStore,
 };
 pub use error::Error;
+#[cfg(not(target_arch = "wasm32"))]
 pub use executor::{Unblock, unblock};
 pub use plugin::{
     NativeMethods, ParameterAccess, Parameters, Publish, ResourcePublishers, Resources, STATE_SIZE,

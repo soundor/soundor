@@ -60,7 +60,7 @@ have their own versions. See [Dependency versions](/docs/cli/create-soundor-app#
 before upgrading.
 
 The template includes a gain control UI and one Rust gain processor shared by
-both runtimes. Implement audio behavior in `native/src/lib.rs`; declaring a
+both runtimes. Implement audio behavior in `native/src/processor.rs`; declaring a
 parameter does not apply it to the audio automatically. See
 [Rust audio processing](/docs/rust-processor).
 
@@ -69,11 +69,14 @@ parameter does not apply it to the audio automatically. See
 ```text
 my-plugin/
   soundor.config.ts        plugin identity, parameters, native API, runtimes
-  src/main.tsx             shared TypeScript/React UI
+  src/index.tsx            renders the UI
+  src/App.tsx              shared TypeScript/React UI
   rust-toolchain.toml      Rust stable, generated once
   native/Cargo.toml        your Rust crate and dependencies
   native/Cargo.lock        locked Rust dependency versions
-  native/src/lib.rs        shared Rust audio processor
+  native/src/lib.rs        registers the controller and processor
+  native/src/controller.rs required controller and instance stores
+  native/src/processor.rs  shared Rust audio processor
   tsconfig.json            UI types, including generated declarations
   runtimes/juce/           your CMake project, host integration, and editor
   .soundor/
@@ -185,7 +188,7 @@ Then run it with `pnpm dev:web`.
 Open the URL printed by the CLI. Your shared `src/main.tsx` runs inside the
 browser host, and so does your audio processing: the Rust crate in `native/`,
 compiled to WebAssembly (it needs `rustup target add wasm32-unknown-unknown`).
-`runtimes/web/src/native.ts` implements your configured native API for the
+`native/src/controller.rs` implements your configured native API for the
 browser, separately from the JUCE plugin's C++.
 
 Press Play in the host to enable audio. The

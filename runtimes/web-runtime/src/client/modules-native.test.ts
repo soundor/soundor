@@ -6,13 +6,8 @@
 import * as native from 'soundor:native';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { installNative } from './native';
-import type {
-  Buffers,
-  Numbers,
-  Optionals,
-  WebNativeApi,
-} from './testing/native';
+import type { Buffers, Numbers, Optionals } from './testing/native';
+import { installNative, type NativeMock } from './testing/native-mock';
 
 /** What the implementation last received, by method. */
 const received: Record<string, unknown[]> = {};
@@ -20,7 +15,7 @@ let soloSlot: number | null = null;
 const pending: ((value: unknown) => void)[] = [];
 
 /** The project's runtimes/web/src/native.ts, for the fixture plugin. */
-const implementation: WebNativeApi = {
+const implementation: NativeMock = {
   add: (a, b) => a + b,
   analyze(samples) {
     const rms = Math.sqrt(
@@ -156,24 +151,6 @@ describe('soundor:native', () => {
     ]);
     expect(native.analyze.name).toBe('analyze');
     expect(native.add.length).toBe(2);
-  });
-
-  it('says what is missing before an implementation is installed', async () => {
-    expect(() => native.invert(true)).toThrow(
-      /invert\(\) has no Web implementation\. Implement it in runtimes\/web\/src\/native\.ts/,
-    );
-    await expect(native.failLater()).rejects.toThrow(
-      /failLater\(\) has no Web implementation/,
-    );
-  });
-
-  it('rejects an implementation that misses methods', () => {
-    expect(() => installNative({ native: { invert: () => true } })).toThrow(
-      /^runtimes\/web\/src\/native\.ts does not implement add\(\), analyze\(\), applyPreset\(\), echo\(\),/,
-    );
-    expect(() => installNative({})).toThrow(
-      "runtimes/web/src/native.ts must export the native API implementation as 'native'",
-    );
   });
 
   describe('with an implementation', () => {

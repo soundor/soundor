@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -119,6 +120,7 @@ describe('the native scaffold', () => {
       'native/src/lib.rs',
       // The fixture declares native methods: a controller for them.
       'native/src/controller.rs',
+      'native/src/processor.rs',
       'native/tests/controller.rs',
       'native/tests/processor.rs',
       'native/tests/realtime.rs',
@@ -132,8 +134,8 @@ describe('the native scaffold', () => {
     expect(files[3]!.contents).toContain(
       'soundor::export!(PluginProcessor, PluginController);',
     );
-    expect(files[3]!.contents).toContain('impl Processor for PluginProcessor');
-    expect(files[3]!.contents).toContain('ctx.params.gain');
+    expect(files[5]!.contents).toContain('impl Processor for PluginProcessor');
+    expect(files[5]!.contents).toContain('ctx.params.gain');
     const controller = files[4]!.contents;
     expect(controller).toContain('impl NativeMethods for PluginController');
     expect(controller).toContain(
@@ -145,25 +147,76 @@ describe('the native scaffold', () => {
     expect(controller).toContain(
       '    fn reset(_ctx: &mut TaskContext<Self>) {\n        // TODO: implement it.\n    }',
     );
-    expect(files[5]!.contents).toContain('TestController::<PluginController>');
-    expect(files[6]!.contents).toContain('use sdk_fixture::PluginProcessor;');
-    expect(files[7]!.contents).toContain(
+    expect(files[6]!.contents).toContain('TestController::<PluginController>');
+    expect(files[7]!.contents).toContain('use sdk_fixture::PluginProcessor;');
+    expect(files[8]!.contents).toContain(
       'static ALLOCATOR: CountingAllocator = CountingAllocator;',
     );
-    expect(files[7]!.contents).toContain('use sdk_fixture::PluginProcessor;');
+    expect(files[8]!.contents).toContain('use sdk_fixture::PluginProcessor;');
   });
 
-  it('exports a processor alone when the config declares no native methods', async () => {
+  it('requires a controller without methods and uses the blanket NativeMethods implementation', async () => {
     const config = await parseConfig({ path: FIXTURE });
     const files = nativeScaffoldFiles({
       ...config,
       native: { ...config.native, methods: {} },
     });
-    expect(files.map((file) => file.path)).not.toContain(
+    expect(files.map((file) => file.path)).toContain(
       'native/src/controller.rs',
     );
-    expect(files[3]!.contents).toContain('soundor::export!(PluginProcessor);');
+    expect(files[3]!.contents).toContain(
+      'soundor::export!(PluginProcessor, PluginController);',
+    );
+    expect(files[4]!.contents).not.toContain('impl NativeMethods');
   });
+
+  it('compiles unedited controller scaffolds with and without methods for native and WASM', async () => {
+    const fixture = await parseConfig({ path: FIXTURE });
+    for (const declaredMethods of [true, false]) {
+      const config = declaredMethods
+        ? fixture
+        : { ...fixture, native: { ...fixture.native, methods: {} } };
+      const root = await mkdtemp(
+        join(tmpdir(), 'soundor-controller-scaffold-'),
+      );
+      temporary.push(root);
+      const files = [
+        ...nativeScaffoldFiles(config),
+        ...rustSdkFiles(config).map((file) => ({
+          ...file,
+          path: `.soundor/generated/${file.path}`,
+        })),
+      ];
+      for (const file of files) {
+        const target = join(root, file.path);
+        await mkdir(join(target, '..'), { recursive: true });
+        await writeFile(target, file.contents);
+      }
+      for (const args of [
+        ['test', '--manifest-path', 'native/Cargo.toml'],
+        [
+          'rustc',
+          '--manifest-path',
+          'native/Cargo.toml',
+          '--lib',
+          '--crate-type',
+          'cdylib',
+          '--target',
+          'wasm32-unknown-unknown',
+        ],
+      ]) {
+        const result = spawnSync('cargo', args, {
+          cwd: root,
+          encoding: 'utf8',
+        });
+        expect({
+          status: result.status,
+          error: result.error?.message,
+          stderr: result.stderr,
+        }).toMatchObject({ status: 0, error: undefined });
+      }
+    }
+  }, 120_000);
 
   it('derives a crate name from any plugin name', () => {
     expect(crateName('Soundor Basic')).toBe('soundor-basic');

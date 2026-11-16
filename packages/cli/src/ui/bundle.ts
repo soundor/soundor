@@ -61,6 +61,10 @@ export interface UiBundle {
 }
 
 const ENTRY_CANDIDATES = [
+  'src/index.tsx',
+  'src/index.ts',
+  'src/index.jsx',
+  'src/index.js',
   'src/main.tsx',
   'src/main.ts',
   'src/main.jsx',

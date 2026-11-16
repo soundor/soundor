@@ -18,13 +18,6 @@ export interface WebScaffoldInput {
   readonly pluginName: string;
   /** From the scaffold directory to `.soundor/generated`, '/'-separated. */
   readonly generatedPath: string;
-  /** From `src/` to the generated native contract, without extension. */
-  readonly nativeContractPath: string;
-  /** The native API's methods, stubbed in the scaffolded native.ts. */
-  readonly nativeMethods: readonly {
-    readonly name: string;
-    readonly async: boolean;
-  }[];
 }
 
 /** The files scaffolded on `init`, under `runtimes/<runtimeId>/`. */
@@ -38,10 +31,6 @@ export function webScaffoldFiles(
     { path: `${dir}/vite.config.ts`, contents: viteConfig() },
     { path: `${dir}/tsconfig.json`, contents: tsconfig(input.generatedPath) },
     { path: `${dir}/src/main.ts`, contents: mainTs() },
-    {
-      path: `${dir}/src/native.ts`,
-      contents: nativeTs(input.nativeContractPath, input.nativeMethods),
-    },
   ];
 }
 
@@ -100,33 +89,10 @@ function tsconfig(generatedPath: string): string {
 }
 
 function mainTs(): string {
-  return `// The Web host's entry: starts Soundor's Web host for this plugin. The
-// plugin's native API loads after the host, so its soundor:* imports find
-// it ready.
+  return `// The same native/ controller and processor run here through WebAssembly.
 import { startSoundorWebHost } from '@soundor/web-runtime/client';
 
-// Its audio is the plugin's processor, native/, compiled to WebAssembly.
-await startSoundorWebHost({
-  native: () => import('./native'),
-});
-`;
-}
-
-function nativeTs(
-  contractPath: string,
-  methods: readonly { readonly name: string; readonly async: boolean }[],
-): string {
-  const stubs = methods.map(
-    (method) =>
-      `  ${method.async ? 'async ' : ''}${method.name}() {\n    throw new Error('${method.name}() is not implemented for the Web yet');\n  },\n`,
-  );
-  return `// The plugin's native API (soundor:native) for the Web, in TypeScript. The
-// plugin UI's calls arrive here as they are made: same values, exceptions
-// and promises. WebNativeApi is generated from soundor.config, so a method
-// added there is a type error here until it is implemented.
-import type { WebNativeApi } from '${contractPath}';
-
-export const native: WebNativeApi = ${stubs.length === 0 ? '{}' : `{\n${stubs.join('')}}`};
+await startSoundorWebHost();
 `;
 }
 

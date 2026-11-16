@@ -44,6 +44,8 @@ interface Exports {
   soundor_wasm_output(handle: number, index: number): number;
   soundor_wasm_process(handle: number, frames: number): number;
   soundor_wasm_reset(handle: number): number;
+  soundor_wasm_resource_input(handle: number, length: number): number;
+  soundor_wasm_resource_publish(handle: number, index: number): number;
   soundor_wasm_channel_changed(handle: number, index: number): number;
   soundor_wasm_channel_value(handle: number, index: number): number;
   soundor_wasm_channel_buffer(handle: number, index: number): number;
@@ -102,7 +104,19 @@ export class WasmProcessor {
     outputs: readonly number[],
     streams: readonly WasmStream[],
   ) {
-    const instance = new WebAssembly.Instance(module, {});
+    const instance = new WebAssembly.Instance(module, {
+      soundor_controller: {
+        wake: () => {
+          throw new Error('Controllers execute on the main thread');
+        },
+        service: () => {
+          throw new Error('Controller services execute on the main thread');
+        },
+        read_service_result: () => {
+          throw new Error('Controller services execute on the main thread');
+        },
+      },
+    });
     const exports = instance.exports as unknown as Exports;
     if (typeof exports.soundor_wasm_create !== 'function')
       throw new Error(
@@ -280,6 +294,21 @@ export class WasmProcessor {
       ]);
     }
     return changes;
+  }
+
+  /** Between render quanta: allocate and publish a resource, then renew views. */
+  publishResource(index: number, bytes: Uint8Array): void {
+    if (this.failed) return;
+    const pointer = this.exports.soundor_wasm_resource_input(
+      this.handle,
+      bytes.length,
+    );
+    new Uint8Array(this.exports.memory.buffer, pointer, bytes.length).set(
+      bytes,
+    );
+    if (this.exports.soundor_wasm_resource_publish(this.handle, index) !== 0)
+      throw new Error('Invalid processor resource publication');
+    this.views();
   }
 
   reset(): number {

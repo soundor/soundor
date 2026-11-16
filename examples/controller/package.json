@@ -12,11 +12,14 @@
     "test": "vitest run",
     "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
     "test:watch": "vitest watch",
-    "typecheck": "soundor gen && tsc -b"
+    "typecheck": "soundor gen && tsc -b",
+    "build:web": "soundor build web",
+    "dev:web": "soundor dev web"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },
   "devDependencies": {

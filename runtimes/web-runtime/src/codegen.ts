@@ -1,4 +1,8 @@
-import { describeState, stateJson } from '@soundor/runtime-sdk';
+import {
+  describeController,
+  describeState,
+  stateJson,
+} from '@soundor/runtime-sdk';
 /**
  * The Web runtime's `gen` output: only what is specific to the project. The
  * host itself (parameters, transport, `soundor:*` modules) is generic and
@@ -132,6 +136,14 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
     ...(config.parameterGroups === undefined
       ? {}
       : { parameterGroups: config.parameterGroups }),
+    controller: Array.from(
+      describeController(
+        native,
+        describeState(config.state, config.native),
+        config.parameters.length,
+      ),
+    ),
+    resources: native.resources,
     runtimeVersion,
     ...(config.env === undefined ? {} : { env: config.env }),
     editor: webEditor(config),

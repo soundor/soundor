@@ -93,15 +93,13 @@ runtimes/web/
 ├── vite.config.ts    your Vite settings (defineWebConfig)
 ├── tsconfig.json     DOM and Web Audio types, plus the soundor:* declarations
 └── src/
-    ├── main.ts       starts the host
-    └── native.ts     your soundor:native implementation
+    └── main.ts       starts the host
 ```
 
 **Generated** (`.soundor/generated/runtimes/web/`, rewritten by `gen`):
 
 - `manifest.json`: the plugin's identity, parameters and native methods.
-- `native.ts`: `WebNativeApi`, the TypeScript contract `src/native.ts`
-  implements.
+- `native.ts`: typed event and stream publishers. Methods dispatch to Rust.
 
 Everything generic (the parameter store, the transport, the DOM `soundor:ui`,
 storage, the host UI) lives in this package, not in generated code.
@@ -148,17 +146,17 @@ runtime. Running `vite` directly fails with a pointer to `soundor dev web`.
 ## `soundor:*` in the browser
 
 One page (or iframe) runs one plugin, with one host context. All of these
-share that context directly: the plugin UI, your `native.ts` and the host
-UI. Nothing is serialized and there is no RPC.
+share that context: the plugin UI, Rust controller services and the host
+UI. Controller calls use schema-driven WASM dispatch.
 
-| Module               | In the browser                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `soundor:parameters` | One parameter store, running the behavior `gen` compiles from the config to JavaScript (`parameters.js`), from the same expressions as the JUCE runtime's C++: mapping, steps, `format` and `parse`. A value of the wrong type, or a write to a read-only parameter, is a `TypeError`; listeners hear of changes only, and gestures nest.                                                                                                                                                                    |
-| `soundor:host`       | `WebHost`: host name "Soundor Web", the AudioContext's sample rate, a 128-sample block, and a transport the host UI controls. Snapshots arrive every frame while playing.                                                                                                                                                                                                                                                                                                                                    |
-| `soundor:ui`         | The DOM (see below).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `soundor:native`     | Your `runtimes/web/src/native.ts`, called directly. Its events are published through the `events` of the generated contract (`events.presetLoaded({ path })`): each value checked as the JUCE bindings check it, delivered right after the publishing code returns, in order, at most 1024 undelivered. Its streams are published through the contract's `streams` (`streams.spectrum.publish(values)`, a buffer copied), and the UI receives the newest at the next animation frame, none on a hidden page. |
-| `soundor:storage`    | IndexedDB, one database per `plugin.id`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the JUCE runtime's errors. The user's own files are never reachable.                                                                                                                                                                                                                                                                                                                            |
+| Module               | In the browser                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `soundor:parameters` | One parameter store, running the behavior `gen` compiles from the config to JavaScript (`parameters.js`), from the same expressions as the JUCE runtime's C++: mapping, steps, `format` and `parse`. A value of the wrong type, or a write to a read-only parameter, is a `TypeError`; listeners hear of changes only, and gestures nest. |
+| `soundor:host`       | `WebHost`: host name "Soundor Web", the AudioContext's sample rate, a 128-sample block, and a transport the host UI controls. Snapshots arrive every frame while playing.                                                                                                                                                                 |
+| `soundor:ui`         | The DOM (see below).                                                                                                                                                                                                                                                                                                                      |
+| `soundor:native`     | The same generated TypeScript methods as natively, dispatched to the Rust controller in WASM.                                                                                                                                                                                                                                             |
+| `soundor:storage`    | IndexedDB, one database per `plugin.id`.                                                                                                                                                                                                                                                                                                  |
+| `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the JUCE runtime's errors. The user's own files are never reachable.                                                                                                                                                         |
 
 The Web globals Soundor declares (`fetch`, timers, `URL`, `TextEncoder`,
 `crypto`, `requestAnimationFrame`, …) are the browser's own, except
@@ -266,61 +264,26 @@ the browser itself decides:
   bars show only while scrolling. A smooth `scrollTo()` is the runtime's, not
   the browser's, for the same curve as natively.
 
-## Native API in TypeScript
+## Native API in Rust
 
-The config's `native` section declares the API. `gen` turns it into
-`WebNativeApi`, and `runtimes/web/src/native.ts` implements it:
+Every plugin exports a Rust `PluginController`, even with no configured
+methods. The browser executes the same `NativeMethods` implementation as
+the native runtime through WASM. Generated contracts validate method names,
+arguments, results, state and resource types before initialization.
 
-```ts
-// soundor.config.ts
-native: {
-  types: {
-    Analysis: { struct: { rms: 'float32' } },
-    Preset: { struct: { name: 'string', gains: 'float32[]' } },
-  },
-  methods: {
-    analyze: { args: { samples: 'buffer<float32>' }, returns: 'Analysis' },
-    loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
-  },
-},
-```
+The controller's stores live for the plugin instance, independently of UI
+mounts. Its typed services use the page's parameter, state, History and
+factory preset stores. Async methods return promises, execute cooperatively
+on the main thread, and schedule control operations through event-loop
+tasks. No worker is required; CPU-heavy work must yield to keep the browser
+responsive. `unblock()` is restricted to native targets.
 
-```ts
-// runtimes/web/src/native.ts
-import type { WebNativeApi } from '../../../.soundor/generated/runtimes/web/native';
+The AudioWorklet remains a separate execution context and WASM instance.
+Controller resource publications travel through MessagePort and are
+installed between audio callbacks, preserving block-boundary ownership.
 
-export const native: WebNativeApi = {
-  analyze(samples) {
-    const sum = samples.reduce((total, x) => total + x * x, 0);
-    return { rms: Math.sqrt(sum / samples.length) };
-  },
-  async loadPreset(path) {
-    const response = await fetch(path);
-    return response.ok ? await response.json() : null;
-  },
-};
-```
-
-- A method added to the config is a type error in `native.ts` until you
-  implement it. At startup the host also rejects an implementation that
-  misses methods, naming them.
-- The plugin's `import { analyze } from 'soundor:native'` calls your function
-  with what the JUCE runtime's C++ would get: the runtime checks every
-  argument with the same rules and errors (an `int32` must be an integer in
-  range, an `int64` a bigint, `null` only where a type is `T?`), rounds
-  `float32`s, and passes copies of structs and arrays with the declared fields
-  only. A buffer argument is the caller's own typed array, read-only by
-  contract, as C++ borrows it.
-- What you return is checked the same way (a mistake is a `TypeError` naming
-  `result`) and copied, buffers included, so the plugin never shares your
-  objects. Exceptions stay exceptions, and an async method always returns a
-  promise.
-- A [Rust controller](/docs/rust-controller) is the JUCE runtime's: in the
-  browser, `native.ts` implements the methods, whether or not the crate
-  exports a controller, and the crate's WebAssembly module holds the
-  processor alone. Its stores, `ctx.schedule()`, and an async method
-  publishing an audio resource are native-only for now; a browser-only
-  project needs no controller.
+See [Rust controller](/docs/rust-controller) for stores, scheduling,
+cancellation, browser limitations and migration from `WebNativeApi`.
 
 ## Audio: the plugin's processor, in WebAssembly
 

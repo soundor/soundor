@@ -99,7 +99,6 @@ describe('webInit', () => {
     expect(await listFiles(join(root, 'runtimes/web'))).toEqual([
       'index.html',
       'src/main.ts',
-      'src/native.ts',
       'tsconfig.json',
       'vite.config.ts',
     ]);
@@ -110,18 +109,10 @@ describe('webInit', () => {
     expect(main).toContain(
       "import { startSoundorWebHost } from '@soundor/web-runtime/client';",
     );
-    expect(main).toContain("native: () => import('./native')");
+    expect(main).toContain('await startSoundorWebHost();');
     // No audio code of its own: the processor is native/, as WebAssembly.
     expect(main).not.toContain('audio:');
     expect(main).not.toContain("import('./audio')");
-    const native = await readFile(
-      join(root, 'runtimes/web/src/native.ts'),
-      'utf8',
-    );
-    expect(native).toContain(
-      "import type { WebNativeApi } from '../../../.soundor/generated/runtimes/web/native';",
-    );
-    expect(native).toContain('export const native: WebNativeApi = {');
     const vite = await readFile(
       join(root, 'runtimes/web/vite.config.ts'),
       'utf8',
@@ -239,6 +230,8 @@ describe('webGen', () => {
         version: '0.1.0',
       },
       runtimeVersion: expect.any(String),
+      controller: expect.any(Array),
+      resources: [],
       // No editor in the config: the fixed 800×600 view every runtime opens.
       editor: {
         width: 800,
@@ -360,7 +353,6 @@ describe('webBuild', () => {
     expect((await listFiles(join(root, 'runtimes/web'))).sort()).toEqual([
       'index.html',
       'src/main.ts',
-      'src/native.ts',
       'tsconfig.json',
       'vite.config.ts',
     ]);

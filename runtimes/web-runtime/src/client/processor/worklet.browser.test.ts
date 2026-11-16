@@ -4,12 +4,16 @@
 // OfflineAudioContext, whose rendered audio is compared sample for sample.
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { chromium, type Browser, type Page } from '@playwright/test';
+import { parseConfig } from '@soundor/runtime-sdk';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { webManifest } from '../../codegen';
+import { renderParameterBehaviors } from '../../parameter-codegen';
 import {
   buildFixture,
   contract,
@@ -171,6 +175,39 @@ const PAGE = `<!doctype html>
       output.push([...rendered.getChannelData(channel)]);
     return { added, ready, errors, output };
   };
+  window.controllerResources = async () => {
+    const { WasmController, createParameterStore, ApplicationState } = await import('./controller.js');
+    const { behaviors } = await import('./parameters.js');
+    const manifest = await (await fetch('./manifest.json')).json();
+    const wasm = await (await fetch('./fixture.wasm')).arrayBuffer();
+    const parameters = createParameterStore(manifest.parameters, behaviors);
+    const state = new ApplicationState(manifest, parameters);
+    await state.ready;
+    const controller = new WasmController(new WebAssembly.Module(wasm), { manifest, parameters, state });
+    const context = new OfflineAudioContext(1, 4800, RATE);
+    const lengths = [];
+    const processor = await createProcessorNode(context, {
+      wasm, contract: { parameters: 5, published: 1, streams: 2, state: 80 },
+      inputs: [1, 0], outputs: [1],
+      streams: [{ kind: 'buffer', element: 'float32' }, { kind: 'number', element: 'float32' }],
+      parameters: [0.5, 0, 1, 0, -96], maxFrames: 128,
+      onStreams: (changes) => {
+        for (const [index, value] of changes) if (index === 0) lengths.push(value[4]);
+      },
+    });
+    processor.node.connect(context.destination);
+    const off = controller.subscribeResources((index, bytes) => processor.publishResource(index, bytes));
+    const method = manifest.native.methods.find((method) => method.name === 'loadTable');
+    await controller.call(method, [47]);
+    await controller.call(method, [11]);
+    off();
+    controller.dispose(); // transport owns copies, never controller pointers
+    await context.startRendering();
+    await processor.ready;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    processor.dispose();
+    return lengths;
+  };
   window.loaded = true;
 </script>
 `;
@@ -206,10 +243,46 @@ beforeAll(async () => {
     'code' in output ? [output.code] : [],
   );
   if (code === undefined) throw new Error('Vite bundled no node.js');
+  const controllerBundle = await build({
+    configFile: false,
+    logLevel: 'silent',
+    build: {
+      write: false,
+      minify: true,
+      lib: {
+        entry: fileURLToPath(
+          new URL('./fixture/controller.ts', import.meta.url),
+        ),
+        formats: ['es'],
+        fileName: 'controller',
+      },
+    },
+  });
+  const controllerOutputs = Array.isArray(controllerBundle)
+    ? controllerBundle[0]!.output
+    : 'output' in controllerBundle
+      ? controllerBundle.output
+      : [];
+  const controllerCode = controllerOutputs.flatMap((output) =>
+    'code' in output ? [output.code] : [],
+  )[0]!;
+  const config = await parseConfig({
+    path: resolve('../../packages/cli/rust/fixture/soundor.config.ts'),
+  });
+  const { audio: _audio, ...webConfig } = config;
   const files: Record<string, [string, string | Uint8Array]> = {
     '/': ['text/html', PAGE],
     '/node.js': ['text/javascript', code],
     '/fixture.wasm': ['application/wasm', wasm],
+    '/controller.js': ['text/javascript', controllerCode],
+    '/manifest.json': [
+      'application/json',
+      JSON.stringify(webManifest(webConfig)),
+    ],
+    '/parameters.js': [
+      'text/javascript',
+      renderParameterBehaviors(config.parameters),
+    ],
   };
   server = createServer((request, response) => {
     const file = files[request.url ?? ''];
@@ -447,4 +520,14 @@ describe('the Rust processor in an AudioWorklet', () => {
     ]);
     expect(result.output.flat().every((sample) => sample === 0)).toBe(true);
   });
+});
+
+it('transports real Rust controller publications through MessagePort into the AudioWorklet', async () => {
+  const lengths = await page.evaluate(() =>
+    (
+      window as unknown as { controllerResources(): Promise<number[]> }
+    ).controllerResources(),
+  );
+  expect(lengths).toContain(11);
+  expect(lengths.at(-1)).toBe(11);
 });

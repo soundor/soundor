@@ -50,11 +50,10 @@ setSolo(null);
   nothing is coerced; a mismatch is a `TypeError` naming the path
   (`centroid(): points[1].y: expected float64, got undefined`), a number out
   of range a `RangeError`. A native exception becomes an `Error`.
-- **Implemented** once per runtime: in C++ for the JUCE runtime
-  ([JUCE runtime](/docs/juce-runtime)), in `runtimes/web/src/native.ts` for the
-  web runtime ([web runtime](/docs/web-runtime)). `soundor gen` generates the
-  interface each must implement, so a method added to the config is a
-  compile error until it is.
+- **Implemented** once in Rust: `impl NativeMethods for PluginController`.
+  Both the JUCE and web runtimes execute that controller. The generated Rust
+  trait enforces every configured method at compile time. See the
+  [Rust controller](/docs/rust-controller).
 
 ## Events
 

@@ -3,10 +3,14 @@
 //! one here, typed as declared; the compiler checks every one of them
 //! against the generated `NativeMethods`.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::future::{Future, poll_fn};
+#[cfg(not(target_arch = "wasm32"))]
 use std::pin::pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(not(target_arch = "wasm32"))]
 use std::task::Poll;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
 use soundor::prelude::*;
@@ -38,6 +42,7 @@ impl Controller for PluginController {
 
 /// `future`'s output, unless `timeout` passes first: then `future` is
 /// dropped, cancelling what it was waiting for.
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn within<F: Future>(timeout: Duration, future: F) -> Option<F::Output> {
     let mut future = pin!(future);
     let mut timer = pin!(soundor::unblock(move || std::thread::sleep(timeout)));
@@ -81,7 +86,7 @@ impl NativeMethods for PluginController {
         }
     }
 
-    /// Computes a wavetable off the control thread, publishes it to the
+    /// Computes a bounded wavetable, publishes it to the
     /// processor (which plays it from its next block), then records its
     /// shape on the control thread: in the persistent state, where the UI,
     /// History and the saved session see it.
@@ -92,31 +97,15 @@ impl NativeMethods for PluginController {
     ) -> Result<u32, Error> {
         let size = size.clamp(16, 1 << 16);
         ctx.store.shared.loads.fetch_add(1, Ordering::Relaxed);
-        // Genuinely asynchronous: on a thread of its own, while the control
-        // thread goes on running the UI.
-        let table = soundor::unblock(move || crate::render(shape, size as usize)).await;
-        // Real-time safe: the audio thread takes it at its next block, and
-        // the table it replaces is freed off the audio thread.
+        // Native polls this future on its worker; the browser polls it on
+        // the main thread. Keep CPU work bounded: browsers execute cooperatively.
+        let table = crate::render(shape, size as usize);
         ctx.processor.resources().wavetable.publish(table);
-        // The control thread runs the update at its next opportunity. Should
-        // it not within a second, the update is dropped while queued: it is
-        // cancelled, and never runs.
-        let recorded = within(
-            Duration::from_secs(1),
-            ctx.schedule(move |ctx| {
-                ctx.state.shape.set(shape);
-                ctx.store.local.last_shape = Some(shape);
-            }),
-        )
-        .await;
-        match recorded {
-            Some(result) => result?,
-            None => {
-                return Err(Error::new(
-                    "the control thread did not record the table in time",
-                ));
-            }
-        }
+        ctx.schedule(move |ctx| {
+            ctx.state.shape.set(shape);
+            ctx.store.local.last_shape = Some(shape);
+        })
+        .await?;
         Ok(size)
     }
 }

@@ -59,37 +59,8 @@ export interface Preset {
 }
 
 /**
- * The plugin's native API (soundor:native), as runtimes/web/src/native.ts
- * implements it for the Web. A method added to soundor.config is missing
- * here until it is implemented.
- */
-export interface WebNativeApi {
-  add(a: number, b: number): number;
-  analyze(samples: Float32Array): Analysis;
-  applyPreset(preset: Preset): void;
-  echo(data: Uint8Array): Uint8Array;
-  echoBuffers(buffers: Buffers): Buffers;
-  echoFloat32(value: number): number;
-  echoInt64(value: bigint): bigint;
-  echoNumbers(numbers: Numbers): Numbers;
-  echoOptionals(optionals: Optionals): Optionals;
-  echoUint64(value: bigint): bigint;
-  echoUint8(value: number): number;
-  fail(): void;
-  failLater(): Promise<void>;
-  firstPoint(points: readonly Point[] | null): Point | null;
-  invert(on: boolean): boolean;
-  loadPreset(path: string): Promise<Preset | null>;
-  scale(values: readonly number[], factor: number): number[];
-  setCurve(curve: Curve): void;
-  setSolo(slot: number | null): void;
-  solo(): number | null;
-  sumWords(values: BigUint64Array | null): bigint | null;
-}
-
-/**
  * The plugin's native events (soundor:native `events`): publish one from
- * runtimes/web/src/native.ts, and the plugin UI's
+ * web host code, and the plugin UI's
  * subscribers receive it after the call returns, in the order published.
  * Each checks its value and returns whether the page took it (it holds 1024
  * undelivered events and drops newer ones).

@@ -47,7 +47,10 @@ impl Processor for Wavetable {
     }
 }
 
-soundor::export!(Wavetable);
+#[path = "support/controller.rs"]
+mod controller;
+use controller::PluginController;
+soundor::export!(Wavetable, PluginController);
 
 fn processor(size: usize) -> TestProcessor<Wavetable> {
     TestProcessor::new()

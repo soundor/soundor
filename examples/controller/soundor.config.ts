@@ -1,5 +1,6 @@
 import { defineSoundorConfig } from '@soundor/config';
 import { juceRuntime } from '@soundor/juce-runtime';
+import { webRuntime } from '@soundor/web-runtime';
 
 // A ring modulator whose controller is Rust (native/src/controller.rs): the
 // UI's native methods, a counter kept between calls, async methods that
@@ -24,8 +25,7 @@ export default defineSoundorConfig({
     defaultLayout: 'stereo',
   },
   editor: { width: 560, height: 420 },
-  // The Rust controller runs in the JUCE runtime.
-  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] })],
+  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] }), webRuntime()],
   parameters: {
     rate: {
       type: 'float32',

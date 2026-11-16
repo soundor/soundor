@@ -46,6 +46,12 @@ export type WorkletCommand =
   | { readonly type: 'parameters'; readonly values: readonly number[] }
   | { readonly type: 'transport'; readonly values: readonly number[] }
   | { readonly type: 'state'; readonly snapshot: Uint8Array }
+  | {
+      readonly type: 'resource';
+      readonly index: number;
+      readonly bytes: Uint8Array;
+    }
+  | { readonly type: 'dispose' }
   | { readonly type: 'reset' };
 
 declare const sampleRate: number;
@@ -64,6 +70,7 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
     declare processor: WasmProcessor | undefined;
     declare published: number;
     declare reported: boolean;
+    declare disposed: boolean;
     declare sinceStreams: number;
     declare streamEvery: number;
     declare ins: (Float32Array | undefined)[];
@@ -74,6 +81,7 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
       const settings = options.processorOptions;
       this.published = settings.contract.published;
       this.reported = false;
+      this.disposed = false;
       this.sinceStreams = 0;
       this.streamEvery = Math.max(128, Math.round(sampleRate / 60));
       this.ins = new Array(
@@ -109,6 +117,14 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
       this.port.onmessage = (event: MessageEvent<WorkletCommand>) => {
         const processor = this.processor;
         const command = event.data;
+        if (command.type === 'dispose') {
+          this.disposed = true;
+          processor?.destroy();
+          this.processor = undefined;
+          this.port.onmessage = null;
+          this.port.close();
+          return;
+        }
         if (processor === undefined) return;
         if (command.type === 'parameters')
           processor.parameters.set(command.values);
@@ -116,11 +132,14 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
           processor.transport.set(command.values);
         // Between render quanta: the next block reads it whole.
         else if (command.type === 'state') processor.setState(command.snapshot);
+        else if (command.type === 'resource')
+          processor.publishResource(command.index, command.bytes);
         else if (command.type === 'reset') processor.reset();
       };
     }
 
     process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+      if (this.disposed) return false;
       const processor = this.processor;
       const frames = outputs[0]?.[0]?.length ?? 128;
       if (processor === undefined) {

@@ -111,6 +111,8 @@ pub struct WasmHandle<P: Processor> {
     transport: [f64; TRANSPORT_SLOTS],
     mailbox: Mailbox,
     state: Box<StateSnapshot>,
+    #[cfg(target_arch = "wasm32")]
+    resource_input: Vec<u8>,
 }
 
 impl<P: Processor> WasmHandle<P> {
@@ -135,6 +137,8 @@ impl<P: Processor> WasmHandle<P> {
             transport: [f64::NAN, f64::NAN, f64::NAN, 0.0, 0.0, 0.0],
             mailbox: Mailbox::new(),
             state: StateSnapshot::boxed_defaults(),
+            #[cfg(target_arch = "wasm32")]
+            resource_input: Vec::new(),
         }
     }
 
@@ -277,6 +281,24 @@ impl<P: Processor> WasmHandle<P> {
         status
     }
 
+    #[cfg(target_arch = "wasm32")]
+    #[doc(hidden)]
+    pub fn resource_input(&mut self, length: usize) -> *mut u8 {
+        self.resource_input.resize(length, 0);
+        self.resource_input.as_mut_ptr()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[doc(hidden)]
+    pub fn publish_resource(&self, index: u32) -> i32 {
+        let slots = self.instance.resource_slots();
+        if slots.publish_wire(index, &self.resource_input).is_err() {
+            return 1;
+        }
+        slots.collect();
+        0
+    }
+
     /// Resets the processor.
     pub fn reset(&mut self) -> Status {
         self.instance.reset()
@@ -356,7 +378,10 @@ macro_rules! __export_wasm {
                 ::std::boxed::Box::into_raw(::std::boxed::Box::new(__Handle::new()))
             }
             #[unsafe(no_mangle)]
-            pub extern "C" fn soundor_wasm_destroy(pointer: *mut __Handle) {
+            /// # Safety
+            /// `pointer` is null or a live, uniquely owned handle returned
+            /// by `soundor_wasm_create`, and is never used afterwards.
+            pub unsafe extern "C" fn soundor_wasm_destroy(pointer: *mut __Handle) {
                 if !pointer.is_null() {
                     // SAFETY: as `handle`, and never used again.
                     drop(unsafe { ::std::boxed::Box::from_raw(pointer) });
@@ -403,6 +428,21 @@ macro_rules! __export_wasm {
                 handle(pointer).process(frames) as i32
             }
             #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_resource_input(
+                pointer: *mut __Handle,
+                length: usize,
+            ) -> *mut u8 {
+                handle(pointer).resource_input(length)
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_resource_publish(
+                pointer: *mut __Handle,
+                index: u32,
+            ) -> i32 {
+                let h = handle(pointer);
+                h.publish_resource(index)
+            }
+            #[unsafe(no_mangle)]
             pub extern "C" fn soundor_wasm_reset(pointer: *mut __Handle) -> i32 {
                 handle(pointer).reset() as i32
             }
@@ -428,6 +468,92 @@ macro_rules! __export_wasm {
                 index: u32,
             ) -> *const u8 {
                 handle(pointer).stream_buffer(index)
+            }
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __export_wasm_controller {
+    ($controller:ty) => {
+        #[cfg(target_arch = "wasm32")]
+        #[doc(hidden)]
+        pub mod __soundor_wasm_controller {
+            use super::*;
+            type Handle = $crate::wasm_controller::Handle<$controller>;
+            fn handle<'a>(pointer: *mut Handle) -> &'a mut Handle {
+                // SAFETY: the browser owns this handle until destroy; calls are serialized.
+                unsafe { &mut *pointer }
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_descriptor() -> *const u8 {
+                $crate::wasm_controller::descriptor().as_ptr()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_descriptor_size() -> usize {
+                $crate::wasm_controller::descriptor().len()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_instance_descriptor() -> *const u8 {
+                $crate::wasm_controller::instance_descriptor().as_ptr()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_instance_descriptor_size() -> usize {
+                $crate::wasm_controller::instance_descriptor().len()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_create() -> *mut Handle {
+                Box::into_raw(Box::new(Handle::default()))
+            }
+            #[unsafe(no_mangle)]
+            /// # Safety
+            /// `pointer` is null or a live, uniquely owned handle returned
+            /// by `soundor_web_controller_create`, and is never used afterwards.
+            pub unsafe extern "C" fn soundor_web_controller_destroy(pointer: *mut Handle) {
+                if !pointer.is_null() {
+                    // SAFETY: the browser relinquishes its unique ownership.
+                    drop(unsafe { Box::from_raw(pointer) });
+                }
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_input(
+                pointer: *mut Handle,
+                length: usize,
+            ) -> *mut u8 {
+                handle(pointer).input(length)
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_output(pointer: *mut Handle) -> *const u8 {
+                handle(pointer).output()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_output_size(pointer: *mut Handle) -> usize {
+                handle(pointer).length()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_call(
+                pointer: *mut Handle,
+                method: u32,
+                operation: u32,
+            ) -> i32 {
+                handle(pointer).call(method, operation)
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_run(pointer: *mut Handle) -> i32 {
+                handle(pointer).run()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_operation(pointer: *mut Handle) -> u32 {
+                handle(pointer).operation()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_cancel(pointer: *mut Handle, operation: u32) {
+                handle(pointer).cancel(operation);
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_resources(pointer: *mut Handle) {
+                handle(pointer).resources();
             }
         }
     };

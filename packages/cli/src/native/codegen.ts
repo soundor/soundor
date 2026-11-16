@@ -13,9 +13,11 @@ import {
   type ResolvedSoundorConfig,
 } from '@soundor/config';
 import {
+  byteLiterals,
   describeAudioState,
   describeNativeApi,
   describeState,
+  stateJson,
   type AudioStateElement,
   type AudioStateLayout,
   type NativeResourceModel,
@@ -185,7 +187,7 @@ export function renderPluginRs(config: ResolvedSoundorConfig): string {
     renderPublish(published),
     renderStreams(streams),
     renderState(state),
-    renderResources(resources),
+    renderResources(resources, config),
     renderLayouts(config),
     renderControllerRs(config, native.model, stateSchema, RUST_NAMES),
   ].join('\n');
@@ -492,10 +494,29 @@ ${offsets.join('\n')}
 `;
 }
 
-function renderResources(resources: readonly NativeResourceModel[]): string {
+function renderResources(
+  resources: readonly NativeResourceModel[],
+  config: ResolvedSoundorConfig,
+): string {
   const each = (render: (resource: NativeResourceModel) => string) =>
     resources.map(render).join('\n');
-  return `/// The config's audio resources (\`native.resources\`): each one's handoff
+  const webContract = new TextEncoder().encode(
+    stateJson([
+      resources.map((r) => [r.name, r.element]),
+      config.parameters.map((p) => [p.id, p.type, p.access]),
+      [config.plugin.id, config.plugin.name],
+      config.presets ?? [],
+      describeState(config.state, config.native),
+    ]),
+  );
+  return `/// The browser instance contract beyond native method dispatch:
+/// resource slots, parameter identities, metadata, presets and state defaults.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_INSTANCE_DESCRIPTOR: &[u8] = &[
+${byteLiterals(webContract, '    ')}
+];
+
+/// The config's audio resources (\`native.resources\`): each one's handoff
 /// between its publishers and the audio thread.
 #[derive(Default)]
 pub(crate) struct ResourceSlots {
@@ -503,6 +524,43 @@ ${each((r) => `    pub ${rustField(r.name)}: ResourceSlot<Box<[${RUST_NUMBERS[r.
 }
 
 impl ResourceSlots {
+    /// Drains controller publications for the browser's MessagePort transport.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_publications(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+${resources
+  .map(
+    (
+      r,
+      index,
+    ) => `        if let Some(value) = self.${rustField(r.name)}.take_pending() {
+            crate::wire::Wire::encode(&${index}u32, &mut out);
+            crate::wire::Wire::encode(&value.into_vec(), &mut out);
+        }`,
+  )
+  .join('\n')}
+        out
+    }
+
+    /// Accepts a publication between worklet render quanta; never in process().
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn publish_wire(&self, index: u32, bytes: &[u8]) -> Result<(), crate::wire::WireError> {
+        let mut input = crate::wire::Reader::new(bytes);
+        match index {
+${resources
+  .map(
+    (r, index) => `            ${index} => {
+                let values = <Vec<${RUST_NUMBERS[r.element]}> as crate::wire::Wire>::decode(&mut input)?;
+                input.finish()?;
+                self.${rustField(r.name)}.publish(values.into_boxed_slice());
+                Ok(())
+            }`,
+  )
+  .join('\n')}
+            _ => Err(crate::wire::WireError("unknown audio resource")),
+        }
+    }
+
     /// On the audio thread, at a block's start: takes each resource's
     /// latest publication.
     ///

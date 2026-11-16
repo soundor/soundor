@@ -27,6 +27,11 @@ export interface WebProcessorSource {
   /** Publishes stream `index`'s value, as the processing published it. */
   readonly publishStream: (index: number, value: unknown) => void;
   /** The state the processing reads (`audio: true`); none by default. */
+  readonly resources?: {
+    subscribeResources(
+      listener: (index: number, bytes: Uint8Array) => void,
+    ): () => void;
+  };
   readonly state?: WebProcessorState;
 }
 
@@ -435,6 +440,12 @@ export class WebAudioHost {
           .filter((parameter) => parameter.info.access !== 'readOnly')
           .map((parameter) =>
             parameter.subscribe(() => processor.setParameters(plain())),
+          );
+        if (source.resources !== undefined)
+          unsubscribe.push(
+            source.resources.subscribeResources((index, bytes) =>
+              processor.publishResource(index, bytes),
+            ),
           );
         // Any that moved while it loaded.
         processor.setParameters(plain());

@@ -50,6 +50,7 @@
     "primitives": "workspace:*",
     "rolldown": "catalog:",
     "snippets": "workspace:*",
+    "soundor": "workspace:^",
     "sucrase": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

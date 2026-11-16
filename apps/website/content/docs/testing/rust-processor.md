@@ -5,7 +5,7 @@ description: 'Test real audio, lifecycle, the C ABI, allocations and parity betw
 
 The `soundor` SDK includes a pure-Rust test harness. It runs your actual
 processor without JUCE, a browser, or the rendering engine. `init` creates a
-processor integration test alongside `native/src/lib.rs`.
+processor integration test alongside `native/src/processor.rs`.
 
 ## Run the crate
 
@@ -25,7 +25,7 @@ no compilation in npm `postinstall`.
 
 ## Audio and lifecycle
 
-In a unit test in `native/src/lib.rs`, for a processor with a `gain` parameter:
+In a unit test in `native/src/processor.rs`, for a processor with a `gain` parameter:
 
 ```rust
 #[cfg(test)]

@@ -63,4 +63,7 @@ impl Processor for PluginProcessor {
     }
 }
 
-soundor::export!(PluginProcessor);
+#[path = "../../../../../../../packages/cli/rust/soundor/tests/support/controller.rs"]
+mod controller;
+use controller::PluginController;
+soundor::export!(PluginProcessor, PluginController);

@@ -2,7 +2,7 @@
  * `@soundor/web-runtime` — runs a Soundor plugin in the browser.
  *
  * The plugin contract generated from soundor.config is implemented with
- * TypeScript and browser APIs instead of C++ and JUCE. `init` scaffolds a
+ * browser services and the same Rust controller/processor through WASM. `init` scaffolds a
  * user-owned Web host project under `runtimes/web/`, `gen` emits the project's
  * manifest, and `dev` and `build` run Vite programmatically on that project.
  * The plugin UI is the bundle the CLI builds (`ctx.ui`), which the host loads
@@ -28,7 +28,7 @@ import {
   type Logger as ViteLogger,
 } from 'vite';
 
-import { generateWebSources, nativeModel } from './codegen';
+import { generateWebSources } from './codegen';
 import { buildWebDoctorReport } from './doctor';
 import { resolveWebOptions, type WebOptions } from './options';
 import { PROCESSOR_MODULE, soundorWebPlugin } from './plugin';
@@ -69,17 +69,9 @@ export async function webInit(
   const generatedPath = relative(scaffoldDir, join(ctx.paths.gen, '..', '..'))
     .split(sep)
     .join('/');
-  const nativeContractPath = relative(
-    join(scaffoldDir, 'src'),
-    join(ctx.paths.gen, 'native'),
-  )
-    .split(sep)
-    .join('/');
   const files = webScaffoldFiles(RUNTIME_ID, {
     pluginName: config.plugin.name,
     generatedPath,
-    nativeContractPath,
-    nativeMethods: nativeModel(config).methods,
   });
 
   for (const file of files) {

@@ -1,4 +1,6 @@
-//! What polls a controller's async native methods: one worker thread per
+//! What polls a controller's async native methods. Browsers pump bounded
+//! turns through a wake-driven event-loop adapter, retaining Send futures.
+//! Natively, one worker thread per
 //! plugin instance, started by its first async call, that polls each task
 //! whenever it is woken. Futures are lazy, so something has to; this is
 //! that, and no more: no timers, no I/O reactor. Blocking work belongs in
@@ -12,9 +14,14 @@ use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::Condvar;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
-use std::task::{Context, Poll, Wake, Waker};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
+#[cfg(not(target_arch = "wasm32"))]
+use std::task::Poll;
+use std::task::{Context, Wake, Waker};
+#[cfg(not(target_arch = "wasm32"))]
 use std::thread::JoinHandle;
 
 /// A task's future, type-erased.
@@ -46,7 +53,11 @@ impl Task {
             return;
         }
         state.ready.push_back(self.clone());
+        drop(state);
+        #[cfg(not(target_arch = "wasm32"))]
         executor.ready.notify_one();
+        #[cfg(target_arch = "wasm32")]
+        executor.wake.wake();
     }
 }
 
@@ -69,20 +80,47 @@ struct State {
     shutdown: bool,
 }
 
-#[derive(Default)]
 struct Shared {
     state: Mutex<State>,
+    #[cfg(not(target_arch = "wasm32"))]
     ready: Condvar,
+    #[cfg(target_arch = "wasm32")]
+    wake: crate::host::Wake,
 }
 
 /// One plugin instance's worker.
-#[derive(Default)]
 pub(crate) struct Executor {
     shared: Arc<Shared>,
+    #[cfg(not(target_arch = "wasm32"))]
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Executor {
+    pub fn new(_wake: crate::host::Wake) -> Self {
+        Self {
+            shared: Arc::new(Shared {
+                state: Mutex::default(),
+                #[cfg(not(target_arch = "wasm32"))]
+                ready: Condvar::new(),
+                #[cfg(target_arch = "wasm32")]
+                wake: _wake,
+            }),
+            #[cfg(not(target_arch = "wasm32"))]
+            worker: Mutex::default(),
+        }
+    }
+
+    /// One browser event-loop turn. Futures and control callbacks are
+    /// pumped separately, so neither interrupts the other's call.
+    #[cfg(target_arch = "wasm32")]
+    pub fn poll_one(&self) -> bool {
+        let Some(task) = lock(&self.shared.state).ready.pop_front() else {
+            return false;
+        };
+        poll_task(&self.shared, task);
+        true
+    }
+
     /// Starts polling `future`; `None` once shut down.
     pub fn spawn(&self, future: TaskFuture) -> Option<Arc<Task>> {
         let task = {
@@ -101,6 +139,7 @@ impl Executor {
             state.live.insert(task.id, task.clone());
             task
         };
+        #[cfg(not(target_arch = "wasm32"))]
         {
             let mut worker = lock(&self.worker);
             if worker.is_none() {
@@ -125,25 +164,39 @@ impl Executor {
     /// poll, or after the poll running now.
     pub fn cancel(&self, task: &Arc<Task>) {
         task.cancelled.store(true, Ordering::Release);
+        #[cfg(not(target_arch = "wasm32"))]
         task.schedule();
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Browser calls are serialized, so no poll is running. Drop
+            // now to cancel a queued Schedule before its control turn.
+            let future = lock(&task.future).take();
+            drop(future);
+            lock(&self.shared.state).live.remove(&task.id);
+        }
     }
 
     /// Drops every task's future on the worker, and waits for it to end.
     /// Afterwards nothing is polled again, and spawning fails.
     pub fn shutdown(&self) {
         lock(&self.shared.state).shutdown = true;
-        self.shared.ready.notify_all();
-        let worker = lock(&self.worker).take();
-        match worker {
-            Some(worker) => {
-                if worker.thread().id() == std::thread::current().id() {
-                    // Shut down from a task's own poll (a controller dropped
-                    // by its last task): the worker finishes on its own.
-                    return;
+        #[cfg(target_arch = "wasm32")]
+        drop_all(&self.shared);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.shared.ready.notify_all();
+            let worker = lock(&self.worker).take();
+            match worker {
+                Some(worker) => {
+                    if worker.thread().id() == std::thread::current().id() {
+                        // Shut down from a task's own poll (a controller dropped
+                        // by its last task): the worker finishes on its own.
+                        return;
+                    }
+                    let _ = worker.join();
                 }
-                let _ = worker.join();
+                None => drop_all(&self.shared),
             }
-            None => drop_all(&self.shared),
         }
     }
 }
@@ -161,6 +214,7 @@ fn drop_all(shared: &Shared) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn run(shared: &Arc<Shared>) {
     loop {
         let task = {
@@ -180,26 +234,30 @@ fn run(shared: &Arc<Shared>) {
                     .unwrap_or_else(|poison| poison.into_inner());
             }
         };
-        task.queued.store(false, Ordering::Release);
-        let mut slot = lock(&task.future);
-        let finished = if task.cancelled.load(Ordering::Acquire) {
-            true
-        } else if let Some(future) = slot.as_mut() {
-            let waker = Waker::from(task.clone());
-            let mut context = Context::from_waker(&waker);
-            // The futures the controller spawns catch their own panics; a
-            // panic here is the executor's own, and ends the task.
-            catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(&mut context)))
-                .map_or(true, |poll| poll.is_ready())
-        } else {
-            false
-        };
-        if finished {
-            let future = slot.take();
-            drop(slot);
-            let _ = catch_unwind(AssertUnwindSafe(move || drop(future)));
-            lock(&shared.state).live.remove(&task.id);
-        }
+        poll_task(shared, task);
+    }
+}
+
+fn poll_task(shared: &Arc<Shared>, task: Arc<Task>) {
+    task.queued.store(false, Ordering::Release);
+    let mut slot = lock(&task.future);
+    let finished = if task.cancelled.load(Ordering::Acquire) {
+        true
+    } else if let Some(future) = slot.as_mut() {
+        let waker = Waker::from(task.clone());
+        let mut context = Context::from_waker(&waker);
+        // The futures the controller spawns catch their own panics; a
+        // panic here is the executor's own, and ends the task.
+        catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(&mut context)))
+            .map_or(true, |poll| poll.is_ready())
+    } else {
+        false
+    };
+    if finished {
+        let future = slot.take();
+        drop(slot);
+        let _ = catch_unwind(AssertUnwindSafe(move || drop(future)));
+        lock(&shared.state).live.remove(&task.id);
     }
 }
 
@@ -216,6 +274,7 @@ fn run(shared: &Arc<Shared>) {
 /// let text = soundor::unblock(|| std::fs::read_to_string("preset.json")).await?;
 /// # Ok(()) }
 /// ```
+#[cfg(not(target_arch = "wasm32"))]
 pub fn unblock<R, F>(work: F) -> Unblock<R>
 where
     F: FnOnce() -> R + Send + 'static,
@@ -242,8 +301,10 @@ where
     Unblock { slot }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 type Outcome<R> = std::thread::Result<R>;
 
+#[cfg(not(target_arch = "wasm32"))]
 enum UnblockState<R> {
     Waiting(Option<Waker>),
     Done(Outcome<R>),
@@ -252,10 +313,12 @@ enum UnblockState<R> {
 
 /// What [`unblock`] returns.
 #[must_use = "futures do nothing unless awaited"]
+#[cfg(not(target_arch = "wasm32"))]
 pub struct Unblock<R> {
     slot: Arc<Mutex<UnblockState<R>>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<R> Future for Unblock<R> {
     type Output = R;
 
