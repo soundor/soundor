@@ -6,6 +6,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -21,7 +22,10 @@ import {
 } from '@soundor/runtime-sdk';
 
 const packageDir = fileURLToPath(new URL('../', import.meta.url));
-const root = await mkdtemp(join(tmpdir(), 'soundor-packed-juce-'));
+// Node resolves module paths through symlinks (macOS /var is /private/var).
+const root = await realpath(
+  await mkdtemp(join(tmpdir(), 'soundor-packed-juce-')),
+);
 try {
   const pnpm = process.env.npm_execpath;
   assert.ok(
