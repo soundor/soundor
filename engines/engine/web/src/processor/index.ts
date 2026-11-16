@@ -11,8 +11,8 @@ export {
   WASM_ABI_VERSION,
   WASM_STATUS,
   WasmProcessor,
-  type WasmChannel,
-  type WasmChannelChange,
+  type WasmStream,
+  type WasmStreamChange,
   type WasmContract,
 } from './wasm-processor.ts';
 export {

@@ -10,7 +10,7 @@
  */
 
 import {
-  nativeTsChannelType,
+  nativeTsStreamType,
   nativeTsType,
   type NativeApiModel,
 } from '@soundor/runtime-sdk';
@@ -34,7 +34,7 @@ export function renderWebNative(model: NativeApiModel): string {
       ? 'export type WebNativeApi = Record<never, never>;\n'
       : `export interface WebNativeApi {\n${methods.join('\n')}\n}\n`;
   const publishers = [
-    ...(model.channels.length > 0 ? ['nativeChannelPublishers'] : []),
+    ...(model.streams.length > 0 ? ['nativeStreamPublishers'] : []),
     ...(model.events.length > 0 ? ['nativeEventPublishers'] : []),
   ];
   // As oxfmt formats them: the project may format its generated files.
@@ -49,33 +49,33 @@ export function renderWebNative(model: NativeApiModel): string {
  * implements it for the Web. A method added to soundor.config is missing
  * here until it is implemented.
  */
-${api}${model.events.length > 0 ? `\n${renderEvents(model.events)}` : ''}${model.channels.length > 0 ? `\n${renderChannels(model.channels)}` : ''}`;
+${api}${model.events.length > 0 ? `\n${renderEvents(model.events)}` : ''}${model.streams.length > 0 ? `\n${renderStreams(model.streams)}` : ''}`;
 }
 
 /**
- * The publishers of the declared channels, for the project's runtimes/web
- * code: the Web counterpart of the C++ \`native::Channels\`.
+ * The publishers of the declared streams, for the project's runtimes/web
+ * code: the Web counterpart of the C++ \`native::Streams\`.
  */
-function renderChannels(channels: NativeApiModel['channels']): string {
-  const members = channels.map((channel) => {
-    const type = nativeTsChannelType(channel);
-    return channel.kind === 'buffer'
-      ? `  /** At most ${channel.maxLength} elements; false, publishing nothing, for more. */
-  readonly ${channel.name}: { publish(value: ${type}): boolean };`
-      : `  readonly ${channel.name}: { publish(value: ${type}): void };`;
+function renderStreams(streams: NativeApiModel['streams']): string {
+  const members = streams.map((stream) => {
+    const type = nativeTsStreamType(stream);
+    return stream.kind === 'buffer'
+      ? `  /** At most ${stream.maxLength} elements; false, publishing nothing, for more. */
+  readonly ${stream.name}: { publish(value: ${type}): boolean };`
+      : `  readonly ${stream.name}: { publish(value: ${type}): void };`;
   });
   return `/**
- * The plugin's native channels (soundor:native \`channels\`): publish their
+ * The plugin's native streams (soundor:native \`streams\`): publish their
  * latest values from the project's runtimes/web code (an AnalyserNode read
  * every frame, a meter), and the plugin UI receives the newest once a frame.
  * A value replaces one not yet delivered; a buffer is copied.
  */
-export interface WebNativeChannels {
+export interface WebNativeStreams {
 ${members.join('\n')}
 }
 
-export const channels =
-  nativeChannelPublishers() as unknown as WebNativeChannels;
+export const streams =
+  nativeStreamPublishers() as unknown as WebNativeStreams;
 `;
 }
 

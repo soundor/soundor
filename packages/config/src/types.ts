@@ -106,7 +106,7 @@ export type {
 
 export type {
   NativeApiDeclaration,
-  NativeChannelDeclaration,
+  NativeStreamDeclaration,
   NativeEventDeclaration,
   NativeMethodDeclaration,
   NativeTypeDeclaration,

@@ -1,10 +1,10 @@
-// soundor_channel_benchmark: what latest-value channels (js/Channels.h) cost,
+// soundor_stream_benchmark: what latest-value streams (js/Streams.h) cost,
 // between a producer thread publishing at a fixed rate, as an audio callback
 // does, and a UI thread ticking at 60 Hz and delivering to a JavaScript
 // subscriber, as RuntimeHost::tick does.
 //
-//   soundor_channel_benchmark            every scenario, 2 s each
-//   soundor_channel_benchmark --quick    every scenario, briefly (ctest)
+//   soundor_stream_benchmark            every scenario, 2 s each
+//   soundor_stream_benchmark --quick    every scenario, briefly (ctest)
 //
 // For each producer rate, value size and UI speed it reports what publishing
 // costs (writing the value included) and whether it allocated (it must not),
@@ -12,14 +12,14 @@
 // subscriber that reads its first and last element), the latency from a
 // publication to its subscriber, and how many values were delivered and
 // coalesced. It fails if a publication allocated or a value arrived torn
-// (tests/native/NativeChannelsTests.cpp checks every element).
+// (tests/native/NativeStreamsTests.cpp checks every element).
 
 #include "js/Bindings.h"
 #include "js/Internal.h"
 
-#include <soundor/js/Channels.h>
 #include <soundor/js/Context.h>
 #include <soundor/js/Runtime.h>
+#include <soundor/js/Streams.h>
 
 #include <algorithm>
 #include <array>
@@ -121,18 +121,18 @@ void operator delete[](void* memory, const std::nothrow_t&) noexcept
 
 namespace
 {
-    // ── A module of one channel, as generated code installs it ───────────────
+    // ── A module of one stream, as generated code installs it ───────────────
 
-    const char channelsKey = 0;
-    constexpr std::array<const char*, 1> channelNames { "value" };
+    const char streamsKey = 0;
+    constexpr std::array<const char*, 1> streamNames { "value" };
 
-    void install(js::Context& context, const js::Channel& channel)
+    void install(js::Context& context, const js::Stream& stream)
     {
-        bind::connectChannels(context, { channel.core() }, &channelsKey);
+        bind::connectStreams(context, { stream.core() }, &streamsKey);
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](bind::ContextState& ctx, jsi::Object& exports)
-                                     { bind::installChannels(ctx, exports, channelNames, &channelsKey); },
+                                     { bind::installStreams(ctx, exports, streamNames, &streamsKey); },
                                      {},
                                      {},
                                  });
@@ -143,7 +143,7 @@ namespace
     struct Scenario
     {
         double rate = 60;        // publications a second
-        std::size_t length = 0;  // 0: one number (a ValueChannel)
+        std::size_t length = 0;  // 0: one number (a ValueStream)
         double uiRate = 60;      // ticks a second
         double subscriberMs = 0; // what the subscriber spends on a value
     };
@@ -174,16 +174,16 @@ namespace
     // commits, read by the UI after taking that value.
     constexpr std::size_t maxPublications = 1 << 16;
 
-    template <typename Channel>
-    Result run(const Scenario& scenario, Channel& channel, double seconds)
+    template <typename Stream>
+    Result run(const Scenario& scenario, Stream& stream, double seconds)
     {
         js::Runtime runtime;
         js::Context context(runtime);
-        install(context, channel);
+        install(context, stream);
         const std::string check = scenario.length == 0 ? "if (typeof value !== 'number') ++globalThis.torn;"
                                                        : "if (value[0] !== value[value.length - 1]) ++globalThis.torn;";
-        const std::string body = "const { channels } = require('soundor:native'); globalThis.torn = 0;"
-                                 "channels.value.subscribe((value) => {"
+        const std::string body = "const { streams } = require('soundor:native'); globalThis.torn = 0;"
+                                 "streams.value.subscribe((value) => {"
                                  + check + "const until = Date.now() + " + std::to_string(scenario.subscriberMs)
                                  + "; while (Date.now() < until) {} });";
         const auto evaluated = context.evaluateModule("(function (exports, require) {" + body + "})", "/ui.js");
@@ -209,14 +209,14 @@ namespace
                     const auto start = Clock::now();
                     committedAt->at(number).store(start.time_since_epoch().count(), std::memory_order_relaxed);
                     countAllocations = true;
-                    if constexpr (requires { channel.buffer(); })
+                    if constexpr (requires { stream.buffer(); })
                     {
-                        const std::span<float> slot = channel.buffer();
+                        const std::span<float> slot = stream.buffer();
                         std::fill_n(slot.begin(), scenario.length, static_cast<float>(number));
-                        channel.commit(scenario.length);
+                        stream.commit(scenario.length);
                     }
                     else
-                        channel.publish(static_cast<float>(number));
+                        stream.publish(static_cast<float>(number));
                     countAllocations = false;
                     publishTimes.push_back(std::chrono::duration<double, std::nano>(Clock::now() - start).count());
                     next += std::chrono::duration_cast<Clock::duration>(period);
@@ -234,11 +234,11 @@ namespace
         const auto tick =
             std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / scenario.uiRate));
         auto nextTick = Clock::now();
-        const auto core = channel.core();
+        const auto core = stream.core();
         while (Clock::now() < end)
         {
             const auto start = Clock::now();
-            const std::size_t delivered = js::deliverChannels(context);
+            const std::size_t delivered = js::deliverStreams(context);
             const auto done = Clock::now();
             if (delivered > 0)
             {
@@ -255,7 +255,7 @@ namespace
         stop.store(true);
         producer.join();
 
-        result.published = channel.statistics().published;
+        result.published = stream.statistics().published;
         result.allocations = allocations.load();
         result.torn = static_cast<std::uint64_t>(context.evaluateScript("globalThis.torn").value().asNumber());
         if (! publishTimes.empty())
@@ -308,13 +308,13 @@ try
         Result result;
         if (scenario.length == 0)
         {
-            js::ValueChannel<float> channel;
-            result = run(scenario, channel, seconds);
+            js::ValueStream<float> stream;
+            result = run(scenario, stream, seconds);
         }
         else
         {
-            js::BufferChannel<float> channel(scenario.length);
-            result = run(scenario, channel, seconds);
+            js::BufferStream<float> stream(scenario.length);
+            result = run(scenario, stream, seconds);
         }
         std::printf("%-55s %10llu %10llu %9llu %9.0f %8.0f %10.1f %10.2f %10.2f %6llu\n", describe(scenario).c_str(),
                     static_cast<unsigned long long>(result.published),

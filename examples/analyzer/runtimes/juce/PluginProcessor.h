@@ -7,7 +7,7 @@
 // The analyzer's processor: its buses and its editor. The analysis is the
 // Rust crate in native/, which soundor::AudioProcessor runs, and which
 // publishes the spectrum and peak to the UI through the config's native
-// channels.
+// streams.
 class SoundorAnalyzerProcessor final : public soundor::AudioProcessor
 {
 public:

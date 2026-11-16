@@ -33,9 +33,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
             return;
         }
         if (info.parameterCount != contract.parameters || info.publishedCount != contract.published
-            || info.channelCount != contract.channels)
+            || info.streamCount != contract.streams)
         {
-            problem = "The plugin's Rust processor was built from another soundor.config (its parameters or channels "
+            problem = "The plugin's Rust processor was built from another soundor.config (its parameters or streams "
                       "differ): rebuild it with soundor build.";
             return;
         }
@@ -123,7 +123,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
 
     std::int32_t RustProcessor::process(std::span<float* const> channels, int frames,
                                         std::span<const double> parameters, std::span<double> published,
-                                        const SoundorTransport& transport, const SoundorChannelSink* sink) noexcept
+                                        const SoundorTransport& transport, const SoundorStreamSink* sink) noexcept
     {
         std::fill(published.begin(), published.end(), unknown);
         frames = std::max(0, frames);
@@ -173,7 +173,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
                 .publishedCount = static_cast<std::uint32_t>(chunkPublished.size()),
                 .published = chunkPublished.data(),
                 .transport = &transport,
-                .channels = sink,
+                .streams = sink,
             };
             result = abi.process(handle, &block);
             if (result != SOUNDOR_STATUS_OK)

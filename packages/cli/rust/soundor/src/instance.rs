@@ -7,10 +7,10 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::audio::Audio;
-use crate::channels::ChannelSink;
 use crate::context::{ActiveLayout, PrepareContext, ProcessContext};
-use crate::plugin::{Channels, PUBLISHED, Parameters, Publish};
+use crate::plugin::{PUBLISHED, Parameters, Publish, Streams};
 use crate::processor::AudioProcessor;
+use crate::streams::StreamSink;
 use crate::transport::Transport;
 
 /// The most buses, channels per bus, and frames per block a runtime may
@@ -56,7 +56,7 @@ pub(crate) struct Block<'a> {
     /// `None` keeps the last block's.
     pub parameters: Option<&'a [f64]>,
     pub transport: Transport,
-    pub channels: &'a dyn ChannelSink,
+    pub streams: &'a dyn StreamSink,
 }
 
 pub(crate) struct Instance<P: AudioProcessor> {
@@ -252,7 +252,7 @@ impl<P: AudioProcessor> Instance<P> {
                 publish: Publish {
                     slots: &mut self.published,
                 },
-                channels: Channels::new(block.channels),
+                streams: Streams::new(block.streams),
                 sample_rate: self.sample_rate,
             };
             let processor = &mut self.processor;

@@ -117,10 +117,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // receives them on its UI thread.
         native::Events nativeEvents;
 
-        // The config's native channels (`channels` of soundor:native): the
-        // Rust processing publishes their latest values (`ctx.channels`),
+        // The config's native streams (`streams` of soundor:native): the
+        // Rust processing publishes their latest values (`ctx.streams`),
         // and every open editor reads the newest.
-        native::Channels nativeChannels;
+        native::Streams nativeStreams;
 
     protected:
         // Called on the message thread after a complete accepted host restoration.
@@ -157,7 +157,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;
         std::vector<double> publishedValues;
-        SoundorChannelSink channelSink {};
+        SoundorStreamSink streamSink {};
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };

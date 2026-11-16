@@ -49,7 +49,7 @@
     },
     {
       "name": "bench",
-      "displayName": "Release build of soundor_run_ui and soundor_channel_benchmark, for benchmarks",
+      "displayName": "Release build of soundor_run_ui and soundor_stream_benchmark, for benchmarks",
       "binaryDir": "${sourceDir}/build/bench",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -196,7 +196,7 @@
       "name": "bench",
       "configurePreset": "bench",
       "configuration": "Release",
-      "targets": ["soundor_run_ui", "soundor_channel_benchmark"]
+      "targets": ["soundor_run_ui", "soundor_stream_benchmark"]
     },
     {
       "name": "prebuilt-debug",

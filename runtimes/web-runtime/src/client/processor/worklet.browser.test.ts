@@ -10,7 +10,7 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildFixture, channels, contract, parameters } from './fixture/build';
+import { buildFixture, contract, parameters, streams } from './fixture/build';
 
 /** What the page's `render` takes. */
 interface Render {
@@ -34,7 +34,7 @@ interface Rendered {
   readonly ready: true | string;
   readonly output: number[][];
   readonly published: number[][];
-  readonly channels: [number, number | number[]][][];
+  readonly streams: [number, number | number[]][][];
   readonly errors: string[];
 }
 
@@ -50,18 +50,18 @@ const PAGE = `<!doctype html>
       length: options.frames,
       sampleRate: RATE,
     });
-    const result = { published: [], channels: [], errors: [] };
+    const result = { published: [], streams: [], errors: [] };
     const processor = await createProcessorNode(context, {
       wasm,
       contract: options.contract,
       inputs: options.inputs,
       outputs: options.outputs,
-      channels: options.channels,
+      streams: options.streams,
       parameters: options.parameters,
       maxFrames: 128,
       onPublished: (values) => result.published.push([...values]),
-      onChannels: (changes) =>
-        result.channels.push(
+      onStreams: (changes) =>
+        result.streams.push(
           changes.map(([index, value]) => [
             index,
             typeof value === 'number' ? value : [...value],
@@ -128,7 +128,7 @@ const PAGE = `<!doctype html>
         contract: options.contract,
         inputs: [1, 0],
         outputs: [1],
-        channels: options.channels,
+        streams: options.streams,
         parameters,
         maxFrames: 128,
         onError: (message) => errors.push(message),
@@ -230,7 +230,7 @@ async function render(options: Render): Promise<Rendered> {
     {
       ...options,
       contract: options.contract ?? contract,
-      channels,
+      streams,
       parameters: parameters(options.gain),
       change:
         options.change === undefined
@@ -300,13 +300,13 @@ describe('the Rust processor in an AudioWorklet', () => {
     );
   });
 
-  it('posts what the processing publishes: read-only parameters and channels', async () => {
+  it('posts what the processing publishes: read-only parameters and streams', async () => {
     const result = await render({
       gain: 0.75,
       inputs: [2, 0],
       outputs: [2],
       frames: 4800,
-      // The first render quantum's end, before the first channels go.
+      // The first render quantum's end, before the first streams go.
       change: { at: 128 / 48_000, tempo: 96 },
     });
     expect(result.published.length).toBeGreaterThan(0);
@@ -316,14 +316,14 @@ describe('the Rust processor in an AudioWorklet', () => {
       expect(peak).toBeLessThanOrEqual(20 * Math.log10(0.75 * 0.5) + 1e-6);
     }
     // About 60 times a second: 4800 frames at 48 kHz are 0.1 s.
-    expect(result.channels.length).toBeGreaterThanOrEqual(5);
-    expect(result.channels.length).toBeLessThanOrEqual(7);
+    expect(result.streams.length).toBeGreaterThanOrEqual(5);
+    expect(result.streams.length).toBeLessThanOrEqual(7);
     // history: the gain and the host's tempo; level: the block's peak.
-    for (const changes of result.channels) {
+    for (const changes of result.streams) {
       expect(changes.map(([index]) => index)).toEqual([0, 1]);
       expect(changes[0]![1]).toEqual([0.75, 96]);
     }
-    const last = result.channels.at(-1)![1]![1] as number;
+    const last = result.streams.at(-1)![1]![1] as number;
     expect(last).toBeGreaterThan(0);
     expect(last).toBeLessThanOrEqual(0.75 * 0.5);
   });
@@ -338,8 +338,8 @@ describe('the Rust processor in an AudioWorklet', () => {
       // Waits for it to arrive, then goes on.
       change: { at: 128 / 48_000 },
     });
-    expect(result.channels.length).toBeGreaterThan(0);
-    for (const changes of result.channels)
+    expect(result.streams.length).toBeGreaterThan(0);
+    for (const changes of result.streams)
       expect(changes[0]![1]).toEqual([0.5, 140]);
   });
 
@@ -376,7 +376,7 @@ describe('the Rust processor in an AudioWorklet', () => {
         gains,
         frames,
         contract,
-        channels,
+        streams,
         parameters: gains.map((gain) => parameters(gain)),
       },
     );
@@ -395,7 +395,7 @@ describe('the Rust processor in an AudioWorklet', () => {
       inputs: [2, 0],
       outputs: [2],
       frames: 4800,
-      contract: { ...contract, channels: 3 },
+      contract: { ...contract, streams: 3 },
     });
     expect(result.ready).toMatch(/another soundor.config/);
     expect(result.errors).toEqual([

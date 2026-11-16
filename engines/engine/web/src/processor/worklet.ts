@@ -4,12 +4,12 @@
  * (a Blob URL needs no file, wherever the host is served from, in an iframe
  * too). It allocates nothing per block but what a message posts: values
  * from the main thread arrive as messages, and what the processing publishes
- * leaves as messages, the channels at most about 60 times a second.
+ * leaves as messages, the streams at most about 60 times a second.
  */
 
 import {
   WasmProcessor,
-  type WasmChannel,
+  type WasmStream,
   type WasmContract,
 } from './wasm-processor.ts';
 
@@ -23,7 +23,7 @@ export interface WorkletOptions {
   readonly contract: WasmContract;
   readonly inputs: readonly number[];
   readonly outputs: readonly number[];
-  readonly channels: readonly WasmChannel[];
+  readonly streams: readonly WasmStream[];
   readonly parameters: readonly number[];
   /** The most frames a block holds; longer render quanta go in parts. */
   readonly maxFrames: number;
@@ -35,7 +35,7 @@ export type WorkletMessage =
   | { readonly type: 'error'; readonly message: string }
   | { readonly type: 'published'; readonly values: Float64Array }
   | {
-      readonly type: 'channels';
+      readonly type: 'streams';
       readonly changes: readonly (readonly [number, unknown])[];
     };
 
@@ -61,8 +61,8 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
     declare processor: WasmProcessor | undefined;
     declare published: number;
     declare reported: boolean;
-    declare sinceChannels: number;
-    declare channelEvery: number;
+    declare sinceStreams: number;
+    declare streamEvery: number;
     declare ins: (Float32Array | undefined)[];
     declare outs: (Float32Array | undefined)[];
 
@@ -71,8 +71,8 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
       const settings = options.processorOptions;
       this.published = settings.contract.published;
       this.reported = false;
-      this.sinceChannels = 0;
-      this.channelEvery = Math.max(128, Math.round(sampleRate / 60));
+      this.sinceStreams = 0;
+      this.streamEvery = Math.max(128, Math.round(sampleRate / 60));
       this.ins = new Array(
         settings.inputs.reduce((sum, count) => sum + count, 0),
       );
@@ -85,7 +85,7 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
           settings.contract,
           settings.inputs,
           settings.outputs,
-          settings.channels,
+          settings.streams,
         );
         processor.parameters.set(settings.parameters);
         const status = processor.prepare(sampleRate, settings.maxFrames);
@@ -148,15 +148,15 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
         if (values.some((value) => !Number.isNaN(value)))
           this.port.postMessage({ type: 'published', values });
       }
-      this.sinceChannels += frames;
+      this.sinceStreams += frames;
       if (
-        processor.channels.length > 0 &&
-        this.sinceChannels >= this.channelEvery
+        processor.streams.length > 0 &&
+        this.sinceStreams >= this.streamEvery
       ) {
-        this.sinceChannels = 0;
-        const changes = processor.channelChanges();
+        this.sinceStreams = 0;
+        const changes = processor.streamChanges();
         if (changes.length > 0)
-          this.port.postMessage({ type: 'channels', changes });
+          this.port.postMessage({ type: 'streams', changes });
       }
       return true;
     }

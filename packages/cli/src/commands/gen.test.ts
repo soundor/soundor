@@ -68,7 +68,6 @@ describe('runGen', () => {
             // The Rust SDK, with the contract the processing gets.
             { path: 'rust/soundor/Cargo.toml', status: 'created' },
             { path: 'rust/soundor/src/audio.rs', status: 'created' },
-            { path: 'rust/soundor/src/channels.rs', status: 'created' },
             { path: 'rust/soundor/src/context.rs', status: 'created' },
             { path: 'rust/soundor/src/ffi.rs', status: 'created' },
             { path: 'rust/soundor/src/instance.rs', status: 'created' },
@@ -76,6 +75,7 @@ describe('runGen', () => {
             { path: 'rust/soundor/src/lib.rs', status: 'created' },
             { path: 'rust/soundor/src/plugin.rs', status: 'created' },
             { path: 'rust/soundor/src/processor.rs', status: 'created' },
+            { path: 'rust/soundor/src/streams.rs', status: 'created' },
             { path: 'rust/soundor/src/testing.rs', status: 'created' },
             { path: 'rust/soundor/src/transport.rs', status: 'created' },
             { path: 'rust/soundor/src/wasm.rs', status: 'created' },

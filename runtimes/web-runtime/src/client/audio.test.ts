@@ -212,8 +212,8 @@ describe('WebAudioHost', () => {
     const withProcessor = setup(async () => ({
       wasm: new Uint8Array([0, 97, 115, 109]),
       parameters: [],
-      channels: [],
-      publishChannel: () => {},
+      streams: [],
+      publishStream: () => {},
     }));
     expect(engineProcessor.loaded).toBe(false);
     await withProcessor.audio.start();
@@ -228,8 +228,8 @@ describe('WebAudioHost', () => {
     const source = {
       wasm: new Uint8Array([0, 97, 115, 109]),
       parameters: [],
-      channels: [],
-      publishChannel: () => {},
+      streams: [],
+      publishStream: () => {},
     };
     const { audio, host, context } = setup(async () => source, {
       audio: { inputChannels: 1, outputChannels: 2 },
@@ -244,7 +244,7 @@ describe('WebAudioHost', () => {
       wasm: source.wasm,
       inputs: [1],
       outputs: [2],
-      contract: { parameters: 0, published: 0, channels: 0 },
+      contract: { parameters: 0, published: 0, streams: 0 },
     });
     expect(fake.processor.setTransport).toHaveBeenCalled();
 
@@ -283,8 +283,8 @@ describe('WebAudioHost', () => {
       async () => ({
         wasm: new Uint8Array(),
         parameters: list,
-        channels: [{ name: 'level', kind: 'number', element: 'float32' }],
-        publishChannel: (index, value) => published.push([index, value]),
+        streams: [{ name: 'level', kind: 'number', element: 'float32' }],
+        publishStream: (index, value) => published.push([index, value]),
       }),
       { createProcessorNode: fake.create },
     );
@@ -293,7 +293,7 @@ describe('WebAudioHost', () => {
     expect(fake.created.options?.contract).toEqual({
       parameters: 4,
       published: 1,
-      channels: 1,
+      streams: 1,
     });
     expect(list.map(plainValue)).toEqual([0.5, 1, 1, -60]);
     // Once ready, the values again: one may have moved while it loaded.
@@ -304,7 +304,7 @@ describe('WebAudioHost', () => {
     ]);
     fake.created.options!.onPublished!(Float64Array.of(-12));
     expect(byId['meter']!.get()).toBe(-12);
-    fake.created.options!.onChannels!([[0, 0.5]]);
+    fake.created.options!.onStreams!([[0, 0.5]]);
     expect(published).toEqual([[0, 0.5]]);
     audio.dispose();
     byId['gain']!.set(0.75);
@@ -320,8 +320,8 @@ describe('WebAudioHost', () => {
       async () => ({
         wasm: new Uint8Array(),
         parameters: [],
-        channels: [],
-        publishChannel: () => {},
+        streams: [],
+        publishStream: () => {},
       }),
       { createProcessorNode: fake.create },
     );
@@ -481,8 +481,8 @@ describe('custom audio inputs', () => {
       async () => ({
         wasm: new Uint8Array(),
         parameters: [],
-        channels: [],
-        publishChannel: () => {},
+        streams: [],
+        publishStream: () => {},
       }),
       {
         createProcessorNode: fake.create,
@@ -704,8 +704,8 @@ it('cleans up a processor that finishes starting after disposal, without creatin
     async () => ({
       wasm: new Uint8Array(),
       parameters: [],
-      channels: [],
-      publishChannel: () => {},
+      streams: [],
+      publishStream: () => {},
     }),
     { createProcessorNode: fake.create },
   );

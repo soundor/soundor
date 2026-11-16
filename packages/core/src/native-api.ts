@@ -18,7 +18,7 @@
  *   events: {
  *     presetLoaded: { path: 'string' },
  *   },
- *   channels: {
+ *   streams: {
  *     spectrum: { type: 'buffer<float32>', maxLength: 512 },
  *   },
  * }
@@ -69,14 +69,14 @@ export interface NativeMethodDeclaration {
 export type NativeEventDeclaration = Readonly<Record<string, NativeTypeRef>>;
 
 /**
- * A channel declared under `native.channels`: a value native code keeps
+ * A stream declared under `native.streams`: a value native code keeps
  * publishing (a level, a spectrum) and the UI reads the latest of.
  */
-export interface NativeChannelDeclaration {
+export interface NativeStreamDeclaration {
   /** A number type (`'float32'`, `'uint32'`, ...) or a `'buffer<T>'` of one. */
   readonly type: NativeTypeRef;
   /**
-   * For a buffer, required: the most elements one value holds. The channel's
+   * For a buffer, required: the most elements one value holds. The stream's
    * storage is allocated for it once, so publishing never allocates.
    */
   readonly maxLength?: number;
@@ -89,7 +89,7 @@ export interface NativeApiDeclaration {
   /** Discrete notifications from native code to the UI. */
   readonly events?: Readonly<Record<string, NativeEventDeclaration>>;
   /** Values native code keeps publishing, of which the UI reads the latest. */
-  readonly channels?: Readonly<Record<string, NativeChannelDeclaration>>;
+  readonly streams?: Readonly<Record<string, NativeStreamDeclaration>>;
 }
 
 // ── Resolved model ──────────────────────────────────────────────────────────
@@ -173,8 +173,8 @@ export interface NativeEventModel {
   readonly fields: readonly NativeField[];
 }
 
-/** A channel: a number, or a buffer of up to `maxLength` numbers. */
-export type NativeChannelModel =
+/** A stream: a number, or a buffer of up to `maxLength` numbers. */
+export type NativeStreamModel =
   | {
       readonly name: string;
       readonly kind: 'number';
@@ -187,8 +187,8 @@ export type NativeChannelModel =
       readonly maxLength: number;
     };
 
-/** The most elements a buffer channel may declare. */
-export const MAX_CHANNEL_LENGTH = 1 << 24;
+/** The most elements a buffer stream may declare. */
+export const MAX_STREAM_LENGTH = 1 << 24;
 
 export interface NativeApiModel {
   /** Declared types, ordered so every struct follows the structs it contains. */
@@ -197,8 +197,8 @@ export interface NativeApiModel {
   readonly methods: readonly NativeMethodModel[];
   /** Events sorted by name. */
   readonly events: readonly NativeEventModel[];
-  /** Channels sorted by name. */
-  readonly channels: readonly NativeChannelModel[];
+  /** Streams sorted by name. */
+  readonly streams: readonly NativeStreamModel[];
 }
 
 export interface NativeApiIssue {
@@ -323,10 +323,10 @@ const RESERVED_NAMES = new Set([
 ]);
 
 /**
- * What `soundor:native` exports besides its methods (`events`, `channels`), so
+ * What `soundor:native` exports besides its methods (`events`, `streams`), so
  * no method can take its name.
  */
-const MODULE_EXPORTS = new Set(['events', 'channels']);
+const MODULE_EXPORTS = new Set(['events', 'streams']);
 
 /**
  * What an event cannot be called: the publisher class's own members in the
@@ -345,7 +345,7 @@ const BUILTIN_TYPE_NAMES = new Set<string>([
   'Object',
   'Error',
   'NativeEvent',
-  'NativeChannel',
+  'NativeStream',
 ]);
 
 type DeclarationKind = 'struct' | 'enum' | 'invalid';
@@ -359,7 +359,7 @@ export function describeNativeApi(
   const typeDecls = declaration?.types ?? {};
   const methodDecls = declaration?.methods ?? {};
   const eventDecls = declaration?.events ?? {};
-  const channelDecls = declaration?.channels ?? {};
+  const streamDecls = declaration?.streams ?? {};
 
   const declaredKinds = new Map<string, DeclarationKind>();
   for (const [name, decl] of sortedEntries(typeDecls)) {
@@ -477,37 +477,37 @@ export function describeNativeApi(
     events.push({ name, fields });
   }
 
-  if (!isRecord(channelDecls)) {
+  if (!isRecord(streamDecls)) {
     issues.push({
-      path: `${basePath}.channels`,
+      path: `${basePath}.streams`,
       message:
-        'expected an object mapping channel names to { type, maxLength? }',
+        'expected an object mapping stream names to { type, maxLength? }',
     });
   }
-  const channels: NativeChannelModel[] = [];
-  for (const [name, decl] of isRecord(channelDecls)
-    ? sortedEntries(channelDecls)
+  const streams: NativeStreamModel[] = [];
+  for (const [name, decl] of isRecord(streamDecls)
+    ? sortedEntries(streamDecls)
     : []) {
-    const path = `${basePath}.channels.${name}`;
-    checkMemberName(name, path, 'channel', issues);
-    const channel = resolveChannel(name, decl, path, declaredKinds, issues);
-    if (channel !== undefined) channels.push(channel);
+    const path = `${basePath}.streams.${name}`;
+    checkMemberName(name, path, 'stream', issues);
+    const stream = resolveStream(name, decl, path, declaredKinds, issues);
+    if (stream !== undefined) streams.push(stream);
   }
 
   if (issues.length > 0) return { ok: false, issues };
   return {
     ok: true,
-    model: { types: orderStructs(types), methods, events, channels },
+    model: { types: orderStructs(types), methods, events, streams },
   };
 }
 
-function resolveChannel(
+function resolveStream(
   name: string,
   decl: unknown,
   path: string,
   declared: ReadonlyMap<string, DeclarationKind>,
   issues: NativeApiIssue[],
-): NativeChannelModel | undefined {
+): NativeStreamModel | undefined {
   if (!isRecord(decl)) {
     issues.push({ path, message: 'expected { type, maxLength? }' });
     return undefined;
@@ -516,7 +516,7 @@ function resolveChannel(
     if (key !== 'type' && key !== 'maxLength')
       issues.push({
         path: `${path}.${key}`,
-        message: `unknown channel option '${key}'; a channel has a type and, for a buffer, a maxLength`,
+        message: `unknown stream option '${key}'; a stream has a type and, for a buffer, a maxLength`,
       });
   const typePath = `${path}.type`;
   const type = resolveTypeRef(decl.type, typePath, false, declared, issues);
@@ -531,7 +531,7 @@ function resolveChannel(
     if (maxLength !== undefined) {
       issues.push({
         path: `${path}.maxLength`,
-        message: `maxLength is only for a buffer channel; '${String(decl.type)}' is one number`,
+        message: `maxLength is only for a buffer stream; '${String(decl.type)}' is one number`,
       });
       return undefined;
     }
@@ -541,7 +541,7 @@ function resolveChannel(
     if (maxLength === undefined) {
       issues.push({
         path,
-        message: `a buffer channel needs maxLength, the most elements one value holds: its storage is allocated for it before publishing starts`,
+        message: `a buffer stream needs maxLength, the most elements one value holds: its storage is allocated for it before publishing starts`,
       });
       return undefined;
     }
@@ -549,11 +549,11 @@ function resolveChannel(
       typeof maxLength !== 'number' ||
       !Number.isInteger(maxLength) ||
       maxLength < 1 ||
-      maxLength > MAX_CHANNEL_LENGTH
+      maxLength > MAX_STREAM_LENGTH
     ) {
       issues.push({
         path: `${path}.maxLength`,
-        message: `expected an integer from 1 to ${MAX_CHANNEL_LENGTH}`,
+        message: `expected an integer from 1 to ${MAX_STREAM_LENGTH}`,
       });
       return undefined;
     }
@@ -561,7 +561,7 @@ function resolveChannel(
   }
   issues.push({
     path: typePath,
-    message: `'${String(decl.type)}' cannot be a channel; a channel holds one number (${NUMERIC_TYPES.join(', ')}) or a 'buffer<T>' of them`,
+    message: `'${String(decl.type)}' cannot be a stream; a stream holds one number (${NUMERIC_TYPES.join(', ')}) or a 'buffer<T>' of them`,
   });
   return undefined;
 }

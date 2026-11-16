@@ -450,28 +450,28 @@ Event names are camelCase; `events`, `publish`, `statistics` and `hub` are
 taken, and no method can be called `events`. See
 [`soundor:native`](/docs/api/native#events) for how they are delivered.
 
-`channels` declares values native code keeps publishing, of which the UI
+`streams` declares values native code keeps publishing, of which the UI
 reads the latest: each one number (`int8` … `float64`) or a `buffer<T>` of
 numbers, which needs `maxLength`, the most elements one value holds (1 to
 16777216; the storage for it is allocated once, so publishing never does):
 
 ```ts
 native: {
-  channels: {
+  streams: {
     spectrum: { type: 'buffer<float32>', maxLength: 512 },
     peak: { type: 'float32' },
   },
 }
 ```
 
-| Channel `type`    | TypeScript (`get()`) | C++ (`native::Channels` member)   |
-| ----------------- | -------------------- | --------------------------------- |
-| `float32`         | `number`             | `js::ValueChannel<float>`         |
-| `uint64`          | `bigint`             | `js::ValueChannel<std::uint64_t>` |
-| `buffer<float32>` | `Float32Array`       | `js::BufferChannel<float>`        |
+| Stream `type`     | TypeScript (`get()`) | C++ (`native::Streams` member)   |
+| ----------------- | -------------------- | -------------------------------- |
+| `float32`         | `number`             | `js::ValueStream<float>`         |
+| `uint64`          | `bigint`             | `js::ValueStream<std::uint64_t>` |
+| `buffer<float32>` | `Float32Array`       | `js::BufferStream<float>`        |
 
-Channel names are camelCase, and no method can be called `channels`. See
-[`soundor:native`](/docs/api/native#channels) for how they are delivered.
+Stream names are camelCase, and no method can be called `streams`. See
+[`soundor:native`](/docs/api/native#streams) for how they are delivered.
 
 ### `signing`
 

@@ -4,7 +4,7 @@
 
 #![allow(clippy::all, unused_imports)]
 
-use crate::channels::{BufferChannel, ChannelSink, ValueChannel};
+use crate::streams::{BufferStream, StreamSink, ValueStream};
 use crate::layout::Layout;
 
 /// The plugin's id (`plugin.id`).
@@ -134,25 +134,25 @@ impl Publish<'_> {
     }
 }
 
-/// The config's native channels (`native.channels`), in name order.
-pub(crate) const CHANNELS: [(&str, Option<usize>); 2] = [("history", Some(8)), ("level", None)];
+/// The config's native streams (`native.streams`), in name order.
+pub(crate) const STREAMS: [(&str, Option<usize>); 2] = [("history", Some(8)), ("level", None)];
 
-/// The config's native channels: the latest value the processing publishes,
+/// The config's native streams: the latest value the processing publishes,
 /// which every open editor reads once a frame.
-pub struct Channels<'a> {
+pub struct Streams<'a> {
     /// `history`: up to 8 float32s.
-    pub history: BufferChannel<'a, f32>,
+    pub history: BufferStream<'a, f32>,
     /// `level`: a float32.
-    pub level: ValueChannel<'a, f32>,
-    _sink: std::marker::PhantomData<&'a dyn ChannelSink>,
+    pub level: ValueStream<'a, f32>,
+    _sink: std::marker::PhantomData<&'a dyn StreamSink>,
 }
 
-impl<'a> Channels<'a> {
-    pub(crate) fn new(sink: &'a dyn ChannelSink) -> Self {
+impl<'a> Streams<'a> {
+    pub(crate) fn new(sink: &'a dyn StreamSink) -> Self {
         let _ = sink;
         Self {
-            history: BufferChannel::new(sink, 0),
-            level: ValueChannel::new(sink, 1),
+            history: BufferStream::new(sink, 0),
+            level: ValueStream::new(sink, 1),
             _sink: std::marker::PhantomData,
         }
     }

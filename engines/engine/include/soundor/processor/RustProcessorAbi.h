@@ -38,7 +38,7 @@ extern "C"
         std::uint32_t abiVersion;
         std::uint32_t parameterCount;
         std::uint32_t publishedCount;
-        std::uint32_t channelCount;
+        std::uint32_t streamCount;
     };
 
     struct SoundorPrepare
@@ -68,7 +68,7 @@ extern "C"
         std::uint32_t timeSignatureDenominator;
     };
 
-    struct SoundorChannelSink
+    struct SoundorStreamSink
     {
         void* user;
         void (*publish)(void* user, std::uint32_t index, double value);
@@ -93,8 +93,8 @@ extern "C"
         // NaN where the block published no value.
         std::uint32_t publishedCount;
         double* published;
-        const SoundorTransport* transport;  // may be null
-        const SoundorChannelSink* channels; // may be null
+        const SoundorTransport* transport; // may be null
+        const SoundorStreamSink* streams;  // may be null
     };
 
     std::int32_t soundor_processor_info(SoundorProcessorInfo* info);

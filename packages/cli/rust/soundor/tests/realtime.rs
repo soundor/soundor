@@ -1,6 +1,6 @@
 //! Real-time safety: what the SDK does around a processor on the audio
 //! thread (validation, block splitting, parameters, the transport,
-//! read-only parameters, channels, the C ABI and the WebAssembly glue)
+//! read-only parameters, streams, the C ABI and the WebAssembly glue)
 //! makes no allocator call, so a processor that makes none makes none.
 
 use soundor::prelude::*;
@@ -11,7 +11,7 @@ use soundor::wasm::{Status as WasmStatus, WasmHandle};
 static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 /// Everything a processor can touch: in-place audio, the sidechain,
-/// parameters, the transport, a read-only parameter and both channels.
+/// parameters, the transport, a read-only parameter and both streams.
 #[derive(Default)]
 struct Meter {
     peak: f32,
@@ -44,8 +44,8 @@ impl AudioProcessor for Meter {
         } else {
             -96.0
         });
-        ctx.channels.level.publish(self.peak.max(side));
-        ctx.channels.history.publish(&[
+        ctx.streams.level.publish(self.peak.max(side));
+        ctx.streams.history.publish(&[
             gain,
             ctx.transport.tempo.unwrap_or(0.0) as f32,
             ctx.transport.position_beats.unwrap_or(0.0) as f32,
@@ -113,7 +113,7 @@ fn the_lifecycle_allocates_nothing_while_processing() {
     processor.set_parameter("bypass", 1.0);
     processor.process_buses(&[&[&input, &input], &[&side]]);
     assert_eq!(processor.allocations(), 0);
-    assert!(processor.channel("level").unwrap() > 0.0);
+    assert!(processor.stream("level").unwrap() > 0.0);
 }
 
 #[test]
@@ -160,8 +160,8 @@ fn the_webassembly_glue_allocates_nothing_while_processing() {
         let mut ok = true;
         for frames in [128, 1, 127, 64, 0, 128] {
             ok &= handle.process(frames) == WasmStatus::Ok;
-            for channel in 0..2 {
-                handle.take_channel_change(channel);
+            for stream in 0..2 {
+                handle.take_stream_change(stream);
             }
         }
         ok

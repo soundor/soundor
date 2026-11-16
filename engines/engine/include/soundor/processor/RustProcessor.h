@@ -53,7 +53,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
     {
         std::uint32_t parameters = 0;
         std::uint32_t published = 0;
-        std::uint32_t channels = 0;
+        std::uint32_t streams = 0;
     };
 
     // The transport of a host that tells nothing: NaN, not playing, no
@@ -93,7 +93,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         // unprepared processor silences every channel.
         std::int32_t process(std::span<float* const> channels, int frames, std::span<const double> parameters,
                              std::span<double> published, const SoundorTransport& transport,
-                             const SoundorChannelSink* sink) noexcept;
+                             const SoundorStreamSink* sink) noexcept;
 
         // Audio thread, between blocks.
         std::int32_t reset() noexcept;

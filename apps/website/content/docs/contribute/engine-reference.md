@@ -443,22 +443,22 @@ per event taking `events::<Name>`, the struct of its value. It derives from
   memory grow, and a UI never sees an event from before it connected.
 - **Not realtime-safe:** publishing allocates and locks. Events are for
   discrete notifications; data the audio thread produces continuously goes
-  through a channel.
+  through a stream.
 
 The web runtime delivers with the same rules (`web-runtime/src/client/native-events.ts`):
 the generated contract's `events` publishes, a `setTimeout` delivers.
 
-#### Channels
+#### Streams
 
-`native.channels` adds `soundor::native::Channels`, a struct with one member
-per channel: `js::ValueChannel<T>` for a number, `js::BufferChannel<T>` (its
+`native.streams` adds `soundor::native::Streams`, a struct with one member
+per stream: `js::ValueStream<T>` for a number, `js::BufferStream<T>` (its
 `maxLength` given in the member's initializer) for a buffer. Both are
-`js/Channels.h`, header-only on the publishing side so it inlines into the
+`js/Streams.h`, header-only on the publishing side so it inlines into the
 audio callback:
 
-- **A triple buffer.** A channel has three slots, each with storage for
+- **A triple buffer.** A stream has three slots, each with storage for
   `maxLength` elements, its length and its sequence number, allocated when
-  the channel is made. The producer owns one (`back`), the UI thread one
+  the stream is made. The producer owns one (`back`), the UI thread one
   (`front`), and the third (`middle`) is the one handed between them: an
   atomic word holding its index and a _fresh_ bit. Publishing writes the
   value into `back` (`publish()` copies; `buffer()` is `back` itself, written
@@ -478,38 +478,38 @@ audio callback:
   allocation, no system call, no JavaScript. The producer side assumes one
   thread at a time (a host moving the audio callback between threads still
   runs one at a time); the UI side runs on the UI thread only.
-- **Connecting.** `install(context, api, events, channels)` gives the
-  context a connection holding each channel's shared state and the sequence
-  number of the value it last received (`bind::connectChannels`). The state
-  is shared: a channel and its contexts may go in either order. The
-  module's initializer (`bind::installChannels`) creates the JavaScript
-  `channels` (`src/modules/native/channels.js`) and sets each to the value
+- **Connecting.** `install(context, api, events, streams)` gives the
+  context a connection holding each stream's shared state and the sequence
+  number of the value it last received (`bind::connectStreams`). The state
+  is shared: a stream and its contexts may go in either order. The
+  module's initializer (`bind::installStreams`) creates the JavaScript
+  `streams` (`src/modules/native/streams.js`) and sets each to the value
   published last, so a UI that opens or reloads starts with it.
-- **Delivering.** `RuntimeHost::tick()` calls `js::deliverChannels()` after
-  the events: for each channel it takes the newest slot if there is one, and
+- **Delivering.** `RuntimeHost::tick()` calls `js::deliverStreams()` after
+  the events: for each stream it takes the newest slot if there is one, and
   if its sequence number is newer than the context's, copies it into a typed
   array JavaScript owns (one allocation and one copy, the size of the value;
   numbers are a `jsi::Value`) and calls the module's update function, which
   sets `get()`'s value and calls the subscribers. Several contexts of one
-  channel (several editors) each receive the newest; the slot stays the
+  stream (several editors) each receive the newest; the slot stays the
   UI's until a newer one is taken, at their next tick.
 - **Coalescing.** Values published between two takes replace each other in
   `back` and `middle`; nothing is queued, so a closed, hidden or stalled UI
-  costs nothing and holds three slots. `Channel::statistics()` counts what
+  costs nothing and holds three slots. `Stream::statistics()` counts what
   was published and taken; JavaScript sees the gaps in sequence numbers.
 - **Runtime-independent.** Nothing here knows JUCE: the generated
-  `native::Channels` and `native::Events` and `install()` are the engine's,
-  and a runtime only owns them (the JUCE processor's `nativeChannels`) and
+  `native::Streams` and `native::Events` and `install()` are the engine's,
+  and a runtime only owns them (the JUCE processor's `nativeStreams`) and
   installs them into each context it creates. Another plugin framework's
   runtime, iPlug2's for instance, would do the same from its own processor
   and editor, publishing from its own audio callback.
 
-`tests/native/NativeChannelsTests.cpp` checks the semantics, and has a
+`tests/native/NativeStreamsTests.cpp` checks the semantics, and has a
 producer thread publishing values that carry their own number and length
 while the UI delivers, checking every element of every value received, with
 and without JavaScript.
 
-`soundor_channel_benchmark` (`tests/tools/ChannelBenchmark.cpp`, built by
+`soundor_stream_benchmark` (`tests/tools/StreamBenchmark.cpp`, built by
 the `bench` preset, and run briefly by ctest, where it fails if publishing
 allocates or a value arrives torn) measures a producer thread publishing at
 a fixed rate and a UI thread ticking and delivering to a subscriber. In a
@@ -527,7 +527,7 @@ Release build on a 4-core laptop CPU (Linux, 2 s per row):
 
 - Publishing includes writing the value (2048 floats is 8 KiB) and two clock
   reads; it never allocated. Its rare maxima, a few microseconds, are the
-  thread being preempted, not the channel.
+  thread being preempted, not the stream.
 - Delivering a value is about 9 µs of JavaScript call and conversion plus
   the copy: 2048 floats add about 6 µs. Hermes allocates the typed array; the
   publisher never does.
@@ -1267,7 +1267,7 @@ profiling and benchmarks; take differences for a frame or a phase. Counting is
 always on and costs an increment:
 
 - **`tick`:** the time each step of `tick()` took: Web timers and finished
-  async work, parameter changes, the backend's modules (state, History), native events, native channels, promise jobs, animation frame callbacks,
+  async work, parameter changes, the backend's modules (state, History), native events, native streams, promise jobs, animation frame callbacks,
   showing what WebGL drew.
 - **`runtime`** (`js::RuntimeStatistics`): calls into `soundor:ui`, Canvas 2D
   and WebGL, counted at their native entry points. With
@@ -1332,10 +1332,10 @@ configuration, and where its audio comes from and goes.
 
 |                                                                         | Owns                                                                                                                                                                                                                                                                                    |
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The Rust SDK (`packages/cli/rust/soundor`)                              | The processor traits, the processing context, parameters, transport, channels, and both ABIs it exports: the C ABI natively, `soundor_wasm_*` in WebAssembly                                                                                                                            |
+| The Rust SDK (`packages/cli/rust/soundor`)                              | The processor traits, the processing context, parameters, transport, streams, and both ABIs it exports: the C ABI natively, `soundor_wasm_*` in WebAssembly                                                                                                                             |
 | The engine, native (`include/soundor/processor/`, `src/processor/`)     | `RustProcessorAbi.h`, the C ABI's declaration, and `processor::RustProcessor`, the bridge: contract and ABI checks, preparing, blocks longer than prepared in parts, in-place channels with copies only where an input shares an output's channel, published values, silence on failure |
-| The engine, Web (`web/src/processor/`, `@soundor/engine/web/processor`) | `WasmProcessor` (the module's memory, views and calls) and the AudioWorklet that runs it, `createProcessorNode()`: registering the worklet once per context, instances, parameters and transport in, published values and channels out, errors, disposal                                |
-| A runtime (`juce-runtime`, `web-runtime`)                               | The audio callback or the AudioContext, the plugin's lifecycle, its configuration (the contract, the buses, the parameters' values), host automation, state, and where published values and channels go                                                                                 |
+| The engine, Web (`web/src/processor/`, `@soundor/engine/web/processor`) | `WasmProcessor` (the module's memory, views and calls) and the AudioWorklet that runs it, `createProcessorNode()`: registering the worklet once per context, instances, parameters and transport in, published values and streams out, errors, disposal                                 |
+| A runtime (`juce-runtime`, `web-runtime`)                               | The audio callback or the AudioContext, the plugin's lifecycle, its configuration (the contract, the buses, the parameters' values), host automation, state, and where published values and streams go                                                                                  |
 
 The plugin's processor is never part of the engine: natively its static
 library is linked into the plugin, and the bridge reaches it through a table
@@ -1347,10 +1347,10 @@ transport of its own, as the ABI carries neither.
 ```cpp
 #include <soundor/processor/RustProcessor.h>
 
-processor::RustProcessor rust { { parameters, published, channels }, processor::linkedRustProcessor() };
+processor::RustProcessor rust { { parameters, published, streams }, processor::linkedRustProcessor() };
 rust.prepare(sampleRate, maxFrames, layout, values);          // off the audio thread
 rust.process(channelPointers, frames, values, publishedValues, // the audio callback
-             transport, &channelSink);
+             transport, &streamSink);
 ```
 
 `RustBusLayout` says, for each bus, which channel of the callback's channel
@@ -1363,8 +1363,8 @@ and reset on it, never at once. `process()` and `reset()` neither allocate
 nor lock (`soundor_processor_tests` counts allocations across preparing
 again; the JUCE runtime's `soundor_juce_rust_tests` does on a real Rust
 processor), and a failure is a status that the runtime reports off the audio
-thread (`lastStatus()`). Published channels go through the sink the runtime
-passes (`native::Channels`), never a callback into the UI. In the browser the
+thread (`lastStatus()`). Published streams go through the sink the runtime
+passes (`native::Streams`), never a callback into the UI. In the browser the
 main thread posts and the worklet processes: no DOM, no UI engine, no
 `SharedArrayBuffer`, and nothing allocated per block beyond the messages it
 posts.
@@ -2280,26 +2280,26 @@ Four paths carry what native code changes to the UI thread, each shaped by
 what its subscribers are promised. They stay separate on purpose: each is
 the cheapest that keeps its contract, and none is built on another.
 
-| Path                                 | Producer                                   | Contract                                                | Mechanism                                                             |
-| ------------------------------------ | ------------------------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------- |
-| [Parameters](#soundorparameters)     | host automation, the audio thread, the UI  | the latest value of each changed parameter, once a tick | a lock-free flag per parameter (`parameters::ChangeFlags`)            |
-| [State and History](/docs/api/state) | the message thread (control-thread writes) | every write and status change, in order                 | a queue per store, under the History control mutex                    |
-| [Events](#events)                    | any thread but a realtime one              | every event, in order, bounded                          | a bounded queue per context (`js::EventSource`)                       |
-| [Channels](#channels)                | one thread, the audio thread included      | the latest value, never torn                            | a triple buffer per channel (`js::BufferChannel`, `js::ValueChannel`) |
+| Path                                 | Producer                                   | Contract                                                | Mechanism                                                          |
+| ------------------------------------ | ------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------ |
+| [Parameters](#soundorparameters)     | host automation, the audio thread, the UI  | the latest value of each changed parameter, once a tick | a lock-free flag per parameter (`parameters::ChangeFlags`)         |
+| [State and History](/docs/api/state) | the message thread (control-thread writes) | every write and status change, in order                 | a queue per store, under the History control mutex                 |
+| [Events](#events)                    | any thread but a realtime one              | every event, in order, bounded                          | a bounded queue per context (`js::EventSource`)                    |
+| [Streams](#streams)                  | one thread, the audio thread included      | the latest value, never torn                            | a triple buffer per stream (`js::BufferStream`, `js::ValueStream`) |
 
 - **Parameters are already as cheap as they can be.** Marking a change is a
   relaxed store and a release store, from any thread, never a lock or an
   allocation; the tick drains the flags and reads each value once, so a
   thousand automation points between two ticks cost one notification. The
   value lives in the host's own atomic, so the flag carries no data. A
-  channel per parameter would add three slots each and copy what the host
+  stream per parameter would add three slots each and copy what the host
   already holds; an event per change would allocate on the audio thread.
   Unchanged.
 - **State and History keep their queues.** Their API promises every write, in
   write order ([`soundor:state`](/docs/api/state), and History subscriptions
   report each commit), and writes happen on the control thread, under the
   mutex History already holds to publish them, so a queue costs nothing a
-  lock-free path would save. Coalescing them like a channel would change what
+  lock-free path would save. Coalescing them like a stream would change what
   subscribers see. History's bridge queues a status only while a JavaScript
   subscriber exists. Unchanged, apart from the two points below.
 - **Delivered inside the tick.** A runtime's own modules deliver their

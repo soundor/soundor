@@ -32,7 +32,7 @@ namespace
 
         std::int32_t process(juce::AudioBuffer<float>& buffer, std::span<const double> parameters,
                              std::span<double> published, const SoundorTransport& transport,
-                             const SoundorChannelSink* sink) noexcept
+                             const SoundorStreamSink* sink) noexcept
         {
             return backend::processRust(*this, buffer, parameters, published, transport, sink);
         }
@@ -57,7 +57,7 @@ namespace
 namespace
 {
     // The fixture config's: gain, bypass, mode, steps, peak (read-only); the
-    // channels `history` (a buffer) and `level` (a number), in name order.
+    // streams `history` (a buffer) and `level` (a number), in name order.
     constexpr processor::RustContract contract { 5, 1, 2 };
 
     std::array<double, 5> parameters(double gain)
@@ -86,30 +86,30 @@ namespace
         return true;
     }
 
-    struct RecordedChannels
+    struct RecordedStreams
     {
         double level = std::numeric_limits<double>::quiet_NaN();
         std::array<float, 8> history {};
         std::uint32_t committed = 0;
 
-        SoundorChannelSink sink()
+        SoundorStreamSink sink()
         {
             return {
                 this,
                 [](void* user, std::uint32_t index, double value)
                 {
                     if (index == 1)
-                        static_cast<RecordedChannels*>(user)->level = value;
+                        static_cast<RecordedStreams*>(user)->level = value;
                 },
                 [](void* user, std::uint32_t index, std::uint32_t* capacity) -> void*
                 {
                     *capacity = index == 0 ? 8 : 0;
-                    return index == 0 ? static_cast<RecordedChannels*>(user)->history.data() : nullptr;
+                    return index == 0 ? static_cast<RecordedStreams*>(user)->history.data() : nullptr;
                 },
                 [](void* user, std::uint32_t index, std::uint32_t length)
                 {
                     if (index == 0)
-                        static_cast<RecordedChannels*>(user)->committed = length;
+                        static_cast<RecordedStreams*>(user)->committed = length;
                 },
             };
         }
@@ -221,7 +221,7 @@ TEST_CASE("processing before prepare is silent")
     CHECK(processor.reset() == SOUNDOR_STATUS_NOT_PREPARED);
 }
 
-TEST_CASE("channels and the transport reach the processing")
+TEST_CASE("streams and the transport reach the processing")
 {
     RustProcessor processor(contract);
     const auto values = parameters(0.75);
@@ -229,16 +229,16 @@ TEST_CASE("channels and the transport reach the processing")
     juce::AudioBuffer<float> buffer(2, 8);
     fill(buffer, 0, 1.0f);
     fill(buffer, 1, 1.0f);
-    RecordedChannels channels;
-    const auto sink = channels.sink();
+    RecordedStreams streams;
+    const auto sink = streams.sink();
     auto transport = noTransport;
     transport.tempo = 96.0;
     std::array<double, 1> published {};
     CHECK(processor.process(buffer, values, published, transport, &sink) == SOUNDOR_STATUS_OK);
-    CHECK(channels.level == doctest::Approx(0.75));
-    CHECK(channels.committed == 2);
-    CHECK(channels.history[0] == doctest::Approx(0.75f));
-    CHECK(channels.history[1] == doctest::Approx(96.0f));
+    CHECK(streams.level == doctest::Approx(0.75));
+    CHECK(streams.committed == 2);
+    CHECK(streams.history[0] == doctest::Approx(0.75f));
+    CHECK(streams.history[1] == doctest::Approx(96.0f));
 }
 
 TEST_CASE("processing allocates nothing")
@@ -249,13 +249,13 @@ TEST_CASE("processing allocates nothing")
     // That counting works, first.
     CHECK(allocationsOf([] { delete new int(1); }) == 1);
 
-    // In place, blocks longer than prepared, channels and the transport.
+    // In place, blocks longer than prepared, streams and the transport.
     RustProcessor processor(contract);
     const auto values = parameters(0.5);
     REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 1000);
-    RecordedChannels channels;
-    const auto sink = channels.sink();
+    RecordedStreams streams;
+    const auto sink = streams.sink();
     auto transport = noTransport;
     transport.tempo = 120.0;
     std::array<double, 1> published {};
@@ -271,7 +271,7 @@ TEST_CASE("processing allocates nothing")
         });
     CHECK(inPlace == 0);
     CHECK(processor.lastStatus() == SOUNDOR_STATUS_OK);
-    CHECK(channels.committed == 2);
+    CHECK(streams.committed == 2);
 
     // An input copied out because it shares a channel with another output.
     RustProcessor aliased(contract);

@@ -4,7 +4,7 @@
  * parameters' and the transport's values posted to it as they change.
  */
 
-import type { WasmChannel, WasmContract } from './wasm-processor.ts';
+import type { WasmStream, WasmContract } from './wasm-processor.ts';
 import {
   PROCESSOR_NAME,
   workletSource,
@@ -20,15 +20,15 @@ export interface ProcessorNodeOptions {
   /** Each input bus's channels, and each output bus's. */
   readonly inputs: readonly number[];
   readonly outputs: readonly number[];
-  readonly channels: readonly WasmChannel[];
+  readonly streams: readonly WasmStream[];
   /** The parameters' plain values to start with, in the config's order. */
   readonly parameters: readonly number[];
   /** The most frames a block holds; 1024 by default. */
   readonly maxFrames?: number;
   /** Read-only parameters' values the processing published, by slot. */
   readonly onPublished?: (values: Float64Array) => void;
-  /** Channels that changed: `[index, value]`. */
-  readonly onChannels?: (
+  /** Streams that changed: `[index, value]`. */
+  readonly onStreams?: (
     changes: readonly (readonly [number, unknown])[],
   ) => void;
   readonly onError?: (message: string) => void;
@@ -76,7 +76,7 @@ export async function createProcessorNode(
     contract: options.contract,
     inputs: options.inputs,
     outputs: options.outputs,
-    channels: options.channels,
+    streams: options.streams,
     parameters: options.parameters,
     maxFrames: options.maxFrames ?? 1024,
   };
@@ -106,7 +106,7 @@ export async function createProcessorNode(
       options.onError?.(message.message);
     } else if (message.type === 'published')
       options.onPublished?.(message.values);
-    else if (message.type === 'channels') options.onChannels?.(message.changes);
+    else if (message.type === 'streams') options.onStreams?.(message.changes);
   };
   // Awaited or not: a failure also reaches onError.
   ready.catch(() => {});

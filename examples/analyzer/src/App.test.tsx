@@ -1,10 +1,10 @@
 import {
   testEditor,
-  publishChannel,
+  publishStream,
   render,
   screen,
 } from '@soundor/testing-library/react';
-import { channels } from 'soundor:native';
+import { streams } from 'soundor:native';
 import { expect, test } from 'vitest';
 
 import { App } from './App';
@@ -13,15 +13,15 @@ import { heightOf, hold } from './spectrum';
 test('shows the peak the plugin publishes', async () => {
   await render(<App />);
   expect(screen.getByText('Peak -∞ dB')).toBeDefined();
-  publishChannel('peak', -6.02);
+  publishStream('peak', -6.02);
   expect(screen.getByText('Peak -6.0 dB')).toBeDefined();
 });
 
 test('takes each spectrum it is published', async () => {
   await render(<App />);
   expect(screen.getByLabelText("Spectrum of the plugin's audio")).toBeDefined();
-  publishChannel('spectrum', new Float32Array([-12, -48, -96]));
-  expect(Array.from(channels.spectrum.get()!)).toEqual([-12, -48, -96]);
+  publishStream('spectrum', new Float32Array([-12, -48, -96]));
+  expect(Array.from(streams.spectrum.get()!)).toEqual([-12, -48, -96]);
 });
 
 test('bars rise at once and fall slowly', () => {
@@ -41,7 +41,7 @@ test('pauses the analyzer UI while hidden and resumes with the latest peak', asy
   await render(<App />);
   testEditor.setVisible(false);
   expect(screen.queryByLabelText("Spectrum of the plugin's audio")).toBeNull();
-  publishChannel('peak', -12);
+  publishStream('peak', -12);
   expect(screen.queryByText('Peak -12.0 dB')).toBeNull();
   testEditor.setVisible(true);
   expect(screen.getByLabelText("Spectrum of the plugin's audio")).toBeDefined();

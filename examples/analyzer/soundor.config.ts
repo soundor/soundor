@@ -11,8 +11,8 @@ export default defineSoundorConfig({
   runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] }), webRuntime()],
   native: {
     // What the plugin's audio code keeps publishing and the UI draws: the
-    // latest only, once a frame, never a queue (soundor:native `channels`).
-    channels: {
+    // latest only, once a frame, never a queue (soundor:native `streams`).
+    streams: {
       // The spectrum in decibels, one value per band, low to high.
       spectrum: { type: 'buffer<float32>', maxLength: 128 },
       // The block's peak, in decibels.

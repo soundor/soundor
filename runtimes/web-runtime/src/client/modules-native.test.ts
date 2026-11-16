@@ -133,7 +133,6 @@ describe('soundor:native', () => {
       'add',
       'analyze',
       'applyPreset',
-      'channels',
       'echo',
       'echoBuffers',
       'echoFloat32',
@@ -152,6 +151,7 @@ describe('soundor:native', () => {
       'setCurve',
       'setSolo',
       'solo',
+      'streams',
       'sumWords',
     ]);
     expect(native.analyze.name).toBe('analyze');

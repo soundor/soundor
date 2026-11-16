@@ -9,7 +9,7 @@ use soundor::testing::{Status, TestProcessor};
 type Prepared = (f64, usize, Vec<usize>, Vec<usize>, Option<&'static str>);
 
 /// A processor that applies `gain`, records what it was told, publishes its
-/// peak and fills both channels.
+/// peak and fills both streams.
 #[derive(Default)]
 struct Probe {
     prepared: Vec<Prepared>,
@@ -61,8 +61,8 @@ impl AudioProcessor for Probe {
             -96.0
         };
         ctx.publish.peak(decibels.min(0.0));
-        ctx.channels.level.publish(peak);
-        ctx.channels.history.publish(&[peak, self.history]);
+        ctx.streams.level.publish(peak);
+        ctx.streams.history.publish(&[peak, self.history]);
     }
 
     fn reset(&mut self) {
@@ -161,17 +161,17 @@ fn processes_empty_blocks() {
 }
 
 #[test]
-fn publishes_read_only_parameters_and_channels() {
+fn publishes_read_only_parameters_and_streams() {
     let mut processor = TestProcessor::<Probe>::new().parameter("gain", 1.0).build();
     processor.process(&[vec![0.5, -0.25]]);
     let peak = processor.parameters().peak;
     assert!((peak - 20.0 * 0.5f32.log10()).abs() < 1e-4, "{peak}");
-    assert_eq!(processor.channel("level"), Some(0.5));
+    assert_eq!(processor.stream("level"), Some(0.5));
     assert_eq!(
-        processor.channel_buffer::<f32>("history"),
+        processor.stream_buffer::<f32>("history"),
         Some(vec![0.5, 0.25])
     );
-    assert_eq!(processor.channel("missing"), None);
+    assert_eq!(processor.stream("missing"), None);
 }
 
 #[test]

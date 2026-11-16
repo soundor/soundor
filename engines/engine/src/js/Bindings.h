@@ -19,9 +19,9 @@
 
 #include "Internal.h"
 
-#include <soundor/js/Channels.h>
 #include <soundor/js/Events.h>
 #include <soundor/js/Promise.h>
+#include <soundor/js/Streams.h>
 
 #include <hermes/Public/JSOutOfMemoryError.h>
 
@@ -486,18 +486,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     // module was never imported.
     void dispatchEvent(ContextState& context, const void* key, std::uint32_t event, const jsi::Value& value);
 
-    // ── Native channels (js/Channels.h) ──────────────────────────────────────
+    // ── Native streams (js/Streams.h) ──────────────────────────────────────
 
-    // In a native module's install(): connects `context` to `channels` (in
-    // the order of their numbers), whose values js::deliverChannels() gives
-    // the update function installChannels() retains under `key`.
-    void connectChannels(Context& context, std::vector<std::shared_ptr<detail::ChannelCore>> channels, const void* key);
+    // In a native module's install(): connects `context` to `streams` (in
+    // the order of their numbers), whose values js::deliverStreams() gives
+    // the update function installStreams() retains under `key`.
+    void connectStreams(Context& context, std::vector<std::shared_ptr<detail::StreamCore>> streams, const void* key);
 
-    // In the module's initializer: sets `exports.channels` to an object of one
-    // channel per name (in the order of their numbers), each with the latest
-    // value its channel has, and retains their update function under `key`.
-    void installChannels(ContextState& context, jsi::Object& exports, std::span<const char* const> names,
-                         const void* key);
+    // In the module's initializer: sets `exports.streams` to an object of one
+    // stream per name (in the order of their numbers), each with the latest
+    // value its stream has, and retains their update function under `key`.
+    void installStreams(ContextState& context, jsi::Object& exports, std::span<const char* const> names,
+                        const void* key);
 
     // ── Promises ─────────────────────────────────────────────────────────────
 

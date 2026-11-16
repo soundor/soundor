@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 const FIXTURE = fileURLToPath(new URL('./', import.meta.url));
 
-/** gain, bypass, mode, steps, peak (read-only); channels history, level. */
-export const contract = { parameters: 5, published: 1, channels: 2 };
-export const channels = [
+/** gain, bypass, mode, steps, peak (read-only); streams history, level. */
+export const contract = { parameters: 5, published: 1, streams: 2 };
+export const streams = [
   { kind: 'buffer', element: 'float32' },
   { kind: 'number', element: 'float32' },
 ] as const;

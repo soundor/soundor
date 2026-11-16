@@ -1,6 +1,6 @@
 use crate::audio::Audio;
 use crate::layout::Layout;
-use crate::plugin::{Channels, LAYOUTS, Parameters, Publish};
+use crate::plugin::{LAYOUTS, Parameters, Publish, Streams};
 use crate::transport::Transport;
 
 /// The audio layout the host negotiated, among those soundor.config
@@ -74,8 +74,8 @@ pub struct ProcessContext<'a> {
     pub transport: &'a Transport,
     /// Sets the config's read-only parameters (meters) the processing owns.
     pub publish: Publish<'a>,
-    /// The config's native channels, to publish to editors.
-    pub channels: Channels<'a>,
+    /// The config's native streams, to publish to editors.
+    pub streams: Streams<'a>,
     /// The sample rate, in hertz, as prepared.
     pub sample_rate: f64,
 }

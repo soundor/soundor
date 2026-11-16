@@ -108,20 +108,20 @@ nativeEvents.presetLoaded({ .path = path, .preset = preset });
   object. A subscriber that throws is reported, and the others still run.
 - **Not for audio-rate data:** publishing allocates and takes a short lock,
   so it is not for the audio callback, and an event per audio block is too
-  many. Use a [channel](#channels) for values the audio thread keeps
+  many. Use a [stream](#streams) for values the audio thread keeps
   producing.
 
-## Channels
+## Streams
 
 Native code keeps the UI up to date with values it keeps producing, a level,
-a spectrum, a playhead, through channels. The UI shows the latest: values it
+a spectrum, a playhead, through streams. The UI shows the latest: values it
 had no frame for are skipped, never queued. The config declares each as one
 number or a `buffer<T>` of numbers, with the most elements one value holds:
 
 ```ts
 // soundor.config.ts
 native: {
-  channels: {
+  streams: {
     spectrum: { type: 'buffer<float32>', maxLength: 512 },
     peak: { type: 'float32' },
   },
@@ -131,23 +131,23 @@ native: {
 ```tsx
 import { useSyncExternalStore } from 'react';
 // in the UI
-import { channels } from 'soundor:native';
+import { streams } from 'soundor:native';
 
 // React state, re-rendered when a newer value arrives
-const peak = useSyncExternalStore(channels.peak.subscribe, channels.peak.get);
+const peak = useSyncExternalStore(streams.peak.subscribe, streams.peak.get);
 
 // or drawn as it arrives, without rendering again
-useEffect(() => channels.spectrum.subscribe((spectrum) => draw(spectrum)), []);
+useEffect(() => streams.spectrum.subscribe((spectrum) => draw(spectrum)), []);
 ```
 
 ```cpp
 // in the plugin (JUCE): the audio callback included
-nativeChannels.peak.publish(peakDecibels);
-nativeChannels.spectrum.publish(std::span<const float>(magnitudes)); // copied
+nativeStreams.peak.publish(peakDecibels);
+nativeStreams.spectrum.publish(std::span<const float>(magnitudes)); // copied
 // or written in place, without a copy:
-auto bins = nativeChannels.spectrum.buffer(); // 512 floats
+auto bins = nativeStreams.spectrum.buffer(); // 512 floats
 fillSpectrum(bins);
-nativeChannels.spectrum.commit(bins.size());
+nativeStreams.spectrum.commit(bins.size());
 ```
 
 - **`get()`** returns the latest value the UI received: the same object until
@@ -165,7 +165,7 @@ nativeChannels.spectrum.commit(bins.size());
   and `commit()`, take no lock, never allocate (a buffer's storage is
   allocated for `maxLength` when the plugin is made), never wait and never run
   JavaScript, so the audio callback can publish. One thread at a time
-  publishes a given channel.
+  publishes a given stream.
 - **Never torn:** the UI reads a value only once it was published whole,
   from memory the publisher no longer writes; a buffer the UI receives is a
   copy of its own, never changed afterwards. Treat it as read-only: its
@@ -174,10 +174,10 @@ nativeChannels.spectrum.commit(bins.size());
   `maxLength`; publishing more publishes nothing and returns `false`.
   64-bit integers arrive as `bigint`s.
 - **Delivered on the UI thread:** the JUCE runtime takes the newest value of
-  each channel at its tick (60 times a second), the web runtime at the next
+  each stream at its tick (60 times a second), the web runtime at the next
   animation frame. A subscriber that throws is reported, and the others still
   run.
 
-How channels work and what they cost, measured, is in the
-[engine reference](/docs/contribute/engine-reference#channels).
+How streams work and what they cost, measured, is in the
+[engine reference](/docs/contribute/engine-reference#streams).
 [Analyzer](/docs/examples/analyzer) is a complete example.

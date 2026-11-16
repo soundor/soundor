@@ -1,12 +1,12 @@
-// The channels of soundor:native in the browser: published by the project's
-// runtimes/web code through the generated contract's `channels`, the newest
+// The streams of soundor:native in the browser: published by the project's
+// runtimes/web code through the generated contract's `streams`, the newest
 // value delivered to the plugin UI once a frame, as the JUCE runtime does
-// (the engine's tests/native/NativeChannelsTests.cpp checks the same).
+// (the engine's tests/native/NativeStreamsTests.cpp checks the same).
 
-import { channels } from 'soundor:native';
+import { streams } from 'soundor:native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { channels as publish } from './testing/native';
+import { streams as publish } from './testing/native';
 
 // Animation frames run when the test says: a hidden page runs none.
 let frames: FrameRequestCallback[] = [];
@@ -16,12 +16,12 @@ const frame = () => {
 
 const stops: (() => void)[] = [];
 function subscribe<T>(
-  channel: {
+  stream: {
     subscribe(listener: (value: T, sequence: number) => void): () => void;
   },
   listener: (value: T, sequence: number) => void,
 ) {
-  const stop = channel.subscribe(listener);
+  const stop = stream.subscribe(listener);
   stops.push(stop);
   return stop;
 }
@@ -41,26 +41,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('soundor:native channels', () => {
-  it('exports one frozen channel per declaration, without a value at first', () => {
-    expect(Object.keys(channels).sort()).toEqual([
+describe('soundor:native streams', () => {
+  it('exports one frozen stream per declaration, without a value at first', () => {
+    expect(Object.keys(streams).sort()).toEqual([
       'frames',
       'level',
       'spectrum',
     ]);
-    expect(Object.isFrozen(channels)).toBe(true);
-    expect(Object.isFrozen(channels.level)).toBe(true);
-    expect(channels.spectrum.get()).toBeUndefined();
+    expect(Object.isFrozen(streams)).toBe(true);
+    expect(Object.isFrozen(streams.level)).toBe(true);
+    expect(streams.spectrum.get()).toBeUndefined();
     expect(() =>
-      channels.level.subscribe(null as unknown as () => void),
+      streams.level.subscribe(null as unknown as () => void),
     ).toThrowError(
-      new TypeError('channels.level.subscribe() expects a function, got null'),
+      new TypeError('streams.level.subscribe() expects a function, got null'),
     );
   });
 
   it('delivers the newest value once a frame, with its sequence number', () => {
     const log: string[] = [];
-    subscribe(channels.level, (value, sequence) =>
+    subscribe(streams.level, (value, sequence) =>
       log.push(`${value}@${sequence}`),
     );
     publish.level.publish(0.25);
@@ -69,7 +69,7 @@ describe('soundor:native channels', () => {
     expect(log).toEqual([]);
     frame();
     expect(log).toEqual(['0.75@3']);
-    expect(channels.level.get()).toBe(0.75);
+    expect(streams.level.get()).toBe(0.75);
     // Nothing new: no delivery, and no frame asked for.
     frame();
     expect(frames).toEqual([]);
@@ -81,7 +81,7 @@ describe('soundor:native channels', () => {
   it('copies buffers, refuses ones too long, and never changes one delivered', () => {
     const received: Float32Array[] = [];
     // Unbound, as useSyncExternalStore calls them.
-    const { get, subscribe: subscribeTo } = channels.spectrum;
+    const { get, subscribe: subscribeTo } = streams.spectrum;
     stops.push(subscribeTo((value) => received.push(value)));
     const values = new Float32Array([1, 2, 3]);
     expect(publish.spectrum.publish(values)).toBe(true);
@@ -107,29 +107,29 @@ describe('soundor:native channels', () => {
       { publish(value: unknown): unknown }
     >;
     expect(() => untyped['spectrum']!.publish([1, 2])).toThrow(
-      'channels.spectrum.publish(): expected Float32Array, got array',
+      'streams.spectrum.publish(): expected Float32Array, got array',
     );
     expect(() => untyped['level']!.publish('loud')).toThrow(
-      'channels.level.publish(): expected float32, got string',
+      'streams.level.publish(): expected float32, got string',
     );
     expect(() => untyped['frames']!.publish(1)).toThrow(
-      'channels.frames.publish(): expected uint64, got number',
+      'streams.frames.publish(): expected uint64, got number',
     );
     publish.frames.publish(9007199254740993n);
     frame();
-    expect(channels.frames.get()).toBe(9007199254740993n);
+    expect(streams.frames.get()).toBe(9007199254740993n);
   });
 
   it('a hidden page keeps only the latest value', () => {
     let count = 0;
-    subscribe(channels.spectrum, () => ++count);
+    subscribe(streams.spectrum, () => ++count);
     for (let index = 0; index < 10000; index++)
       publish.spectrum.publish(new Float32Array([index]));
     // One frame asked for, however many were published.
     expect(frames).toHaveLength(1);
     frame();
     expect(count).toBe(1);
-    expect(Array.from(channels.spectrum.get()!)).toEqual([9999]);
+    expect(Array.from(streams.spectrum.get()!)).toEqual([9999]);
   });
 
   it('subscribers share a value; unsubscribing or throwing does not stop the others', () => {
@@ -137,14 +137,14 @@ describe('soundor:native channels', () => {
     vi.stubGlobal('reportError', reported);
     const seen: string[] = [];
     let first: unknown;
-    const stopFirst = subscribe(channels.level, (value) => {
+    const stopFirst = subscribe(streams.level, (value) => {
       seen.push('first');
       first = value;
     });
-    subscribe(channels.level, () => {
+    subscribe(streams.level, () => {
       throw new Error('boom');
     });
-    subscribe(channels.level, (value) => seen.push(`last ${value === first}`));
+    subscribe(streams.level, (value) => seen.push(`last ${value === first}`));
     publish.level.publish(0.5);
     frame();
     expect(seen).toEqual(['first', 'last true']);
@@ -159,7 +159,7 @@ describe('soundor:native channels', () => {
     vi.unstubAllGlobals();
     vi.stubGlobal('requestAnimationFrame', undefined);
     const values: number[] = [];
-    subscribe(channels.level, (value) => values.push(value));
+    subscribe(streams.level, (value) => values.push(value));
     publish.level.publish(0.125);
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect(values).toEqual([0.125]);

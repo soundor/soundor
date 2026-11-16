@@ -15,7 +15,7 @@
 //! 3. per block of at most `max_frames`: write each input channel's samples
 //!    at `input(i)` (a main input channel processed in place is its output's
 //!    address), the parameters and the transport, `process(frames)`, read the
-//!    outputs at `output(i)`, `published`, and the channels that changed;
+//!    outputs at `output(i)`, `published`, and the streams that changed;
 //! 4. `reset` between blocks; `destroy`.
 //!
 //! The module is single-threaded and never shares its memory. A panic aborts:
@@ -26,11 +26,11 @@
 use std::cell::{Cell, UnsafeCell};
 
 use crate::ABI_VERSION;
-use crate::channels::ChannelSink;
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES, MAX_FRAMES};
-use crate::plugin::{CHANNELS, PUBLISHED, Parameters};
+use crate::plugin::{PUBLISHED, Parameters, STREAMS};
 use crate::processor::AudioProcessor;
+use crate::streams::StreamSink;
 use crate::transport::Transport;
 
 /// Slots of the transport, as `f64`s: tempo, time in seconds, position in
@@ -38,10 +38,10 @@ use crate::transport::Transport;
 /// and denominator (0 where unknown).
 pub const TRANSPORT_SLOTS: usize = 6;
 
-/// The latest value of each channel, for JavaScript to read after a block.
+/// The latest value of each stream, for JavaScript to read after a block.
 struct Mailbox {
     values: Vec<Cell<f64>>,
-    // 0: unchanged; a number channel: 1; a buffer channel: its length + 1.
+    // 0: unchanged; a number stream: 1; a buffer stream: its length + 1.
     changed: Vec<Cell<u32>>,
     // `u64`s: aligned for, and holding, `maxLength` elements of any type.
     buffers: Vec<UnsafeCell<Vec<u64>>>,
@@ -50,9 +50,9 @@ struct Mailbox {
 impl Mailbox {
     fn new() -> Self {
         Self {
-            values: (0..CHANNELS.len()).map(|_| Cell::new(0.0)).collect(),
-            changed: (0..CHANNELS.len()).map(|_| Cell::new(0)).collect(),
-            buffers: CHANNELS
+            values: (0..STREAMS.len()).map(|_| Cell::new(0.0)).collect(),
+            changed: (0..STREAMS.len()).map(|_| Cell::new(0)).collect(),
+            buffers: STREAMS
                 .iter()
                 .map(|(_, length)| UnsafeCell::new(vec![0; length.unwrap_or(0)]))
                 .collect(),
@@ -60,7 +60,7 @@ impl Mailbox {
     }
 }
 
-impl ChannelSink for Mailbox {
+impl StreamSink for Mailbox {
     fn publish(&self, index: u32, value: f64) {
         if let (Some(slot), Some(changed)) = (
             self.values.get(index as usize),
@@ -73,7 +73,7 @@ impl ChannelSink for Mailbox {
 
     fn buffer(&self, index: u32) -> (*mut u8, usize) {
         match self.buffers.get(index as usize) {
-            // SAFETY: single-threaded; only the one handle of this channel
+            // SAFETY: single-threaded; only the one handle of this stream
             // writes it, between JavaScript's reads.
             Some(buffer) => {
                 let buffer = unsafe { &mut *buffer.get() };
@@ -86,7 +86,7 @@ impl ChannelSink for Mailbox {
     fn commit(&self, index: u32, length: usize) {
         if let (Some(changed), Some(&(_, Some(capacity)))) = (
             self.changed.get(index as usize),
-            CHANNELS.get(index as usize),
+            STREAMS.get(index as usize),
         ) {
             changed.set(length.min(capacity) as u32 + 1);
         }
@@ -258,7 +258,7 @@ impl<P: AudioProcessor> WasmHandle<P> {
             outputs: &self.output_pointers,
             parameters: Some(&self.parameters),
             transport,
-            channels: &self.mailbox,
+            streams: &self.mailbox,
         });
         self.published.copy_from_slice(self.instance.published());
         status
@@ -269,26 +269,26 @@ impl<P: AudioProcessor> WasmHandle<P> {
         self.instance.reset()
     }
 
-    /// Whether channel `index` changed since this was last asked, and so
-    /// what to read: 0 unchanged, 1 a number (`channel_value`), `n + 1` a
-    /// buffer of `n` elements (`channel_buffer`).
-    pub fn take_channel_change(&self, index: u32) -> u32 {
+    /// Whether stream `index` changed since this was last asked, and so
+    /// what to read: 0 unchanged, 1 a number (`stream_value`), `n + 1` a
+    /// buffer of `n` elements (`stream_buffer`).
+    pub fn take_stream_change(&self, index: u32) -> u32 {
         self.mailbox
             .changed
             .get(index as usize)
             .map_or(0, |changed| changed.replace(0))
     }
 
-    /// Number channel `index`'s latest value.
-    pub fn channel_value(&self, index: u32) -> f64 {
+    /// Number stream `index`'s latest value.
+    pub fn stream_value(&self, index: u32) -> f64 {
         self.mailbox
             .values
             .get(index as usize)
             .map_or(f64::NAN, Cell::get)
     }
 
-    /// Buffer channel `index`'s storage, of its element type.
-    pub fn channel_buffer(&self, index: u32) -> *const u8 {
+    /// Buffer stream `index`'s storage, of its element type.
+    pub fn stream_buffer(&self, index: u32) -> *const u8 {
         self.mailbox.buffer(index).0.cast_const()
     }
 }
@@ -305,7 +305,7 @@ pub fn contract() -> [u32; 4] {
         ABI_VERSION,
         Parameters::COUNT as u32,
         PUBLISHED.len() as u32,
-        CHANNELS.len() as u32,
+        STREAMS.len() as u32,
     ]
 }
 
@@ -388,26 +388,28 @@ macro_rules! __export_wasm {
             pub extern "C" fn soundor_wasm_reset(pointer: *mut __Handle) -> i32 {
                 handle(pointer).reset() as i32
             }
+            // The streams' exports keep their first names, `channel`: the
+            // engine's WebAssembly host looks them up by name.
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_wasm_channel_changed(
                 pointer: *mut __Handle,
                 index: u32,
             ) -> u32 {
-                handle(pointer).take_channel_change(index)
+                handle(pointer).take_stream_change(index)
             }
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_wasm_channel_value(
                 pointer: *mut __Handle,
                 index: u32,
             ) -> f64 {
-                handle(pointer).channel_value(index)
+                handle(pointer).stream_value(index)
             }
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_wasm_channel_buffer(
                 pointer: *mut __Handle,
                 index: u32,
             ) -> *const u8 {
-                handle(pointer).channel_buffer(index)
+                handle(pointer).stream_buffer(index)
             }
         }
     };

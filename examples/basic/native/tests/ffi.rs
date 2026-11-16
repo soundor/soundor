@@ -17,7 +17,7 @@ fn reports_the_contract_it_was_built_from() {
     );
     assert_eq!(info.abi_version, soundor::ABI_VERSION);
     assert_eq!(info.parameter_count, 1, "gain");
-    assert_eq!((info.published_count, info.channel_count), (0, 0));
+    assert_eq!((info.published_count, info.stream_count), (0, 0));
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn is_silent_before_prepare_and_after_an_invalid_block() {
         published_count: 0,
         published: std::ptr::null_mut(),
         transport: std::ptr::null(),
-        channels: std::ptr::null(),
+        streams: std::ptr::null(),
     };
     // SAFETY: valid pointers; only its version is wrong.
     assert_eq!(

@@ -65,7 +65,7 @@ const config = resolveConfig({
     },
     // The processor owns them (JuceStateTests.cpp publishes one).
     events: { bandChanged: { band: 'Band', index: 'uint32' } },
-    channels: { meter: { type: 'buffer<float32>', maxLength: 4 } },
+    streams: { meter: { type: 'buffer<float32>', maxLength: 4 } },
   },
   state: {
     signedValue: { type: 'int64', default: -9223372036854775808n },

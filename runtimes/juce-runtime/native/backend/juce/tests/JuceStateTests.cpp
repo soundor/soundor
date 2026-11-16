@@ -3,10 +3,10 @@
 
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/history/Module.h>
-#include <soundor/js/Channels.h>
 #include <soundor/js/Context.h>
 #include <soundor/js/Events.h>
 #include <soundor/js/Runtime.h>
+#include <soundor/js/Streams.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <doctest/doctest.h>
@@ -22,8 +22,8 @@ namespace
         using AudioProcessor::bypassParameter;
         using AudioProcessor::gainParameter;
         using AudioProcessor::history;
-        using AudioProcessor::nativeChannels;
         using AudioProcessor::nativeEvents;
+        using AudioProcessor::nativeStreams;
         using AudioProcessor::state;
         int restored = 0;
         std::vector<std::string> observations;
@@ -727,7 +727,7 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents, processor.nativeChannels);
+    native::install(context, nullptr, processor.nativeEvents, processor.nativeStreams);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { events } = require('soundor:native');"
                                 "globalThis.seen = [];"
@@ -745,17 +745,17 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     CHECK(context.evaluateScript("seen.join()").value().asString() == "2:440");
 }
 
-TEST_CASE("the processor's native channels carry the audio thread's latest value to the UI")
+TEST_CASE("the processor's native streams carry the audio thread's latest value to the UI")
 {
     juce::ScopedJuceInitialiser_GUI init;
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents, processor.nativeChannels);
+    native::install(context, nullptr, processor.nativeEvents, processor.nativeStreams);
     REQUIRE(context
-                .evaluateModule("(function (exports, require) { const { channels } = require('soundor:native');"
+                .evaluateModule("(function (exports, require) { const { streams } = require('soundor:native');"
                                 "globalThis.seen = [];"
-                                "channels.meter.subscribe((v, s) => seen.push(s + ':' + Array.from(v).join('/'))); })",
+                                "streams.meter.subscribe((v, s) => seen.push(s + ':' + Array.from(v).join('/'))); })",
                                 "/ui.js")
                 .ok());
     // As the audio processing would, on another thread: in place, without allocating.
@@ -764,14 +764,14 @@ TEST_CASE("the processor's native channels carry the audio thread's latest value
         {
             for (int block = 1; block <= 3; ++block)
             {
-                const std::span<float> levels = processor.nativeChannels.meter.buffer();
+                const std::span<float> levels = processor.nativeStreams.meter.buffer();
                 levels[0] = static_cast<float>(block);
                 levels[1] = 0.5F;
-                processor.nativeChannels.meter.commit(2);
+                processor.nativeStreams.meter.commit(2);
             }
         });
     audio.join();
-    CHECK(js::deliverChannels(context) == 1);
+    CHECK(js::deliverStreams(context) == 1);
     CHECK(context.evaluateScript("seen.join()").value().asString() == "3:3/0.5");
 }
 

@@ -116,7 +116,7 @@ export const fixtureNativeApi: NativeApiDeclaration = {
     levels: { values: 'buffer<float32>', curve: 'Curve' },
     ready: {},
   },
-  channels: {
+  streams: {
     spectrum: { type: 'buffer<float32>', maxLength: 8 },
     level: { type: 'float32' },
     frames: { type: 'uint64' },
@@ -162,8 +162,8 @@ describe('generateNativeModuleSources', () => {
       events: Object.fromEntries(
         Object.entries(fixtureNativeApi.events!).reverse(),
       ),
-      channels: Object.fromEntries(
-        Object.entries(fixtureNativeApi.channels!).reverse(),
+      streams: Object.fromEntries(
+        Object.entries(fixtureNativeApi.streams!).reverse(),
       ),
     };
     expect(generateNativeModuleSources(modelOf(reversed))).toEqual(files);
@@ -183,7 +183,7 @@ describe('generateNativeModuleSources', () => {
       '        bool ready(events::Ready event = {}) const;',
     );
     expect(header).toContain(
-      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Channels& channels);',
+      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Streams& streams);',
     );
     expect(source).toContain(
       'constexpr std::array<const char*, 3> eventNames { "levels", "presetLoaded", "ready" };',
@@ -207,28 +207,28 @@ describe('generateNativeModuleSources', () => {
     expect(source).not.toContain('needs a NativeApi implementation');
   });
 
-  it('declares each channel with its storage and connects them on install', () => {
+  it('declares each stream with its storage and connects them on install', () => {
     const [header, source] = files.map((file) => file.contents);
-    expect(header).toContain('#include <soundor/js/Channels.h>');
+    expect(header).toContain('#include <soundor/js/Streams.h>');
     expect(header).toContain(
-      '    struct Channels\n    {\n        js::ValueChannel<std::uint64_t> frames;\n        js::ValueChannel<float> level;\n        js::BufferChannel<float> spectrum { 8 };\n    };',
+      '    struct Streams\n    {\n        js::ValueStream<std::uint64_t> frames;\n        js::ValueStream<float> level;\n        js::BufferStream<float> spectrum { 8 };\n    };',
     );
     expect(source).toContain(
-      'constexpr std::array<const char*, 3> channelNames { "frames", "level", "spectrum" };',
+      'constexpr std::array<const char*, 3> streamNames { "frames", "level", "spectrum" };',
     );
     expect(source).toContain(
-      'bind::connectChannels(context, { channels.frames.core(), channels.level.core(), channels.spectrum.core() }, &channelsKey);',
+      'bind::connectStreams(context, { streams.frames.core(), streams.level.core(), streams.spectrum.core() }, &streamsKey);',
     );
     expect(source).toContain(
-      'bind::installChannels(ctx, exports, channelNames, &channelsKey);',
+      'bind::installStreams(ctx, exports, streamNames, &streamsKey);',
     );
-    const [onlyChannels, onlySource] = generateNativeModuleSources(
-      modelOf({ channels: { level: { type: 'float32' } } }),
+    const [onlyStreams, onlySource] = generateNativeModuleSources(
+      modelOf({ streams: { level: { type: 'float32' } } }),
     ).map((file) => file.contents);
-    expect(onlyChannels).toContain(
-      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Channels& channels);',
+    expect(onlyStreams).toContain(
+      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Streams& streams);',
     );
-    expect(onlyChannels).not.toContain('Events.h');
+    expect(onlyStreams).not.toContain('Events.h');
     expect(onlySource).not.toContain('needs a NativeApi implementation');
   });
 
@@ -288,7 +288,7 @@ describe('generateNativeModuleSources', () => {
       types: [],
       methods: [],
       events: [],
-      channels: [],
+      streams: [],
     });
     expect(header!.contents).toContain(
       'virtual ~NativeApi() = default;\n    };',

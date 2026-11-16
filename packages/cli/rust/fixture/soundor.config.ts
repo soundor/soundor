@@ -48,7 +48,7 @@ export default defineSoundorConfig({
     },
   },
   native: {
-    channels: {
+    streams: {
       level: { type: 'float32' },
       history: { type: 'buffer<float32>', maxLength: 8 },
     },

@@ -20,11 +20,11 @@ use std::ffi::c_void;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::ABI_VERSION;
-use crate::channels::{ChannelSink, NoChannels};
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES};
-use crate::plugin::{CHANNELS, PUBLISHED, Parameters};
+use crate::plugin::{PUBLISHED, Parameters, STREAMS};
 use crate::processor::AudioProcessor;
+use crate::streams::{NoStreams, StreamSink};
 use crate::transport::Transport;
 
 /// What the processor was built from: the runtime checks it against what it
@@ -36,7 +36,7 @@ pub struct SoundorProcessorInfo {
     pub abi_version: u32,
     pub parameter_count: u32,
     pub published_count: u32,
-    pub channel_count: u32,
+    pub stream_count: u32,
 }
 
 /// `prepare`'s configuration.
@@ -91,25 +91,25 @@ impl SoundorTransport {
     }
 }
 
-/// The runtime's native channels, as callbacks. Each is realtime-safe.
+/// The runtime's native streams, as callbacks. Each is realtime-safe.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct SoundorChannelSink {
+pub struct SoundorStreamSink {
     pub user: *mut c_void,
-    /// Publishes channel `index`'s value (a number channel).
+    /// Publishes stream `index`'s value (a number stream).
     pub publish: Option<unsafe extern "C" fn(user: *mut c_void, index: u32, value: f64)>,
-    /// Channel `index`'s storage (a buffer channel), of its element type, and
+    /// Stream `index`'s storage (a buffer stream), of its element type, and
     /// its capacity in elements; null when it has none.
     pub buffer: Option<
         unsafe extern "C" fn(user: *mut c_void, index: u32, capacity: *mut u32) -> *mut c_void,
     >,
-    /// Publishes the first `length` elements of channel `index`'s storage.
+    /// Publishes the first `length` elements of stream `index`'s storage.
     pub commit: Option<unsafe extern "C" fn(user: *mut c_void, index: u32, length: u32)>,
 }
 
-struct NativeChannels<'a>(&'a SoundorChannelSink);
+struct NativeStreams<'a>(&'a SoundorStreamSink);
 
-impl ChannelSink for NativeChannels<'_> {
+impl StreamSink for NativeStreams<'_> {
     fn publish(&self, index: u32, value: f64) {
         if let Some(publish) = self.0.publish {
             // SAFETY: the runtime passed this callback for this call.
@@ -124,7 +124,7 @@ impl ChannelSink for NativeChannels<'_> {
         let mut capacity = 0;
         // SAFETY: as `publish`.
         let pointer = unsafe { buffer(self.0.user, index, &mut capacity) };
-        let declared = CHANNELS
+        let declared = STREAMS
             .get(index as usize)
             .and_then(|(_, length)| *length)
             .unwrap_or(0);
@@ -166,7 +166,7 @@ pub struct SoundorBlock {
     /// May be null.
     pub transport: *const SoundorTransport,
     /// May be null.
-    pub channels: *const SoundorChannelSink,
+    pub streams: *const SoundorStreamSink,
 }
 
 /// The processor behind a handle.
@@ -199,7 +199,7 @@ pub fn info() -> SoundorProcessorInfo {
         abi_version: ABI_VERSION,
         parameter_count: Parameters::COUNT as u32,
         published_count: PUBLISHED.len() as u32,
-        channel_count: CHANNELS.len() as u32,
+        stream_count: STREAMS.len() as u32,
     }
 }
 
@@ -331,11 +331,11 @@ pub unsafe fn process<P: AudioProcessor>(
             .map(SoundorTransport::read)
             .unwrap_or_default();
         // SAFETY: as the caller promises.
-        let sink = unsafe { block.channels.as_ref() };
-        let native = sink.map(NativeChannels);
-        let channels: &dyn ChannelSink = match &native {
+        let sink = unsafe { block.streams.as_ref() };
+        let native = sink.map(NativeStreams);
+        let streams: &dyn StreamSink = match &native {
             Some(native) => native,
-            None => &NoChannels,
+            None => &NoStreams,
         };
         let status = handle.instance.process(Block {
             frames: block.frames as usize,
@@ -343,7 +343,7 @@ pub unsafe fn process<P: AudioProcessor>(
             outputs,
             parameters,
             transport,
-            channels,
+            streams,
         });
         if !block.published.is_null() {
             let count = (block.published_count as usize).min(PUBLISHED.len());

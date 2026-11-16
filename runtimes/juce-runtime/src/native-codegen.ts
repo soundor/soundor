@@ -17,7 +17,7 @@
 
 import type {
   NativeApiModel,
-  NativeChannelModel,
+  NativeStreamModel,
   NativeEventModel,
   NativeField,
   NativeMethodModel,
@@ -70,10 +70,10 @@ function renderHeader(model: NativeApiModel): string {
   );
   const apiBody = methods.length > 0 ? `\n${methods.join('\n')}` : '';
   const hasEvents = model.events.length > 0;
-  const hasChannels = model.channels.length > 0;
+  const hasStreams = model.streams.length > 0;
   const feeds = [
     ...(hasEvents ? ['`events`'] : []),
-    ...(hasChannels ? ['`channels`'] : []),
+    ...(hasStreams ? ['`streams`'] : []),
   ].join(' and ');
   const install =
     feeds.length > 0
@@ -88,7 +88,7 @@ function renderHeader(model: NativeApiModel): string {
 
 ${[
   '#include <soundor/js/Context.h>',
-  ...(hasChannels ? ['#include <soundor/js/Channels.h>'] : []),
+  ...(hasStreams ? ['#include <soundor/js/Streams.h>'] : []),
   ...(hasEvents ? ['#include <soundor/js/Events.h>'] : []),
 ].join('\n')}
 #include <soundor/js/Promise.h>
@@ -116,7 +116,7 @@ ${types.map((type) => `${type}\n\n`).join('')}    // The plugin's native API, de
     public:
         virtual ~NativeApi() = default;${apiBody}
     };
-${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}${hasChannels ? `\n${renderChannelsDeclaration(model.channels)}\n` : ''}
+${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}${hasStreams ? `\n${renderStreamsDeclaration(model.streams)}\n` : ''}
 ${install}
 } // namespace ${NAMESPACE}
 `;
@@ -133,37 +133,37 @@ function installParameters(model: NativeApiModel): string {
     'js::Context& context',
     'std::shared_ptr<NativeApi> api',
     ...(model.events.length > 0 ? ['const Events& events'] : []),
-    ...(model.channels.length > 0 ? ['const Channels& channels'] : []),
+    ...(model.streams.length > 0 ? ['const Streams& streams'] : []),
   ].join(', ');
 }
 
-/** The C++ type of a channel: \`js::BufferChannel<float>\`, \`js::ValueChannel<double>\`. */
-export function channelType(channel: NativeChannelModel): string {
-  const element = PRIMITIVE_TYPES[channel.element];
-  return channel.kind === 'buffer'
-    ? `js::BufferChannel<${element}>`
-    : `js::ValueChannel<${element}>`;
+/** The C++ type of a stream: \`js::BufferStream<float>\`, \`js::ValueStream<double>\`. */
+export function streamType(stream: NativeStreamModel): string {
+  const element = PRIMITIVE_TYPES[stream.element];
+  return stream.kind === 'buffer'
+    ? `js::BufferStream<${element}>`
+    : `js::ValueStream<${element}>`;
 }
 
-function renderChannelsDeclaration(
-  channels: readonly NativeChannelModel[],
+function renderStreamsDeclaration(
+  streams: readonly NativeStreamModel[],
 ): string {
-  const members = channels.map((channel) =>
-    channel.kind === 'buffer'
-      ? `        ${channelType(channel)} ${channel.name} { ${channel.maxLength} };`
-      : `        ${channelType(channel)} ${channel.name};`,
+  const members = streams.map((stream) =>
+    stream.kind === 'buffer'
+      ? `        ${streamType(stream)} ${stream.name} { ${stream.maxLength} };`
+      : `        ${streamType(stream)} ${stream.name};`,
   );
-  return `    // The plugin's native channels, declared under \`native.channels\` in
+  return `    // The plugin's native streams, declared under \`native.streams\` in
     // soundor.config: values the plugin keeps publishing, of which the UI
-    // reads the latest (\`channels\` of \`soundor:native\`). Keep one per plugin
+    // reads the latest (\`streams\` of \`soundor:native\`). Keep one per plugin
     // instance and install() it into each JavaScript context.
     //
     // Publish from the audio callback if you like: publish(), and a buffer's
     // buffer() and commit(), take no lock, never allocate and never wait.
-    // One thread at a time publishes a channel. The UI takes the newest value
+    // One thread at a time publishes a stream. The UI takes the newest value
     // at its next tick, never a partly written one; values in between are
     // skipped, not queued, so no UI, or a slow one, costs nothing.
-    struct Channels
+    struct Streams
     {
 ${members.join('\n')}
     };`;
@@ -295,11 +295,11 @@ function renderSource(model: NativeApiModel): string {
         : [renderBinding(method)],
     ),
     ...(model.events.length > 0 ? [renderEventDelivery(model.events)] : []),
-    ...(model.channels.length > 0 ? [renderChannelNames(model.channels)] : []),
+    ...(model.streams.length > 0 ? [renderStreamNames(model.streams)] : []),
   ];
 
   const hasEvents = model.events.length > 0;
-  const hasChannels = model.channels.length > 0;
+  const hasStreams = model.streams.length > 0;
   const exportSetters = [
     ...model.methods.map(
       (method) =>
@@ -308,17 +308,17 @@ function renderSource(model: NativeApiModel): string {
     ...(hasEvents
       ? ['bind::installEvents(ctx, exports, eventNames, &eventsKey);']
       : []),
-    ...(hasChannels
-      ? ['bind::installChannels(ctx, exports, channelNames, &channelsKey);']
+    ...(hasStreams
+      ? ['bind::installStreams(ctx, exports, streamNames, &streamsKey);']
       : []),
   ];
   const connections = [
     ...(hasEvents
       ? ['        bind::connectEvents(context, events, deliverEvent);']
       : []),
-    ...(hasChannels
+    ...(hasStreams
       ? [
-          `        bind::connectChannels(context, { ${model.channels.map((channel) => `channels.${channel.name}.core()`).join(', ')} }, &channelsKey);`,
+          `        bind::connectStreams(context, { ${model.streams.map((stream) => `streams.${stream.name}.core()`).join(', ')} }, &streamsKey);`,
         ]
       : []),
   ];
@@ -507,12 +507,12 @@ ${cases.join('\n')}
         }`;
 }
 
-/** The channels' names, by number, as install() connects them. */
-function renderChannelNames(channels: readonly NativeChannelModel[]): string {
-  return `        // Identifies this context's channel update function among its retained values.
-        const char channelsKey = 0;
-        // By channel number: the order install() connects them in.
-        constexpr std::array<const char*, ${channels.length}> channelNames { ${channels.map((channel) => JSON.stringify(channel.name)).join(', ')} };`;
+/** The streams' names, by number, as install() connects them. */
+function renderStreamNames(streams: readonly NativeStreamModel[]): string {
+  return `        // Identifies this context's stream update function among its retained values.
+        const char streamsKey = 0;
+        // By stream number: the order install() connects them in.
+        constexpr std::array<const char*, ${streams.length}> streamNames { ${streams.map((stream) => JSON.stringify(stream.name)).join(', ')} };`;
 }
 
 function renderPublisher(event: NativeEventModel, index: number): string {

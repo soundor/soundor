@@ -106,7 +106,7 @@ mapping remain authoritative. Use the generated type's documentation in your
 editor rather than copying the contract into Rust.
 
 Read-only parameters are written through `ctx.publish`, and configured native
-channels through `ctx.channels`. For example, the analyzer uses
+streams through `ctx.streams`. For example, the analyzer uses
 `ctx.publish.peak(value)` to report its peak. These routes preserve Soundor's
 existing publication semantics. UI-thread native methods still use the
 runtime-specific API implementation; Rust UI-thread methods and arbitrary

@@ -52,7 +52,7 @@ namespace
     std::atomic<int> destroyed { 0 };
     // What the last block was given.
     const SoundorTransport* lastTransport = nullptr;
-    const SoundorChannelSink* lastSink = nullptr;
+    const SoundorStreamSink* lastSink = nullptr;
 
     // How each processor processes: a gain in place, or (sidechain) the aux
     // output written before the sidechain is read.
@@ -66,7 +66,7 @@ namespace
     std::int32_t info(SoundorProcessorInfo* info)
     {
         *info = { sizeof(SoundorProcessorInfo), SOUNDOR_PROCESSOR_ABI_VERSION, contract.parameters, contract.published,
-                  contract.channels };
+                  contract.streams };
         return SOUNDOR_STATUS_OK;
     }
 
@@ -102,7 +102,7 @@ namespace
         ++fake.blocks;
         fake.longest = std::max(fake.longest, block->frames);
         lastTransport = block->transport;
-        lastSink = block->channels;
+        lastSink = block->streams;
         if (block->parameters != nullptr)
             fake.gain = block->parameters[0];
         if (fake.gain < 0)
@@ -242,7 +242,7 @@ TEST_CASE("blocks are processed in place, with each block's parameters and the h
     SoundorTransport transport = noTransport;
     transport.tempo = 120;
     std::array<float, 4> history {};
-    SoundorChannelSink sink { history.data(), nullptr, nullptr, nullptr };
+    SoundorStreamSink sink { history.data(), nullptr, nullptr, nullptr };
     CHECK(rust.process(block.span(), 48, gain, published, transport, &sink) == SOUNDOR_STATUS_OK);
     CHECK((block.all(0, 0.5F) && block.all(1, 0.5F)));
     CHECK(published[0] == 0.5);

@@ -7,7 +7,7 @@ import { runInNewContext } from 'node:vm';
 import {
   WASM_STATUS,
   WasmProcessor,
-  type WasmChannel,
+  type WasmStream,
 } from '@soundor/engine/web/processor';
 import {
   PROCESSOR_NAME,
@@ -18,12 +18,12 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   buildFixture,
-  channels as fixtureChannels,
+  streams as fixtureStreams,
   contract,
   parameters,
 } from './fixture/build';
 
-const channels: WasmChannel[] = [...fixtureChannels];
+const streams: WasmStream[] = [...fixtureStreams];
 
 let wasm: Uint8Array<ArrayBuffer>;
 let module: WebAssembly.Module;
@@ -39,13 +39,7 @@ function processor(
   outputs = [2],
   maxFrames = 128,
 ): WasmProcessor {
-  const created = new WasmProcessor(
-    module,
-    contract,
-    inputs,
-    outputs,
-    channels,
-  );
+  const created = new WasmProcessor(module, contract, inputs, outputs, streams);
   created.parameters.set(parameters(gain));
   expect(created.prepare(48_000, maxFrames)).toBe(WASM_STATUS.ok);
   return created;
@@ -163,18 +157,18 @@ describe('the Rust processor in WebAssembly', () => {
     expect(output).toEqual([new Float32Array(8), new Float32Array(8)]);
   });
 
-  it('publishes read-only parameters and channels', () => {
+  it('publishes read-only parameters and streams', () => {
     const gain = processor(0.75);
     gain.transport[0] = 96;
     const one = new Float32Array(32).fill(1);
     gain.process([one, one], [new Float32Array(32), new Float32Array(32)], 32);
     expect(gain.published(1)[0]).toBeCloseTo(20 * Math.log10(0.75), 5);
-    const changes = gain.channelChanges();
+    const changes = gain.streamChanges();
     expect(changes).toEqual([
       [0, Float32Array.from([0.75, 96])],
       [1, Math.fround(0.75)],
     ]);
-    expect(gain.channelChanges()).toEqual([]);
+    expect(gain.streamChanges()).toEqual([]);
   });
 
   it('resets, and keeps instances independent', () => {
@@ -209,7 +203,7 @@ describe('the Rust processor in WebAssembly', () => {
       contract,
       [1, 0],
       [1],
-      channels,
+      streams,
     );
     const output = new Float32Array(4).fill(1);
     expect(unprepared.process([output], [output], 4)).toBe(
@@ -228,15 +222,15 @@ describe('the Rust processor in WebAssembly', () => {
           { ...contract, parameters: 4 },
           [1],
           [1],
-          channels,
+          streams,
         ),
     ).toThrow(/another soundor.config/);
     const empty = new WebAssembly.Module(
       Uint8Array.from([0, 97, 115, 109, 1, 0, 0, 0]),
     );
-    expect(
-      () => new WasmProcessor(empty, contract, [1], [1], channels),
-    ).toThrow(/no Soundor exports/);
+    expect(() => new WasmProcessor(empty, contract, [1], [1], streams)).toThrow(
+      /no Soundor exports/,
+    );
   });
 });
 
@@ -280,7 +274,7 @@ describe('the worklet', () => {
         contract,
         inputs: [2],
         outputs: [2],
-        channels,
+        streams,
         parameters: parameters(0.5),
         maxFrames: 128,
         ...options,
@@ -326,12 +320,12 @@ describe('the worklet', () => {
       );
     const types = posted.map((message) => (message as { type: string }).type);
     expect(types.filter((type) => type === 'published')).toHaveLength(7);
-    expect(types.filter((type) => type === 'channels')).toHaveLength(1);
+    expect(types.filter((type) => type === 'streams')).toHaveLength(1);
   });
 
   it('reports a module it cannot run, and stays silent', () => {
     const { instance, posted } = worklet({
-      contract: { ...contract, channels: 3 },
+      contract: { ...contract, streams: 3 },
     });
     expect(posted).toEqual([
       {

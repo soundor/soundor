@@ -1,6 +1,6 @@
 ---
 title: 'Analyzer'
-description: 'A spectrum analyzer: native channels carry the audio thread’s spectrum to a React UI.'
+description: 'A spectrum analyzer: native streams carry the audio thread’s spectrum to a React UI.'
 ---
 
 Source: [`examples/analyzer/`](https://github.com/soundor/soundor/tree/main/examples/analyzer).
@@ -10,19 +10,19 @@ Run this page’s package-local commands from `examples/analyzer/`, unless noted
 <Example name="analyzer" />
 
 A spectrum analyzer: the plugin's audio code publishes the spectrum and the
-peak of what it hears through [native channels](/docs/api/native#channels),
+peak of what it hears through [native streams](/docs/api/native#streams),
 and the React UI draws the newest once a frame. The same UI runs in both
 runtimes.
 
 ```text
-soundor.config.ts   identity, both runtimes, two native channels:
+soundor.config.ts   identity, both runtimes, two native streams:
                     `spectrum` (buffer<float32>, 128 bands) and `peak`
 src/App.tsx         the plugin UI: draws each spectrum into a Canvas,
                     shows the peak with useSyncExternalStore
 src/spectrum.ts     decibels to bar heights, bars that fall slowly
 
 native/             the analysis, in Rust: an FFT on the audio thread,
-                    written straight into the channel (src/lib.rs)
+                    written straight into the stream (src/lib.rs)
 runtimes/juce/      JUCE: the plugin, which runs native/
 runtimes/web/       Web: the browser host, which runs native/ compiled to
                     WebAssembly
@@ -32,7 +32,7 @@ The config declares what the audio code publishes:
 
 ```ts
 native: {
-  channels: {
+  streams: {
     spectrum: { type: 'buffer<float32>', maxLength: 128 },
     peak: { type: 'float32' },
   },
@@ -43,14 +43,14 @@ native: {
 
 `native/src/lib.rs` keeps the last 2048 samples, and every 1024 it windows
 them, runs an FFT (`native/src/fft.rs`, its tables made in `prepare`) and
-takes the loudest bin of each of 128 bands, written into the channel's own
+takes the loudest bin of each of 128 bands, written into the stream's own
 storage and then published whole:
 
 ```rust
-self.analyze(ctx.channels.spectrum.buffer_mut()); // the bands' levels, in dB
-ctx.channels.spectrum.commit(BANDS);
+self.analyze(ctx.streams.spectrum.buffer_mut()); // the bands' levels, in dB
+ctx.streams.spectrum.commit(BANDS);
 // ...
-ctx.channels.peak.publish(decibels(peak));
+ctx.streams.peak.publish(decibels(peak));
 ```
 
 Both calls run on the audio thread: they take no lock, never allocate and
@@ -67,17 +67,17 @@ useEffect(() => {
     bars.current = hold(bars.current, spectrum, FALL);
     draw(canvas.current!.getContext('2d')!, size, bars.current);
   };
-  const latest = channels.spectrum.get();
+  const latest = streams.spectrum.get();
   if (latest !== undefined) show(latest);
-  return channels.spectrum.subscribe(show);
+  return streams.spectrum.subscribe(show);
 }, [size]);
 ```
 
-The spectrum is drawn from the channel's subscriber, without rendering React
+The spectrum is drawn from the stream's subscriber, without rendering React
 again; the peak is ordinary React state:
 
 ```tsx
-const peak = useSyncExternalStore(channels.peak.subscribe, channels.peak.get);
+const peak = useSyncExternalStore(streams.peak.subscribe, streams.peak.get);
 ```
 
 ## In the browser
@@ -88,8 +88,8 @@ pnpm build:web   # soundor build web: a static site in .soundor/dist/web
 ```
 
 Press ▶ to play the host's input. The same Rust analysis runs in the
-browser, compiled to WebAssembly in an AudioWorklet, and its channels reach
-the UI through the same `soundor:native` channels, about 60 times a second.
+browser, compiled to WebAssembly in an AudioWorklet, and its streams reach
+the UI through the same `soundor:native` streams, about 60 times a second.
 
 ## As a JUCE plugin
 
@@ -108,6 +108,6 @@ pnpm typecheck
 pnpm build:web
 ```
 
-The tests render `App` and publish channel values with
-[`publishChannel()`](/docs/testing/mock-native#channels), as the plugin's
+The tests render `App` and publish stream values with
+[`publishStream()`](/docs/testing/mock-native#streams), as the plugin's
 audio code would.

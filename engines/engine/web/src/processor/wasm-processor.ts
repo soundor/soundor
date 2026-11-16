@@ -12,17 +12,17 @@
 export interface WasmContract {
   readonly parameters: number;
   readonly published: number;
-  readonly channels: number;
+  readonly streams: number;
 }
 
-/** A native channel as the processor's mailbox holds it. */
-export interface WasmChannel {
+/** A native stream as the processor's mailbox holds it. */
+export interface WasmStream {
   readonly kind: 'number' | 'buffer';
   readonly element: string;
 }
 
-/** One channel's latest value: a number, or a copy of a buffer. */
-export type WasmChannelChange = readonly [
+/** One stream's latest value: a number, or a copy of a buffer. */
+export type WasmStreamChange = readonly [
   index: number,
   value: number | ArrayLike<number | bigint>,
 ];
@@ -67,7 +67,7 @@ export class WasmProcessor {
   declare readonly handle: number;
   declare readonly inputs: readonly number[];
   declare readonly outputs: readonly number[];
-  declare readonly channels: readonly WasmChannel[];
+  declare readonly streams: readonly WasmStream[];
   declare maxFrames: number;
   /** Set once the module trapped (a Rust panic): silent from then on. */
   declare failed: boolean;
@@ -90,7 +90,7 @@ export class WasmProcessor {
     contract: WasmContract,
     inputs: readonly number[],
     outputs: readonly number[],
-    channels: readonly WasmChannel[],
+    streams: readonly WasmStream[],
   ) {
     const instance = new WebAssembly.Instance(module, {});
     const exports = instance.exports as unknown as Exports;
@@ -108,16 +108,16 @@ export class WasmProcessor {
     if (
       built[1] !== contract.parameters ||
       built[2] !== contract.published ||
-      built[3] !== contract.channels
+      built[3] !== contract.streams
     )
       throw new Error(
-        'The audio processor was built from another soundor.config (its parameters or channels differ): rebuild it',
+        'The audio processor was built from another soundor.config (its parameters or streams differ): rebuild it',
       );
     this.exports = exports;
     this.handle = exports.soundor_wasm_create();
     this.inputs = inputs.slice();
     this.outputs = outputs.slice();
-    this.channels = channels.slice();
+    this.streams = streams.slice();
     this.maxFrames = 0;
     this.failed = false;
     this.parameters = new Float64Array(contract.parameters);
@@ -128,7 +128,7 @@ export class WasmProcessor {
     this.views();
   }
 
-  /** Allocates the channels in the module's memory, and prepares. */
+  /** Allocates the streams in the module's memory, and prepares. */
   prepare(sampleRate: number, maxFrames: number): number {
     const exports = this.exports;
     const layout = new Uint32Array(
@@ -220,16 +220,16 @@ export class WasmProcessor {
     ).slice();
   }
 
-  /** The channels that changed since this was last asked, their values copied. */
-  channelChanges(): WasmChannelChange[] {
-    const changes: WasmChannelChange[] = [];
+  /** The streams that changed since this was last asked, their values copied. */
+  streamChanges(): WasmStreamChange[] {
+    const changes: WasmStreamChange[] = [];
     if (this.failed) return changes;
     const exports = this.exports;
-    for (let index = 0; index < this.channels.length; index++) {
+    for (let index = 0; index < this.streams.length; index++) {
       const changed = exports.soundor_wasm_channel_changed(this.handle, index);
       if (changed === 0) continue;
-      const channel = this.channels[index]!;
-      if (channel.kind === 'number') {
+      const stream = this.streams[index]!;
+      if (stream.kind === 'number') {
         changes.push([
           index,
           exports.soundor_wasm_channel_value(this.handle, index),
@@ -237,23 +237,23 @@ export class WasmProcessor {
         continue;
       }
       const Type =
-        channel.element === 'float64'
+        stream.element === 'float64'
           ? Float64Array
-          : channel.element === 'int8'
+          : stream.element === 'int8'
             ? Int8Array
-            : channel.element === 'uint8'
+            : stream.element === 'uint8'
               ? Uint8Array
-              : channel.element === 'int16'
+              : stream.element === 'int16'
                 ? Int16Array
-                : channel.element === 'uint16'
+                : stream.element === 'uint16'
                   ? Uint16Array
-                  : channel.element === 'int32'
+                  : stream.element === 'int32'
                     ? Int32Array
-                    : channel.element === 'uint32'
+                    : stream.element === 'uint32'
                       ? Uint32Array
-                      : channel.element === 'int64'
+                      : stream.element === 'int64'
                         ? BigInt64Array
-                        : channel.element === 'uint64'
+                        : stream.element === 'uint64'
                           ? BigUint64Array
                           : Float32Array;
       changes.push([
@@ -284,7 +284,7 @@ export class WasmProcessor {
     this.transportView.set(this.transport);
   }
 
-  /** The channels' views, made again when memory grew (or after prepare). */
+  /** The streams' views, made again when memory grew (or after prepare). */
   views(): void {
     const buffer = this.exports.memory.buffer;
     if (buffer === this.buffer) return;
