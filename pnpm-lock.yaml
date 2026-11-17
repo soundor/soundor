@@ -609,10 +609,10 @@ importers:
         version: 1.65.0
       '@soundor/tsdown-config':
         specifier: workspace:^
-        version: link:../../configs/tsdown-config
+        version: link:../configs/tsdown-config
       '@soundor/typescript-config':
         specifier: workspace:^
-        version: link:../../configs/typescript-config
+        version: link:../configs/typescript-config
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

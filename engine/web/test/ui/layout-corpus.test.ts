@@ -22,10 +22,7 @@ interface Tree {
 
 const corpus = JSON.parse(
   // happy-dom's import.meta.url is no file: from the package's own directory.
-  readFileSync(
-    join(process.cwd(), '../../engine/tests/layout/corpus.json'),
-    'utf8',
-  ),
+  readFileSync(join(process.cwd(), 'tests/layout/corpus.json'), 'utf8'),
 ) as {
   readonly view: readonly [number, number];
   readonly scales: readonly number[];
