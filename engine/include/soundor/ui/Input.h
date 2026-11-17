@@ -75,6 +75,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         int clicks = 1;
     };
 
+    // Pixels a wheel line (WheelInput::Unit::Line) scrolls, as browsers do.
+    inline constexpr float pixelsPerLine = 40;
+    // Lines a stepped wheel's notch scrolls, as browsers report it.
+    inline constexpr float linesPerNotch = 3;
+
     struct WheelInput
     {
         enum class Unit : std::uint8_t

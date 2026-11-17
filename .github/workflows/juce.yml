@@ -181,7 +181,7 @@ jobs:
       - name: JUCE platform dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
+          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libxtst-dev libgl1-mesa-dev xvfb
       - name: Use the MSVC toolset asked for
         if: runner.os == 'Windows' && inputs.msvc-toolset != ''
         run: |
@@ -298,6 +298,15 @@ jobs:
           plugin="$(find "$GITHUB_WORKSPACE/runtimes/juce-runtime/tests/plugin/.soundor/dist/juce" -name '*.vst3' -type d | head -1)"
           cd "$RUNNER_TEMP"
           xvfb-run -a -s "-screen 0 1920x1200x24" "$GITHUB_WORKSPACE/.soundor/juce-tests/backend/juce/tests/soundor_juce_editor_resize_artefacts/Debug/soundor_juce_editor_resize" "$plugin"
+      # The test plugin's editor with real X11 input (EditorInput.cpp): Soundor's
+      # own input, through the host's run loop.
+      - name: Use the test plugin's editor with X11 input
+        if: runner.os == 'Linux' && !matrix.lint && !matrix.sanitize
+        run: |
+          cmake --build .soundor/juce-tests --target soundor_juce_editor_input --config Debug --parallel 3
+          plugin="$(find "$GITHUB_WORKSPACE/runtimes/juce-runtime/tests/plugin/.soundor/dist/juce" -name '*.vst3' -type d | head -1)"
+          cd "$RUNNER_TEMP"
+          xvfb-run -a -s "-screen 0 1920x1200x24" "$GITHUB_WORKSPACE/.soundor/juce-tests/backend/juce/tests/soundor_juce_editor_input_artefacts/Debug/soundor_juce_editor_input" "$plugin"
       - name: Save source engine dependencies
         if: always() && (matrix.nogpu || matrix.sanitize) && steps.deps.outputs.cache-key != ''
         uses: ./.github/actions/native-deps-save

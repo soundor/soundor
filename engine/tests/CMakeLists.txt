@@ -96,6 +96,7 @@ if(SOUNDOR_JS_SOURCE)
   add_executable(soundor_runtime_tests
     main.cpp
     a11y/SemanticsTests.cpp
+    input/ClickCounterTests.cpp
     js/ContextTests.cpp
     js/ErrorTests.cpp
     js/JobTests.cpp
@@ -219,6 +220,14 @@ if(SOUNDOR_JS_SOURCE)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(soundor_runtime_tests PRIVATE a11y/AtSpiTests.cpp)
     target_link_libraries(soundor_runtime_tests PRIVATE PkgConfig::SOUNDOR_GIO)
+    # Native input: its translations, and the real thing under Xvfb with
+    # XTest's input (the engine itself loads X11 at run time).
+    find_package(X11 REQUIRED)
+    if(NOT X11_XTest_FOUND)
+      message(FATAL_ERROR "The native input tests need XTest (libxtst-dev on Debian and Ubuntu).")
+    endif()
+    target_sources(soundor_runtime_tests PRIVATE input/LinuxKeysTests.cpp input/LinuxScrollTests.cpp input/X11InputTests.cpp)
+    target_link_libraries(soundor_runtime_tests PRIVATE X11::X11 X11::Xtst)
   endif()
 
   if(APPLE AND NOT IOS)
@@ -228,7 +237,8 @@ if(SOUNDOR_JS_SOURCE)
     target_compile_options(soundor_runtime_tests PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
   endif()
 
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SOUNDOR_HAS_GPU)
+  # An X server for the GPU's presentation and native input.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(SOUNDOR_XVFB_RUN xvfb-run)
   endif()
   if(SOUNDOR_XVFB_RUN)

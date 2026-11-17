@@ -975,6 +975,7 @@ function renderEditorHeader(editor: ResolvedEditorConfig): string {
 #include <soundor/backend/JuceEditorConstrainer.h>
 #include <soundor/backend/JucePresentation.h>
 #include <soundor/backend/JuceRasterScale.h>
+#include <soundor/input/Platform.h>
 #include <soundor/render/Compositor.h>
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
@@ -988,6 +989,7 @@ function renderEditorHeader(editor: ResolvedEditorConfig): string {
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "SoundorProcessor.h"
 
@@ -1013,7 +1015,11 @@ namespace ${NS}
         void resized() override;
 
         // The view's input goes to the UI (soundor:ui); what it leaves
-        // unhandled (keys, wheel) goes on to the host.
+        // unhandled (keys, wheel) goes on to the host. On Linux the input is
+        // Soundor's own (input::PlatformInput, read with XInput 2) rather
+        // than these, which JUCE then no longer receives; they are JUCE's
+        // input where Soundor has none of its own (macOS, Windows), or where
+        // it could not start (the log says why).
         void mouseMove(const juce::MouseEvent&) override;
         void mouseEnter(const juce::MouseEvent&) override;
         void mouseExit(const juce::MouseEvent&) override;
@@ -1109,8 +1115,37 @@ namespace ${NS}
         bool gpuLost = false;
         // The cursor shown over the view.
         ui::Cursor cursor = ui::Cursor::Default;
-        // Ends a lock by itself when the editor closes during a drag.
-        backend::PointerLock pointerLock;
+        // Linux: the view's input, read by Soundor on a connection of its
+        // own, for the peer's native window (a new one: a new input). Null
+        // elsewhere, and where it could not start: JUCE's input then.
+        std::unique_ptr<input::PlatformInput> nativeInput;
+        void* nativeInputView = nullptr;
+        int nativeInputDescriptor = -1;
+        std::vector<input::Event> nativeEvents;
+        bool readingNativeInput = false;
+        // Starts the input for the peer's native window when there is a new
+        // one, tells it where the editor is, and reads what came.
+        void updateNativeInput();
+        // Reads what the native input received (its connection became
+        // readable, or a tick) and gives it to the UI as JUCE's input is.
+        void readNativeInput();
+        void deliverNative(input::Event& event);
+        // Ends the native input: what it was in the middle of (a press, held
+        // keys) ends in the UI too unless the editor is going.
+        void detachNativeInput(bool deliverEnd);
+        // Whether the view has the keyboard focus: the native input's view,
+        // or JUCE's.
+        [[nodiscard]] bool viewFocused();
+        // Whether the UI's focused node takes text (input methods compose then).
+        [[nodiscard]] bool textInputFocused();
+        // Ends a lock by itself when the editor closes during a drag. Moves
+        // the pointer of the input in use: the native input's, or JUCE's.
+        backend::PointerLock pointerLock { [this](int pointerId)
+                                           {
+                                               return nativeInput != nullptr
+                                                          ? backend::nativePointerSource(*nativeInput, pointerId)
+                                                          : backend::desktopPointerSource(pointerId);
+                                           } };
         // Where the runtime's log goes: diagnostics go there too.
         js::LogSink log;
 #if SOUNDOR_DEVTOOLS
@@ -1360,9 +1395,11 @@ function renderEditorSource(
 #include <soundor/platform/FileLog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <variant>
 
 #if SOUNDOR_HAS_UI
 namespace ${NS}::embedded
@@ -1484,6 +1521,8 @@ ${renderEditorSize(editor)}
 #if SOUNDOR_DEVTOOLS
         debug.reset();
 #endif
+        // Before the host it gives input to, and the lock that moves its pointer.
+        detachNativeInput(false);
         // Before the host whose tree it presents.
         detachAccessibility();
         // While the native view it presents in still exists.
@@ -1499,7 +1538,7 @@ ${renderEditorSize(editor)}
     void AudioProcessorEditor::sizeSurface()
     {
         runtimeHost().surface().setVisible(isShowing());
-        runtimeHost().surface().setFocused(hasKeyboardFocus(true));
+        runtimeHost().surface().setFocused(viewFocused());
         const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
         const double displayScale = display != nullptr ? display->scale : 1.0;
         auto& surface = runtimeHost().surface();
@@ -1650,6 +1689,8 @@ ${renderEditorArea(editor)}
         // the new size now, not on the next tick, so a window being dragged
         // larger does not show the last frame stretched. Not before there is
         // one: the constructor sizes the view before it is shown.
+        // Where the editor now is in its native view, for native input.
+        updateNativeInput();
         if (gpu == nullptr || ! isShowing())
             return;
         sizeSurface();
@@ -1660,6 +1701,9 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::timerCallback()
     {
+        // Input not read yet goes first (its connection is also read when
+        // readable, through JUCE's event loop).
+        updateNativeInput();
         // Every frame, so a reloaded UI (soundor dev) gets the size at once.
         sizeSurface();
 #if SOUNDOR_UI_DEV
@@ -1671,6 +1715,9 @@ ${renderEditorArea(editor)}
         // pointer's every event would resize the host's window, and take the
         // thread from it, as a browser's next render does not.
         applyEditorSizeRequest();
+        // The UI's code may have focused a text input, or left one.
+        if (nativeInput != nullptr)
+            nativeInput->setTextInputFocused(textInputFocused());
         updateAccessibility();
         // A lock ends with a reloaded runtime or a drag the platform ended,
         // and styles also change outside input (timers, animations).
@@ -1743,12 +1790,170 @@ ${renderEditorArea(editor)}
         accessibility->setGeometry({ topLeft.x, topLeft.y, scale,
                                      { screen.getX(), screen.getY(), screen.getWidth(), screen.getHeight() } });
     #endif
-        if (const bool focused = hasKeyboardFocus(true); focused != accessibilityFocused)
+        if (const bool focused = viewFocused(); focused != accessibilityFocused)
         {
             accessibilityFocused = focused;
             accessibility->setFocused(focused);
         }
         accessibility->tick(runtimeHost());
+    }
+
+    void AudioProcessorEditor::updateNativeInput()
+    {
+#if JUCE_LINUX
+        auto* peer = getPeer();
+        void* view = peer != nullptr ? peer->getNativeHandle() : nullptr;
+        if (view != nativeInputView)
+        {
+            // A new native window (or none): a new input for it.
+            detachNativeInput(true);
+            nativeInputView = view;
+            if (view != nullptr)
+            {
+                std::string why;
+                const int doubleClick = std::clamp(backend::platformDoubleClickTime().value_or(400), 100, 5000);
+                nativeInput = input::createPlatformInput(
+                    { .view = { view }, .doubleClickTime = std::chrono::milliseconds(doubleClick) }, &why);
+                if (nativeInput != nullptr)
+                {
+                    // Read when its connection is readable: JUCE's event loop
+                    // is the host's (a VST3 host's IRunLoop) on its UI thread.
+                    nativeInputDescriptor = nativeInput->fileDescriptor();
+                    juce::LinuxEventLoop::registerFdCallback(nativeInputDescriptor,
+                                                             [this](int) { readNativeInput(); });
+                    // What JUCE's input began ends: its input stops here.
+                    releaseKeys(true);
+                    log(js::LogLevel::Info, "input: native (X11, XInput 2)");
+                }
+                else
+                    log(js::LogLevel::Warn, "native input could not start (" + why + "): JUCE's input instead");
+            }
+        }
+        if (nativeInput == nullptr || peer == nullptr)
+            return;
+        // The editor's place and scale in the native window's physical
+        // pixels, and its size: only its area is read (a Standalone's window
+        // has JUCE's own controls around it, which keep JUCE's input).
+        const auto physical = static_cast<float>(peer->getPlatformScaleFactor());
+        const auto origin = peer->getComponent().getLocalPoint(this, juce::Point<float>()) * physical;
+        const auto unit = peer->getComponent().getLocalPoint(this, juce::Point<float>(1, 0)) * physical;
+        nativeInput->setGeometry({ .x = origin.x,
+                                   .y = origin.y,
+                                   .scale = unit.x - origin.x,
+                                   .width = static_cast<float>(getWidth()),
+                                   .height = static_cast<float>(getHeight()) });
+        // JUCE's own menus and dialogs (a Standalone's options) take the
+        // view's input while they show, as they would with JUCE's input: a
+        // press beside a menu closes it.
+        // (JUCE shows its menus modally too.)
+        const bool juceModal = juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0;
+        std::vector<input::Event> ended;
+        nativeInput->setSuspended(juceModal, ended);
+        for (auto& event : ended)
+            deliverNative(event);
+        readNativeInput();
+#endif
+    }
+
+    void AudioProcessorEditor::detachNativeInput(bool deliverEnd)
+    {
+        if (nativeInput == nullptr)
+            return;
+#if JUCE_LINUX
+        juce::LinuxEventLoop::unregisterFdCallback(nativeInputDescriptor);
+#endif
+        nativeInputDescriptor = -1;
+        // While its pointer is still there to put back.
+        pointerLock.release();
+        std::vector<input::Event> ended;
+        nativeInput->cancel(ended);
+        nativeInput.reset();
+        nativeInputView = nullptr;
+        if (deliverEnd)
+            for (auto& event : ended)
+                deliverNative(event);
+    }
+
+    void AudioProcessorEditor::readNativeInput()
+    {
+        // Not again while what was read is delivered (the UI's code runs).
+        if (nativeInput == nullptr || readingNativeInput)
+            return;
+        readingNativeInput = true;
+        nativeEvents.clear();
+        nativeInput->read(nativeEvents);
+        for (auto& event : nativeEvents)
+            deliverNative(event);
+        nativeEvents.clear();
+        readingNativeInput = false;
+        if (nativeInput != nullptr)
+            nativeInput->setTextInputFocused(textInputFocused());
+    }
+
+    void AudioProcessorEditor::deliverNative(input::Event& event)
+    {
+        if (auto* pointer = std::get_if<ui::PointerInput>(&event))
+        {
+            if (pointer->phase == ui::PointerInput::Phase::Down)
+            {${
+              canRequestEditorSize(editor)
+                ? '\n                sizeConstrainer.forgetHostLimits();'
+                : ''
+            }
+                // A press takes the keyboard, as it does with JUCE's input:
+                // JUCE focuses its window, as its own input would.
+                if (nativeInput != nullptr && ! nativeInput->focused())
+                    grabKeyboardFocus();
+            }
+            else if (pointer->phase == ui::PointerInput::Phase::Move && pointer->buttons != 0)
+            {
+                // A locked pointer goes on past the view's edges.
+                const auto position = pointerLock.follow(pointer->pointerId, { pointer->position.x, pointer->position.y },
+                                                         { static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
+                pointer->position = { position.x, position.y };
+            }
+            deliver(*pointer);
+        }
+        else if (auto* wheel = std::get_if<ui::WheelInput>(&event))
+        {
+#if SOUNDOR_DEVTOOLS
+            if (debug && debug->picking()) return;
+#endif
+            const float viewZoom = zoom();
+            const auto origin = uiArea().getPosition();
+            wheel->position = { (wheel->position.x - origin.x) / viewZoom, (wheel->position.y - origin.y) / viewZoom };
+            // The X server delivered it to this view alone: unhandled, it
+            // goes nowhere else, as with JUCE's.
+            runtimeHost().surface().wheel(*wheel);
+            runtimeHost().runtime().runPendingJobs();
+        }
+        else if (auto* key = std::get_if<input::KeyEvent>(&event))
+        {
+#if SOUNDOR_DEVTOOLS
+            if (debug && debug->key(runtimeHost(), key->key)) return;
+#endif
+            runtimeHost().surface().key(key->key, key->typed);
+            runtimeHost().runtime().runPendingJobs();
+        }
+        else if (auto* text = std::get_if<ui::TextInput>(&event))
+        {
+            runtimeHost().surface().text(*text);
+            runtimeHost().runtime().runPendingJobs();
+        }
+        else if (auto* focus = std::get_if<input::FocusChange>(&event))
+            runtimeHost().surface().setFocused(focus->focused);
+    }
+
+    bool AudioProcessorEditor::viewFocused()
+    {
+        return nativeInput != nullptr ? nativeInput->focused() : hasKeyboardFocus(true);
+    }
+
+    bool AudioProcessorEditor::textInputFocused()
+    {
+        auto& surface = runtimeHost().surface();
+        const auto* node = surface.find(surface.focused());
+        return node != nullptr && node->type() == ui::NodeType::Input;
     }
 
     void AudioProcessorEditor::deliver(ui::PointerInput input)
@@ -1787,30 +1992,42 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::mouseMove(const juce::MouseEvent& event)
     {
+        // Soundor reads the view's input itself: JUCE's (its synthesized
+        // moves included) is not delivered twice.
+        if (nativeInput != nullptr)
+            return;
         deliver(backend::pointerInput(event, ui::PointerInput::Phase::Move));
     }
 
     void AudioProcessorEditor::mouseEnter(const juce::MouseEvent& event)
     {
+        if (nativeInput != nullptr)
+            return;
         deliver(backend::pointerInput(event, ui::PointerInput::Phase::Move));
     }
 
     void AudioProcessorEditor::mouseExit(const juce::MouseEvent& event)
     {
+        if (nativeInput != nullptr)
+            return;
         deliver(backend::pointerInput(event, ui::PointerInput::Phase::Leave));
     }
 
     void AudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
-    {${
-      canRequestEditorSize(editor)
-        ? '\n        sizeConstrainer.forgetHostLimits();'
-        : ''
-    }
+    {
+        if (nativeInput != nullptr)
+            return;${
+              canRequestEditorSize(editor)
+                ? '\n        sizeConstrainer.forgetHostLimits();'
+                : ''
+            }
         deliver(backend::pointerInput(event, ui::PointerInput::Phase::Down));
     }
 
     void AudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
     {
+        if (nativeInput != nullptr)
+            return;
         auto input = backend::pointerInput(event, ui::PointerInput::Phase::Move);
         // A locked pointer goes on past the view's edges.
         const auto position = pointerLock.follow(input.pointerId, { input.position.x, input.position.y },
@@ -1821,11 +2038,15 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::mouseUp(const juce::MouseEvent& event)
     {
+        if (nativeInput != nullptr)
+            return;
         deliver(backend::pointerInput(event, ui::PointerInput::Phase::Up));
     }
 
     void AudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
+        if (nativeInput != nullptr)
+            return;
 #if SOUNDOR_DEVTOOLS
         if (debug && debug->picking()) return;
 #endif
@@ -1839,6 +2060,8 @@ ${renderEditorArea(editor)}
 
     bool AudioProcessorEditor::keyPressed(const juce::KeyPress& key)
     {
+        if (nativeInput != nullptr)
+            return false;
         const std::string name = backend::keyName(key);
         if (name.empty())
             return false;
@@ -1858,11 +2081,14 @@ ${renderEditorArea(editor)}
 
     bool AudioProcessorEditor::keyStateChanged(bool isKeyDown)
     {
+        if (nativeInput != nullptr)
+            return false;
         return ! isKeyDown && releaseKeys(false);
     }
 
     void AudioProcessorEditor::focusLost(FocusChangeType)
     {
+        // The native input releases its own keys when the window loses focus.
         releaseKeys(true);
     }
 

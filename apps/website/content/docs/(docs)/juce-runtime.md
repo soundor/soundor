@@ -452,14 +452,25 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
   transport (`ctx.transport`).
 - **The data directory** `<user application data>/Soundor/<plugin.id>` for
   storage and files.
+- **Input**: on Linux (X11, and XWayland under a Wayland desktop) the
+  view's pointer, wheel, keys, text and focus are read by Soundor itself,
+  with XInput 2 on a connection of its own, rather than through JUCE, which
+  keeps the window: touchpads scroll smoothly and by fractions, both ways at
+  once, a wheel by notches, text goes through the desktop's input method
+  (dead keys, Compose, IBus or Fcitx), and each event arrives once. macOS
+  and Windows keep JUCE's input. See
+  [native input](/docs/contribute/engine-reference#native-input). Where X11's
+  libraries cannot be loaded, the editor keeps JUCE's input and says so in
+  the log. An unhandled key or wheel goes nowhere else on Linux: X11 gives
+  it to the plugin's window alone, as it did before.
 - **Pointer lock** (`requestPointerLock()`): the pointer is hidden and kept
   in the view, moved back to where the lock began whenever it strays, and put
   back there when the lock ends. Under Wayland (through XWayland) moving the
   pointer depends on the compositor.
-- **Click counts** (`event.detail`, and `dblclick`): JUCE's, by the
-  platform's double-click time, which the editor gives JUCE when it opens:
-  macOS's and Windows' setting, on Linux the desktop's
-  (`Net/DoubleClickTime`, as GNOME and KDE publish it), else JUCE's 400 ms.
+- **Click counts** (`event.detail`, and `dblclick`): by the platform's
+  double-click time: JUCE's count with macOS's and Windows' setting, which
+  the editor gives JUCE when it opens, and on Linux Soundor's own with the
+  desktop's (`Net/DoubleClickTime`, as GNOME and KDE publish it), else 400 ms.
 
 ### Canvases: 2D and WebGL
 

@@ -93,6 +93,24 @@ if(SOUNDOR_RESIZE_PLUGIN)
   add_test(NAME soundor_juce_editor_resize COMMAND soundor_juce_editor_resize ${SOUNDOR_RESIZE_PLUGIN})
 endif()
 
+# A real Soundor plugin's editor used with real X11 input (see
+# EditorInput.cpp). Runs when SOUNDOR_INPUT_PLUGIN names the test plugin's
+# built .vst3 bundle, under an X server.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  juce_add_console_app(soundor_juce_editor_input)
+  target_sources(soundor_juce_editor_input PRIVATE EditorInput.cpp)
+  target_compile_definitions(soundor_juce_editor_input
+    PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+  target_link_libraries(soundor_juce_editor_input
+    PRIVATE
+      juce::juce_audio_processors
+      juce::juce_recommended_config_flags
+      X11::X11 X11::Xtst)
+  if(SOUNDOR_INPUT_PLUGIN)
+    add_test(NAME soundor_juce_editor_input COMMAND soundor_juce_editor_input ${SOUNDOR_INPUT_PLUGIN})
+  endif()
+endif()
+
 foreach(consumer soundor_juce_tests soundor_juce_platform_tests soundor_debug_target)
   if(TARGET ${consumer})
     target_include_directories(${consumer} PRIVATE "${engine_dir}/tests")
