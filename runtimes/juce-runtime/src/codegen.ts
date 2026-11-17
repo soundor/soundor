@@ -550,6 +550,7 @@ function renderProcessorHeader(
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
 #include <soundor/backend/JuceRustProcessor.h>
+#include <soundor/backend/JuceMidiOutput.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -701,7 +702,7 @@ ${handles || '        // no parameters'}
         processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length}, ${describeAudioState(describeState(config.state, config.native)).size} }, processor::linkedRustProcessor(), midi::linkedMidi() };
         std::shared_ptr<midi::Host> midiBridge = std::make_shared<midi::Host>(rust.nativeHandle(), midi::linkedMidi());
         std::array<SoundorMidiEvent, midi::capacity> midiInputBuffer {}, midiOutputBuffer {};
-        juce::MidiBuffer midiOutput;
+        backend::MidiOutputBuffer midiOutput;
         std::uint64_t midiGeneration = 0;
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
@@ -896,7 +897,7 @@ ${renderControllerShutdown()}
 ${audioImplementation(config)}
     void AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
-        midiOutput.ensureSize(16384);
+        midiOutput.prepare();
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
         const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
@@ -932,24 +933,29 @@ ${audioImplementation(config)}
         backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${streams.length > 0 ? '&streamSink' : 'nullptr'},
                              state.audioState().acquire(), { midiInputBuffer.data(), midiInputCount }, midiOutputBuffer, &midiOutputCount);
         hostMidi.clear();
-        midiOutput.clear();
 #if JucePlugin_ProducesMidiOutput
+        if (! midiOutput.acquire(hostMidi)) {
+            // A wrapper replaced/destroyed the storage it borrowed. Refuse
+            // output and request recovery rather than allocate in this callback.
+            midiBridge->recover();
+            return;
+        }
         const auto generation = soundor_midi_generation(rust.nativeHandle());
         if (generation != midiGeneration) {
             midiGeneration = generation;
             for (int channel = 0; channel < 16; ++channel) {
                 const std::uint8_t off[] { static_cast<std::uint8_t>(0xb0 | channel), 120, 0 };
                 const std::uint8_t sustain[] { static_cast<std::uint8_t>(0xb0 | channel), 64, 0 };
-                midiOutput.addEvent(sustain, 3, 0); midiOutput.addEvent(off, 3, 0);
+                midiOutput.events().addEvent(sustain, 3, 0); midiOutput.events().addEvent(off, 3, 0);
             }
             // Release notes from the previous generation before new output.
         }
         for (std::uint32_t i = 0; i < midiOutputCount; ++i) {
             const auto& event = midiOutputBuffer[i];
             const auto kind = event.bytes[0] >> 4;
-            midiOutput.addEvent(event.bytes, kind == 12 || kind == 13 ? 2 : 3, static_cast<int>(event.sampleOffset));
+            midiOutput.events().addEvent(event.bytes, kind == 12 || kind == 13 ? 2 : 3, static_cast<int>(event.sampleOffset));
         }
-        hostMidi.swapWith(midiOutput);
+        midiOutput.publish(hostMidi);
 #endif
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))

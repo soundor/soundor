@@ -5,6 +5,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
+#include <soundor/backend/JuceMidiOutput.h>
 #include <soundor/backend/JuceRustProcessor.h>
 #include <soundor/processor/AudioState.h>
 
@@ -449,4 +450,42 @@ TEST_CASE("MIDI is timed across native processing chunks without audio-thread al
     if (soundorCountsAllocations())
         CHECK(allocations == 0);
     observer->pump(); // The only allocations/delivery happen on the control thread.
+}
+
+TEST_CASE("MIDI output reclaims full capacity across repeated wrapper callbacks")
+{
+    soundor::backend::MidiOutputBuffer output;
+    output.prepare();
+    juce::MidiBuffer host;
+    host.ensureSize(2048); // The format wrapper's initial allocation.
+    const void* owned = nullptr;
+    for (int block = 0; block < 8; ++block)
+    {
+        host.clear();
+        REQUIRE(output.acquire(host));
+        if (owned == nullptr)
+            owned = output.events().data.begin();
+        CHECK(output.events().data.begin() == owned);
+        const auto allocations = allocationsOf(
+            [&]
+            {
+                for (int event = 0; event < 1024; ++event)
+                {
+                    const std::uint8_t message[] { 0x90, 60, 100 };
+                    output.events().addEvent(message, 3, event);
+                }
+                output.publish(host);
+            });
+        CHECK(host.data.begin() == owned); // No malloc/realloc moved storage.
+        CHECK(host.getNumEvents() == 1024);
+        if (soundorCountsAllocations())
+            CHECK(allocations == 0);
+    }
+    // An unexpected wrapper owner cannot silently cause audio-thread growth.
+    juce::MidiBuffer replaced;
+    CHECK_FALSE(output.acquire(replaced));
+    output.prepare(); // Reinitialization establishes fresh storage off the audio thread.
+    CHECK(output.acquire(replaced));
+    output.publish(replaced);
+    CHECK(output.acquire(replaced));
 }

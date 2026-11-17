@@ -6,6 +6,7 @@
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
 #include <soundor/backend/JuceRustProcessor.h>
+#include <soundor/backend/JuceMidiOutput.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -165,7 +166,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         processor::RustProcessor rust { processor::RustContract { 3, 0, 1, 48 }, processor::linkedRustProcessor(), midi::linkedMidi() };
         std::shared_ptr<midi::Host> midiBridge = std::make_shared<midi::Host>(rust.nativeHandle(), midi::linkedMidi());
         std::array<SoundorMidiEvent, midi::capacity> midiInputBuffer {}, midiOutputBuffer {};
-        juce::MidiBuffer midiOutput;
+        backend::MidiOutputBuffer midiOutput;
         std::uint64_t midiGeneration = 0;
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
