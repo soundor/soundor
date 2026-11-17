@@ -5,7 +5,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/soundor/soundor.git",
-    "directory": "engines/engine"
+    "directory": "engine"
   },
   "files": [
     "CMakeLists.txt",
@@ -41,8 +41,8 @@
     }
   },
   "scripts": {
-    "format:native": "node ../../scripts/clang-format.mjs --check include src tests wasm",
-    "format:native:fix": "node ../../scripts/clang-format.mjs --fix include src tests wasm",
+    "format:native": "node ../scripts/clang-format.mjs --check include src tests wasm",
+    "format:native:fix": "node ../scripts/clang-format.mjs --fix include src tests wasm",
     "lint:native": "cmake --workflow --preset tidy",
     "test": "node --test tests/tooling/*.test.mjs node/test/*.test.ts",
     "test:native": "cmake --workflow --preset dev",

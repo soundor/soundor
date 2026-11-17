@@ -12,13 +12,13 @@ inputs:
 runs:
   using: composite
   steps:
-    # The engine's pin (engines/engine/wasm/emscripten.json, which the wasm
+    # The engine's pin (engine/wasm/emscripten.json, which the wasm
     # build checks and the module's input fingerprint covers), and emsdk's
     # tag of it by commit. Not EMSDK_*: emsdk_env.sh clears those.
     - name: Emscripten's version
       shell: bash
       run: |
-        pin=engines/engine/wasm/emscripten.json
+        pin=engine/wasm/emscripten.json
         {
           echo "SOUNDOR_EMSDK_VERSION=$(node -p "require('./$pin').version")"
           echo "SOUNDOR_EMSDK_COMMIT=$(node -p "require('./$pin').emsdkCommit")"

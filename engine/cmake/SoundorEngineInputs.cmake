@@ -13,8 +13,8 @@ foreach(index RANGE ${soundor_inputs_last})
   string(JSON path GET "${soundor_inputs_json}" files ${index})
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
 endforeach()
-if(EXISTS "${SoundorEngine_SOURCE_DIR}/../../pnpm-lock.yaml")
-  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SoundorEngine_SOURCE_DIR}/../../pnpm-lock.yaml")
+if(EXISTS "${SoundorEngine_SOURCE_DIR}/../pnpm-lock.yaml")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SoundorEngine_SOURCE_DIR}/../pnpm-lock.yaml")
 endif()
 # Detect additions/deletions as well as edits when building an existing tree.
 file(GLOB_RECURSE soundor_input_paths CONFIGURE_DEPENDS

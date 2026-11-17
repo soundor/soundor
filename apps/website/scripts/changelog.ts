@@ -202,34 +202,36 @@ export function generateChangelog(
     '@soundor/yoga-wasm': 'Yoga WASM',
     '@soundor/vst3-host': 'VST3 Host',
   };
-  for (const parent of ['packages', 'runtimes', 'engines', 'hosts']) {
+  const packageDirs = ['engine/'];
+  for (const parent of ['packages', 'runtimes', 'hosts']) {
     if (!existsSync(new URL(`${parent}/`, root))) continue;
     for (const dir of readdirSync(new URL(`${parent}/`, root), {
       withFileTypes: true,
     })) {
-      if (!dir.isDirectory()) continue;
-      const path = `${parent}/${dir.name}/`;
-      const file = new URL(`${path}CHANGELOG.md`, root);
-      if (!existsSync(new URL(`${path}package.json`, root))) continue;
-      const { name } = JSON.parse(
-        readFileSync(new URL(`${path}package.json`, root), 'utf8'),
-      ) as { name: string };
-      const history = existsSync(file) ? readFileSync(file, 'utf8') : '';
-      if (!history && !titles[name]) continue;
-      const releases = parseChangelog(history);
-      const title = titles[name];
-      if (title) {
-        independent.set(name.replace('@soundor/', ''), { title, releases });
-        continue;
-      }
-      for (const [version, changes] of releases) {
-        let release = groups.get(version);
-        if (!release) groups.set(version, (release = new Map()));
-        for (const { kind, markdown } of changes) {
-          const existing = release.get(markdown);
-          if (existing) existing.packages!.push(name);
-          else release.set(markdown, { kind, markdown, packages: [name] });
-        }
+      if (dir.isDirectory()) packageDirs.push(`${parent}/${dir.name}/`);
+    }
+  }
+  for (const path of packageDirs) {
+    const file = new URL(`${path}CHANGELOG.md`, root);
+    if (!existsSync(new URL(`${path}package.json`, root))) continue;
+    const { name } = JSON.parse(
+      readFileSync(new URL(`${path}package.json`, root), 'utf8'),
+    ) as { name: string };
+    const history = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    if (!history && !titles[name]) continue;
+    const releases = parseChangelog(history);
+    const title = titles[name];
+    if (title) {
+      independent.set(name.replace('@soundor/', ''), { title, releases });
+      continue;
+    }
+    for (const [version, changes] of releases) {
+      let release = groups.get(version);
+      if (!release) groups.set(version, (release = new Map()));
+      for (const { kind, markdown } of changes) {
+        const existing = release.get(markdown);
+        if (existing) existing.packages!.push(name);
+        else release.set(markdown, { kind, markdown, packages: [name] });
       }
     }
   }

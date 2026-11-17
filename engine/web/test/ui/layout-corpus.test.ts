@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 //
 // The point of laying out with Yoga: the engine's own frames for these trees
-// (engines/engine/tests/layout/corpus.json, written through its soundor:ui),
+// (engine/tests/layout/corpus.json, written through its soundor:ui),
 // matched to the last bit by the same style properties set here. happy-dom has
 // no canvas, so text measures as the engine's approximate text engine does.
 import { readFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ interface Tree {
 const corpus = JSON.parse(
   // happy-dom's import.meta.url is no file: from the package's own directory.
   readFileSync(
-    join(process.cwd(), '../../engines/engine/tests/layout/corpus.json'),
+    join(process.cwd(), '../../engine/tests/layout/corpus.json'),
     'utf8',
   ),
 ) as {

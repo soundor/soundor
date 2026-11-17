@@ -21,7 +21,7 @@ import {
   localManifest,
   pack,
   plan,
-} from '../../../../.github/scripts/engine-prebuilts.mjs';
+} from '../../../.github/scripts/engine-prebuilts.mjs';
 import { webInputs } from '../../scripts/engine-inputs.mjs';
 import { withLock } from '../src/cache.ts';
 import { type EngineContext, engine } from '../src/index.ts';

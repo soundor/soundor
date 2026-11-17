@@ -72,7 +72,7 @@ function(soundor_lower_js_command input output name)
   set(depends "${input}" "${script}")
   # The lowering itself (source in the workspace, JS in an installed package).
   set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../scripts/native-module.ts")
-  if(NOT EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../pnpm-workspace.yaml")
+  if(NOT EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../pnpm-workspace.yaml")
     set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../dist/native-module.mjs")
   endif()
   if(EXISTS "${lowering}")

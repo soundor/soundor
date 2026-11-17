@@ -76,4 +76,4 @@ __pycache__/
 engines/yoga-wasm/generated/
 
 # Written when @soundor/engine is published (.github/workflows/release.yml), never committed
-engines/engine/artifacts/manifest.json
+engine/artifacts/manifest.json

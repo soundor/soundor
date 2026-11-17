@@ -12,7 +12,7 @@ that information through the operating system's accessibility APIs:
 | Linux    | Native C++ AT-SPI over GDBus |
 | Windows  | Native UI Automation         |
 
-Linux's implementation is in `engines/engine/src/a11y/linux/`. It implements
+Linux's implementation is in `engine/src/a11y/linux/`. It implements
 the [official AT-SPI D-Bus interfaces](https://gnome.pages.gitlab.gnome.org/at-spi2-core/devel-docs/xml-interfaces.html)
 using system GIO. It does not implement a D-Bus transport or link libatspi's
 client API.

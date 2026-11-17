@@ -4,7 +4,7 @@ description: 'Native UI Automation: HWND ownership, COM lifetime, threading, and
 ---
 
 Windows exposes Soundor's existing semantic tree through native Microsoft UI
-Automation (UIA). The implementation is in `engines/engine/src/a11y/windows/`.
+Automation (UIA). The implementation is in `engine/src/a11y/windows/`.
 It links Windows system libraries and requires no Rust accessibility archive.
 The public React props and `soundor:ui` accessibility API are unchanged.
 

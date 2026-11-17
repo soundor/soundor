@@ -62,7 +62,7 @@ describe('the spring contract', () => {
     // make the engine's native jobs run. The copy is kept identical instead.
     const engine = readFileSync(resolve('web/src/ui/spring.ts'), 'utf8');
     const core = readFileSync(
-      resolve('../../packages/core/src/spring.ts'),
+      resolve('../packages/core/src/spring.ts'),
       'utf8',
     );
     expect(engine).toBe(core);

@@ -179,7 +179,7 @@ if(SOUNDOR_JS_SOURCE)
     target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_GPU=1)
     # Three.js, unmodified, from the engine's catalog dev dependency. Resolve
     # pnpm's symlink so a version change gives the lowering commands new inputs.
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SoundorEngine_SOURCE_DIR}/../../pnpm-lock.yaml")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SoundorEngine_SOURCE_DIR}/../pnpm-lock.yaml")
     file(REAL_PATH "${SoundorEngine_SOURCE_DIR}/node_modules/three/build" soundor_three_source_dir)
     # In the runtime's module form, as a plugin's bundle would have it: lowered
     # by the engine's toNativeModule() (with Node, at build time).

@@ -195,7 +195,7 @@ test('bundled lowering identity survives transitive dependency drift on fresh in
 test('workspace lowering ignores a stale bundled graph', () => {
   const workspace = mkdtempSync(join(work, 'workspace-'));
   write(join(workspace, 'pnpm-workspace.yaml'), 'packages: []');
-  const root = join(workspace, 'engines/engine');
+  const root = join(workspace, 'engine');
   cpSync(fixture(), root, { recursive: true });
   write(
     join(root, 'dist/lowering-inputs.json'),

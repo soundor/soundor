@@ -569,7 +569,7 @@ importers:
 
   configs/typescript-config: {}
 
-  engines/engine:
+  engine:
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
@@ -1577,7 +1577,7 @@ importers:
     dependencies:
       '@soundor/engine':
         specifier: workspace:*
-        version: link:../../engines/engine
+        version: link:../../engine
       '@soundor/runtime-sdk':
         specifier: workspace:^
         version: link:../../packages/runtime-sdk
@@ -1614,7 +1614,7 @@ importers:
     dependencies:
       '@soundor/engine':
         specifier: workspace:^
-        version: link:../../engines/engine
+        version: link:../../engine
       '@soundor/runtime-sdk':
         specifier: workspace:^
         version: link:../../packages/runtime-sdk

@@ -184,10 +184,7 @@ export function webInputs(root) {
 /** The graph of the lowering tool actually used: bundled in npm, live in a workspace. */
 export function loweringInputs(root) {
   const bundled = join(root, 'dist/lowering-inputs.json');
-  if (
-    !existsSync(join(root, '../../pnpm-workspace.yaml')) &&
-    existsSync(bundled)
-  )
+  if (!existsSync(join(root, '../pnpm-workspace.yaml')) && existsSync(bundled))
     return {
       dependencies: JSON.parse(readFileSync(bundled, 'utf8')),
       files: [bundled, join(root, 'dist/native-module.mjs')],

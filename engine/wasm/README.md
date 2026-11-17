@@ -7,7 +7,7 @@ is `@soundor/engine/web`, which is the web runtime's `soundor:ui`.
 
 The architecture, the command protocol, text measurement, how the module is
 found and loaded, the tests, the measurements and the limitations are in
-[The engine in the browser](../../../apps/website/content/docs/contribute/web-engine.md)
+[The engine in the browser](../../apps/website/content/docs/contribute/web-engine.md)
 (soundor.dev/docs/contribute/web-engine).
 
 - `Engine.cpp`: plain C++, a `ui::Surface` driven by batched commands,
@@ -22,7 +22,7 @@ found and loaded, the tests, the measurements and the limitations are in
 
 ## Commands
 
-From `engines/engine`:
+From `engine`:
 
 ```sh
 source <emsdk>/emsdk_env.sh   # the Emscripten emscripten.json pins (CI installs the same)

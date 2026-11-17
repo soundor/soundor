@@ -3,7 +3,7 @@ title: 'Engine reference'
 description: 'Embedding API, JavaScript language support, modules, graphics, accessibility, dependencies, symbol isolation, builds, and animation contracts.'
 ---
 
-Source: [`engines/engine/`](https://github.com/soundor/soundor/tree/main/engines/engine).
+Source: [`engine/`](https://github.com/soundor/soundor/tree/main/engine).
 
 The independently versioned C++ engine owns the native UI runtime, its public
 headers, embedded resources and dependency recipes. JUCE integration lives in
@@ -140,7 +140,7 @@ The normal test workflow has no browser dependency and downloads no browser.
 ## Layout
 
 ```text
-engines/engine/
+engine/
   include/soundor/        public headers: plain C++, no engine types
     Config.h              the ABI namespace (see "Symbol isolation")
     a11y/                 accessibility semantics and the semantic tree
@@ -1876,7 +1876,7 @@ pnpm check     # package checks without native compilation
 pnpm check:native # native lint and tests
 ```
 
-Or directly, from `engines/engine/`:
+Or directly, from `engine/`:
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, tests

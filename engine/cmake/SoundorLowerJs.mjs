@@ -14,7 +14,7 @@ import { basename, dirname } from 'node:path';
 
 // Workspace builds use the engine's source immediately; installed packages
 // use its ordinary JS build. Neither path compiles native code in pnpm build.
-const workspace = new URL('../../../pnpm-workspace.yaml', import.meta.url);
+const workspace = new URL('../../pnpm-workspace.yaml', import.meta.url);
 const module = existsSync(workspace)
   ? new URL('../scripts/native-module.ts', import.meta.url)
   : new URL('../dist/native-module.mjs', import.meta.url);

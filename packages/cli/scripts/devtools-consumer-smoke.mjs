@@ -22,7 +22,7 @@ function run(command, args, cwd = temporary, env = process.env) {
 try {
   const tarballs = {};
   for (const folder of [
-    'engines/engine',
+    'engine',
     'packages/core',
     'packages/environment',
     'packages/config',

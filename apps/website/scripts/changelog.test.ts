@@ -101,8 +101,8 @@ describe('generateChangelog', () => {
           '@soundor/juce-runtime',
           'JUCE runtime change',
         ],
-        ['engines/engine', '@soundor/engine', 'Engine change'],
-        ['engines/yoga-wasm', '@soundor/yoga-wasm', 'Yoga WASM change'],
+        ['engine', '@soundor/engine', 'Engine change'],
+        ['packages/yoga-wasm', '@soundor/yoga-wasm', 'Yoga WASM change'],
         ['hosts/vst3-host', '@soundor/vst3-host', 'VST3 Host change'],
       ]) {
         const dir = join(root, path!);
@@ -185,7 +185,7 @@ describe('generateChangelog', () => {
       expect(index).toContain('/changelog/juce-runtime');
       expect(index).toContain('/changelog/yoga-wasm');
       expect(index).toContain('/changelog/vst3-host');
-      rmSync(join(root, 'engines/yoga-wasm/CHANGELOG.md'));
+      rmSync(join(root, 'packages/yoga-wasm/CHANGELOG.md'));
       rmSync(join(root, 'hosts/vst3-host/CHANGELOG.md'));
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
       expect(readFileSync(join(out, 'yoga-wasm/index.mdx'), 'utf8')).toContain(

@@ -57,13 +57,13 @@ function recipeFiles() {
       const path = `${directory}/${entry.name}`;
       if (
         entry.isDirectory() &&
-        (directory !== 'engines/engine/cmake' ||
+        (directory !== 'engine/cmake' ||
           ['angle', 'hermes', 'skia'].includes(entry.name))
       )
         visit(path);
       else if (
         entry.isFile() &&
-        (directory !== 'engines/engine/cmake' ||
+        (directory !== 'engine/cmake' ||
           /^Soundor(?:Dependencies|Skia|Angle|Hermes|WindowsCrt|PlatformLibraries)/.test(
             entry.name,
           ))
@@ -71,7 +71,7 @@ function recipeFiles() {
         files.push(path);
     }
   };
-  visit('engines/engine/cmake');
+  visit('engine/cmake');
   return files.map((path) => [path, readFileSync(path, 'utf8')]);
 }
 
