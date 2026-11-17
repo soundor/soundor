@@ -209,6 +209,7 @@ describe('validateConfig — validation rules', () => {
       validateConfig({ ...base, runtimes: [{ id: 'juce', runtime }] }),
     ).toEqual({
       plugin: { ...plugin, version: '0.1.0' },
+      midi: { input: false, output: false },
       editor: {
         width: 800,
         height: 600,

@@ -18,6 +18,7 @@ export type {
   LayoutEditorConfig,
   ScaleEditorConfig,
   MacosSigningConfig,
+  MidiConfig,
   NativeApiDeclaration,
   NativeResourceDeclaration,
   NativeStreamDeclaration,

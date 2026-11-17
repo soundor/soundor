@@ -110,6 +110,12 @@ const signingSchema = z.strictObject({
 const soundorConfigSchema = z.strictObject({
   plugin: pluginSchema,
   audio: audioSchema.optional(),
+  midi: z
+    .strictObject({
+      input: z.boolean().default(false),
+      output: z.boolean().default(false),
+    })
+    .default({ input: false, output: false }),
   parameterGroups: z
     .record(
       z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
@@ -275,6 +281,7 @@ function normalize(
       name: data.plugin.name.trim(),
       version: data.plugin.version,
     },
+    midi: { ...data.midi },
     ...(data.audio === undefined ? {} : { audio: structuredClone(data.audio) }),
     ...(data.parameterGroups === undefined
       ? {}

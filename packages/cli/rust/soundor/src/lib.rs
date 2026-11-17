@@ -88,6 +88,7 @@ mod instance;
 #[doc(hidden)]
 pub mod json;
 mod layout;
+pub mod midi;
 #[doc(hidden)]
 pub mod wasm_controller;
 // Generated from soundor.config.ts, as generated.

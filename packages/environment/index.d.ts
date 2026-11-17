@@ -9,3 +9,5 @@
 /// <reference path="./history.d.ts" />
 
 /// <reference path="./presets.d.ts" />
+
+/// <reference path="./midi.d.ts" />

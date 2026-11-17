@@ -32,6 +32,10 @@
     "./spring": {
       "types": "./dist/spring.d.mts",
       "import": "./dist/spring.mjs"
+    },
+    "./midi": {
+      "types": "./dist/midi.d.mts",
+      "import": "./dist/midi.mjs"
     }
   },
   "scripts": {
