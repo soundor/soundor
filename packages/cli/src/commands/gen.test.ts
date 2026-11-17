@@ -86,6 +86,7 @@ describe('runGen', () => {
             { path: 'rust/soundor/src/json.rs', status: 'created' },
             { path: 'rust/soundor/src/layout.rs', status: 'created' },
             { path: 'rust/soundor/src/lib.rs', status: 'created' },
+            { path: 'rust/soundor/src/midi_ffi.rs', status: 'created' },
             { path: 'rust/soundor/src/midi.rs', status: 'created' },
             { path: 'rust/soundor/src/plugin.rs', status: 'created' },
             { path: 'rust/soundor/src/processor.rs', status: 'created' },

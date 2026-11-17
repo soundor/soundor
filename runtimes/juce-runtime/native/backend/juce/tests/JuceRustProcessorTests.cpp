@@ -417,3 +417,36 @@ TEST_CASE("the bus layout is read from a JUCE processor")
     CHECK(layout.inputs == std::vector<std::vector<int>> { { 0, 1 }, { 2 } });
     CHECK(layout.outputs == std::vector<std::vector<int>> { { 0, 1 } });
 }
+
+TEST_CASE("MIDI is timed across native processing chunks without audio-thread allocation")
+{
+    processor::RustProcessor midiProcessor(contract, processor::linkedRustProcessor(), soundor::midi::linkedMidi());
+    const auto values = parameters(0.5);
+    REQUIRE(midiProcessor.prepare(48000, 32, stereo(), values) == SOUNDOR_STATUS_OK);
+    auto observer = std::make_shared<soundor::midi::Host>(midiProcessor.nativeHandle(), soundor::midi::linkedMidi());
+    observer->observe(true);
+    const std::array<SoundorMidiEvent, 3> events {
+        { { 65, { 0x90, 60, 0 }, 1 }, { 0, { 0x90, 64, 100 }, 1 }, { 0, { 0xe0, 127, 127 }, 1 } }
+    };
+    std::array<SoundorMidiEvent, soundor::midi::capacity> output {};
+    std::uint32_t count = 0;
+    juce::AudioBuffer<float> buffer(2, 96);
+    buffer.clear();
+    std::array<double, 1> published {};
+    const auto allocations = allocationsOf(
+        [&]
+        {
+            CHECK(backend::processRust(midiProcessor, buffer, values, published, noTransport, nullptr, nullptr, events,
+                                       output, &count)
+                  == SOUNDOR_STATUS_OK);
+        });
+    REQUIRE(count == 3);
+    CHECK(output[0].sampleOffset == 0);
+    CHECK(output[0].bytes[1] == 64);
+    CHECK(output[2].sampleOffset == 65);
+    CHECK(output[2].bytes[0] == 0x90);
+    CHECK(output[2].bytes[2] == 0);
+    if (soundorCountsAllocations())
+        CHECK(allocations == 0);
+    observer->pump(); // The only allocations/delivery happen on the control thread.
+}

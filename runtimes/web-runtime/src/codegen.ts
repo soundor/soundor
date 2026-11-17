@@ -85,17 +85,21 @@ function webEditor(config: ResolvedSoundorConfig): WebEditor {
  * config always produces the same bytes.
  */
 export function webManifest(config: ResolvedSoundorConfig): WebManifest {
+  if (config.plugin.kind === 'midiEffect' && config.audio === undefined)
+    config = {
+      ...config,
+      audio: { buses: {}, layouts: { midi: {} }, defaultLayout: 'midi' },
+    };
   const native = nativeModel(config);
-  if (config.plugin.kind === 'midiEffect')
-    throw new Error(
-      'MIDI effects require MIDI runtime support, which is not implemented yet.',
-    );
+
   let audio: WebManifest['audio'];
   if (config.audio) {
     const buses = Object.entries(config.audio.buses);
     if (
       buses.filter(([, bus]) => bus.direction === 'input').length > 1 ||
-      buses.filter(([, bus]) => bus.direction === 'output').length !== 1 ||
+      (config.plugin.kind === 'midiEffect'
+        ? buses.filter(([, bus]) => bus.direction === 'output').length > 1
+        : buses.filter(([, bus]) => bus.direction === 'output').length !== 1) ||
       buses.some(([, bus]) => bus.optional)
     )
       throw new Error(
@@ -132,6 +136,10 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
     ...(config.presets === undefined
       ? {}
       : { presets: JSON.parse(stateJson(config.presets)) }),
+    midi: {
+      input: config.midi?.input ?? false,
+      output: config.midi?.output ?? false,
+    },
     ...(audio === undefined ? {} : { audio }),
     ...(config.parameterGroups === undefined
       ? {}

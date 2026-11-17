@@ -7,6 +7,7 @@
 #include "HostInterface.h"
 #include "Ipc.h"
 #include "LiveAudio.h"
+#include "MidiInput.h"
 #include "Plugin.h"
 #include "Settings.h"
 
@@ -73,6 +74,7 @@ namespace soundor::vst3host
         std::string presentation_;
         Plugin plugin_;
         LiveAudio audio_;
+        MidiInput midiInput_;
         HostModel model_;
         AudioWorker worker_;
         std::deque<Frame> queue_;

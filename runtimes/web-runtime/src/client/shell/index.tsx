@@ -27,6 +27,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { WebAudioHost } from '../audio';
 import type { WebHost } from '../host';
 import type { WebEditor } from '../manifest';
+import type { WebMidiHost } from '../midi';
 import type { ParameterStore } from '../parameters';
 import { Dock } from './dock';
 import { startAudioOnGesture } from './gesture';
@@ -73,6 +74,7 @@ export interface ViewGeometry {
 export const EMBED_PARAM = 'embed';
 
 export interface ShellOptions {
+  readonly midi?: WebMidiHost;
   readonly pluginName: string;
   readonly presentation: Presentation;
   /**
@@ -228,6 +230,7 @@ function Shell(options: ShellOptions & { readonly requests: EditorRequests }) {
         pluginName={options.pluginName}
         host={options.host}
         audio={options.audio}
+        midi={options.midi}
         parameters={options.parameters}
         parameterGroups={options.parameterGroups}
         inspect={options.presentation === 'dev'}

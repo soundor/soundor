@@ -76,6 +76,7 @@ fn host() -> Host {
 pub struct Handle<C: NativeMethods> {
     instance: Instance<C>,
     slots: Arc<ResourceSlots>,
+    midi: Arc<crate::midi::MidiInbox>,
     input: Vec<u8>,
     output: Vec<u8>,
     operation: u32,
@@ -85,14 +86,11 @@ impl<C: NativeMethods> Default for Handle<C> {
         let host = host();
         let wake = host.waker();
         let slots = Arc::new(ResourceSlots::default());
+        let midi = Arc::new(crate::midi::MidiInbox::default());
         Self {
-            instance: Instance::new(
-                host,
-                wake,
-                slots.clone(),
-                Arc::new(crate::midi::MidiInbox::default()),
-            ),
+            instance: Instance::new(host, wake, slots.clone(), midi.clone()),
             slots,
+            midi,
             input: Vec::new(),
             output: Vec::new(),
             operation: 0,
@@ -100,6 +98,41 @@ impl<C: NativeMethods> Default for Handle<C> {
     }
 }
 impl<C: NativeMethods> Handle<C> {
+    pub fn midi_active(&mut self, active: bool) {
+        self.midi.set_active(active);
+    }
+    pub fn midi_take(&mut self) {
+        let (events, dropped) = self.midi.take_outgoing();
+        self.output.clear();
+        self.output.extend_from_slice(&dropped.to_le_bytes());
+        for event in events {
+            let wire = crate::midi_ffi::WireMidiEvent::encode(event);
+            self.output
+                .extend_from_slice(&wire.sample_offset.to_le_bytes());
+            self.output.extend_from_slice(&wire.bytes);
+            self.output.push(wire.source);
+        }
+    }
+    pub fn midi_receive(&mut self, reset: bool) -> bool {
+        if self.input.len() % 8 != 0 || self.input.len() > crate::midi::MIDI_CAPACITY * 8 {
+            return false;
+        }
+        if reset {
+            self.midi.discontinuity();
+        }
+        for record in self.input.chunks_exact(8) {
+            let wire = crate::midi_ffi::WireMidiEvent {
+                sample_offset: u32::from_le_bytes(record[..4].try_into().unwrap()),
+                bytes: record[4..7].try_into().unwrap(),
+                source: record[7],
+            };
+            let Ok(event) = wire.decode() else {
+                return false;
+            };
+            self.midi.publish(event);
+        }
+        true
+    }
     pub fn input(&mut self, length: usize) -> *mut u8 {
         self.input.resize(length, 0);
         self.input.as_mut_ptr()

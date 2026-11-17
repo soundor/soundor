@@ -29,6 +29,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
         }
     };
 
+    extern const ModuleCode midiModule;
     extern const ModuleCode languageModule;         // js/language.js
     extern const ModuleCode parametersModule;       // modules/parameters/parameters.js
     extern const ModuleCode nativeEventsModule;     // modules/native/events.js

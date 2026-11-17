@@ -27,8 +27,9 @@ namespace
         juce::AudioProcessorEditor* createEditor() override { return new soundor::AudioProcessorEditor(*this); }
         bool hasEditor() const override { return true; }
         const juce::String getName() const override { return pluginName; }
-        bool acceptsMidi() const override { return false; }
-        bool producesMidi() const override { return false; }
+        bool acceptsMidi() const override { return JucePlugin_WantsMidiInput != 0; }
+        bool producesMidi() const override { return JucePlugin_ProducesMidiOutput != 0; }
+        bool isMidiEffect() const override { return JucePlugin_IsMidiEffect != 0; }
 
 #if ! SOUNDOR_FACTORY_PRESETS
         int getNumPrograms() override { return 1; }

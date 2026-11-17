@@ -34,6 +34,17 @@ export interface WorkletOptions {
 /** What the worklet posts. */
 export type WorkletMessage =
   | { readonly type: 'ready' }
+  | { readonly type: 'midiAck'; readonly count: number }
+  | {
+      readonly type: 'midi';
+      readonly output: Uint32Array;
+      readonly publications: Uint32Array;
+      readonly outputCount: number;
+      readonly publicationCount: number;
+      readonly dropped: number;
+      readonly reset: boolean;
+      readonly time: number;
+    }
   | { readonly type: 'error'; readonly message: string }
   | { readonly type: 'published'; readonly values: Float64Array }
   | {
@@ -51,10 +62,23 @@ export type WorkletCommand =
       readonly index: number;
       readonly bytes: Uint8Array;
     }
+  | {
+      readonly type: 'midi';
+      readonly offset: number;
+      readonly bytes: number;
+      readonly source: number;
+    }
+  | {
+      readonly type: 'midiObserve';
+      readonly enabled: boolean;
+      readonly output: boolean;
+    }
+  | { readonly type: 'midiRead' }
   | { readonly type: 'dispose' }
   | { readonly type: 'reset' };
 
 declare const sampleRate: number;
+declare const currentTime: number;
 declare class AudioWorkletProcessor {
   readonly port: MessagePort;
   constructor(options?: unknown);
@@ -75,10 +99,34 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
     declare streamEvery: number;
     declare ins: (Float32Array | undefined)[];
     declare outs: (Float32Array | undefined)[];
+    declare midiInputCount: number;
+    declare midiProcessorDropped: number;
+    declare midiWaiting: boolean;
+    declare midiObserve: boolean;
+    declare midiHostOutput: boolean;
+    declare midiOutput: Uint32Array;
+    declare midiPublications: Uint32Array;
+    declare midiOutputCount: number;
+    declare midiPublicationCount: number;
+    declare midiDropped: number;
+    declare midiReset: boolean;
+    declare midiTime: number;
 
     constructor(options: { processorOptions: WorkletOptions }) {
       super();
       const settings = options.processorOptions;
+      this.midiInputCount = 0;
+      this.midiProcessorDropped = 0;
+      this.midiWaiting = false;
+      this.midiObserve = false;
+      this.midiHostOutput = false;
+      this.midiOutput = new Uint32Array(2048);
+      this.midiPublications = new Uint32Array(2048);
+      this.midiOutputCount = 0;
+      this.midiPublicationCount = 0;
+      this.midiDropped = 0;
+      this.midiReset = false;
+      this.midiTime = 0;
       this.published = settings.contract.published;
       this.reported = false;
       this.disposed = false;
@@ -134,7 +182,26 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
         else if (command.type === 'state') processor.setState(command.snapshot);
         else if (command.type === 'resource')
           processor.publishResource(command.index, command.bytes);
-        else if (command.type === 'reset') processor.reset();
+        else if (command.type === 'reset') {
+          processor.reset();
+          this.midiReset = true;
+          this.port.postMessage({ type: 'midiAck', count: 0 });
+        } else if (command.type === 'midi') {
+          this.midiInputCount++;
+          if (
+            processor.midiInput(
+              command.offset,
+              command.bytes,
+              command.source,
+            ) !== 0
+          ) {
+            this.midiDropped++;
+            this.midiReset = true;
+          }
+        } else if (command.type === 'midiObserve') {
+          this.midiObserve = command.enabled;
+          this.midiHostOutput = command.output;
+        } else if (command.type === 'midiRead') this.midiWaiting = false;
       };
     }
 
@@ -158,6 +225,66 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
           this.outs[outputIndex++] = output;
         }
       const status = processor.process(this.ins, this.outs, frames);
+      this.midiDropped += processor.midiDropped - this.midiProcessorDropped;
+      this.midiProcessorDropped = processor.midiDropped;
+      if (this.midiInputCount > 0) {
+        this.port.postMessage({ type: 'midiAck', count: this.midiInputCount });
+        this.midiInputCount = 0;
+      }
+      if (processor.midiReset) this.midiReset = true;
+      let recoverOutput = false;
+      for (let publication = 0; publication < 2; publication++) {
+        if (publication ? !this.midiObserve : !this.midiHostOutput) continue;
+        const count = publication
+          ? processor.midiPublicationCount
+          : processor.midiOutputCount;
+        const source = publication
+          ? processor.midiPublications
+          : processor.midiOutput;
+        const target = publication ? this.midiPublications : this.midiOutput;
+        let length = publication
+          ? this.midiPublicationCount
+          : this.midiOutputCount;
+        if (count > 0 && this.midiOutputCount + this.midiPublicationCount === 0)
+          this.midiTime = currentTime;
+        for (let i = 0; i < count; i++) {
+          if (length === 1024) {
+            this.midiDropped++;
+            this.midiReset = true;
+            if (!publication) recoverOutput = true;
+            continue;
+          }
+          target[length * 2] =
+            source[i * 2]! +
+            (publication
+              ? 0
+              : Math.round((currentTime - this.midiTime) * sampleRate));
+          target[length * 2 + 1] = source[i * 2 + 1]!;
+          length++;
+        }
+        if (publication) this.midiPublicationCount = length;
+        else this.midiOutputCount = length;
+      }
+      if (recoverOutput) processor.reset();
+      if (
+        !this.midiWaiting &&
+        (this.midiOutputCount + this.midiPublicationCount > 0 || this.midiReset)
+      ) {
+        this.port.postMessage({
+          type: 'midi',
+          output: this.midiOutput,
+          publications: this.midiPublications,
+          outputCount: this.midiOutputCount,
+          publicationCount: this.midiPublicationCount,
+          dropped: this.midiDropped,
+          reset: this.midiReset,
+          time: this.midiTime,
+        });
+        this.midiWaiting = true;
+        this.midiOutputCount = 0;
+        this.midiPublicationCount = 0;
+        this.midiReset = false;
+      }
       if (status !== 0 && !this.reported) {
         this.reported = true;
         this.port.postMessage({

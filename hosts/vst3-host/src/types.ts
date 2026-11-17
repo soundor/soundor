@@ -179,13 +179,29 @@ export interface ChannelPressureEvent extends TimedEvent {
   value: number;
 }
 
+/** Program Change through IMidiMapping when a plugin provides that mapping. */
+export interface ProgramChangeEvent extends TimedEvent {
+  type: 'programChange';
+  bus?: number;
+  /** Integer 0–127. Unmapped programs produce a warning. */
+  program: number;
+}
+
+export interface MidiInputDevices {
+  supported: boolean;
+  devices: readonly { id: string; name: string }[];
+  selected: string | null;
+  error?: string;
+}
+
 export type InputEvent =
   | NoteOnEvent
   | NoteOffEvent
   | PolyPressureEvent
   | ControlChangeEvent
   | PitchBendEvent
-  | ChannelPressureEvent;
+  | ChannelPressureEvent
+  | ProgramChangeEvent;
 
 export type OutputEvent =
   | {

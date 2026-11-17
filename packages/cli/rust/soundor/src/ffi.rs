@@ -462,6 +462,7 @@ macro_rules! export {
         $crate::export!(@processor $processor);
         $crate::__export_controller!($processor, $controller);
         $crate::__export_wasm_controller!($controller);
+        $crate::__export_midi!($processor);
     };
     (@processor $processor:ty) => {
         /// The processor's ABI, as `soundor::export!` defines it.
@@ -554,4 +555,62 @@ macro_rules! export {
 
         $crate::__export_wasm!($processor);
     };
+}
+
+/// # Safety
+/// Live exclusively borrowed processor; events is valid for count records.
+pub unsafe fn midi_input<P: Processor>(
+    handle: *mut std::ffi::c_void,
+    events: *const crate::midi_ffi::WireMidiEvent,
+    count: u32,
+) -> i32 {
+    let Some(handle) = (unsafe { handle.cast::<Handle<P>>().as_mut() }) else {
+        return 2;
+    };
+    if count as usize > crate::midi::MIDI_CAPACITY {
+        handle.instance.midi.recovery = true;
+        return 1;
+    }
+    let Some(events) = (unsafe { slice(events, count) }) else {
+        return 3;
+    };
+    for event in events {
+        let Ok(event) = event.decode() else {
+            handle.instance.midi.recovery = true;
+            return 3;
+        };
+        if handle.instance.midi.input.push(event).is_err() {
+            handle.instance.midi.recovery = true;
+            return 1;
+        }
+    }
+    0
+}
+/// # Safety
+/// Live exclusively borrowed processor; out holds capacity writable records.
+pub unsafe fn midi_output<P: Processor>(
+    handle: *mut std::ffi::c_void,
+    out: *mut crate::midi_ffi::WireMidiEvent,
+    capacity: u32,
+) -> u32 {
+    let Some(handle) = (unsafe { handle.cast::<Handle<P>>().as_ref() }) else {
+        return 0;
+    };
+    if out.is_null() || (capacity as usize) < crate::midi::MIDI_CAPACITY {
+        return 0;
+    }
+    let events = handle.instance.midi.output.events();
+    for (i, event) in events.iter().enumerate() {
+        unsafe {
+            out.add(i)
+                .write(crate::midi_ffi::WireMidiEvent::encode(*event));
+        }
+    }
+    events.len() as u32
+}
+/// # Safety
+/// Live exclusively borrowed processor.
+pub unsafe fn midi_generation<P: Processor>(handle: *mut std::ffi::c_void) -> u64 {
+    unsafe { handle.cast::<Handle<P>>().as_ref() }
+        .map_or(0, |handle| handle.instance.midi.generation())
 }

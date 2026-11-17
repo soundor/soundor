@@ -57,11 +57,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     // The plugin's services, as its Rust controller reaches them: the very
     // editors, state store, History and presets the UI's edits go through, on
     // the message thread, which is the controller's control thread.
-    class AudioProcessor::ControllerServices final : public processor::ControllerServices, private juce::AsyncUpdater
+    class AudioProcessor::ControllerServices final : public processor::ControllerServices, private juce::AsyncUpdater, private juce::Timer
     {
     public:
-        explicit ControllerServices(AudioProcessor& processor) : owner(processor) {}
-        ~ControllerServices() override { cancelPendingUpdate(); }
+        explicit ControllerServices(AudioProcessor& processor) : owner(processor) { startTimerHz(60); }
+        ~ControllerServices() override { stopTimer(); cancelPendingUpdate(); }
         ControllerServices(const ControllerServices&) = delete;
         ControllerServices& operator=(const ControllerServices&) = delete;
         ControllerServices(ControllerServices&&) = delete;
@@ -105,6 +105,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // At the message loop's next turn: one scheduled callback or async
         // completion at a time, each followed by its context's microtasks; a
         // busy controller yields after its budget and runs again at the next.
+        void timerCallback() override { owner.midiBridge->pump(); handleAsyncUpdate(); }
         void handleAsyncUpdate() override
         {
             if (owner.controller != nullptr && owner.controller->pump())
@@ -200,10 +201,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     void AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
+        midiOutput.ensureSize(16384);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
         const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
                                          state.audioState().acquire());
+        midiBridge->active(status == SOUNDOR_STATUS_OK);
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -213,16 +216,46 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         rust.reset();
     }
 
-    void AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    void AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& hostMidi)
     {
         juce::ScopedNoDenormals noDenormals;
         auto* playHead = getPlayHead();
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
+        std::size_t midiInputCount = 0;
+#if JucePlugin_WantsMidiInput
+        for (const auto metadata : hostMidi) {
+            const auto* data = metadata.data;
+            if (metadata.numBytes < 2 || metadata.numBytes > 3 || data[0] < 0x80 || data[0] >= 0xf0) continue;
+            if (metadata.samplePosition < 0 || (buffer.getNumSamples() == 0 ? metadata.samplePosition != 0 : metadata.samplePosition >= buffer.getNumSamples()) || midiInputCount == midi::capacity) { rust.reset(); midiInputCount = 0; break; }
+            midiInputBuffer[midiInputCount++] = { static_cast<std::uint32_t>(metadata.samplePosition), { data[0], data[1], static_cast<std::uint8_t>(metadata.numBytes == 3 ? data[2] : 0) }, 1 };
+        }
+#endif
+        std::uint32_t midiOutputCount = 0;
         // The newest state snapshot, unchanged until the next block.
         backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), &streamSink,
-                             state.audioState().acquire());
+                             state.audioState().acquire(), { midiInputBuffer.data(), midiInputCount }, midiOutputBuffer, &midiOutputCount);
+        hostMidi.clear();
+        midiOutput.clear();
+#if JucePlugin_ProducesMidiOutput
+        const auto generation = soundor_midi_generation(rust.nativeHandle());
+        if (generation != midiGeneration) {
+            midiGeneration = generation;
+            for (int channel = 0; channel < 16; ++channel) {
+                const std::uint8_t off[] { static_cast<std::uint8_t>(0xb0 | channel), 120, 0 };
+                const std::uint8_t sustain[] { static_cast<std::uint8_t>(0xb0 | channel), 64, 0 };
+                midiOutput.addEvent(sustain, 3, 0); midiOutput.addEvent(off, 3, 0);
+            }
+            // Release notes from the previous generation before new output.
+        }
+        for (std::uint32_t i = 0; i < midiOutputCount; ++i) {
+            const auto& event = midiOutputBuffer[i];
+            const auto kind = event.bytes[0] >> 4;
+            midiOutput.addEvent(event.bytes, kind == 12 || kind == 13 ? 2 : 3, static_cast<int>(event.sampleOffset));
+        }
+        hostMidi.swapWith(midiOutput);
+#endif
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);

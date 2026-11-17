@@ -90,6 +90,8 @@ pub mod json;
 mod layout;
 pub mod midi;
 #[doc(hidden)]
+pub mod midi_ffi;
+#[doc(hidden)]
 pub mod wasm_controller;
 // Generated from soundor.config.ts, as generated.
 #[rustfmt::skip]

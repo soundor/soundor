@@ -1,7 +1,8 @@
-import { useId, useRef, useState } from 'preact/hooks';
+import { useEffect, useId, useRef, useState } from 'preact/hooks';
 
 import type { AudioSource, WebAudioHost } from '../audio';
 import type { HostSnapshot, WebHost } from '../host';
+import type { WebMidiHost } from '../midi';
 import type { ParameterStore } from '../parameters';
 import { IconButton, Row, Section } from './controls';
 import { useAudioStatus, useHostSnapshot } from './hooks';
@@ -10,6 +11,7 @@ import { ParameterControl } from './parameter';
 const TIME_SIGNATURES = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '12/8'];
 
 export interface PanelProps {
+  readonly midi?: WebMidiHost;
   readonly id: string;
   readonly open: boolean;
   readonly onClose: () => void;
@@ -53,6 +55,9 @@ export function Panel(props: PanelProps) {
       <div class="soundor-panel-body">
         <Transport host={host} snapshot={snapshot} />
         <Audio audio={audio} snapshot={snapshot} />
+        {props.midi && (props.midi.inputEnabled || props.midi.outputEnabled) ? (
+          <MidiDevices host={props.midi} />
+        ) : null}
         <Section title="Parameters">
           {parameters.list.length === 0 ? (
             <div class="soundor-empty">None declared</div>
@@ -303,5 +308,81 @@ function Logo() {
         </g>
       </g>
     </svg>
+  );
+}
+
+function MidiDevices({ host }: { readonly host: WebMidiHost }) {
+  const [, refresh] = useState(0);
+  useEffect(() => host.subscribe(() => refresh((value) => value + 1)), [host]);
+  return (
+    <Section title="MIDI">
+      <button
+        type="button"
+        onClick={() => {
+          void host.requestAccess();
+        }}
+      >
+        Connect MIDI devices
+      </button>
+      <div role="status">
+        {host.permission === 'unsupported'
+          ? 'Web MIDI unavailable; virtual input still works.'
+          : host.permission === 'denied'
+            ? 'MIDI permission denied; virtual input still works.'
+            : host.permission}
+      </div>
+      {host.permission === 'granted' ? (
+        <>
+          {host.inputEnabled ? (
+            <Row label="MIDI input">
+              <select
+                aria-label="MIDI input"
+                value={host.input ?? ''}
+                onChange={(event) =>
+                  host.selectInput(event.currentTarget.value || null)
+                }
+              >
+                <option value="">None</option>
+                {host.inputs.map((port) => (
+                  <option
+                    key={port.id}
+                    value={port.id}
+                    disabled={port.state !== 'connected'}
+                  >
+                    {port.name}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          ) : null}
+          {host.outputEnabled ? (
+            <Row label="MIDI output">
+              <select
+                aria-label="MIDI output"
+                value={host.output ?? ''}
+                onChange={(event) =>
+                  host.selectOutput(event.currentTarget.value || null)
+                }
+              >
+                <option value="">None</option>
+                {host.outputs.map((port) => (
+                  <option
+                    key={port.id}
+                    value={port.id}
+                    disabled={port.state !== 'connected'}
+                  >
+                    {port.name}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          ) : null}
+          {host.output !== null ? (
+            <div>Output timing: {host.outputTiming}</div>
+          ) : null}
+        </>
+      ) : null}
+      {host.error ? <div role="status">{host.error}</div> : null}
+    </Section>
   );
 }

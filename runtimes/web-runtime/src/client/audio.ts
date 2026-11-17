@@ -12,8 +12,10 @@ import type { HostSnapshot, WebHost } from './host';
 import { validateInputs, type WebInput } from './input';
 import { Listeners } from './listeners';
 import type { WebNativeStream } from './manifest';
+import type { WebMidiHost } from './midi';
 import { publishParameter, type WebParameter } from './parameters';
 import { report } from './report';
+import type { WasmController } from './wasm-controller';
 
 /** Releases the nodes, subscriptions or other resources an input owns. */
 export type WebAudioCleanup = () => void;
@@ -125,6 +127,8 @@ export const BUILTIN_AUDIO_INPUTS: readonly WebAudioInputInfo[] = Object.freeze(
 );
 
 export interface WebAudioHostOptions {
+  readonly midi?: WebMidiHost;
+  readonly controller?: WasmController;
   /** Declared main bus counts; omitted for legacy browser mixing behavior. */
   readonly audio?: {
     readonly inputChannels: number;
@@ -334,7 +338,7 @@ export class WebAudioHost {
       if (this.#options.audio) {
         input.channelCount = Math.max(1, this.#options.audio.inputChannels);
         input.channelCountMode = 'explicit';
-        output.channelCount = this.#options.audio.outputChannels;
+        output.channelCount = Math.max(1, this.#options.audio.outputChannels);
         output.channelCountMode = 'explicit';
       }
       output.connect(master);
@@ -402,9 +406,10 @@ export class WebAudioHost {
             published: readOnly.length,
             streams: source.streams.length,
             state: source.state?.size ?? 0,
+            midi: true,
           },
           inputs: layout.inputChannels > 0 ? [layout.inputChannels] : [],
-          outputs: [layout.outputChannels],
+          outputs: layout.outputChannels > 0 ? [layout.outputChannels] : [],
           streams: source.streams.map(({ kind, element }) => ({
             kind,
             element,
@@ -422,6 +427,7 @@ export class WebAudioHost {
                   fromPlain(parameter, value) as never,
                 );
             }),
+          onMidi: (batch) => this.#options.midi?.receive(batch),
           onStreams: (changes) => {
             for (const [index, value] of changes)
               source.publishStream(index, value);
@@ -441,6 +447,11 @@ export class WebAudioHost {
           processor.dispose();
           return;
         }
+        this.#options.midi?.attach(
+          processor,
+          context,
+          this.#options.controller,
+        );
         // The processing sets the read-only ones: they need not go back.
         const unsubscribe = parameters
           .filter((parameter) => parameter.info.access !== 'readOnly')
@@ -478,6 +489,7 @@ export class WebAudioHost {
         if (layout.inputChannels > 0) input.connect(processor.node);
         processor.node.connect(output);
         this.#cleanup = () => {
+          this.#options.midi?.detach();
           for (const stop of unsubscribe) stop();
           input.disconnect();
           processor.dispose();

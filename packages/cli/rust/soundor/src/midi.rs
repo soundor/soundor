@@ -3,6 +3,7 @@
 
 /// A channel message, without delivery metadata.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MidiMessage {
     /// Starts a note (zero velocity retains its wire representation).
     NoteOn {
@@ -398,6 +399,9 @@ impl Default for MidiStorage {
 impl MidiStorage {
     pub fn reset(&mut self) {
         self.incoming
+            .recover
+            .store(false, std::sync::atomic::Ordering::Release);
+        self.incoming
             .generation
             .fetch_add(1, std::sync::atomic::Ordering::Release);
         self.incoming.queue.drain(|_| {});
@@ -573,6 +577,7 @@ mod queue_tests {
 
 #[derive(Default)]
 pub(crate) struct MidiInbox {
+    pub(crate) recover: std::sync::atomic::AtomicBool,
     queue: MidiQueue,
     ui: ObserverQueue,
     controller: ObserverQueue,
@@ -623,6 +628,13 @@ impl MidiStorage {
     }
     pub fn receive(&mut self) {
         use std::sync::atomic::Ordering::Acquire;
+        if self
+            .incoming
+            .recover
+            .swap(false, std::sync::atomic::Ordering::AcqRel)
+        {
+            self.recovery = true;
+        }
         let dropped = self.incoming.queue.dropped.load(Acquire);
         if dropped != self.seen_dropped {
             self.seen_dropped = dropped;
@@ -799,5 +811,40 @@ impl MidiStorage {
         for &event in self.publication.events() {
             self.incoming.publish(event);
         }
+    }
+}
+
+impl MidiStorage {
+    pub fn generation(&self) -> u64 {
+        self.incoming
+            .generation
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl MidiInbox {
+    pub(crate) fn set_active(&self, active: bool) {
+        self.active
+            .store(active, std::sync::atomic::Ordering::Release);
+        if !active {
+            self.queue.drain(|_| {});
+            self.generation
+                .fetch_add(1, std::sync::atomic::Ordering::Release);
+        }
+    }
+    pub(crate) fn take_outgoing(&self) -> (Vec<MidiEvent>, u64) {
+        let mut events = Vec::new();
+        self.queue.drain(|event| events.push(event));
+        (
+            events,
+            self.queue
+                .dropped
+                .load(std::sync::atomic::Ordering::Acquire),
+        )
+    }
+    pub(crate) fn discontinuity(&self) {
+        self.generation
+            .fetch_add(1, std::sync::atomic::Ordering::Release);
     }
 }

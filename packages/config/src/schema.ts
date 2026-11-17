@@ -194,7 +194,8 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
     unknownPropertyMessage,
   );
   if (data.editor !== undefined) checkEditor(data.editor, 'editor', issues);
-  if (data.audio) checkAudio(data.audio, issues);
+  if (data.audio)
+    checkAudio(data.audio, issues, data.plugin.kind === 'midiEffect');
   let bypass: string | undefined;
   for (const parameter of parameters) {
     if (
@@ -282,7 +283,11 @@ function normalize(
       version: data.plugin.version,
     },
     midi: { ...data.midi },
-    ...(data.audio === undefined ? {} : { audio: structuredClone(data.audio) }),
+    ...(data.audio === undefined
+      ? data.plugin.kind === 'midiEffect'
+        ? { audio: { buses: {}, layouts: { midi: {} }, defaultLayout: 'midi' } }
+        : {}
+      : { audio: structuredClone(data.audio) }),
     ...(data.parameterGroups === undefined
       ? {}
       : { parameterGroups: structuredClone(data.parameterGroups) }),

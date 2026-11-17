@@ -909,6 +909,10 @@ importers:
         version: link:../../packages/vitest-environment-soundor
 
   hosts/vst3-host:
+    dependencies:
+      '@soundor/core':
+        specifier: workspace:^
+        version: link:../../packages/core
     devDependencies:
       '@soundor/tsdown-config':
         specifier: workspace:^

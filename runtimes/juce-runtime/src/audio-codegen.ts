@@ -62,7 +62,7 @@ export function audioImplementation(config: ResolvedSoundorConfig): string {
         })
         .join(' && '),
     )
-    .map((value) => `(${value})`)
+    .map((value) => `(${value || 'true'})`)
     .join('\n            || ');
   return `
     juce::AudioProcessor::BusesProperties AudioProcessor::configuredBuses()

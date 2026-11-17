@@ -140,6 +140,7 @@ describe('webGen', () => {
       'parameters.js',
     ]);
     expect(JSON.parse(files[0]!.contents)).toEqual({
+      midi: { input: false, output: false },
       plugin: {
         id: 'com.example.basic',
         name: 'Soundor Basic',

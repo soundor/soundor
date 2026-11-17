@@ -69,6 +69,7 @@ const modules = new Set([
   'state',
   'history',
   'presets',
+  'midi',
   'host',
   'env',
   'native',
@@ -323,6 +324,8 @@ function virtualModule(
         )} };\n${functions.join('\n')}\nexport const clipboard = { readText: () => getTestRuntime().clipboard.readText(), writeText: text => getTestRuntime().clipboard.writeText(text) };`
     );
   }
+  if (name === 'midi')
+    return `${header}export const midi = Object.freeze({ send: message => getTestRuntime().midi.send(message), subscribe: (listener, options) => getTestRuntime().midi.subscribe(listener, options), subscribeBatch: listener => getTestRuntime().midi.subscribeBatch(listener) });`;
   if (name === 'presets')
     return `${header}export const presets = Object.freeze({ factory: Object.freeze({ list: () => getTestRuntime().presets.factory.list(), load: (...args) => getTestRuntime().presets.factory.load(...args) }), getSnapshot: () => getTestRuntime().presets.getSnapshot(), subscribe: listener => getTestRuntime().presets.subscribe(listener) });`;
   if (name === 'history')

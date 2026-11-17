@@ -393,11 +393,11 @@ describe('generateJuceSources', () => {
     // The contract the Rust build must match: parameters, read-only ones,
     // streams, the state snapshot's size.
     expect(header).toContain(
-      `processor::RustProcessor rust { processor::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0, 0 }, processor::linkedRustProcessor() };`,
+      `processor::RustProcessor rust { processor::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0, 0 }, processor::linkedRustProcessor(), midi::linkedMidi() };`,
     );
     expect(source).toContain('transport.capture(playHead);');
     expect(source).toContain(
-      'backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), nullptr,\n                             state.audioState().acquire());',
+      'backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), nullptr,\n                             state.audioState().acquire(), { midiInputBuffer.data(), midiInputCount }, midiOutputBuffer, &midiOutputCount);',
     );
     expect(source).toContain(
       'rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,\n                                         state.audioState().acquire());',

@@ -84,7 +84,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // each block the parameters' values and the host's transport, and
         // publish what it publishes.
         void prepareToPlay(double sampleRate, int samplesPerBlock) override final;
-        void releaseResources() override {}
+        void releaseResources() override { midiBridge->active(false); rust.reset(); }
         void reset() override final;
         void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final;
         using juce::AudioProcessor::processBlock;
@@ -119,6 +119,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // ahead of createNativeApi(). Its control queue runs on the message
         // thread, woken through an AsyncUpdater.
         const std::shared_ptr<processor::RustController>& rustController() const noexcept { return controller; }
+        const std::shared_ptr<midi::Host>& midiHost() const noexcept { return midiBridge; }
 
 
         // The config's native events (`events` of soundor:native): publish
@@ -161,7 +162,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        processor::RustProcessor rust { processor::RustContract { 3, 0, 1, 48 }, processor::linkedRustProcessor() };
+        processor::RustProcessor rust { processor::RustContract { 3, 0, 1, 48 }, processor::linkedRustProcessor(), midi::linkedMidi() };
+        std::shared_ptr<midi::Host> midiBridge = std::make_shared<midi::Host>(rust.nativeHandle(), midi::linkedMidi());
+        std::array<SoundorMidiEvent, midi::capacity> midiInputBuffer {}, midiOutputBuffer {};
+        juce::MidiBuffer midiOutput;
+        std::uint64_t midiGeneration = 0;
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;

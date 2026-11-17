@@ -144,6 +144,7 @@ const MODULES: Readonly<Record<string, string>> = {
   'soundor:state': 'modules/state',
   'soundor:history': 'modules/history',
   'soundor:presets': 'modules/presets',
+  'soundor:midi': 'modules/midi',
   'soundor:parameters': 'modules/parameters',
   'soundor:host': 'modules/host',
   'soundor:ui': 'modules/ui',

@@ -196,6 +196,7 @@ const PAGE = `<!doctype html>
       },
     });
     processor.node.connect(context.destination);
+    await processor.ready; // Match the production host: configure resources after worklet preparation.
     const off = controller.subscribeResources((index, bytes) => processor.publishResource(index, bytes));
     const method = manifest.native.methods.find((method) => method.name === 'loadTable');
     await controller.call(method, [47]);
@@ -207,6 +208,46 @@ const PAGE = `<!doctype html>
     await new Promise((resolve) => setTimeout(resolve, 100));
     processor.dispose();
     return lengths;
+  };
+  window.midiRoundTrip = async () => {
+    const wasm = await (await fetch('./fixture.wasm')).arrayBuffer();
+    const results = [];
+    for (let restart = 0; restart < 2; restart++) {
+      const context = new AudioContext({ sampleRate: RATE });
+      const batches = [];
+      const errors = [];
+      const processor = await createProcessorNode(context, {
+        wasm, contract: { parameters: 5, published: 1, streams: 2, state: 80, midi: true },
+        inputs: [1, 0], outputs: [1], streams: [],
+        parameters: [0.5, 0, 1, 0, -96], maxFrames: 128,
+        onMidi: (batch) => batches.push(batch),
+        onError: (error) => errors.push(error),
+      });
+      processor.node.connect(context.destination);
+      await context.resume();
+      await processor.ready;
+      processor.observeMidi(true, true);
+      // Note On velocity zero must survive both transport directions unchanged.
+      const packets = [0x643c90, 0x003c90, 0x004080];
+      const sent = packets.map((packet) => processor.sendMidi(packet, 2, 37));
+      const deadline = performance.now() + 5000;
+      while (batches.reduce((n, batch) => n + batch.publicationCount, 0) < 3) {
+        if (performance.now() > deadline) throw new Error('MIDI publication timed out');
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      const publications = batches.flatMap((batch) =>
+        Array.from({ length: batch.publicationCount }, (_, i) =>
+          [batch.publications[i * 2], batch.publications[i * 2 + 1]]));
+      const output = batches.flatMap((batch) =>
+        Array.from({ length: batch.outputCount }, (_, i) => batch.output[i * 2 + 1]));
+      await context.suspend();
+      const suspended = processor.sendMidi(0x003c80);
+      processor.dispose();
+      const disposed = processor.sendMidi(0x003c80);
+      await context.close();
+      results.push({ sent, publications, output, suspended, disposed, errors });
+    }
+    return results;
   };
   window.loaded = true;
 </script>
@@ -350,6 +391,38 @@ const times = (samples: number[], gain: number) =>
   samples.map((sample) => Math.fround(sample * gain));
 
 describe('the Rust processor in an AudioWorklet', () => {
+  it('round-trips UI MIDI through Rust with offsets, zero velocity and a fresh instance', async () => {
+    const results = await page.evaluate(() =>
+      (
+        window as unknown as {
+          midiRoundTrip(): Promise<
+            {
+              sent: string[];
+              publications: number[][];
+              output: number[];
+              suspended: string;
+              disposed: string;
+              errors: string[];
+            }[]
+          >;
+        }
+      ).midiRoundTrip(),
+    );
+    expect(results).toHaveLength(2);
+    for (const result of results) {
+      expect(result.sent).toEqual(['sent', 'sent', 'sent']);
+      expect(result.publications).toEqual([
+        [37, 0x02643c90],
+        [37, 0x02003c90],
+        [37, 0x02004080],
+      ]);
+      expect(result.output).toEqual([0x02643c90, 0x02003c90, 0x02004080]);
+      expect(result.suspended).toBe('inactive');
+      expect(result.disposed).toBe('inactive');
+      expect(result.errors).toEqual([]);
+    }
+  });
+
   it('applies the gain to stereo, sample for sample', async () => {
     const frames = 48_000;
     const result = await render({

@@ -625,6 +625,8 @@ ${each((r) => `            // SAFETY: as the caller promises.\n            ${rus
 
 function renderLayouts(config: ResolvedSoundorConfig): string {
   const audio = config.audio;
+  if (audio === undefined && config.plugin.kind === 'midiEffect')
+    return `pub const LAYOUTS: &[Layout] = &[];\npub const DEFAULT_INPUTS: &[usize] = &[];\npub const DEFAULT_OUTPUTS: &[usize] = &[];\n`;
   if (audio === undefined)
     return `/// The config's audio layouts: none, as it declares no \`audio\`; the
 /// runtime's own buses apply.

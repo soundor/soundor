@@ -17,8 +17,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         return { unknown, unknown, unknown, 0, 0, 0 };
     }
 
-    RustProcessor::RustProcessor(RustContract expected, const RustProcessorFunctions& functions)
-        : abi(functions), contract(expected)
+    RustProcessor::RustProcessor(RustContract expected, const RustProcessorFunctions& functions,
+                                 midi::Functions midiFunctions)
+        : abi(functions), midiFunctions(midiFunctions), contract(expected)
     {
         if (abi.info == nullptr || abi.create == nullptr || abi.prepare == nullptr || abi.process == nullptr
             || abi.reset == nullptr || abi.destroy == nullptr)
@@ -127,7 +128,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
     std::int32_t RustProcessor::process(std::span<float* const> channels, int frames,
                                         std::span<const double> parameters, std::span<double> published,
                                         const SoundorTransport& transport, const SoundorStreamSink* sink,
-                                        const void* state) noexcept
+                                        const void* state, std::span<const SoundorMidiEvent> midiInput,
+                                        std::span<SoundorMidiEvent> midiOutput, std::uint32_t* midiCount) noexcept
     {
         std::fill(published.begin(), published.end(), unknown);
         frames = std::max(0, frames);
@@ -146,6 +148,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
                     std::fill_n(channel, frames, 0.0F);
             status.store(result, std::memory_order_relaxed);
             return result;
+        }
+        if ((! midiInput.empty() && midiFunctions.input == nullptr)
+            || (! midiOutput.empty() && midiFunctions.output == nullptr))
+        {
+            silence(channels, 0, frames);
+            return SOUNDOR_STATUS_INVALID_ARGUMENT;
+        }
+        std::uint32_t midiLength = 0;
+        if (midiCount != nullptr)
+            *midiCount = 0;
+        if (midiInput.size() > midi::capacity
+            || std::any_of(midiInput.begin(), midiInput.end(),
+                           [frames](const auto& event) {
+                               return frames == 0 ? event.sampleOffset != 0
+                                                  : event.sampleOffset >= static_cast<std::uint32_t>(frames);
+                           }))
+        {
+            reset();
+            silence(channels, 0, frames);
+            return SOUNDOR_STATUS_INVALID_ARGUMENT;
         }
         // Hosts may pass more frames than they prepared for: in blocks of at
         // most maxFrames, which is what `scratch` holds.
@@ -181,7 +203,44 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
                 .stateSize = state != nullptr ? contract.stateSize : 0,
                 .state = state,
             };
+            if (midiFunctions.input != nullptr)
+            {
+                std::uint32_t count = 0;
+                for (auto event : midiInput)
+                {
+                    if (event.sampleOffset >= static_cast<std::uint32_t>(start)
+                        && (frames == 0 || event.sampleOffset < static_cast<std::uint32_t>(start + length)))
+                    {
+                        event.sampleOffset -= static_cast<std::uint32_t>(start);
+                        midiInputChunk[count++] = event;
+                    }
+                }
+                if (midiFunctions.input(handle, midiInputChunk.data(), count) != 0)
+                {
+                    reset();
+                    silence(channels, start, frames - start);
+                    result = SOUNDOR_STATUS_INVALID_ARGUMENT;
+                    break;
+                }
+            }
             result = abi.process(handle, &block);
+            if (result == SOUNDOR_STATUS_OK && midiFunctions.output != nullptr && ! midiOutput.empty())
+            {
+                const auto count = midiFunctions.output(handle, midiOutputChunk.data(), midi::capacity);
+                if (count > midi::capacity || midiLength + count > midiOutput.size())
+                {
+                    reset();
+                    midiLength = 0;
+                }
+                else
+                    for (std::uint32_t i = 0; i < count; ++i)
+                    {
+                        auto event = midiOutputChunk[i];
+                        event.sampleOffset += static_cast<std::uint32_t>(start);
+                        midiOutput[midiLength++] = event;
+                    }
+            }
+
             if (result != SOUNDOR_STATUS_OK)
             {
                 std::fill(published.begin(), published.end(), unknown);
@@ -195,6 +254,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
             if (frames == 0)
                 break;
         }
+        if (midiCount != nullptr)
+            *midiCount = midiLength;
         status.store(result, std::memory_order_relaxed);
         return result;
     }
