@@ -681,3 +681,11 @@ format compiles a small accessibility class-registration shim with a distinct
 binary identity, while retaining the engine’s conservative module pinning and
 callback lifetime protections. See [Soundor Engine](/docs/engine) and
 the [engine reference](/docs/contribute/engine-reference).
+
+## MIDI
+
+Config MIDI flags drive native plugin capabilities and event buses. The shared
+Rust processor receives host events with sample offsets and can generate host
+output, with no automatic input echo. MIDI effects can omit audio buses. UI and
+controller MIDI remain independent of host flags. See [MIDI](/docs/midi) for the
+VST3 event/parameter-mapping distinction and DAW compatibility limitations.

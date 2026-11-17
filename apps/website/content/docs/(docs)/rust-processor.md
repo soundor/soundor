@@ -233,3 +233,13 @@ not provide a hard real-time guarantee even when Rust processing allocates nothi
 
 C++ remains inside the native runtime and engine, and TypeScript inside the Web
 host. Plugin DSP has one supported implementation: the shared Rust crate.
+
+## MIDI processing
+
+`ctx.midi.input()` contains sample-offset-aware `MidiEvent`s. Apply messages at
+`event.sample_offset` when rendering; output events go through
+`ctx.midi.output().push(event)`, while observation is an explicit
+`ctx.midi.publish(event)`. Both return a result and have bounded storage. Input
+is never automatically echoed or broadcast. Implement `reset()` to silence
+active voices and clear held notes after lifecycle changes or overflow.
+See [MIDI](/docs/midi) and the [virtual piano](/docs/examples/midi) for full examples.

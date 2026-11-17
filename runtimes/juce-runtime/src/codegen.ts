@@ -84,10 +84,12 @@ export function generateJuceSources(
 ): CodegenFile[] {
   // In the config's order, which hosts list them in, as the web host does.
   // Sessions keep their values: VST3 ids are hashes of the parameters' ids.
-  if (config.plugin.kind === 'midiEffect')
-    throw new Error(
-      'MIDI effects require MIDI runtime support, which is not implemented yet.',
-    );
+
+  if (config.plugin.kind === 'midiEffect' && config.audio === undefined)
+    config = {
+      ...config,
+      audio: { buses: {}, layouts: { midi: {} }, defaultLayout: 'midi' },
+    };
   const parameters = config.parameters;
   const nativeApi = describeNativeApi(config.native);
   if (!nativeApi.ok) {
@@ -286,6 +288,8 @@ juce_add_plugin(\${PROJECT_NAME}
     PRODUCT_NAME ${cmakeString(options.pluginName)}
     IS_SYNTH ${config.plugin.kind === 'instrument' ? 'TRUE' : 'FALSE'}
     IS_MIDI_EFFECT ${config.plugin.kind === 'midiEffect' ? 'TRUE' : 'FALSE'}
+    NEEDS_MIDI_INPUT ${config.midi?.input ? 'TRUE' : 'FALSE'}
+    NEEDS_MIDI_OUTPUT ${config.midi?.output ? 'TRUE' : 'FALSE'}
     ${config.plugin.vendor?.website ? `COMPANY_WEBSITE ${cmakeString(config.plugin.vendor.website)}` : ''}
     ${config.plugin.vendor?.supportEmail ? `COMPANY_EMAIL ${cmakeString(config.plugin.vendor.supportEmail)}` : ''}
     ${config.plugin.copyright ? `COMPANY_COPYRIGHT ${cmakeString(config.plugin.copyright)}` : ''}
@@ -546,6 +550,7 @@ function renderProcessorHeader(
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
 #include <soundor/backend/JuceRustProcessor.h>
+#include <soundor/backend/JuceMidiOutput.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -610,7 +615,7 @@ ${audioDeclaration(config)}
         // each block the parameters' values and the host's transport, and
         // publish what it publishes.
         void prepareToPlay(double sampleRate, int samplesPerBlock) override final;
-        void releaseResources() override {}
+        void releaseResources() override { midiBridge->active(false); rust.reset(); }
         void reset() override final;
         void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final;
         using juce::AudioProcessor::processBlock;
@@ -637,9 +642,7 @@ ${audioDeclaration(config)}
         // on the message thread for every new UI runtime; return nullptr when
         // the plugin declares no native methods.
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
-${
-  native.methods.length > 0
-    ? `
+
         // The plugin's Rust controller (lib/'s, when it exports one with
         // soundor::export!(PluginProcessor, PluginController)): one per plugin
         // instance, created with it and shut down with it, whether or not an
@@ -647,9 +650,8 @@ ${
         // ahead of createNativeApi(). Its control queue runs on the message
         // thread, woken through an AsyncUpdater.
         const std::shared_ptr<processor::RustController>& rustController() const noexcept { return controller; }
-`
-    : ''
-}
+        const std::shared_ptr<midi::Host>& midiHost() const noexcept { return midiBridge; }
+
 ${
   hasEvents
     ? `
@@ -697,7 +699,11 @@ ${handles || '        // no parameters'}
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length}, ${describeAudioState(describeState(config.state, config.native)).size} }, processor::linkedRustProcessor() };
+        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length}, ${describeAudioState(describeState(config.state, config.native)).size} }, processor::linkedRustProcessor(), midi::linkedMidi() };
+        std::shared_ptr<midi::Host> midiBridge = std::make_shared<midi::Host>(rust.nativeHandle(), midi::linkedMidi());
+        std::array<SoundorMidiEvent, midi::capacity> midiInputBuffer {}, midiOutputBuffer {};
+        backend::MidiOutputBuffer midiOutput;
+        std::uint64_t midiGeneration = 0;
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;
@@ -705,14 +711,10 @@ ${handles || '        // no parameters'}
         ${hasStreams ? 'SoundorStreamSink streamSink {};' : ''}
         // Before anything it reaches goes: the controller stops first.
         void shutdownController() noexcept;
-${
-  native.methods.length > 0
-    ? `        class ControllerServices;
+        class ControllerServices;
         std::unique_ptr<ControllerServices> controllerServices;
         std::shared_ptr<processor::RustController> controller;
-`
-    : ''
-}
+
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
 } // namespace ${NS}
@@ -720,9 +722,7 @@ ${
 }
 
 /** The controller's services and shutdown, in SoundorProcessor.cpp. */
-function renderControllerShutdown(native: NativeApiModel): string {
-  if (native.methods.length === 0)
-    return `    void AudioProcessor::shutdownController() noexcept {}`;
+function renderControllerShutdown(): string {
   return `    void AudioProcessor::shutdownController() noexcept
     {
         if (controller != nullptr)
@@ -730,11 +730,7 @@ function renderControllerShutdown(native: NativeApiModel): string {
     }`;
 }
 
-function renderControllerServices(
-  config: SoundorConfig,
-  native: NativeApiModel,
-): string {
-  if (native.methods.length === 0) return '';
+function renderControllerServices(config: SoundorConfig): string {
   const fields = describeState(config.state, config.native).fields;
   return `    namespace
     {
@@ -745,11 +741,11 @@ function renderControllerServices(
     // The plugin's services, as its Rust controller reaches them: the very
     // editors, state store, History and presets the UI's edits go through, on
     // the message thread, which is the controller's control thread.
-    class AudioProcessor::ControllerServices final : public processor::ControllerServices, private juce::AsyncUpdater
+    class AudioProcessor::ControllerServices final : public processor::ControllerServices, private juce::AsyncUpdater, private juce::Timer
     {
     public:
-        explicit ControllerServices(AudioProcessor& processor) : owner(processor) {}
-        ~ControllerServices() override { cancelPendingUpdate(); }
+        explicit ControllerServices(AudioProcessor& processor) : owner(processor) { startTimerHz(60); }
+        ~ControllerServices() override { stopTimer(); cancelPendingUpdate(); }
         ControllerServices(const ControllerServices&) = delete;
         ControllerServices& operator=(const ControllerServices&) = delete;
         ControllerServices(ControllerServices&&) = delete;
@@ -793,6 +789,7 @@ function renderControllerServices(
         // At the message loop's next turn: one scheduled callback or async
         // completion at a time, each followed by its context's microtasks; a
         // busy controller yields after its budget and runs again at the next.
+        void timerCallback() override { owner.midiBridge->pump(); handleAsyncUpdate(); }
         void handleAsyncUpdate() override
         {
             if (owner.controller != nullptr && owner.controller->pump())
@@ -832,7 +829,7 @@ function renderProcessorSource(
 namespace ${NS}
 {
 ${renderStreamSink(streams)}
-${renderControllerServices(config, native)}    AudioProcessor::AudioProcessor(const BusesProperties& ioLayouts)
+${renderControllerServices(config)}    AudioProcessor::AudioProcessor(const BusesProperties& ioLayouts)
         : juce::AudioProcessor(ioLayouts)
     {
         // Soundor's parameters, with the behavior soundor.config gives them.
@@ -884,9 +881,7 @@ ${renderControllerServices(config, native)}    AudioProcessor::AudioProcessor(co
             parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, history));
 
 ${bindings || '        // no parameters'}
-        factoryPresets = std::make_unique<FactoryPresets>(*this);${
-          native.methods.length > 0
-            ? `
+        factoryPresets = std::make_unique<FactoryPresets>(*this);
         // The Rust controller, if the crate exports one: last, once every
         // service it reaches exists.
         controllerServices = std::make_unique<ControllerServices>(*this);
@@ -894,20 +889,20 @@ ${bindings || '        // no parameters'}
             std::span<const std::uint8_t>(native::controllerDescriptor), processor::linkedRustController(),
             *controllerServices, rust.nativeHandle());
         if (controller->present() && ! controller->active())
-            juce::Logger::writeToLog(juce::String("Soundor: ") + controller->error());`
-            : ''
-        }
+            juce::Logger::writeToLog(juce::String("Soundor: ") + controller->error());
     }
 
-${renderControllerShutdown(native)}
+${renderControllerShutdown()}
 
 ${audioImplementation(config)}
     void AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     {
+        midiOutput.prepare();
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
         const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
                                          state.audioState().acquire());
+        midiBridge->active(status == SOUNDOR_STATUS_OK);
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -917,16 +912,51 @@ ${audioImplementation(config)}
         rust.reset();
     }
 
-    void AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    void AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& hostMidi)
     {
         juce::ScopedNoDenormals noDenormals;
         auto* playHead = getPlayHead();
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
+        std::size_t midiInputCount = 0;
+#if JucePlugin_WantsMidiInput
+        for (const auto metadata : hostMidi) {
+            const auto* data = metadata.data;
+            if (metadata.numBytes < 2 || metadata.numBytes > 3 || data[0] < 0x80 || data[0] >= 0xf0) continue;
+            if (metadata.samplePosition < 0 || (buffer.getNumSamples() == 0 ? metadata.samplePosition != 0 : metadata.samplePosition >= buffer.getNumSamples()) || midiInputCount == midi::capacity) { rust.reset(); midiInputCount = 0; break; }
+            midiInputBuffer[midiInputCount++] = { static_cast<std::uint32_t>(metadata.samplePosition), { data[0], data[1], static_cast<std::uint8_t>(metadata.numBytes == 3 ? data[2] : 0) }, 1 };
+        }
+#endif
+        std::uint32_t midiOutputCount = 0;
         // The newest state snapshot, unchanged until the next block.
         backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${streams.length > 0 ? '&streamSink' : 'nullptr'},
-                             state.audioState().acquire());
+                             state.audioState().acquire(), { midiInputBuffer.data(), midiInputCount }, midiOutputBuffer, &midiOutputCount);
+        hostMidi.clear();
+#if JucePlugin_ProducesMidiOutput
+        if (! midiOutput.acquire(hostMidi)) {
+            // A wrapper replaced/destroyed the storage it borrowed. Refuse
+            // output and request recovery rather than allocate in this callback.
+            midiBridge->recover();
+            return;
+        }
+        const auto generation = soundor_midi_generation(rust.nativeHandle());
+        if (generation != midiGeneration) {
+            midiGeneration = generation;
+            for (int channel = 0; channel < 16; ++channel) {
+                const std::uint8_t off[] { static_cast<std::uint8_t>(0xb0 | channel), 120, 0 };
+                const std::uint8_t sustain[] { static_cast<std::uint8_t>(0xb0 | channel), 64, 0 };
+                midiOutput.events().addEvent(sustain, 3, 0); midiOutput.events().addEvent(off, 3, 0);
+            }
+            // Release notes from the previous generation before new output.
+        }
+        for (std::uint32_t i = 0; i < midiOutputCount; ++i) {
+            const auto& event = midiOutputBuffer[i];
+            const auto kind = event.bytes[0] >> 4;
+            midiOutput.events().addEvent(event.bytes, kind == 12 || kind == 13 ? 2 : 3, static_cast<int>(event.sampleOffset));
+        }
+        midiOutput.publish(hostMidi);
+#endif
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);
@@ -1397,6 +1427,7 @@ namespace ${NS}
             std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos());
         options.installModules = [&owner](js::Context& context)
         {
+            midi::install(context, owner.midiHost());
             history::install(context, owner.history);
             persistent::install(context, owner.state);
             factory::install(context, owner.presets());

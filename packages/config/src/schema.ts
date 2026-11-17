@@ -110,6 +110,12 @@ const signingSchema = z.strictObject({
 const soundorConfigSchema = z.strictObject({
   plugin: pluginSchema,
   audio: audioSchema.optional(),
+  midi: z
+    .strictObject({
+      input: z.boolean().default(false),
+      output: z.boolean().default(false),
+    })
+    .default({ input: false, output: false }),
   parameterGroups: z
     .record(
       z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
@@ -188,7 +194,8 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
     unknownPropertyMessage,
   );
   if (data.editor !== undefined) checkEditor(data.editor, 'editor', issues);
-  if (data.audio) checkAudio(data.audio, issues);
+  if (data.audio)
+    checkAudio(data.audio, issues, data.plugin.kind === 'midiEffect');
   let bypass: string | undefined;
   for (const parameter of parameters) {
     if (
@@ -275,7 +282,12 @@ function normalize(
       name: data.plugin.name.trim(),
       version: data.plugin.version,
     },
-    ...(data.audio === undefined ? {} : { audio: structuredClone(data.audio) }),
+    midi: { ...data.midi },
+    ...(data.audio === undefined
+      ? data.plugin.kind === 'midiEffect'
+        ? { audio: { buses: {}, layouts: { midi: {} }, defaultLayout: 'midi' } }
+        : {}
+      : { audio: structuredClone(data.audio) }),
     ...(data.parameterGroups === undefined
       ? {}
       : { parameterGroups: structuredClone(data.parameterGroups) }),

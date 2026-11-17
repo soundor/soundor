@@ -210,6 +210,7 @@ namespace soundor::vst3host
         void editParameter(Vst::ParamID id, double normalized);
         /** A note for the next process call's first frame (the on-screen keyboard). */
         void queueEvent(const Vst::Event& event);
+        Json queueMidi(const Json& params);
         /** The transport, any thread. */
         [[nodiscard]] Transport transport() const;
         /** Changes the transport; any thread. Processing in progress keeps
@@ -307,6 +308,7 @@ namespace soundor::vst3host
         // from the interface, for the next process call.
         std::mutex pendingMutex_;
         std::vector<ParameterChange> pending_;
+        std::vector<ParameterChange> pendingMidiChanges_;
         std::vector<Vst::Event> pendingEvents_;
         int32 pendingRestart_ = 0;
 

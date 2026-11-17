@@ -27,6 +27,10 @@
     "./webgl.d.ts": "./webgl.d.ts",
     "./history.d.ts": "./history.d.ts",
     "./presets.d.ts": "./presets.d.ts",
-    "./env.d.ts": "./env.d.ts"
+    "./midi.d.ts": "./midi.d.ts",
+    "./env.d.ts": "./env.d.ts",
+    "./midi-types": {
+      "types": "./midi-types.d.ts"
+    }
   }
 }

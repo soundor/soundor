@@ -558,3 +558,18 @@ audio processor to read it (`ctx.state`), and an array a `maxLength`, which an
 audio array requires. See [`soundor:state`](/docs/api/state) for
 configuration and JavaScript/native examples. Runtime API 2 adds this feature;
 a runtime implementing an older API is refused when state is declared.
+
+## MIDI
+
+```ts
+midi: { input: true, output: true },
+```
+
+Both flags default to `false` and independently control host/plugin MIDI
+capabilities. UI/controller-to-processor communication does not depend on them.
+Hardware selection is a runtime host concern; a config does not automatically
+route a physical device. No named MIDI buses are configured in v1.
+
+A plugin with `plugin.kind: 'midiEffect'` defaults to no audio buses and can
+produce MIDI without audio. See [MIDI](/docs/midi) for message conventions,
+runtime routing and format-specific limitations.

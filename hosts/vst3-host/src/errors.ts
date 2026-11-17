@@ -16,6 +16,8 @@ export type Vst3HostErrorCode =
   | 'no-display'
   | 'headless'
   | 'audio-unavailable'
+  | 'midi-unavailable'
+  | 'midi-overflow'
   | 'invalid-request'
   | 'invalid-state'
   | 'unknown-method'

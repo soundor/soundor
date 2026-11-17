@@ -34,6 +34,8 @@ export interface ProcessorNodeOptions {
     changes: readonly (readonly [number, unknown])[],
   ) => void;
   readonly onError?: (message: string) => void;
+  /** One bounded MIDI batch; timestamps use this audio context's clock. */
+  readonly onMidi?: (batch: Extract<WorkletMessage, { type: 'midi' }>) => void;
 }
 
 export interface ProcessorNode {
@@ -50,6 +52,13 @@ export interface ProcessorNode {
   setState(snapshot: Uint8Array): void;
   /** Posts a generated, owned resource payload for installation between blocks. */
   publishResource(index: number, bytes: Uint8Array): void;
+  /** Bounded next-block or host-timed input. Source 1 host, 2 UI, 3 controller. */
+  sendMidi(
+    bytes: number,
+    source?: number,
+    sampleOffset?: number,
+  ): 'sent' | 'full' | 'inactive';
+  observeMidi(enabled: boolean, output: boolean): void;
   reset(): void;
   dispose(): void;
 }
@@ -92,8 +101,9 @@ export async function createProcessorNode(
   };
   const node = new AudioWorkletNode(context, PROCESSOR_NAME, {
     numberOfInputs: options.inputs.length,
-    numberOfOutputs: options.outputs.length,
-    outputChannelCount: [...options.outputs],
+    // A MIDI-only processor needs a silent graph output to keep the worklet clocked.
+    numberOfOutputs: Math.max(1, options.outputs.length),
+    outputChannelCount: options.outputs.length ? [...options.outputs] : [1],
     // The main input's channels exactly, as the processor was prepared.
     ...(options.inputs.length > 0
       ? {
@@ -107,6 +117,8 @@ export async function createProcessorNode(
   const ready = new Promise<void>((resolve, reject) => {
     settle = { resolve, reject };
   });
+  let midiPending = 0;
+  let midiResetPending = false;
   const post = (command: WorkletCommand) => node.port.postMessage(command);
   node.port.onmessage = (event: MessageEvent<WorkletMessage>) => {
     const message = event.data;
@@ -117,6 +129,16 @@ export async function createProcessorNode(
     } else if (message.type === 'published')
       options.onPublished?.(message.values);
     else if (message.type === 'streams') options.onStreams?.(message.changes);
+    else if (message.type === 'midiAck') {
+      midiPending = Math.max(0, midiPending - message.count);
+      midiResetPending = false;
+    } else if (message.type === 'midi') {
+      try {
+        options.onMidi?.(message);
+      } finally {
+        post({ type: 'midiRead' });
+      }
+    }
   };
   // Awaited or not: a failure also reaches onError.
   ready.catch(() => {});
@@ -136,7 +158,39 @@ export async function createProcessorNode(
         [payload.buffer],
       );
     },
-    reset: () => post({ type: 'reset' }),
+    sendMidi: (bytes, source = 1, sampleOffset = 0) => {
+      if (disposed || context.state !== 'running') return 'inactive';
+      if (
+        !Number.isInteger(bytes) ||
+        bytes < 0 ||
+        bytes > 0xffffff ||
+        !Number.isInteger(source) ||
+        source < 1 ||
+        source > 3 ||
+        !Number.isInteger(sampleOffset) ||
+        sampleOffset < 0 ||
+        sampleOffset >= (options.maxFrames ?? 1024)
+      )
+        throw new RangeError('Invalid MIDI packet');
+      if (midiPending >= 1024) {
+        if (!midiResetPending) {
+          post({ type: 'reset' });
+          midiResetPending = true;
+        }
+        return 'full';
+      }
+      midiPending++;
+      post({ type: 'midi', offset: sampleOffset, bytes, source });
+      return 'sent';
+    },
+    observeMidi: (enabled, output) =>
+      post({ type: 'midiObserve', enabled, output }),
+    reset: () => {
+      if (!midiResetPending) {
+        midiResetPending = true;
+        post({ type: 'reset' });
+      }
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

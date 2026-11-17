@@ -11,3 +11,6 @@ export { targets, targetFor } from './targets.ts';
 export type { Target } from './targets.ts';
 export { PROTOCOL_VERSION } from './protocol.ts';
 export type * from './types.ts';
+
+export { midiInput, midiOutput } from './midi.ts';
+export type { MidiEvent, MidiMessage } from './midi.ts';

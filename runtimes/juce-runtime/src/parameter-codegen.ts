@@ -165,7 +165,7 @@ namespace ${namespace}
 {
     namespace
     {
-${cppRuntime()
+${(parameters.length ? cppRuntime() : '')
   .split('\n')
   .map((line) => (line === '' ? '' : `        ${line}`))
   .join('\n')}

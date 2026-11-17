@@ -26,6 +26,10 @@ interface Exports {
   soundor_web_controller_operation(handle: number): number;
   soundor_web_controller_cancel(handle: number, operation: number): void;
   soundor_web_controller_resources(handle: number): void;
+  soundor_web_controller_midi_enabled(): number;
+  soundor_web_controller_midi_active(handle: number, active: number): void;
+  soundor_web_controller_midi_take(handle: number): void;
+  soundor_web_controller_midi_receive(handle: number, reset: number): number;
 }
 interface Pending {
   resolve(bytes: Uint8Array): void;
@@ -44,6 +48,8 @@ export class WasmController {
   readonly #pending = new Map<number, Pending>();
   readonly #resources = new Map<number, Uint8Array>();
   readonly #listeners = new Set<(index: number, bytes: Uint8Array) => void>();
+  #midiSend: ((bytes: number) => void) | undefined;
+  #midiDropped = 0n;
   #next = 0;
   #generation = 0;
   #closed = false;
@@ -219,6 +225,38 @@ export class WasmController {
     return () => this.#listeners.delete(listener);
   }
 
+  get wantsMidi(): boolean {
+    return !!this.#wasm.soundor_web_controller_midi_enabled?.();
+  }
+  connectMidi(send: ((bytes: number) => void) | undefined): void {
+    this.#midiSend = send;
+    this.#invoke(() =>
+      this.#wasm.soundor_web_controller_midi_active?.(
+        this.#handle,
+        Number(send !== undefined),
+      ),
+    );
+  }
+  receiveMidi(records: Uint32Array, count: number, reset: boolean): void {
+    if (!this.wantsMidi || this.#closed) return;
+    this.#invoke(() => {
+      const ptr = this.#wasm.soundor_web_controller_input(
+        this.#handle,
+        count * 8,
+      );
+      new Uint8Array(this.#wasm.memory.buffer, ptr, count * 8).set(
+        new Uint8Array(records.buffer, records.byteOffset, count * 8),
+      );
+      if (
+        !this.#wasm.soundor_web_controller_midi_receive(
+          this.#handle,
+          Number(reset),
+        )
+      )
+        throw new Error('Invalid controller MIDI batch');
+    });
+    this.#wake();
+  }
   dispose(): void {
     if (this.#closed) return;
     if (this.#busy) throw new Error('Reentrant Rust controller destruction');
@@ -344,6 +382,20 @@ export class WasmController {
       this.#resources.set(index, payload);
       for (const listener of this.#listeners) listener(index, payload.slice());
       offset = end;
+    }
+    if (this.#wasm.soundor_web_controller_midi_take !== undefined) {
+      this.#wasm.soundor_web_controller_midi_take(this.#handle);
+      const midi = this.#output();
+      const view = new DataView(midi.buffer, midi.byteOffset, midi.byteLength);
+      if (midi.length >= 8) {
+        const dropped = view.getBigUint64(0, true);
+        if (dropped !== this.#midiDropped) {
+          this.#midiDropped = dropped;
+          this.context.midi.reset();
+        }
+        for (let offset = 8; offset + 8 <= midi.length; offset += 8)
+          this.#midiSend?.(view.getUint32(offset + 4, true) & 0xffffff);
+      }
     }
   }
   #service(op: number, index: number, ptr: number, length: number): number {

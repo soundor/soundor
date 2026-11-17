@@ -22,6 +22,11 @@ impl Processor for PluginProcessor {
     }
 
     fn process(&mut self, ctx: &mut ProcessContext) {
+        for i in 0..ctx.midi.input().len() {
+            let event = ctx.midi.input()[i];
+            ctx.midi.output().push(event).unwrap();
+            ctx.midi.publish(event).unwrap();
+        }
         assert!(ctx.audio.frames() <= self.max_frames);
         let gain = ctx.params.gain;
         assert!(gain < 2.0, "the test asked for a panic");

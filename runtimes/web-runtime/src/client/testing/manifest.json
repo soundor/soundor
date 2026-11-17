@@ -4,6 +4,10 @@
     "id": "com.example.fixture",
     "name": "Fixture"
   },
+  "midi": {
+    "input": false,
+    "output": false
+  },
   "controller": [
     83,
     78,

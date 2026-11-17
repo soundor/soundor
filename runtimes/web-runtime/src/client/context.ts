@@ -13,6 +13,7 @@ import { behaviors } from 'soundor:internal/parameters';
 import { assetUrl } from './assets';
 import { WebHost, type WebHostOptions } from './host';
 import { readManifest, type WebManifest } from './manifest';
+import { WebMidiHost } from './midi';
 import {
   createParameterStore,
   type ParameterBehavior,
@@ -24,6 +25,7 @@ import type { WasmController } from './wasm-controller';
 
 export interface WebHostContext {
   controller: WasmController | undefined;
+  midi: WebMidiHost;
   readonly manifest: WebManifest;
   /** The plugin's identity, frozen, as `soundor:host` exports it. */
   readonly plugin: {
@@ -50,6 +52,7 @@ export function createHostContext(
   return {
     manifest,
     controller: undefined,
+    midi: new WebMidiHost(manifest.midi),
     plugin: Object.freeze({
       ...manifest.plugin,
       version: manifest.plugin.version ?? '0.1.0',

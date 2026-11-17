@@ -316,3 +316,11 @@ describe('the parameters C++', () => {
     );
   });
 });
+
+// MIDI-only effects often have no parameters; emit no unused helper functions.
+it('omits expression helpers when there are no parameters', () => {
+  const source = renderParametersSource([], 'soundor');
+  expect(source).not.toContain('inline std::string fixedFloat');
+  expect(source).toContain('parameterInfos()');
+  expect(source).toContain('parameterBehaviors()');
+});

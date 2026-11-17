@@ -73,6 +73,7 @@ describe('startPlayground', () => {
       'soundor:fs',
       'soundor:history',
       'soundor:host',
+      'soundor:midi',
       'soundor:native',
       'soundor:parameters',
       'soundor:presets',

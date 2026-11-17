@@ -23,9 +23,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     inline std::int32_t processRust(processor::RustProcessor& rust, juce::AudioBuffer<float>& buffer,
                                     std::span<const double> parameters, std::span<double> published,
                                     const SoundorTransport& transport, const SoundorStreamSink* sink,
-                                    const void* state = nullptr) noexcept
+                                    const void* state = nullptr, std::span<const SoundorMidiEvent> midiInput = {},
+                                    std::span<SoundorMidiEvent> midiOutput = {},
+                                    std::uint32_t* midiCount = nullptr) noexcept
     {
         return rust.process({ buffer.getArrayOfWritePointers(), static_cast<std::size_t>(buffer.getNumChannels()) },
-                            buffer.getNumSamples(), parameters, published, transport, sink, state);
+                            buffer.getNumSamples(), parameters, published, transport, sink, state, midiInput,
+                            midiOutput, midiCount);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

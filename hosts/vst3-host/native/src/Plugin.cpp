@@ -302,6 +302,7 @@ namespace soundor::vst3host
         const std::scoped_lock lock(pendingMutex_);
         pending_.clear();
         pendingEvents_.clear();
+        pendingMidiChanges_.clear();
         pendingRestart_ = 0;
         parameterCount_ = 0;
         ++parameterGeneration_;
@@ -338,6 +339,11 @@ namespace soundor::vst3host
         const std::scoped_lock processing(processing_);
         requireLoaded();
         deactivate();
+        {
+            const std::scoped_lock pending(pendingMutex_);
+            pendingEvents_.clear();
+            pendingMidiChanges_.clear();
+        }
         continuousSamples_ = 0;
         activate();
     }
@@ -1084,7 +1090,8 @@ namespace soundor::vst3host
                 const auto bus = static_cast<int32>(integerField(source, "bus", 0, 0, 1023, where));
                 const auto channel = static_cast<int16>(integerField(source, "channel", 0, 0, 15, where));
 
-                if (type == "controlChange" || type == "pitchBend" || type == "channelPressure")
+                if (type == "controlChange" || type == "pitchBend" || type == "channelPressure"
+                    || type == "programChange")
                 {
                     // MIDI controllers reach VST3 plugins as parameters, through
                     // the controller's IMidiMapping.
@@ -1100,6 +1107,11 @@ namespace soundor::vst3host
                     }
                     else if (type == "pitchBend")
                         value = (numberField(source, "value", 0, -1, 1, where) + 1) / 2;
+                    else if (type == "programChange")
+                    {
+                        controllerNumber = kCtrlProgramChange;
+                        value = static_cast<double>(integerField(source, "program", 0, 0, 127, where)) / 127.0;
+                    }
                     else
                     {
                         controllerNumber = kAfterTouch;
@@ -1219,6 +1231,8 @@ namespace soundor::vst3host
             const std::scoped_lock lock(pendingMutex_);
             changes.swap(pending_);
             events.swap(pendingEvents_);
+            changes.insert(changes.end(), pendingMidiChanges_.begin(), pendingMidiChanges_.end());
+            pendingMidiChanges_.clear();
         }
         changes.insert(changes.end(), job.changes.begin(), job.changes.end());
         events.insert(events.end(), job.events.begin(), job.events.end());
@@ -1833,10 +1847,57 @@ namespace soundor::vst3host
         pending_.push_back({ id, normalized, 0 });
     }
 
+    Json Plugin::queueMidi(const Json& params)
+    {
+        if (eventInputs_.empty() || ! eventInputs_[0].active)
+            throw Failure("midi-unavailable", "Plugin has no active MIDI input bus");
+        const auto* events = params.find("events");
+        if (events == nullptr || ! events->isArray() || events->asArray().size() > 1024)
+            throw Failure("invalid-request", "MIDI accepts at most 1024 events per batch");
+        Json request = params;
+        request.set("frames", 1);
+        auto job = prepareProcess(request, {});
+        bool full = false;
+        {
+            const std::scoped_lock lock(pendingMutex_);
+            full = pendingEvents_.size() + job->events.size() > 1024
+                   || pendingMidiChanges_.size() + job->changes.size() > 1024;
+            if (full)
+            {
+                pendingEvents_.clear();
+                pendingMidiChanges_.clear();
+            }
+            else
+            {
+                pendingEvents_.insert(pendingEvents_.end(), job->events.begin(), job->events.end());
+                pendingMidiChanges_.insert(pendingMidiChanges_.end(), job->changes.begin(), job->changes.end());
+            }
+        }
+        if (full)
+        {
+            reset();
+            throw Failure("midi-overflow", "MIDI queue full; pending MIDI discarded and plugin reset to release notes");
+        }
+        Json result = Json::object();
+        Json warnings = Json::array();
+        for (const auto& warning : job->warnings)
+            warnings.push(warning);
+        result.set("warnings", std::move(warnings));
+        return result;
+    }
     void Plugin::queueEvent(const Event& event)
     {
-        const std::scoped_lock lock(pendingMutex_);
-        pendingEvents_.push_back(event);
+        bool full = false;
+        {
+            const std::scoped_lock lock(pendingMutex_);
+            full = pendingEvents_.size() >= 1024;
+            if (full)
+                pendingEvents_.clear();
+            else
+                pendingEvents_.push_back(event);
+        }
+        if (full)
+            reset();
     }
 
     Transport Plugin::transport() const

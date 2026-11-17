@@ -95,6 +95,9 @@ jobs:
 
       # The staged executable, as a consumer runs it: headless without any
       # display first, then the editor tests on one (Xvfb on Linux).
+      - name: Build host JavaScript dependencies
+        run: pnpm turbo run build --filter=@soundor/vst3-host...
+
       - name: Headless tests
         working-directory: hosts/vst3-host
         env:
@@ -150,6 +153,8 @@ jobs:
           CC: clang
           CXX: clang++
         run: cmake --workflow --preset tidy
+      - name: Build host JavaScript dependencies
+        run: pnpm turbo run build --filter=@soundor/vst3-host...
       - name: ASan and UBSan
         working-directory: hosts/vst3-host
         env:

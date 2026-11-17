@@ -99,6 +99,8 @@ impl StreamSink for Mailbox {
 /// The processor behind a WebAssembly handle, with its buffers.
 pub struct WasmHandle<P: Processor> {
     instance: Instance<P>,
+    midi_output: Box<[crate::midi_ffi::WireMidiEvent; crate::midi::MIDI_CAPACITY]>,
+    midi_publications: Box<[crate::midi_ffi::WireMidiEvent; crate::midi::MIDI_CAPACITY]>,
     layout: [u32; 2 + 2 * MAX_BUSES],
     max_frames: usize,
     inputs: Vec<usize>,
@@ -125,6 +127,12 @@ impl<P: Processor> WasmHandle<P> {
         layout[..4].copy_from_slice(&[1, 1, 2, 2]);
         Self {
             instance: Instance::new(),
+            midi_output: Box::new(
+                [crate::midi_ffi::WireMidiEvent::default(); crate::midi::MIDI_CAPACITY],
+            ),
+            midi_publications: Box::new(
+                [crate::midi_ffi::WireMidiEvent::default(); crate::midi::MIDI_CAPACITY],
+            ),
             layout,
             max_frames: 0,
             inputs: Vec::new(),
@@ -168,6 +176,47 @@ impl<P: Processor> WasmHandle<P> {
     /// none).
     pub fn published(&self) -> &[f64] {
         &self.published
+    }
+
+    /// Inject one wire event between processing calls. 0 accepted, 1 full, 3 invalid.
+    pub fn midi_input(&mut self, offset: u32, bytes: u32, source: u32) -> i32 {
+        if source > 3 || bytes > 0xffffff {
+            return 3;
+        }
+        let wire = crate::midi_ffi::WireMidiEvent {
+            sample_offset: offset,
+            bytes: [bytes as u8, (bytes >> 8) as u8, (bytes >> 16) as u8],
+            source: source as u8,
+        };
+        let Ok(event) = wire.decode() else {
+            self.instance.midi.recovery = true;
+            return 3;
+        };
+        if self.instance.midi.input.push(event).is_err() {
+            self.instance.midi.recovery = true;
+            return 1;
+        }
+        0
+    }
+    /// Fixed output/publication storage, populated without allocation during process.
+    pub fn midi_data(&self, publication: bool) -> *const crate::midi_ffi::WireMidiEvent {
+        if publication {
+            self.midi_publications.as_ptr()
+        } else {
+            self.midi_output.as_ptr()
+        }
+    }
+    /// Records in the most recent block's fixed storage.
+    pub fn midi_count(&self, publication: bool) -> usize {
+        if publication {
+            self.instance.midi.publication.events().len()
+        } else {
+            self.instance.midi.output.events().len()
+        }
+    }
+    /// Reset generation for host and observer recovery.
+    pub fn midi_generation(&self) -> u64 {
+        self.instance.midi.generation()
     }
 
     /// The processor.
@@ -277,6 +326,20 @@ impl<P: Processor> WasmHandle<P> {
             streams: &self.mailbox,
             state: Some(&self.state),
         });
+        for (wire, event) in self
+            .midi_output
+            .iter_mut()
+            .zip(self.instance.midi.output.events())
+        {
+            *wire = crate::midi_ffi::WireMidiEvent::encode(*event);
+        }
+        for (wire, event) in self
+            .midi_publications
+            .iter_mut()
+            .zip(self.instance.midi.publication.events())
+        {
+            *wire = crate::midi_ffi::WireMidiEvent::encode(*event);
+        }
         self.published.copy_from_slice(self.instance.published());
         status
     }
@@ -446,6 +509,33 @@ macro_rules! __export_wasm {
             pub extern "C" fn soundor_wasm_reset(pointer: *mut __Handle) -> i32 {
                 handle(pointer).reset() as i32
             }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_midi_input(
+                pointer: *mut __Handle,
+                offset: u32,
+                bytes: u32,
+                source: u32,
+            ) -> i32 {
+                handle(pointer).midi_input(offset, bytes, source)
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_midi_data(
+                pointer: *mut __Handle,
+                publication: u32,
+            ) -> *const $crate::midi_ffi::WireMidiEvent {
+                handle(pointer).midi_data(publication != 0)
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_midi_count(
+                pointer: *mut __Handle,
+                publication: u32,
+            ) -> usize {
+                handle(pointer).midi_count(publication != 0)
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_midi_generation(pointer: *mut __Handle) -> f64 {
+                handle(pointer).midi_generation() as f64
+            }
             // The streams' exports keep their first names, `channel`: the
             // engine's WebAssembly host looks them up by name.
             #[unsafe(no_mangle)]
@@ -550,6 +640,28 @@ macro_rules! __export_wasm_controller {
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_web_controller_cancel(pointer: *mut Handle, operation: u32) {
                 handle(pointer).cancel(operation);
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_midi_enabled() -> bool {
+                <$controller as $crate::Controller>::MIDI_INPUT
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_midi_active(
+                pointer: *mut Handle,
+                active: bool,
+            ) {
+                handle(pointer).midi_active(active);
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_midi_take(pointer: *mut Handle) {
+                handle(pointer).midi_take();
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_web_controller_midi_receive(
+                pointer: *mut Handle,
+                reset: bool,
+            ) -> bool {
+                handle(pointer).midi_receive(reset)
             }
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_web_controller_resources(pointer: *mut Handle) {

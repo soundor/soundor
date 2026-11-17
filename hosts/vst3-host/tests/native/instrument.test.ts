@@ -98,3 +98,28 @@ test('runs the transport across calls', async () => {
   const next = await host.process({ frames: 1 });
   expect(next.outputs[0]![1]![0]).toBeCloseTo(4 + 1000 / 24000, 5);
 });
+
+test('accepts virtual MIDI independently of physical devices and reports program mappings', async () => {
+  const host = await launch('Fixture Synth');
+  await host.sendMidi({ type: 'noteOn', channel: 1, note: 60, velocity: 127 });
+  const played = await host.process({ frames: 8 });
+  expect(played.outputs[0]![0]![0]).toBe(1);
+  expect(played.events).toMatchObject([{ type: 'noteOn', pitch: 72 }]);
+  await host.sendMidi({ type: 'noteOff', channel: 1, note: 60, velocity: 0 });
+  expect((await host.process({ frames: 8 })).outputs[0]![0]![0]).toBe(0);
+  const program = await host.sendMidi({
+    type: 'programChange',
+    channel: 1,
+    program: 127,
+  });
+  expect(program.warnings).toHaveLength(1);
+  expect(program.warnings[0]).toContain('programChange');
+});
+
+test('physical input enumeration reports platform or device availability without selecting a route', async () => {
+  const host = await launch('Fixture Synth');
+  const result = await host.getMidiInputs();
+  expect(result.selected).toBeNull();
+  expect(Array.isArray(result.devices)).toBe(true);
+  expect(typeof result.supported).toBe('boolean');
+});

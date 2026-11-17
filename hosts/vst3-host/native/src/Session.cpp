@@ -255,6 +255,7 @@ namespace soundor::vst3host
                                            EditorWindow::Callbacks callbacks, std::string& error)
                                     { return createWindow(title, width, height, std::move(callbacks), error); } }),
           audio_(loop, plugin_),
+          midiInput_(loop, plugin_),
           model_ { plugin_, audio_, settings_,
                    [this](const std::string& event, Json params) { emit(event, std::move(params)); } }
     {
@@ -608,6 +609,18 @@ namespace soundor::vst3host
             }
             else if (method == "getAudio")
                 respond(id, audio_.status());
+            else if (method == "queueMidi")
+                respond(id, plugin_.queueMidi(params));
+            else if (method == "getMidiInputs")
+                respond(id, midiInput_.devices());
+            else if (method == "selectMidiInput")
+            {
+                const auto* device = params.find("device");
+                if (device == nullptr || (! device->isNull() && ! device->isString()))
+                    throw Failure("invalid-request", "device must be a MIDI input id or null");
+                respond(id, midiInput_.select(device->isNull() ? std::nullopt
+                                                               : std::optional<std::string>(device->asString())));
+            }
             else if (method == "getTransport")
             {
                 if (! plugin_.loaded())

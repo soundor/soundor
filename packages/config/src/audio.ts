@@ -86,11 +86,16 @@ export const audioSchema = z.strictObject({
 });
 
 /** Validate references and every complete bus arrangement before code generation. */
-export function checkAudio(audio: AudioConfig, issues: ConfigIssue[]): void {
+export function checkAudio(
+  audio: AudioConfig,
+  issues: ConfigIssue[],
+  midiOnly = false,
+): void {
   const fail = (path: string, message: string) =>
     issues.push({ path: `audio.${path}`, message });
   const buses = Object.entries(audio.buses);
-  if (buses.length === 0) fail('buses', 'declare at least one audio bus');
+  if (buses.length === 0 && !midiOnly)
+    fail('buses', 'declare at least one audio bus');
   if (Object.keys(audio.layouts).length === 0)
     fail('layouts', 'declare at least one supported layout');
   if (!Object.hasOwn(audio.layouts, audio.defaultLayout))

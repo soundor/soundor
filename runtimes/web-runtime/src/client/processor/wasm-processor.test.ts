@@ -291,10 +291,12 @@ describe('the worklet', () => {
     class AudioWorkletProcessor {
       port = {
         onmessage: null as ((event: { data: unknown }) => void) | null,
-        postMessage: (message: unknown) => posted.push(message),
+        postMessage: (message: unknown) =>
+          posted.push(structuredClone(message)),
       };
     }
-    runInNewContext(workletSource(), {
+    const scope = {
+      currentTime: 0,
       AudioWorkletProcessor,
       WebAssembly,
       sampleRate: 48_000,
@@ -310,7 +312,8 @@ describe('the worklet', () => {
         name = registered;
         Registered = processor;
       },
-    });
+    };
+    runInNewContext(workletSource(), scope);
     const instance = new Registered!({
       processorOptions: {
         wasm: wasm.slice().buffer,
@@ -323,8 +326,43 @@ describe('the worklet', () => {
         ...options,
       },
     });
-    return { instance, posted, name };
+    return {
+      instance,
+      posted,
+      name,
+      advance: () => {
+        scope.currentTime += 128 / 48000;
+      },
+    };
   }
+
+  it('bounds in-flight batches and preserves publication offsets while buffering across blocks', () => {
+    const { instance, posted, advance } = worklet();
+    instance.port.onmessage?.({
+      data: { type: 'midiObserve', enabled: true, output: true },
+    });
+    const outputs = [[new Float32Array(128), new Float32Array(128)]];
+    for (let block = 0; block < 3; block++) {
+      instance.port.onmessage?.({
+        data: { type: 'midi', offset: 17, bytes: 0x643c90, source: 2 },
+      });
+      instance.process([[]], outputs);
+      advance();
+    }
+    const batches = posted.filter(
+      (message) => (message as { type: string }).type === 'midi',
+    );
+    expect(batches).toHaveLength(1);
+    instance.port.onmessage?.({ data: { type: 'midiRead' } });
+    instance.process([[]], outputs);
+    const after = posted.filter(
+      (message) => (message as { type: string }).type === 'midi',
+    ) as { publications: Uint32Array; publicationCount: number }[];
+    expect(after).toHaveLength(2);
+    expect(after[1]!.publicationCount).toBe(2);
+    expect(after[1]!.publications[0]).toBe(17);
+    expect(after[1]!.publications[2]).toBe(17);
+  });
 
   it('registers the processor and prepares it', () => {
     const { posted, name } = worklet();
@@ -406,5 +444,33 @@ describe('the worklet', () => {
     ];
     expect(instance.process([[ramp(128), ramp(128)]], outputs)).toBe(true);
     expect(outputs[0]![0]).toEqual(new Float32Array(128));
+  });
+});
+
+describe('sample-timed MIDI through the real Rust/WASM processor', () => {
+  it('preserves wire data, simultaneous order, source, and chunk-relative timing', () => {
+    const p = processor(1, [], [], 32);
+    const messages = [
+      0x003c90, 0x7f3c80, 0x7f3ca0, 0x7f40b0, 0x007fc0, 0x007fd0, 0x7f7fe0,
+    ];
+    for (let i = 0; i < messages.length; i++)
+      expect(p.midiInput(i === 0 ? 65 : 0, messages[i]!, 2)).toBe(0);
+    expect(p.process([], [], 96)).toBe(0);
+    expect(p.midiOutputCount).toBe(7);
+    expect(p.midiOutput[0]).toBe(0);
+    expect(p.midiOutput[1]! & 0xffffff).toBe(messages[1]);
+    expect(p.midiOutput[12]).toBe(65);
+    expect(p.midiOutput[13]! & 0xffffff).toBe(0x3c90);
+    expect(p.midiOutput[13]! >>> 24).toBe(2);
+    expect(p.midiPublications).toEqual(p.midiOutput);
+    p.destroy();
+  });
+  it('rejects invalid offsets without moving host events to zero', () => {
+    const p = processor(1);
+    expect(p.midiInput(128, 0x643c90)).toBe(0);
+    expect(p.process([], [], 128)).toBe(WASM_STATUS.invalidArgument);
+    expect(p.midiOutputCount).toBe(0);
+    expect(p.midiInput(-1, 0x643c90)).toBe(3);
+    p.destroy();
   });
 });

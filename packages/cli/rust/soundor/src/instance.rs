@@ -67,6 +67,7 @@ pub(crate) struct Block<'a> {
 
 pub(crate) struct Instance<P: Processor> {
     processor: P,
+    pub(crate) midi: crate::midi::MidiStorage,
     state: State,
     sample_rate: f64,
     max_frames: usize,
@@ -89,6 +90,7 @@ impl<P: Processor> Instance<P> {
     pub fn new() -> Self {
         Self {
             processor: P::default(),
+            midi: crate::midi::MidiStorage::default(),
             state: State::Created,
             sample_rate: 0.0,
             max_frames: 0,
@@ -180,6 +182,7 @@ impl<P: Processor> Instance<P> {
         self.outputs.extend_from_slice(outputs);
         self.input_chunk = vec![std::ptr::null(); inputs.iter().sum()];
         self.output_chunk = vec![std::ptr::null_mut(); outputs.iter().sum()];
+        self.midi.reset();
         let ctx = PrepareContext {
             sample_rate,
             max_frames,
@@ -196,10 +199,18 @@ impl<P: Processor> Instance<P> {
         let processor = &mut self.processor;
         match catch_unwind(AssertUnwindSafe(|| processor.prepare(&ctx))) {
             Ok(()) => {
+                self.midi
+                    .incoming
+                    .active
+                    .store(true, std::sync::atomic::Ordering::Release);
                 self.state = State::Prepared;
                 Status::Ok
             }
             Err(_) => {
+                self.midi
+                    .incoming
+                    .active
+                    .store(false, std::sync::atomic::Ordering::Release);
                 self.state = State::Failed;
                 Status::Panicked
             }
@@ -208,6 +219,7 @@ impl<P: Processor> Instance<P> {
 
     /// Between blocks, on any one thread.
     pub fn reset(&mut self) -> Status {
+        self.midi.reset();
         match self.state {
             State::Created => return Status::NotPrepared,
             State::Failed => return Status::Failed,
@@ -217,6 +229,10 @@ impl<P: Processor> Instance<P> {
         match catch_unwind(AssertUnwindSafe(|| processor.reset())) {
             Ok(()) => Status::Ok,
             Err(_) => {
+                self.midi
+                    .incoming
+                    .active
+                    .store(false, std::sync::atomic::Ordering::Release);
                 self.state = State::Failed;
                 Status::Panicked
             }
@@ -226,7 +242,30 @@ impl<P: Processor> Instance<P> {
     /// On the audio thread: never allocates, unless the processor does.
     pub fn process(&mut self, block: Block<'_>) -> Status {
         self.published.fill(f64::NAN);
+        self.midi.receive();
+        self.midi.output.clear();
+        self.midi.publication.clear();
+        if self.midi.recovery {
+            let status = self.reset();
+            if status != Status::Ok {
+                return status;
+            }
+        }
+        if self
+            .midi
+            .input
+            .events()
+            .iter()
+            .any(|event| !crate::midi::valid_offset(event.sample_offset, block.frames))
+        {
+            self.midi.input.clear();
+            self.midi.recovery = true;
+            silence_if_valid(self, &block);
+            return Status::InvalidArgument;
+        }
         if !self.valid(&block) {
+            self.midi.input.clear();
+            self.midi.recovery = true;
             return Status::InvalidArgument;
         }
         if self.state != State::Prepared {
@@ -273,7 +312,9 @@ impl<P: Processor> Instance<P> {
                     &self.outputs,
                 )
             };
+            self.midi.chunk(offset, frames);
             let mut ctx = ProcessContext {
+                midi: self.midi.context(frames, offset as u32),
                 params: &self.parameters,
                 state: block.state.unwrap_or(&self.default_state),
                 audio,
@@ -288,13 +329,29 @@ impl<P: Processor> Instance<P> {
             };
             let processor = &mut self.processor;
             if catch_unwind(AssertUnwindSafe(|| processor.process(&mut ctx))).is_err() {
+                self.midi
+                    .incoming
+                    .active
+                    .store(false, std::sync::atomic::Ordering::Release);
                 self.state = State::Failed;
                 self.published.fill(f64::NAN);
+                self.midi.reset();
                 silence(&block);
                 return Status::Panicked;
             }
             offset += frames;
             if offset >= block.frames {
+                self.midi.deliver();
+                self.midi.input.clear();
+                let dropped = self
+                    .midi
+                    .output
+                    .dropped
+                    .saturating_add(self.midi.publication.dropped);
+                if dropped != self.midi.last_dropped {
+                    self.midi.recovery = true;
+                    self.midi.last_dropped = dropped;
+                }
                 return Status::Ok;
             }
         }
@@ -392,5 +449,21 @@ fn silence(block: &Block<'_>) {
     for &output in block.outputs {
         // SAFETY: checked by `valid`.
         unsafe { std::ptr::write_bytes(output, 0, block.frames) };
+    }
+}
+
+fn silence_if_valid<P: Processor>(instance: &Instance<P>, block: &Block<'_>) {
+    if instance.valid(block) {
+        silence(block);
+    }
+}
+
+impl<P: Processor> Drop for Instance<P> {
+    fn drop(&mut self) {
+        self.midi
+            .incoming
+            .active
+            .store(false, std::sync::atomic::Ordering::Release);
+        self.midi.reset();
     }
 }

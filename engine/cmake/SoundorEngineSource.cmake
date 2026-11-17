@@ -41,6 +41,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/js/RustMethods.cpp
   src/js/Value.cpp
   src/js/ValueConversion.cpp
+  src/modules/midi/Midi.cpp
   src/modules/history/HistoryModule.cpp
   src/modules/parameters/ParametersModule.cpp
   src/modules/ui/CanvasModule.cpp
@@ -125,6 +126,7 @@ soundor_embed_module(soundor_runtime languageModule src/js/language.js soundor:i
 foreach(module fs host parameters storage)
   soundor_embed_module(soundor_runtime ${module}Module src/modules/${module}/${module}.js soundor:${module})
 endforeach()
+soundor_embed_module(soundor_runtime midiModule src/modules/midi/midi.js soundor:midi)
 soundor_embed_module(soundor_runtime uiModule src/modules/ui/ui.js soundor:ui)
 soundor_embed_module(soundor_runtime nativeEventsModule src/modules/native/events.js soundor:internal/native-events)
 soundor_embed_module(soundor_runtime nativeStreamsModule src/modules/native/streams.js soundor:internal/native-streams)

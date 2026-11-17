@@ -8,3 +8,5 @@ export * from '@soundor/core/spring';
 export * from '@soundor/core/state';
 
 export * from '@soundor/core/presets';
+
+export * from '@soundor/core/midi';

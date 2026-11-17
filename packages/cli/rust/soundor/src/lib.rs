@@ -88,6 +88,9 @@ mod instance;
 #[doc(hidden)]
 pub mod json;
 mod layout;
+pub mod midi;
+#[doc(hidden)]
+pub mod midi_ffi;
 #[doc(hidden)]
 pub mod wasm_controller;
 // Generated from soundor.config.ts, as generated.
@@ -115,6 +118,7 @@ pub use controller::{
 pub use error::Error;
 #[cfg(not(target_arch = "wasm32"))]
 pub use executor::{Unblock, unblock};
+pub use midi::{MidiError, MidiEvent, MidiMessage, MidiSource};
 pub use plugin::{
     NativeMethods, ParameterAccess, Parameters, Publish, ResourcePublishers, Resources, STATE_SIZE,
     StateAccess, StateSnapshot, Streams, choices, types,
@@ -137,9 +141,10 @@ pub mod config {
 /// What a plugin's module usually imports: `use soundor::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        ActiveLayout, AsyncTaskContext, Audio, Controller, Error, NativeMethods, Parameters,
-        PrepareContext, ProcessContext, Processor, Publish, ResourcePublishers, Resources,
-        ScheduleError, StateArray, StateSnapshot, Streams, TaskContext, Transport, choices, types,
+        ActiveLayout, AsyncTaskContext, Audio, Controller, Error, MidiError, MidiEvent,
+        MidiMessage, MidiSource, NativeMethods, Parameters, PrepareContext, ProcessContext,
+        Processor, Publish, ResourcePublishers, Resources, ScheduleError, StateArray,
+        StateSnapshot, Streams, TaskContext, Transport, choices, types,
     };
 }
 

@@ -13,6 +13,7 @@ import { processorState } from './audio-state';
 import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { validateInputs, type WebInput } from './input';
+import { WebMidiHost } from './midi';
 import { nativeStreamPublishers } from './native-streams';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
@@ -42,6 +43,8 @@ export interface WebHostOptions {
 
 /** A running Web host. */
 export interface WebHost {
+  /** Virtual input and explicit physical-device routing; no permission needed for internal MIDI. */
+  readonly midi: WebMidiHost;
   /** The host page's element. */
   readonly element: HTMLElement;
   /** Where the plugin UI renders. */
@@ -70,6 +73,8 @@ export async function startSoundorWebHost(
   const container =
     options.container ?? document.getElementById('soundor') ?? document.body;
   const context = hostContext();
+  if (context.midi.disposed)
+    context.midi = new WebMidiHost(context.manifest.midi);
   await context.state.ready;
   if (processorWasm === undefined)
     throw new Error(
@@ -84,6 +89,8 @@ export async function startSoundorWebHost(
   );
   context.controller = controller;
   const audio = new WebAudioHost(context.host, {
+    midi: context.midi,
+    controller,
     audio: context.manifest.audio,
     inputs: options.audioInputs,
     configuredInputs: options.inputs,
@@ -122,6 +129,7 @@ export async function startSoundorWebHost(
       parameters: context.parameters,
       parameterGroups: context.manifest.parameterGroups,
       audio,
+      midi: context.midi,
     });
 
     // The plugin view fills the viewport; soundor:ui renders into it, and its
@@ -166,12 +174,14 @@ export async function startSoundorWebHost(
     }
 
     return {
+      midi: context.midi,
       element: shell.element,
       viewport: shell.viewport,
       reset: () => context.state.reset(),
       dispose: () => {
         context.state.store.resetGestures();
         void context.state.flush();
+        context.midi.dispose();
         controller.dispose();
         context.controller = undefined;
         audio.dispose();
@@ -207,3 +217,5 @@ export { nativeEventPublishers } from './native-events';
 export type { Presentation } from './shell';
 export type { PlaygroundHost, PlaygroundScript } from './playground';
 export type { WebEditor, WebManifest, WebParameterInfo } from './manifest';
+
+export { WebMidiHost, type MidiDevice, type MidiPermission } from './midi';

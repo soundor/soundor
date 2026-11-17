@@ -1,0 +1,39 @@
+{
+  "name": "midi-arpeggiator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "soundor build",
+    "build:juce": "soundor build juce",
+    "dev": "soundor dev juce",
+    "doctor": "soundor doctor",
+    "gen": "soundor gen",
+    "test": "vitest run",
+    "test:rust": "soundor gen && cargo test --manifest-path lib/Cargo.toml",
+    "test:watch": "vitest watch",
+    "typecheck": "soundor gen && tsc -b",
+    "build:web": "soundor build web",
+    "dev:web": "soundor dev web",
+    "test:e2e": "node e2e/native.mjs"
+  },
+  "dependencies": {
+    "@soundor/juce-runtime": "workspace:*",
+    "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/config": "workspace:*",
+    "@soundor/test-runtime": "workspace:^",
+    "@soundor/testing-library": "workspace:^",
+    "@soundor/vitest": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "soundor": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vitest-environment-soundor": "workspace:^"
+  }
+}

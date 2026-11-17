@@ -9,8 +9,10 @@
 // thread.
 
 #include <soundor/Abi.h>
+#include <soundor/midi/Midi.h>
 #include <soundor/processor/RustProcessorAbi.h>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <span>
@@ -68,7 +70,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
     class RustProcessor
     {
     public:
-        RustProcessor(RustContract expected, const RustProcessorFunctions& functions);
+        RustProcessor(RustContract expected, const RustProcessorFunctions& functions, midi::Functions midi = {});
         ~RustProcessor();
         RustProcessor(const RustProcessor&) = delete;
         RustProcessor& operator=(const RustProcessor&) = delete;
@@ -102,7 +104,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         // the outputs silent; an unprepared processor silences every channel.
         std::int32_t process(std::span<float* const> channels, int frames, std::span<const double> parameters,
                              std::span<double> published, const SoundorTransport& transport,
-                             const SoundorStreamSink* sink, const void* state = nullptr) noexcept;
+                             const SoundorStreamSink* sink, const void* state = nullptr,
+                             std::span<const SoundorMidiEvent> midiInput = {},
+                             std::span<SoundorMidiEvent> midiOutput = {}, std::uint32_t* midiCount = nullptr) noexcept;
 
         // Audio thread, between blocks.
         std::int32_t reset() noexcept;
@@ -114,6 +118,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         void silence(std::span<float* const> channels, int start, int frames) const noexcept;
 
         RustProcessorFunctions abi;
+        midi::Functions midiFunctions;
+        std::array<SoundorMidiEvent, midi::capacity> midiInputChunk {}, midiOutputChunk {};
         void* handle = nullptr;
         std::string problem;
         RustContract contract;

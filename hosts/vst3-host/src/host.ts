@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { endianness } from 'node:os';
 
 import { Vst3HostError } from './errors.ts';
+import { midiInput, type MidiMessage } from './midi.ts';
 import {
   DEFAULT_MAX_PAYLOAD_BYTES,
   type Frame,
@@ -11,6 +12,7 @@ import {
   encodeFrame,
 } from './protocol.ts';
 import { resolveHost } from './resolve.ts';
+import type { MidiInputDevices } from './types.ts';
 import type {
   EditorInfo,
   HostEvents,
@@ -661,6 +663,36 @@ export class Vst3Host {
   async getAudio(options?: RequestOptions): Promise<AudioStatus> {
     return (await this.#request('getAudio', {}, undefined, options))
       .result as AudioStatus;
+  }
+
+  /** Virtual MIDI input at the next block (works without hardware). The
+   * queue holds 1024 events; overflow rejects and resets the plugin. */
+  async sendMidi(
+    message: MidiMessage,
+    options?: RequestOptions,
+  ): Promise<{ warnings: string[] }> {
+    return (
+      await this.#request(
+        'queueMidi',
+        { events: [midiInput({ message, sampleOffset: 0 })] },
+        undefined,
+        options,
+      )
+    ).result as { warnings: string[] };
+  }
+  /** Explicit physical-input enumeration; Linux ALSA, with an explicit
+   * unsupported result on other platforms. Output is never routed to hardware. */
+  async getMidiInputs(options?: RequestOptions): Promise<MidiInputDevices> {
+    return (await this.#request('getMidiInputs', {}, undefined, options))
+      .result as MidiInputDevices;
+  }
+  async selectMidiInput(
+    device: string | null,
+    options?: RequestOptions,
+  ): Promise<MidiInputDevices> {
+    return (
+      await this.#request('selectMidiInput', { device }, undefined, options)
+    ).result as MidiInputDevices;
   }
 
   /** The host's transport, which live audio advances while it plays. */

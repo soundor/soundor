@@ -273,3 +273,13 @@ a new version.
   `cmake/Vst3HostDependencies.cmake` and `NOTICE.md` (a changed pin changes
   the native inputs, so the next release builds anew).
 - Add a changeset for `@soundor/vst3-host` for any change to the package.
+
+## MIDI adapters
+
+The Node client's `midiInput`/`midiOutput` helpers use the shared integer MIDI
+contract. Virtual `sendMidi` enters the existing bounded event/parameter queues.
+Mapped VST3 controllers retain their existing parameter mapping; unsupported
+mappings report warnings. `MidiInput` polls an explicitly selected Linux ALSA
+sequencer source through the existing event loop. Other standalone-host platforms
+report physical input unsupported; virtual injection remains available.
+See [MIDI](/docs/midi) for timing, capacities, device routing and compatibility.

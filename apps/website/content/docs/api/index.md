@@ -16,6 +16,7 @@ the same errors, typed from the project's `soundor.config.ts`.
 | [`soundor:presets`](/docs/api/presets)         | Factory preset catalog, synchronous loading, and selection tracking. |
 | [`soundor:history`](/docs/api/history)         | Opt-in undo/redo for parameter and state edits.                      |
 | [`soundor:env`](/docs/api/env)                 | Explicit public build-time configuration and mode flags.             |
+| [`soundor:midi`](/docs/api/midi)               | Send to Rust and observe explicit, ordered processor publications.   |
 | [`soundor:host`](/docs/api/host)               | The plugin's identity, the host, and its transport.                  |
 | [`soundor:ui`](/docs/api/ui)                   | The plugin view's nodes, styles, events, canvases and animations.    |
 | [`soundor:storage`](/docs/api/storage)         | Persistent JSON key/value storage, private to the plugin.            |

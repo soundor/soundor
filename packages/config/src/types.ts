@@ -133,6 +133,14 @@ export interface SigningConfig {
   macos?: MacosSigningConfig;
 }
 
+/** Host MIDI capabilities; internal MIDI communication is always available. */
+export interface MidiConfig {
+  /** Accept host MIDI input. Defaults to false. */
+  input?: boolean;
+  /** Send processor output to the host. Defaults to false. */
+  output?: boolean;
+}
+
 /**
  * A project's configuration, as `soundor.config.ts` declares it.
  *
@@ -148,6 +156,8 @@ export interface SoundorConfig<
   presets?: readonly FactoryPresetDeclaration[];
   /** Audio buses, supported combinations and host processing metadata. */
   audio?: AudioConfig;
+  /** Independent host MIDI input and output capabilities. */
+  midi?: MidiConfig;
   /** Host-visible parameter groups, referenced by parameter.group. */
   parameterGroups?: Record<string, ParameterGroup>;
   /** Public build-time values for soundor:env. Never include secrets; omitted values are not inherited from process.env. */
@@ -182,6 +192,8 @@ export interface ResolvedSoundorConfig {
   presets?: readonly ResolvedFactoryPreset[];
   /** Audio buses, supported combinations and host processing metadata. */
   audio?: AudioConfig;
+  /** Independent host MIDI input and output capabilities. */
+  midi?: MidiConfig;
   /** Host-visible parameter groups, referenced by parameter.group. */
   parameterGroups?: Record<string, ParameterGroup>;
   /** Public build-time values for soundor:env. Never include secrets; omitted values are not inherited from process.env. */

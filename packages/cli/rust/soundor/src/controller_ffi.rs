@@ -142,9 +142,13 @@ pub unsafe fn create<P: Processor, C: NativeMethods>(
             Some(processor) => processor.resource_slots(),
             None => Arc::new(ResourceSlots::default()),
         };
+        let midi = match unsafe { processor.cast::<Handle<P>>().as_ref() } {
+            Some(processor) => processor.midi(),
+            None => Arc::new(crate::midi::MidiInbox::default()),
+        };
         let wake = host.waker();
         Box::into_raw(Box::new(ControllerHandle {
-            instance: Instance::<C>::new(host, wake, slots),
+            instance: Instance::<C>::new(host, wake, slots, midi),
         }))
     }))
     .unwrap_or(std::ptr::null_mut())

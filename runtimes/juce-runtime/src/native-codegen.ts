@@ -145,7 +145,8 @@ ${[
   ...(hasStreams ? ['#include <soundor/js/Streams.h>'] : []),
   ...(hasEvents ? ['#include <soundor/js/Events.h>'] : []),
 ].join('\n')}
-#include <soundor/js/Promise.h>${model.methods.length > 0 ? '\n#include <soundor/processor/RustController.h>' : ''}
+#include <soundor/js/Promise.h>
+#include <soundor/processor/RustController.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -172,7 +173,7 @@ ${types.map((type) => `${type}\n\n`).join('')}    // The plugin's native API, de
     };
 ${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}${hasStreams ? `\n${renderStreamsDeclaration(model.streams)}\n` : ''}
 ${install}
-${model.methods.length > 0 ? renderControllerDeclaration(model, descriptor) : ''}} // namespace ${NAMESPACE}
+${renderControllerDeclaration(model, descriptor)}} // namespace ${NAMESPACE}
 `;
 }
 
@@ -330,11 +331,11 @@ function renderSource(model: NativeApiModel): string {
   const structs = model.types.filter((type) => type.kind === 'struct');
 
   const { reads, writes } = conversionUsage(model);
-  const hasMethods = model.methods.length > 0;
+  const hasController = true;
   const sections = [
     `        // Identifies this context's NativeApi in its module data.
         const char apiKey = 0;`,
-    ...(hasMethods
+    ...(hasController
       ? [
           `        // Identifies this context's Rust controller in its module data.
         const char controllerKey = 0;`,
@@ -391,7 +392,7 @@ function renderSource(model: NativeApiModel): string {
   const feedSetters = exportSetters.filter(
     (setter) => !setter.includes('bind::function('),
   );
-  const controllerInstall = hasMethods
+  const controllerInstall = hasController
     ? `
     void installController(${controllerParameters(model)})
     {
@@ -412,7 +413,7 @@ function renderSource(model: NativeApiModel): string {
     : '';
   return `${HEADER}#include "SoundorNative.h"
 
-#include "js/Bindings.h"${hasMethods ? '\n#include "js/RustMethods.h"' : ''}
+#include "js/Bindings.h"${hasController ? '\n#include "js/RustMethods.h"' : ''}
 
 #include <array>
 #include <stdexcept>

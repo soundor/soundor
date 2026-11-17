@@ -15,6 +15,8 @@ export interface WasmContract {
   readonly streams: number;
   /** The size of the state snapshot (`audio: true` fields); 0 by default. */
   readonly state?: number;
+  /** Require the MIDI-capable SDK exports. */
+  readonly midi?: boolean;
 }
 
 /** A native stream as the processor's mailbox holds it. */
@@ -44,6 +46,15 @@ interface Exports {
   soundor_wasm_output(handle: number, index: number): number;
   soundor_wasm_process(handle: number, frames: number): number;
   soundor_wasm_reset(handle: number): number;
+  soundor_wasm_midi_input?(
+    handle: number,
+    offset: number,
+    bytes: number,
+    source: number,
+  ): number;
+  soundor_wasm_midi_count?(handle: number, publication: number): number;
+  soundor_wasm_midi_data?(handle: number, publication: number): number;
+  soundor_wasm_midi_generation?(handle: number): number;
   soundor_wasm_resource_input(handle: number, length: number): number;
   soundor_wasm_resource_publish(handle: number, index: number): number;
   soundor_wasm_channel_changed(handle: number, index: number): number;
@@ -74,6 +85,19 @@ export class WasmProcessor {
   declare readonly outputs: readonly number[];
   declare readonly streams: readonly WasmStream[];
   declare maxFrames: number;
+  /** Fixed pairs of u32: sample offset, then status/data/source bytes. */
+  declare readonly midiOutput: Uint32Array;
+  declare readonly midiPublications: Uint32Array;
+  declare midiOutputCount: number;
+  declare midiPublicationCount: number;
+  declare midiDropped: number;
+  declare midiReset: boolean;
+  declare midiGeneration: number;
+  declare readonly midiInputBuffer: Uint32Array;
+  declare midiInputCount: number;
+  declare midiInputOverflow: boolean;
+  declare midiOutputView: Uint32Array;
+  declare midiPublicationView: Uint32Array;
   /** Set once the module trapped (a Rust panic): silent from then on. */
   declare failed: boolean;
   /** The parameters' plain values each block gets, in the config's order. */
@@ -118,6 +142,10 @@ export class WasmProcessor {
       },
     });
     const exports = instance.exports as unknown as Exports;
+    if (contract.midi && typeof exports.soundor_wasm_midi_input !== 'function')
+      throw new Error(
+        'The processor has no MIDI exports: regenerate and rebuild lib/',
+      );
     if (typeof exports.soundor_wasm_create !== 'function')
       throw new Error(
         "The audio processor's module has no Soundor exports: does lib/src/lib.rs call soundor::export!?",
@@ -152,6 +180,18 @@ export class WasmProcessor {
     this.stateChanged = false;
     this.inputViews = [];
     this.outputViews = [];
+    this.midiInputBuffer = new Uint32Array(2048);
+    this.midiInputCount = 0;
+    this.midiInputOverflow = false;
+    this.midiOutput = new Uint32Array(2048);
+    this.midiPublications = new Uint32Array(2048);
+    this.midiOutputCount = 0;
+    this.midiPublicationCount = 0;
+    this.midiDropped = 0;
+    this.midiReset = false;
+    this.midiGeneration = 0;
+    this.midiOutputView = new Uint32Array();
+    this.midiPublicationView = new Uint32Array();
     this.buffer = null;
     this.views();
   }
@@ -173,6 +213,21 @@ export class WasmProcessor {
       exports.soundor_wasm_prepare(this.handle, sampleRate, maxFrames),
     );
     if (status === 0) this.maxFrames = maxFrames;
+    if (this.exports.soundor_wasm_midi_data !== undefined) {
+      this.midiOutputView = new Uint32Array(
+        this.exports.memory.buffer,
+        this.exports.soundor_wasm_midi_data(this.handle, 0),
+        2048,
+      );
+      this.midiPublicationView = new Uint32Array(
+        this.exports.memory.buffer,
+        this.exports.soundor_wasm_midi_data(this.handle, 1),
+        2048,
+      );
+      this.midiGeneration = this.exports.soundor_wasm_midi_generation!(
+        this.handle,
+      );
+    }
     this.buffer = null;
     this.views();
     return status;
@@ -189,6 +244,22 @@ export class WasmProcessor {
     outputs: readonly (Float32Array | undefined)[],
     frames: number,
   ): number {
+    this.midiOutputCount = 0;
+    this.midiPublicationCount = 0;
+    this.midiReset = false;
+    if (this.midiInputOverflow) {
+      this.reset();
+      this.midiInputOverflow = false;
+      this.midiReset = true;
+    }
+    for (let i = 0; i < this.midiInputCount; i++) {
+      const offset = this.midiInputBuffer[i * 2]!;
+      if (frames === 0 ? offset !== 0 : offset >= frames) {
+        this.reset();
+        for (const output of outputs) output?.fill(0, 0, frames);
+        return 1;
+      }
+    }
     if (this.failed || this.maxFrames === 0) {
       for (const output of outputs) output?.fill(0, 0, frames);
       return this.failed ? 3 : 2;
@@ -211,6 +282,18 @@ export class WasmProcessor {
             view[frame] = input[start + frame] ?? 0;
       }
       this.writeValues();
+      for (let i = 0; i < this.midiInputCount; i++) {
+        const offset = this.midiInputBuffer[i * 2]!;
+        if (offset >= start && (frames === 0 || offset < start + length)) {
+          const word = this.midiInputBuffer[i * 2 + 1]!;
+          this.exports.soundor_wasm_midi_input!(
+            this.handle,
+            offset - start,
+            word & 0xffffff,
+            word >>> 24,
+          );
+        }
+      }
       let status: number;
       try {
         status = this.exports.soundor_wasm_process(this.handle, length);
@@ -226,6 +309,38 @@ export class WasmProcessor {
         for (const output of outputs) output?.fill(0, start, frames);
         return status;
       }
+      if (this.exports.soundor_wasm_midi_count !== undefined) {
+        const generation = this.exports.soundor_wasm_midi_generation!(
+          this.handle,
+        );
+        if (generation !== this.midiGeneration) this.midiReset = true;
+        this.midiGeneration = generation;
+        for (let publication = 0; publication < 2; publication++) {
+          const count = this.exports.soundor_wasm_midi_count(
+            this.handle,
+            publication,
+          );
+          const view = publication
+            ? this.midiPublicationView
+            : this.midiOutputView;
+          const target = publication ? this.midiPublications : this.midiOutput;
+          let length = publication
+            ? this.midiPublicationCount
+            : this.midiOutputCount;
+          for (let i = 0; i < count; i++) {
+            if (length === 1024) {
+              this.midiDropped++;
+              this.midiReset = true;
+              continue;
+            }
+            target[length * 2] = view[i * 2]! + start;
+            target[length * 2 + 1] = view[i * 2 + 1]!;
+            length++;
+          }
+          if (publication) this.midiPublicationCount = length;
+          else this.midiOutputCount = length;
+        }
+      }
       for (let index = 0; index < outputs.length; index++) {
         const view = this.outputViews[index];
         const output = outputs[index];
@@ -236,6 +351,45 @@ export class WasmProcessor {
       start += length;
       if (frames === 0) break;
     }
+    this.midiInputCount = 0;
+    return 0;
+  }
+
+  /** Adds one sample-timed channel message before the next process call. */
+  midiInput(offset: number, bytes: number, source = 1): number {
+    if (this.failed || this.maxFrames === 0) return 2;
+    if (this.exports.soundor_wasm_midi_input === undefined)
+      throw new Error(
+        'The processor has no MIDI exports: regenerate and rebuild lib/',
+      );
+    if (
+      !Number.isInteger(offset) ||
+      offset < 0 ||
+      offset >= 1048576 ||
+      !Number.isInteger(bytes) ||
+      bytes < 0 ||
+      bytes > 0xffffff ||
+      !Number.isInteger(source) ||
+      source < 0 ||
+      source > 3
+    )
+      return 3;
+    const kind = (bytes & 255) >> 4;
+    if (
+      kind < 8 ||
+      kind > 14 ||
+      ((bytes >> 8) & 255) > 127 ||
+      ((bytes >> 16) & 255) > 127 ||
+      ((kind === 12 || kind === 13) && bytes >> 16 !== 0)
+    )
+      return 3;
+    if (this.midiInputCount === 1024) {
+      this.midiInputOverflow = true;
+      return 1;
+    }
+    this.midiInputBuffer[this.midiInputCount * 2] = offset;
+    this.midiInputBuffer[this.midiInputCount * 2 + 1] = bytes | (source << 24);
+    this.midiInputCount++;
     return 0;
   }
 
@@ -312,6 +466,7 @@ export class WasmProcessor {
   }
 
   reset(): number {
+    this.midiInputCount = 0;
     if (this.failed) return 3;
     return this.call(() => this.exports.soundor_wasm_reset(this.handle));
   }
@@ -346,6 +501,18 @@ export class WasmProcessor {
     const buffer = this.exports.memory.buffer;
     if (buffer === this.buffer) return;
     this.buffer = buffer;
+    if (this.exports.soundor_wasm_midi_data !== undefined) {
+      this.midiOutputView = new Uint32Array(
+        buffer,
+        this.exports.soundor_wasm_midi_data(this.handle, 0),
+        2048,
+      );
+      this.midiPublicationView = new Uint32Array(
+        buffer,
+        this.exports.soundor_wasm_midi_data(this.handle, 1),
+        2048,
+      );
+    }
     this.parameterView = new Float64Array(
       buffer,
       this.exports.soundor_wasm_parameters(this.handle),

@@ -68,6 +68,17 @@ use crate::schedule::{ControlItem, ControlQueue, Schedule, ScheduleError};
 /// recorded in History or seen by the processor. Persistent data belongs in
 /// soundor.config's `state`, which [`TaskContext::state`] reads and writes.
 pub trait Controller: 'static {
+    /// Opts into explicitly published processor MIDI. Called through the
+    /// existing controller task pump on the control thread, without an editor.
+    const MIDI_INPUT: bool = false;
+    /// Receives one ordered bounded batch. Override together with MIDI_INPUT.
+    /// A reset batch means discard MIDI learn/active-note analysis state.
+    fn midi(_ctx: &mut TaskContext<'_, Self>, _batch: crate::midi::MidiBatch)
+    where
+        Self: Sized,
+    {
+    }
+
     /// The control thread's store: only synchronous methods and scheduled
     /// callbacks reach it, one at a time, so it needs no locks and need not
     /// be `Send`.
@@ -161,6 +172,8 @@ pub struct TaskContext<'a, C: Controller> {
     pub presets: PresetsAccess<'a>,
     /// The processor's audio resources.
     pub processor: &'a ProcessorHandle,
+    /// Nonblocking messages to the processor, at the next block.
+    pub midi: crate::midi::MidiSender,
     /// The plugin's identity.
     pub plugin: PluginInfo,
     _control_thread: PhantomData<*const ()>,
@@ -399,6 +412,8 @@ pub struct AsyncTaskContext<C: Controller> {
     pub store: AsyncStore<C>,
     /// The processor's audio resources.
     pub processor: ProcessorHandle,
+    /// Nonblocking messages to the processor, at the next block.
+    pub midi: crate::midi::MidiSender,
     /// The plugin's identity.
     pub plugin: PluginInfo,
     core: Arc<Core<C>>,
@@ -409,6 +424,7 @@ impl<C: Controller> Clone for AsyncTaskContext<C> {
         Self {
             store: self.store.clone(),
             processor: self.processor.clone(),
+            midi: self.midi.clone(),
             plugin: self.plugin,
             core: self.core.clone(),
         }
@@ -422,6 +438,7 @@ impl<C: Controller> AsyncTaskContext<C> {
                 shared: SharedStore { core: core.clone() },
             },
             processor: core.processor.clone(),
+            midi: core.midi.clone(),
             plugin: PluginInfo::CURRENT,
             core: core.clone(),
         }
@@ -458,6 +475,7 @@ pub(crate) struct Core<C: Controller> {
     pub control: ControlQueue<C>,
     pub executor: Executor,
     pub processor: ProcessorHandle,
+    pub midi: crate::midi::MidiSender,
 }
 
 /// Why a native call did not run.
@@ -518,6 +536,7 @@ pub(crate) struct Instance<C: NativeMethods> {
     host: Host,
     operations: RefCell<HashMap<u64, Arc<Task>>>,
     shut_down: Cell<bool>,
+    midi: RefCell<Option<crate::midi::MidiReceiver>>,
 }
 
 /// Polls a method's future, turning a panic into its failure.
@@ -538,18 +557,38 @@ impl Future for Guarded {
 }
 
 impl<C: NativeMethods> Instance<C> {
-    pub fn new(host: Host, wake: Wake, slots: Arc<ResourceSlots>) -> Self {
+    pub fn new(
+        host: Host,
+        wake: Wake,
+        slots: Arc<ResourceSlots>,
+        midi: Arc<crate::midi::MidiInbox>,
+    ) -> Self {
+        let receiver = if C::MIDI_INPUT {
+            Some(
+                midi.subscribe(true)
+                    .expect("one MIDI controller per processor instance"),
+            )
+        } else {
+            None
+        };
+        let sender = crate::midi::MidiSender {
+            inbox: midi,
+            source: crate::midi::MidiSource::Controller,
+            lifetime: Some(Arc::new(std::sync::atomic::AtomicBool::new(true))),
+        };
         Self {
             core: Arc::new(Core {
                 shared: C::Shared::default(),
                 control: ControlQueue::new(wake.clone()),
                 executor: Executor::new(wake),
                 processor: ProcessorHandle::new(slots),
+                midi: sender,
             }),
             local: RefCell::new(C::Local::default()),
             host,
             operations: RefCell::new(HashMap::new()),
             shut_down: Cell::new(false),
+            midi: RefCell::new(receiver),
         }
     }
 
@@ -579,6 +618,7 @@ impl<C: NativeMethods> Instance<C> {
             history: HistoryAccess { host: &self.host },
             presets: PresetsAccess { host: &self.host },
             processor: &self.core.processor,
+            midi: self.core.midi.clone(),
             plugin: PluginInfo::CURRENT,
             _control_thread: PhantomData,
         };
@@ -633,6 +673,17 @@ impl<C: NativeMethods> Instance<C> {
         if self.local.try_borrow_mut().is_err() {
             return Err(CallError::Reentrant);
         }
+        let batch = self
+            .midi
+            .borrow_mut()
+            .as_mut()
+            .map(|receiver| receiver.receive());
+        if let Some(batch) = batch {
+            if !batch.events.is_empty() || batch.reset {
+                self.with_context(|ctx| C::midi(ctx, batch))?;
+                return Ok(Ran::Task);
+            }
+        }
         loop {
             match self.core.control.pop() {
                 None => {
@@ -671,6 +722,10 @@ impl<C: NativeMethods> Instance<C> {
         if self.shut_down.replace(true) {
             return;
         }
+        if let Some(live) = &self.core.midi.lifetime {
+            live.store(false, std::sync::atomic::Ordering::Release);
+        }
+        self.midi.borrow_mut().take();
         for item in self.core.control.close() {
             match item {
                 ControlItem::Task(task) => task.shut_down(),

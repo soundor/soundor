@@ -124,6 +124,8 @@ function fakeProcessor(ready: Promise<void> = Promise.resolve()) {
   const processor = {
     node: node as unknown as AudioWorkletNode,
     ready,
+    sendMidi: vi.fn<ProcessorNode['sendMidi']>(() => 'sent'),
+    observeMidi: vi.fn<ProcessorNode['observeMidi']>(),
     setParameters: vi.fn<(values: readonly number[]) => void>(),
     setTransport: vi.fn<(values: readonly number[]) => void>(),
     publishResource: vi.fn<(index: number, bytes: Uint8Array) => void>(),
@@ -295,6 +297,7 @@ describe('WebAudioHost', () => {
     await audio.start();
     expect(fake.created.options?.parameters).toEqual([0.5, 1, 1, -60]);
     expect(fake.created.options?.contract).toEqual({
+      midi: true,
       parameters: 4,
       published: 1,
       streams: 1,

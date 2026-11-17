@@ -146,6 +146,7 @@ add_executable(soundor-vst3-host
   native/src/Ipc.cpp
   native/src/Json.cpp
   native/src/LiveAudio.cpp
+  native/src/MidiInput.cpp
   native/src/Main.cpp
   native/src/Plugin.cpp
   native/src/Session.cpp
@@ -160,6 +161,8 @@ elseif(APPLE)
                                            native/src/EditorAreaMac.mm)
   target_link_libraries(soundor-vst3-host PRIVATE "-framework Cocoa")
 else()
+  find_package(ALSA REQUIRED)
+  target_link_libraries(soundor-vst3-host PRIVATE ALSA::ALSA)
   # Xlib's headers only: the library is loaded in UI mode (X11Library.cpp).
   find_path(SOUNDOR_X11_INCLUDE_DIR X11/Xlib.h REQUIRED)
   target_include_directories(soundor-vst3-host SYSTEM PRIVATE "${SOUNDOR_X11_INCLUDE_DIR}")

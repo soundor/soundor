@@ -1,4 +1,10 @@
 import { resolveEnvironment } from '@soundor/core';
+import {
+  createMidi,
+  decodeMidi,
+  type MidiMessage,
+  type MidiEvent,
+} from '@soundor/core/midi';
 import { FactoryPresets } from '@soundor/core/presets';
 import { StateHistory, StateStore } from '@soundor/core/state';
 
@@ -29,6 +35,32 @@ import type {
 } from './types';
 
 export class TestRuntime {
+  private readonly midiInput: MidiMessage[] = [];
+  private readonly midiBridge = createMidi({
+    send: (bytes) => {
+      this.assertActive();
+      if (this.midiInput.length === 1024) return 'full';
+      // Store decoded messages, preserving Note On zero and integer values.
+      this.midiInput.push(decodeMidi(bytes));
+      return 'sent';
+    },
+    observe: () => {},
+    reportError: (error) => {
+      throw error;
+    },
+  });
+  readonly midi = this.midiBridge.midi;
+  /** UI messages accepted since the last drain. No audio processor is simulated. */
+  takeMidiMessages(): MidiMessage[] {
+    return this.midiInput.splice(0);
+  }
+  /** Explicit processor publications supplied by a test. */
+  emitMidi(events: readonly MidiEvent[], reset = false, dropped = 0): void {
+    this.assertActive();
+    if (events.length > 1024)
+      throw new RangeError('MIDI: batch capacity is 1024');
+    this.midiBridge.receive({ events, reset, dropped });
+  }
   nextId = 1;
   readonly nodes = new Map<number, TestNode>();
   readonly clock = new VirtualClock();
@@ -1086,6 +1118,8 @@ export class TestRuntime {
     },
   };
   dispose() {
+    this.midiBridge.dispose();
+    this.midiInput.length = 0;
     if (this.disposed) return;
     this.cleanups.forEach((cleanup) => cleanup());
     this.animations.forEach((animation) => animation.cancel());
