@@ -73,7 +73,6 @@ __pycache__/
 *.pyc
 
 # @soundor/yoga-wasm: the module and the code embedding it, found or compiled by its build
-engines/yoga-wasm/generated/
 
 # Written when @soundor/engine is published (.github/workflows/release.yml), never committed
 engine/artifacts/manifest.json
