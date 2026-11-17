@@ -56,3 +56,27 @@ saturation also requests reset; runtime adapters must additionally recover
 external notes. `ctx.midi.dropped()` reports cumulative input losses.
 Reset and prepare discard pending input and publications; destroying the
 processor invalidates all its sender clones.
+
+## Control-thread observations
+
+The processor explicitly calls `ctx.midi.publish(event)`. Each destination
+has its own 1024-event queue: a slow UI never consumes or blocks the
+controller's events. Observers receive cumulative loss counts and a reset
+notification on discontinuity; clear held-note displays or MIDI analysis
+state on reset. A discontinuous batch is discarded to avoid unmatched
+note events. Reset notifications do not promise a snapshot of sounding voices.
+
+The controller opts in with `const MIDI_INPUT: bool = true` and overrides
+`Controller::midi(ctx, batch)`. The existing controller pump runs this
+callback on the control thread. `ctx.midi.send(message)` works from both
+synchronous and async task contexts, returns an explicit error and never
+accesses mutable processor state. Shutdown invalidates detached controller
+senders and removes its subscription.
+
+The JavaScript contract exposes `midi.send(message)`, returning `'sent'`,
+`'full'` or `'inactive'`. `subscribe(listener, { onReset })` returns an
+unsubscribe function; `subscribeBatch(listener)` observes batches directly.
+Subscribe only while needed, and unsubscribe in the component's cleanup.
+Runtime adapters supply the module's transport and deliver publications
+on their control thread; arbitrary JavaScript callbacks have next-block
+delivery, without sample scheduling guarantees.

@@ -164,3 +164,100 @@ fn reset_discards_pending_input_and_reprepare_keeps_senders_valid() {
     assert_eq!(p.midi_output()[0].message, note(0, 62).message);
     assert_eq!(p.allocations(), 0);
 }
+
+#[path = "support/controller.rs"]
+mod controller;
+use controller::PluginController;
+use soundor::testing::TestController;
+
+#[test]
+fn publications_reach_ui_and_controller_independently_on_the_control_thread() {
+    let mut p = TestProcessor::<Echo>::new().build();
+    let mut ui = p.subscribe_midi().unwrap();
+    let controller = TestController::<PluginController>::for_processor(&p);
+    controller.task(|ctx| ctx.midi.send(note(0, 62).message).unwrap());
+    p.midi_input(note(11, 60)).unwrap();
+    p.process_silence(64);
+    // Audio did not invoke controller code.
+    controller.task(|ctx| assert!(ctx.store.local.midi.is_empty()));
+    controller.run_until_idle();
+    let batch = ui.receive();
+    assert!(!batch.reset);
+    assert_eq!(batch.events.len(), 2);
+    assert_eq!(batch.events[0].source, Some(MidiSource::Controller));
+    controller.task(|ctx| {
+        assert_eq!(ctx.store.local.midi, batch.events);
+        assert_eq!(
+            ctx.store.local.midi_thread,
+            Some(std::thread::current().id())
+        );
+    });
+    assert_eq!(p.allocations(), 0);
+}
+
+#[test]
+fn closed_subscriptions_never_deliver_previous_subscriptions_events() {
+    let mut p = TestProcessor::<Echo>::new().build();
+    let ui = p.subscribe_midi().unwrap();
+    assert!(matches!(
+        p.subscribe_midi(),
+        Err(MidiError::AlreadySubscribed)
+    ));
+    p.midi_input(note(0, 60)).unwrap();
+    p.process_silence(64);
+    drop(ui);
+    let mut ui = p.subscribe_midi().unwrap();
+    assert!(ui.receive().events.is_empty());
+    p.midi_input(note(0, 62)).unwrap();
+    p.process_silence(64);
+    assert_eq!(ui.receive().events, vec![note(0, 62)]);
+}
+
+#[test]
+fn slow_observer_reports_loss_and_discontinuity_without_blocking_audio() {
+    let mut p = TestProcessor::<Echo>::new().build();
+    let mut ui = p.subscribe_midi().unwrap();
+    for _ in 0..2 {
+        for _ in 0..MIDI_CAPACITY {
+            p.midi_input(note(0, 60)).unwrap();
+        }
+        p.process_silence(64);
+    }
+    let batch = ui.receive();
+    assert_eq!(batch.dropped, MIDI_CAPACITY as u64);
+    assert!(batch.reset);
+    assert!(batch.events.is_empty());
+    p.midi_input(note(0, 62)).unwrap();
+    p.process_silence(64);
+    assert_eq!(ui.receive().events, vec![note(0, 62)]);
+    assert_eq!(p.allocations(), 0);
+}
+
+#[test]
+fn controller_shutdown_invalidates_detached_sender_and_unsubscribes() {
+    let mut p = TestProcessor::<Echo>::new().build();
+    let controller = TestController::<PluginController>::for_processor(&p);
+    let sender = controller.async_context().midi.clone();
+    sender.send(note(0, 60).message).unwrap();
+    p.process_silence(64);
+    controller.shutdown();
+    assert_eq!(sender.send(note(0, 62).message), Err(MidiError::Inactive));
+    let replacement = TestController::<PluginController>::for_processor(&p);
+    p.midi_input(note(0, 64)).unwrap();
+    p.process_silence(64);
+    replacement.run_until_idle();
+    replacement.task(|ctx| assert_eq!(ctx.store.local.midi, vec![note(0, 64)]));
+}
+
+#[test]
+fn processor_destruction_notifies_surviving_observers_and_discards_pending_events() {
+    let mut p = TestProcessor::<Echo>::new().build();
+    let mut ui = p.subscribe_midi().unwrap();
+    p.midi_input(note(0, 60)).unwrap();
+    p.process_silence(64);
+    drop(p);
+    let batch = ui.receive();
+    assert!(batch.reset);
+    assert!(batch.events.is_empty());
+    assert!(!ui.receive().reset);
+}

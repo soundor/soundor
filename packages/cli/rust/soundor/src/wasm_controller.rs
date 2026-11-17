@@ -86,7 +86,12 @@ impl<C: NativeMethods> Default for Handle<C> {
         let wake = host.waker();
         let slots = Arc::new(ResourceSlots::default());
         Self {
-            instance: Instance::new(host, wake, slots.clone()),
+            instance: Instance::new(
+                host,
+                wake,
+                slots.clone(),
+                Arc::new(crate::midi::MidiInbox::default()),
+            ),
             slots,
             input: Vec::new(),
             output: Vec::new(),

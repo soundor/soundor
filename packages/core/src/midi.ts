@@ -83,3 +83,94 @@ export function decodeMidi(bytes: ArrayLike<number>): MidiMessage {
       return { type: 'pitchBend', channel, value: a | (b << 7) };
   }
 }
+
+/** The runtime's bounded transport. It never calls listeners from an audio callback. */
+export interface MidiTransport {
+  send(
+    bytes: Uint8Array,
+  ): import('@soundor/environment/midi-types').MidiSendResult;
+  /** Opt in only while JavaScript has subscribers. */
+  observe(enabled: boolean): void;
+  reportError(error: unknown): void;
+}
+
+/**
+ * Control-thread facade shared by runtime adapters. Transport batching and
+ * capacity belong to the existing processor host, rather than JS timers.
+ */
+export function createMidi(transport: MidiTransport): {
+  midi: import('@soundor/environment/midi-types').Midi;
+  receive(batch: import('@soundor/environment/midi-types').MidiBatch): void;
+  dispose(): void;
+} {
+  type Batch = import('@soundor/environment/midi-types').MidiBatch;
+  const listeners = new Set<(batch: Batch) => void>();
+  let active = true;
+  const subscribeBatch = (listener: (batch: Batch) => void) => {
+    if (typeof listener !== 'function')
+      throw new TypeError('MIDI: expected listener');
+    if (!active) throw new Error('MIDI: instance shut down');
+    if (listeners.size >= 128)
+      throw new RangeError('MIDI: at most 128 subscriptions');
+    // Each registration has its own identity, including duplicate callbacks.
+    const registration = (batch: Batch) => listener(batch);
+    listeners.add(registration);
+    if (listeners.size === 1) {
+      try {
+        transport.observe(true);
+      } catch (error) {
+        listeners.delete(registration);
+        throw error;
+      }
+    }
+    return () => {
+      if (!listeners.delete(registration)) return;
+      if (listeners.size === 0) transport.observe(false);
+    };
+  };
+  return {
+    midi: {
+      send(message) {
+        const bytes = encodeMidi(message);
+        return active ? transport.send(bytes) : 'inactive';
+      },
+      subscribe(listener, options) {
+        if (typeof listener !== 'function')
+          throw new TypeError('MIDI: expected listener');
+        let subscribed = true;
+        const remove = subscribeBatch((batch) => {
+          if (batch.reset) options?.onReset?.(batch.dropped);
+          for (const event of batch.events) {
+            if (!subscribed) return;
+            listener(event);
+          }
+        });
+        return () => {
+          subscribed = false;
+          remove();
+        };
+      },
+      subscribeBatch,
+    },
+    receive(batch) {
+      if (!active) return;
+      // A listener can unsubscribe or subscribe during delivery. New listeners
+      // start with the next batch; removed listeners receive no further calls.
+      for (const listener of [...listeners]) {
+        if (!listeners.has(listener)) continue;
+        try {
+          listener(batch);
+        } catch (error) {
+          transport.reportError(error);
+        }
+      }
+    },
+    dispose() {
+      if (!active) return;
+      active = false;
+      const observed = listeners.size > 0;
+      listeners.clear();
+      if (observed) transport.observe(false);
+    },
+  };
+}

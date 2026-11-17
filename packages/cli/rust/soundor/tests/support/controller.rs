@@ -5,9 +5,21 @@ use soundor::types::{Analysis, Curve};
 #[derive(Default)]
 pub struct LocalStore {
     pub counter: i32,
+    pub midi: Vec<MidiEvent>,
+    pub midi_resets: usize,
+    pub midi_thread: Option<std::thread::ThreadId>,
 }
 pub struct PluginController;
 impl Controller for PluginController {
+    const MIDI_INPUT: bool = true;
+    fn midi(ctx: &mut TaskContext<Self>, batch: soundor::midi::MidiBatch) {
+        ctx.store.local.midi_thread = Some(std::thread::current().id());
+        if batch.reset {
+            ctx.store.local.midi.clear();
+            ctx.store.local.midi_resets += 1;
+        }
+        ctx.store.local.midi.extend(batch.events);
+    }
     type Local = LocalStore;
     type Shared = std::sync::atomic::AtomicU32;
 }

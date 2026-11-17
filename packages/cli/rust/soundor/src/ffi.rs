@@ -211,6 +211,10 @@ pub struct Handle<P: Processor> {
 }
 
 impl<P: Processor> Handle<P> {
+    pub(crate) fn midi(&self) -> std::sync::Arc<crate::midi::MidiInbox> {
+        self.instance.midi.incoming.clone()
+    }
+
     /// Its resources' handoff, which the plugin's controller publishes to.
     pub(crate) fn resource_slots(&self) -> std::sync::Arc<crate::plugin::ResourceSlots> {
         self.instance.resource_slots()

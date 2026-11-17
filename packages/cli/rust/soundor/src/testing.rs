@@ -457,6 +457,15 @@ impl<P: Processor> TestProcessor<P> {
         )
     }
 
+    pub(crate) fn midi_inbox(&self) -> std::sync::Arc<crate::midi::MidiInbox> {
+        self.instance.midi.incoming.clone()
+    }
+
+    /// Subscribes the UI destination; returns `AlreadySubscribed` for a second consumer.
+    pub fn subscribe_midi(&self) -> Result<crate::midi::MidiReceiver, crate::MidiError> {
+        self.instance.midi.incoming.subscribe(false)
+    }
+
     /// Internal sender, independent of host MIDI capabilities.
     pub fn midi_sender(&self, source: crate::MidiSource) -> crate::midi::MidiSender {
         self.instance.midi.sender(source)

@@ -260,6 +260,8 @@ pub enum MidiError {
     Full,
     /// The processor is not prepared or has been destroyed.
     Inactive,
+    /// This destination already has a consumer.
+    AlreadySubscribed,
 }
 
 pub(crate) struct EventBuffer {
@@ -395,6 +397,9 @@ impl Default for MidiStorage {
 
 impl MidiStorage {
     pub fn reset(&mut self) {
+        self.incoming
+            .generation
+            .fetch_add(1, std::sync::atomic::Ordering::Release);
         self.incoming.queue.drain(|_| {});
         self.input.clear();
         self.chunk.clear();
@@ -440,6 +445,7 @@ impl MidiStorage {
 /// producer contention is reported just like saturation.
 pub(crate) struct MidiQueue {
     slots: [std::sync::atomic::AtomicU64; MIDI_CAPACITY],
+    tags: [std::sync::atomic::AtomicU64; MIDI_CAPACITY],
     head: std::sync::atomic::AtomicUsize,
     tail: std::sync::atomic::AtomicUsize,
     producer: std::sync::atomic::AtomicBool,
@@ -450,6 +456,7 @@ impl Default for MidiQueue {
     fn default() -> Self {
         Self {
             slots: std::array::from_fn(|_| std::sync::atomic::AtomicU64::new(0)),
+            tags: std::array::from_fn(|_| std::sync::atomic::AtomicU64::new(0)),
             head: std::sync::atomic::AtomicUsize::new(0),
             tail: std::sync::atomic::AtomicUsize::new(0),
             producer: std::sync::atomic::AtomicBool::new(false),
@@ -460,6 +467,10 @@ impl Default for MidiQueue {
 
 impl MidiQueue {
     pub fn push(&self, event: MidiEvent) -> Result<(), MidiError> {
+        self.push_tagged(event, 0)
+    }
+
+    fn push_tagged(&self, event: MidiEvent, tag: u64) -> Result<(), MidiError> {
         use std::sync::atomic::Ordering::*;
         let (bytes, _) = event.message.encode().map_err(|_| MidiError::Invalid)?;
         if self
@@ -488,6 +499,7 @@ impl MidiQueue {
             | u64::from(bytes[1]) << 8
             | u64::from(bytes[0]);
         self.slots[tail % MIDI_CAPACITY].store(packed, Relaxed);
+        self.tags[tail % MIDI_CAPACITY].store(tag, Relaxed);
         self.tail.store(tail.wrapping_add(1), Release);
         self.producer.store(false, Release);
         Ok(())
@@ -496,6 +508,10 @@ impl MidiQueue {
     // Single consumer, called at most once per queue per block/tick. It
     // drains a bounded snapshot, so concurrent producers cannot extend work.
     pub fn drain(&self, mut receive: impl FnMut(MidiEvent)) {
+        self.drain_tagged(|event, _| receive(event));
+    }
+
+    fn drain_tagged(&self, mut receive: impl FnMut(MidiEvent, u64)) {
         use std::sync::atomic::Ordering::*;
         let mut head = self.head.load(Relaxed);
         let tail = self.tail.load(Acquire);
@@ -506,16 +522,19 @@ impl MidiQueue {
             let length = if kind == 12 || kind == 13 { 2 } else { 3 };
             // Only validated producer data can reach these slots.
             if let Ok(message) = MidiMessage::decode(&bytes[..length]) {
-                receive(MidiEvent {
-                    message,
-                    sample_offset: (packed >> 32) as u32,
-                    source: match (packed >> 24) & 255 {
-                        1 => Some(MidiSource::Host),
-                        2 => Some(MidiSource::Ui),
-                        3 => Some(MidiSource::Controller),
-                        _ => None,
+                receive(
+                    MidiEvent {
+                        message,
+                        sample_offset: (packed >> 32) as u32,
+                        source: match (packed >> 24) & 255 {
+                            1 => Some(MidiSource::Host),
+                            2 => Some(MidiSource::Ui),
+                            3 => Some(MidiSource::Controller),
+                            _ => None,
+                        },
                     },
-                });
+                    self.tags[head % MIDI_CAPACITY].load(Relaxed),
+                );
             }
             head = head.wrapping_add(1);
         }
@@ -555,6 +574,9 @@ mod queue_tests {
 #[derive(Default)]
 pub(crate) struct MidiInbox {
     queue: MidiQueue,
+    ui: ObserverQueue,
+    controller: ObserverQueue,
+    generation: std::sync::atomic::AtomicU64,
     pub active: std::sync::atomic::AtomicBool,
 }
 
@@ -566,12 +588,20 @@ pub(crate) struct MidiInbox {
 pub struct MidiSender {
     pub(crate) inbox: std::sync::Arc<MidiInbox>,
     pub(crate) source: MidiSource,
+    pub(crate) lifetime: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 
 impl MidiSender {
     /// Queues a typed message. Failure is explicit; do not assume a failed
     /// Note On/Off was delivered. No allocation or blocking.
     pub fn send(&self, message: MidiMessage) -> Result<(), MidiError> {
+        if self
+            .lifetime
+            .as_ref()
+            .is_some_and(|live| !live.load(std::sync::atomic::Ordering::Acquire))
+        {
+            return Err(MidiError::Inactive);
+        }
         if !self.inbox.active.load(std::sync::atomic::Ordering::Acquire) {
             return Err(MidiError::Inactive);
         }
@@ -588,6 +618,7 @@ impl MidiStorage {
         MidiSender {
             inbox: self.incoming.clone(),
             source,
+            lifetime: None,
         }
     }
     pub fn receive(&mut self) {
@@ -648,5 +679,125 @@ mod concurrent_tests {
             thread.join().unwrap();
         }
         assert_eq!(expected, [256; 4]);
+    }
+}
+
+#[derive(Default)]
+struct ObserverQueue {
+    queue: MidiQueue,
+    subscription: std::sync::atomic::AtomicU64,
+}
+
+/// A batch explicitly published by the processor. Delivery takes place on
+/// the subscriber's thread, never within the audio callback.
+#[derive(Debug)]
+pub struct MidiBatch {
+    /// Ordered messages. No automatic echo of processor input.
+    pub events: Vec<MidiEvent>,
+    /// Cumulative dropped observations at this destination.
+    pub dropped: u64,
+    /// Reset/discontinuity or lost observations: clear active-note display
+    /// state before applying subsequent events. The discontinuous batch is
+    /// discarded, rather than delivering potentially unmatched notes.
+    pub reset: bool,
+}
+
+/// One control-thread consumer. Dropping it unsubscribes. Each destination
+/// has one receiver; a UI runtime fans its receiver out to its JS listeners.
+/// It may move between threads, but cannot be shared for concurrent reads.
+pub struct MidiReceiver {
+    inbox: std::sync::Arc<MidiInbox>,
+    controller: bool,
+    subscription: u64,
+    generation: u64,
+    dropped: u64,
+    _single_consumer: std::marker::PhantomData<std::cell::Cell<()>>,
+}
+
+impl MidiReceiver {
+    fn queue(&self) -> &ObserverQueue {
+        if self.controller {
+            &self.inbox.controller
+        } else {
+            &self.inbox.ui
+        }
+    }
+    /// Drains one bounded snapshot. Allocates only on the consumer thread.
+    pub fn receive(&mut self) -> MidiBatch {
+        use std::sync::atomic::Ordering::Acquire;
+        let dropped = self.queue().queue.dropped.load(Acquire);
+        let generation = self.inbox.generation.load(Acquire);
+        let reset = dropped != self.dropped || generation != self.generation;
+        let mut events = Vec::new();
+        self.queue().queue.drain_tagged(|event, subscription| {
+            if !reset && subscription == self.subscription {
+                events.push(event);
+            }
+        });
+        self.generation = generation;
+        self.dropped = dropped;
+        MidiBatch {
+            events,
+            dropped,
+            reset,
+        }
+    }
+}
+impl Drop for MidiReceiver {
+    fn drop(&mut self) {
+        self.queue().subscription.store(
+            self.subscription.wrapping_add(1),
+            std::sync::atomic::Ordering::Release,
+        );
+    }
+}
+impl MidiInbox {
+    pub fn subscribe(
+        self: &std::sync::Arc<Self>,
+        controller: bool,
+    ) -> Result<MidiReceiver, MidiError> {
+        use std::sync::atomic::Ordering::*;
+        let queue = if controller {
+            &self.controller
+        } else {
+            &self.ui
+        };
+        let previous = queue.subscription.load(Acquire);
+        if previous & 1 != 0 {
+            return Err(MidiError::AlreadySubscribed);
+        }
+        let subscription = previous.wrapping_add(1);
+        if queue
+            .subscription
+            .compare_exchange(previous, subscription, AcqRel, Acquire)
+            .is_err()
+        {
+            return Err(MidiError::AlreadySubscribed);
+        }
+        Ok(MidiReceiver {
+            inbox: self.clone(),
+            controller,
+            subscription,
+            generation: self.generation.load(Acquire),
+            dropped: queue.queue.dropped.load(Acquire),
+            _single_consumer: std::marker::PhantomData,
+        })
+    }
+    pub fn publish(&self, event: MidiEvent) {
+        for observer in [&self.ui, &self.controller] {
+            let subscription = observer
+                .subscription
+                .load(std::sync::atomic::Ordering::Acquire);
+            if subscription & 1 != 0 {
+                let _ = observer.queue.push_tagged(event, subscription);
+            }
+        }
+    }
+}
+impl MidiStorage {
+    pub fn deliver(&self) {
+        for &event in self.publication.events() {
+            self.incoming.publish(event);
+        }
     }
 }

@@ -372,21 +372,24 @@ impl<C: NativeMethods> TestController<C> {
     /// A controller, with stores of their [`Default`], whose resources no
     /// processor reads.
     pub fn new() -> Self {
-        Self::with_resources(Arc::new(ResourceSlots::default()))
+        Self::with_resources(
+            Arc::new(ResourceSlots::default()),
+            Arc::new(crate::midi::MidiInbox::default()),
+        )
     }
 
     /// A controller of the same plugin instance as `processor`: what it
     /// publishes, `processor` reads from its next block.
     pub fn for_processor<P: Processor>(processor: &TestProcessor<P>) -> Self {
-        Self::with_resources(processor.resource_slots())
+        Self::with_resources(processor.resource_slots(), processor.midi_inbox())
     }
 
-    fn with_resources(slots: Arc<ResourceSlots>) -> Self {
+    fn with_resources(slots: Arc<ResourceSlots>, midi: Arc<crate::midi::MidiInbox>) -> Self {
         let host = Box::new(TestHost::default());
         let services = Host::new(host.table()).expect("the test host's table");
         let wake = services.waker();
         Self {
-            instance: Instance::new(services, wake, slots),
+            instance: Instance::new(services, wake, slots, midi),
             host,
         }
     }

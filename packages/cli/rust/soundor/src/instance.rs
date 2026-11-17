@@ -341,6 +341,7 @@ impl<P: Processor> Instance<P> {
             }
             offset += frames;
             if offset >= block.frames {
+                self.midi.deliver();
                 self.midi.input.clear();
                 let dropped = self
                     .midi
@@ -463,5 +464,6 @@ impl<P: Processor> Drop for Instance<P> {
             .incoming
             .active
             .store(false, std::sync::atomic::Ordering::Release);
+        self.midi.reset();
     }
 }

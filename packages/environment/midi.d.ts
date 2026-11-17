@@ -32,3 +32,27 @@ declare module 'soundor:midi' {
     source?: 'host' | 'ui' | 'controller';
   }
 }
+
+declare module 'soundor:midi' {
+  /** Nonblocking send outcome. A refused message was not delivered. */
+  export type MidiSendResult = 'sent' | 'full' | 'inactive';
+  /** One bounded processor publication batch. */
+  export interface MidiBatch {
+    readonly events: readonly MidiEvent[];
+    readonly dropped: number;
+    /** Lost messages or lifecycle reset: clear active-note state. */
+    readonly reset: boolean;
+  }
+  export interface Midi {
+    /** Next processing block, offset zero. Throws for invalid data. */
+    send(message: MidiMessage): MidiSendResult;
+    /** Explicit publications only. Unsubscribe when the component unmounts. */
+    subscribe(
+      listener: (event: MidiEvent) => void,
+      options?: { onReset?: (dropped: number) => void },
+    ): () => void;
+    /** Receives ordered batches; reset is delivered even without events. */
+    subscribeBatch(listener: (batch: MidiBatch) => void): () => void;
+  }
+  export const midi: Midi;
+}
