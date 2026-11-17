@@ -448,3 +448,16 @@ names: it reads them from the descriptor, which the runtime's generated code
 and the Rust SDK both get from `soundor gen`, and compares the two, so a
 stale build is refused rather than misread. See
 [Rust controller hosting](/docs/contribute/engine-reference#rust-controller-hosting).
+
+## MIDI events
+
+Opt in with `const MIDI_INPUT: bool = true` and implement
+`fn midi(ctx: &mut TaskContext<Self>, batch: soundor::midi::MidiBatch)`.
+Only explicit processor publications arrive, ordered through the existing
+controller pump. This works with no native methods and with the editor closed.
+Clear analysis state when `batch.reset` is true.
+
+`ctx.midi.send(message)` works from task and async task contexts without accessing
+mutable processor state. It delivers at the next block's offset zero and returns
+`MidiError::Full` or `MidiError::Inactive` on refusal. See [MIDI](/docs/midi) and
+[MIDI Lab](/docs/examples/midi) for routing, lifecycle and a controller monitor.

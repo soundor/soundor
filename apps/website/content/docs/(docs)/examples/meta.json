@@ -1,1 +1,11 @@
-{ "pages": ["orbit", "basic", "primitives", "analyzer", "controller"] }
+{
+  "pages": [
+    "orbit",
+    "basic",
+    "primitives",
+    "analyzer",
+    "controller",
+    "midi",
+    "midi-arpeggiator"
+  ]
+}

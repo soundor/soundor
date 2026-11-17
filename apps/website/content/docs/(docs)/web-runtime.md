@@ -875,3 +875,12 @@ Composition colors use straight sRGB; direct browser paint interpolation follows
 browser CSS color semantics, which can differ for transparency or wide-gamut
 colors. No browser animation executes a JavaScript frame loop or invokes JS for
 an internal phase transition. Browser completion promises remain asynchronous.
+
+## MIDI
+
+The host runs the project's Rust MIDI processor in AudioWorklet. Internal virtual
+input needs no permission. The MIDI panel requests Web MIDI permission only when
+connecting physical devices, and offers independent explicit input/output
+selection according to config capabilities. Unsupported browsers and permission
+denial leave virtual input available. See [MIDI](/docs/midi) for timestamp
+conversion, queue limits, disconnect recovery and physical-output limitations.
