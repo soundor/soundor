@@ -60,7 +60,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::midi
         Host(void* processor, Functions);
         ~Host();
         std::int32_t send(SoundorMidiEvent);
-        void observe(bool);
+        bool observe(bool) noexcept;
         void pump();
         void recover();
         void active(bool);

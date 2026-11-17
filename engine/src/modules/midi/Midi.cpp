@@ -196,12 +196,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::midi
         if (state->port != nullptr)
             state->functions.active(state->port, active);
     }
-    void Host::observe(bool enabled)
+    bool Host::observe(bool enabled) noexcept
     {
         if (enabled)
         {
             if (state->observers == 0 && state->port != nullptr && ! state->functions.observe(state->port, true))
-                throw std::runtime_error("MIDI observer already owned by another endpoint");
+                return false;
             ++state->observers;
         }
         else if (state->observers > 0)
@@ -210,6 +210,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::midi
             if (state->observers == 0 && state->port != nullptr)
                 state->functions.observe(state->port, false);
         }
+        return true;
     }
     std::uint64_t Host::sequence() const noexcept
     {
@@ -239,10 +240,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::midi
     }
     void install(js::Context& context, std::shared_ptr<Host> host)
     {
-        auto view = std::make_shared<Binding>();
-        view->host = std::move(host);
-        bind::connectEvents(context, *view->host, deliver);
-        bind::setContextData(context, &bindingKey, std::move(view));
+        auto instance = std::make_shared<Binding>();
+        instance->host = std::move(host);
+        bind::connectEvents(context, *instance->host, deliver);
+        bind::setContextData(context, &bindingKey, std::move(instance));
         js::registerNativeModule(
             context, "soundor:internal/midi",
             { [](bind::ContextState& ctx, jsi::Object& exports)
@@ -266,32 +267,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::midi
                                                                                                       : "inactive"));
                                                             });
                                                     }));
-                  exports.setProperty(ctx.rt, "observe",
-                                      bind::closure(ctx, "observe", 1,
-                                                    [](auto& c, const auto&, const auto* args, auto count)
-                                                    {
-                                                        return bind::invoke(
-                                                            c, "midi.subscribe",
-                                                            [&]
-                                                            {
-                                                                auto& view = binding(c);
-                                                                const bool enabled =
-                                                                    bind::argument(args, count, 0).getBool();
-                                                                if (enabled != view.observed)
-                                                                {
+                  exports.setProperty(
+                      ctx.rt, "observe",
+                      bind::closure(ctx, "observe", 1,
+                                    [](auto& c, const auto&, const auto* args, auto count)
+                                    {
+                                        return bind::invoke(
+                                            c, "midi.subscribe",
+                                            [&]
+                                            {
+                                                auto& view = binding(c);
+                                                const bool enabled = bind::argument(args, count, 0).getBool();
+                                                if (enabled != view.observed)
+                                                {
 
-                                                                    view.host->observe(enabled);
-                                                                    view.observed = enabled;
-                                                                    if (enabled)
-                                                                    {
-                                                                        view.first = view.host->sequence() + 1;
-                                                                        view.total = view.host->total();
-                                                                        view.lost = 0;
-                                                                    }
-                                                                }
-                                                                return jsi::Value::undefined();
-                                                            });
-                                                    }));
+                                                    if (! view.host->observe(enabled))
+                                                        throw std::runtime_error(
+                                                            "MIDI observer already owned by another endpoint");
+                                                    view.observed = enabled;
+                                                    if (enabled)
+                                                    {
+                                                        view.first = view.host->sequence() + 1;
+                                                        view.total = view.host->total();
+                                                        view.lost = 0;
+                                                    }
+                                                }
+                                                return jsi::Value::undefined();
+                                            });
+                                    }));
               },
               {},
               {} });

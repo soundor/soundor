@@ -144,7 +144,7 @@ const cases = [
     false,
     true,
     true,
-    false,
+    true,
     true,
   ],
   [
@@ -157,7 +157,7 @@ const cases = [
     false,
     true,
     true,
-    false,
+    true,
     true,
   ],
   [
@@ -225,7 +225,7 @@ const cases = [
     false,
     true,
   ],
-  // The VST3 host depends on no other workspace package's code.
+  // The host also consumes the shared MIDI codec in core.
   [
     'a changeset alone',
     create('.changeset/native-input-fixture.md'),

@@ -24,6 +24,7 @@ endforeach()
 # This fixture does not lower JavaScript and needs no installed npm packages.
 file(READ "${package}/package.json" fixture_package)
 string(JSON fixture_package SET "${fixture_package}" dependencies "{}")
+string(JSON fixture_package SET "${fixture_package}" devDependencies "{}")
 file(WRITE "${package}/package.json" "${fixture_package}")
 find_program(node NAMES node REQUIRED)
 execute_process(COMMAND "${node}" "${package}/scripts/engine-inputs.mjs" "${package}"
