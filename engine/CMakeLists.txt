@@ -17,7 +17,6 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Exact npm package version owns the C++ ABI identity.
 include(SoundorAbi)
-include(SoundorPluginShim)
 
 include(SoundorCompilerOptions)
 

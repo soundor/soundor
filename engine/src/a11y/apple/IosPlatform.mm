@@ -1,8 +1,8 @@
 // Soundor's iOS accessibility bridge: the semantic tree as virtual
 // UIAccessibilityElements in the UIView the surface is drawn in. Same rules as
 // the macOS bridge (see README.md): one runtime-made element class per
-// binary, no swizzling, elements reach the bridge by token only, the binary
-// pinned once the class exists, requests performed by tick().
+// binary, no swizzling, elements reach the bridge by token only, no explicit
+// class disposal or module pinning, requests performed by tick().
 //
 // iOS differs in how a tree is made: an element that is an accessibility
 // element hides what it holds from VoiceOver, so containers (a dialog, a

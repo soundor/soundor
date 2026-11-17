@@ -16,7 +16,6 @@ if(WIN32)
   target_link_libraries(soundor_svg_image_tests PRIVATE dbghelp)
 endif()
 soundor_configure_target(soundor_svg_image_tests)
-soundor_attach_plugin_shim(soundor_svg_image_tests)
 add_test(NAME soundor_svg_image_tests COMMAND soundor_svg_image_tests)
 set_tests_properties(soundor_svg_image_tests PROPERTIES TIMEOUT 30)
 
@@ -29,7 +28,6 @@ if(WIN32)
   target_link_libraries(soundor_processor_tests PRIVATE dbghelp)
 endif()
 soundor_configure_target(soundor_processor_tests)
-soundor_attach_plugin_shim(soundor_processor_tests)
 add_test(NAME soundor_processor_tests COMMAND soundor_processor_tests)
 set_tests_properties(soundor_processor_tests PROPERTIES TIMEOUT 30)
 
@@ -484,7 +482,16 @@ if(WIN32)
 endif()
 # The macOS accessibility bridge in a plugin host: two plugin binaries with
 # their own runtimes (and so their own element classes), loaded together,
-# destroyed and unloaded while an element is still held.
+# destroyed with externally retained elements, then dlclose/reloaded.
+# A successful run does not establish safe physical binary unloading.
+if(APPLE AND NOT IOS)
+  # No Objective-C++ sources or per-plugin definitions: the archive owns the bridge.
+  add_executable(soundor_apple_archive_consumer apple/ArchiveConsumer.cpp)
+  target_link_libraries(soundor_apple_archive_consumer PRIVATE Soundor::Engine)
+  soundor_configure_target(soundor_apple_archive_consumer)
+  add_test(NAME soundor_apple_archive_consumer COMMAND soundor_apple_archive_consumer)
+endif()
+
 if(APPLE AND NOT IOS AND SOUNDOR_JS_SOURCE)
   foreach(variant a b)
     add_library(soundor_apple_module_${variant} MODULE apple/Module.mm)
@@ -496,6 +503,19 @@ if(APPLE AND NOT IOS AND SOUNDOR_JS_SOURCE)
   endforeach()
   target_link_libraries(soundor_apple_module_a PRIVATE Soundor::Engine)
   target_link_libraries(soundor_apple_module_b PRIVATE Soundor::Engine)
+
+  if(NOT SOUNDOR_ENABLE_SANITIZERS)
+    foreach(variant a b)
+      add_test(
+        NAME soundor_apple_module_${variant}_exports
+        COMMAND ${CMAKE_COMMAND}
+          -DLIBRARY=$<TARGET_FILE:soundor_apple_module_${variant}>
+          -DNM=${SOUNDOR_NM_EXE}
+          -DAPPLE=TRUE
+          "-DALLOWED=soundor_apple_create$<SEMICOLON>soundor_apple_class$<SEMICOLON>soundor_apple_press$<SEMICOLON>soundor_apple_retain_element$<SEMICOLON>soundor_apple_destroy"
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+    endforeach()
+  endif()
 
   add_executable(soundor_apple_host apple/AppleHost.mm)
   target_link_libraries(soundor_apple_host PRIVATE "-framework AppKit" ${CMAKE_DL_LIBS})
@@ -554,12 +574,6 @@ if(SOUNDOR_JS_SOURCE)
   soundor_configure_target(soundor_stream_benchmark)
   add_test(NAME soundor_stream_benchmark COMMAND soundor_stream_benchmark --quick)
 endif()
-
-foreach(consumer soundor_runtime_tests soundor_stream_benchmark soundor_symbol_probe soundor_coexist_a soundor_coexist_b soundor_apple_module_a soundor_apple_module_b soundor_run_ui soundor_context_init_failure)
-  if(TARGET ${consumer})
-    soundor_attach_plugin_shim(${consumer})
-  endif()
-endforeach()
 
 add_test(NAME soundor_engine_abi_namespace COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/abi/Namespace.cmake)
 

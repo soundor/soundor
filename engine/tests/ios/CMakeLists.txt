@@ -16,10 +16,8 @@ add_library(soundor_ios_a11y STATIC
   ${native}/src/a11y/PlatformSupport.cpp
   ${native}/src/a11y/Semantics.cpp
   ${native}/src/a11y/apple/AppleShared.mm
-  ${native}/src/a11y/apple/PluginShim.mm
   ${native}/src/a11y/apple/IosPlatform.mm)
 target_include_directories(soundor_ios_a11y PRIVATE ${native}/include ${native}/src ${CMAKE_CURRENT_BINARY_DIR}/generated)
-target_compile_definitions(soundor_ios_a11y PRIVATE SOUNDOR_PLUGIN_BINARY_ID="ios_bridge_test")
 set_target_properties(soundor_ios_a11y PROPERTIES
   CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED ON
   CXX_VISIBILITY_PRESET hidden OBJCXX_VISIBILITY_PRESET hidden)

@@ -45,72 +45,114 @@ A host process may load several Soundor plugins, several versions of
 Soundor, VST3 and AU builds of one plugin, plugins using other accessibility implementations, and unload any of them. The Objective-C class namespace is
 process-global; C++ symbol hiding does nothing for it.
 
-- **Shared with iOS.** `AppleShared.mm` holds what both bridges do the same
-  way: tagging elements, the token registry and request
-  queue. Each platform has its own file for what differs. The small `PluginShim.mm`
-  registers the class in each final plugin binary, with a generated format
-  target and build identity. It is never compiled into the engine archive.
-- **One runtime class, never a fixed name.** The only class Soundor adds is
-  the element class: a subclass of `NSAccessibilityElement`, made with
-  `objc_allocateClassPair` the first time a bridge activates. Its name is
-  `SoundorAXElement_<engine ABI>_<format target>_<build identity>_<128 random bits>`, checked against
-  `objc_getClass` before it is registered. Two copies of one plugin, its
-  VST3 and AU builds, and two Soundor versions all get different classes.
-  Every element of one binary shares that one class.
-- **Why a class at all:** VoiceOver's press, increment, decrement and cancel
-  are methods on the element (`accessibilityPerformPress` …), and so is
-  setting a value. A system-class element cannot answer them. Everything
-  else uses system classes: the container is a plain `NSAccessibilityElement`,
-  and custom actions are `NSAccessibilityCustomAction` with a block.
-- **Nothing else is modified.** No swizzling, no categories, no changes to
-  `NSView`, `NSWindow` or the framework's classes. The subclass only adds
-  methods to itself.
+`AppleShared.mm` implements class registration, element tags, the token
+registry and request queue shared with iOS. It and `MacPlatform.mm` are
+compiled into the prebuilt `soundor_runtime` archive. Linking that archive
+into independent plugin binaries gives each binary its own hidden C++ state,
+including its lazy class registration. No plugin-specific Objective-C++ shim,
+generated native source or plugin identity definition is needed. The engine's
+existing hidden visibility and ABI namespace isolation remain in force.
 
-## Lifecycle
+Soundor changes no existing classes: no swizzling, categories, or modifications
+to `NSView`, `NSWindow` or framework classes. The container is a system-class
+`NSAccessibilityElement`; custom actions use `NSAccessibilityCustomAction` blocks.
 
-| Who                            | Owns / does                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------- |
-| `MacPlatform` (one per editor) | the container, a dictionary of its elements (strong), its mirror of the tree, a token |
-| Elements                       | an associated token, node id and offered actions; nothing that points at C++          |
-| `Registry<Channel>`            | token → weak channel (request queue); never destroyed                                 |
-| AppKit / VoiceOver             | whatever elements and custom actions it chooses to keep, for as long as it likes      |
+### Objective-C runtime lifecycle and macOS limitations
 
-- **Element removed from the tree:** `NSAccessibilityUIElementDestroyedNotification`
-  is posted and the bridge drops it. A request VoiceOver still makes through
-  it is queued under its old node id, which `SurfaceSemantics` refuses: ids
-  are never reused.
-- **Editor closes / plugin instance destroyed:** `~MacPlatform` posts
-  destroyed notifications for every element, empties the container, and
-  withdraws its token. The editor first detaches the container from JUCE. A
-  message to an element VoiceOver kept finds no channel for its token and
-  returns `NO`. Nothing is dereferenced.
-- **Assistive technology turns off:** the bridge drops its elements the same
-  way and stays idle. Turning on rebuilds the whole tree.
-- **Reload (`soundor dev`):** a new `RuntimeHost` means new ids. The bridge
-  sends the whole new tree and drops requests made against the old one.
-- **Module unload:** the element class's methods, and the custom actions'
-  blocks, are code in the plugin binary. AppKit and VoiceOver may keep
-  elements indefinitely, with no notice when they let go, so freeing the class
-  (`objc_disposeClassPair`) or unloading the code can never be proven safe.
-  So when the class is created, the binary is pinned
-  (`dlopen(RTLD_NOLOAD | RTLD_NODELETE)` on itself). From then on, `dlclose`
-  by the host leaves it loaded, and every method and block stays valid. The
-  class is never disposed. A plugin whose editor never ran with VoiceOver
-  (or Switch Control) on creates no class and is not pinned.
-- **Threads:** AppKit calls on the main thread, which is the plugin's UI
-  thread. Requests are still queued and performed by `tick()`, so plugin code
-  runs at a known point and never re-enters from inside an AppKit call.
-  Nothing touches the audio thread.
+**Why dynamic classes are necessary.** Accessibility actions such as press,
+increment, decrement, cancel and setting a value require custom Objective-C
+methods. The future native macOS input backend will have similar requirements;
+it should follow the same naming and lifetime principles. This bridge does
+not implement native input handling.
 
-`tests/apple/AppleHost.mm` checks this in one process with two plugin
-binaries (the same engine archive and ABI namespace):
+**Why names are randomized.** Objective-C class registration is process-wide.
+Independent plugins in one DAW may use the same or different engine versions.
+The engine uses the system's `arc4random_buf` to generate 128 random bits for
+`SoundorAXElement_<engine ABI>_<32 hex digits>`, checks the runtime registry,
+and checks that `objc_allocateClassPair` succeeds. Uniqueness depends on the
+random bits, not the diagnostic ABI prefix or a plugin ID. A function-local
+static serializes lazy registration, once per binary, across editor instances.
 
-- both load and create bridges, with distinct classes;
-- two instances of one plugin share its class and keep separate trees;
-- presses reach the right plugin;
-- after one plugin is destroyed and `dlclose`d, it stays loaded, an element
-  held from it refuses to act, and the other keeps working;
-- the plugin loads and works again.
+**Why classes are not disposed.** Registered classes remain registered for
+the lifetime of the host process. Soundor never calls `objc_disposeClassPair`.
+[Apple requires that no instances of the class or its subclasses exist](<https://developer.apple.com/documentation/objectivec/objc_disposeclasspair(_:)>).
+AppKit, accessibility infrastructure and runtime-generated subclasses make
+those lifetime guarantees difficult to establish. Attempting disposal during
+plugin shutdown can introduce crashes.
+
+**Why we do not pin plugin binaries.** Soundor respects the normal DAW/plugin
+lifecycle and does not retain the image with `RTLD_NODELETE` or another pinning
+mechanism. This avoids permanent module retention imposed by Soundor itself;
+it does not guarantee that macOS will unload the image.
+
+**Known risks and tradeoffs.** Dynamic classes remain in the process-wide
+registry. If macOS physically unloads a plugin binary, class metadata may retain
+method implementations pointing into unmapped executable code. Retained custom
+action blocks also contain code from that image. This is a residual safety risk,
+even after thorough cleanup. Random names prevent practical naming collisions;
+they do not prevent runtime enumeration or dangling pointers. Cleanup minimizes
+callbacks reaching destroyed plugin state, but cannot establish that every
+external reference has disappeared. Neither a zero instance count nor successful
+tests prove safe unloading.
+
+The expected lifecycle is:
+
+- Register the class lazily, once per plugin binary.
+- Create and destroy editor instances and accessibility resources normally.
+- Keep the registered class; never explicitly dispose of it.
+- Do not artificially pin the module; the DAW and macOS determine image lifetime.
+
+Closing an editor destroys its bridge, not necessarily the plugin instance.
+Destroying all plugin instances does not necessarily trigger VST3 module
+shutdown. Module shutdown and closing a loader handle do not necessarily mean
+physical binary unloading. None of these events unregisters Soundor's class.
+Physical unloading is the point at which retained method pointers can become
+invalid; this policy does **not** guarantee safe binary unloading.
+
+## Lifecycle cleanup
+
+| Who                            | Owns / does                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `MacPlatform` (one per editor) | Strong container and element dictionary, semantic-tree mirror, channel token |
+| Elements                       | Associated token, node id and offered actions; no C++ pointers               |
+| Custom action blocks           | Weak element reference and plain action request; no C++ runtime pointer      |
+| `Registry<Channel>`            | Token → weak request channel; tokens are never reused                        |
+| AppKit / VoiceOver             | May independently retain elements, containers and custom actions             |
+
+Before posting element-destroyed notifications, the bridge invalidates element
+routing tags, clears custom actions and parent/child links, and marks elements
+inactive. Removing a node therefore makes even externally retained actions
+refuse requests. Full-tree replacement, deactivation and bridge destruction
+also withdraw the channel token and discard pending requests. A fresh tree gets
+a fresh token. A retained container is emptied and detached on destruction.
+Repeated cleanup is safe. Opening another editor uses fresh runtime state and
+the same binary's registered class.
+
+The bridge registers no notification observers or asynchronous notification
+callbacks. Its own notifications are synchronous posts. AppKit calls run on the
+UI thread; requests are queued until `tick()` to avoid re-entering plugin code
+from an accessibility call. The audio thread is untouched. Semantic node IDs
+are never reused within the binary, so requests already queued for removed
+nodes are also rejected by `SurfaceSemantics`.
+
+**Live-instance diagnostics.** No class-wide counter is added here. Counting
+Soundor's allocation call sites would miss externally allocated instances.
+Overriding `alloc`/`allocWithZone:` and `dealloc` still misses direct runtime
+allocation (`class_createInstance`) and requires care with subclass allocation,
+initializer substitution, and deallocation overrides. Making that count reliable
+would add lifecycle machinery beyond a lightweight diagnostic. Tests instead
+use weak references and externally retained objects to check actual release and
+invalidation. These checks are not evidence for class disposal or safe unloading.
+
+`tests/apple/AppleHost.mm` loads two independent modules linked to the same
+archive: it checks distinct classes, class reuse across instances, independent
+action routing, destruction and recreation, and retained-element invalidation
+while the implementation image is loaded. It then closes A's loader handle,
+reports observed residency, and reloads A. This detects observed failures; it
+does not prove physical unloading occurred or that unloading is safe. The same
+tests run against the extracted prebuilt engine. `MacBridgeTests.mm` covers
+retained custom actions, discarded pending work, runtime replacement and release
+of elements even when a container survives.
 
 ## Coordinates
 

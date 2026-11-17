@@ -150,7 +150,6 @@ export function webInputs(root) {
       ...reached,
       'cmake/SoundorAbi.cmake',
       'cmake/SoundorAbi.h.in',
-      'cmake/SoundorPluginShim.cmake',
       'cmake/SoundorCompilerOptions.cmake',
       'cmake/SoundorCoreSources.cmake',
       'cmake/SoundorDependencies.cmake',

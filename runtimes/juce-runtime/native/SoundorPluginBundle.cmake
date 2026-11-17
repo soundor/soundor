@@ -40,7 +40,6 @@ function(soundor_finalize_plugin target)
 
   get_target_property(format_targets ${target} JUCE_ACTIVE_PLUGIN_TARGETS)
   foreach(format_target IN LISTS format_targets)
-    soundor_attach_plugin_shim(${format_target})
     target_link_libraries(${format_target} PRIVATE Soundor::Engine)
     get_target_property(artefact ${format_target} JUCE_PLUGIN_ARTEFACT_FILE)
     if(NOT artefact)

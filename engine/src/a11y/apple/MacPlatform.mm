@@ -8,9 +8,9 @@
 //   Soundor plugins (or two copies of one) never collide. It is the only
 //   class Soundor adds; it subclasses NSAccessibilityElement and changes no
 //   existing class. Nothing is swizzled.
-// - The class is never disposed, and the binary is pinned when it is created:
-//   AppKit and VoiceOver may hold elements (and so the class's methods, in
-//   this binary) for as long as they like, which nothing tells us.
+// - The class is never disposed and the binary is not pinned. AppKit may
+//   retain elements indefinitely. Physical binary unloading can leave method
+//   pointers into unmapped code; cleanup cannot eliminate that risk.
 // - Elements know their bridge only by token. A message to an element whose
 //   bridge is gone finds nothing and does nothing.
 // - Requests are queued and performed by tick(), like every platform's.
@@ -246,8 +246,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
 
         // The actions VoiceOver lists by name: custom ones, and those AppKit
         // has no standard action for.
-        NSArray<NSAccessibilityCustomAction*>* customActions(const Node& node, std::uintptr_t token)
+        NSArray<NSAccessibilityCustomAction*>* customActions(const Node& node, NSAccessibilityElement* element)
         {
+            __weak NSAccessibilityElement* weakElement = element;
             NSMutableArray<NSAccessibilityCustomAction*>* out = [NSMutableArray array];
             for (const ActionDescriptor& action : node.actions)
             {
@@ -272,10 +273,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 const ActionRequest request {
                     node.id, action.action, action.action == Action::Custom ? action.name : std::string(), {}
                 };
-                [out addObject:[[NSAccessibilityCustomAction alloc] initWithName:name
-                                                                         handler:^BOOL {
-                                                                           return ask(token, request) ? YES : NO;
-                                                                         }]];
+                [out addObject:[[NSAccessibilityCustomAction alloc]
+                                   initWithName:name
+                                        handler:^BOOL {
+                                          return ask(weakElement, request.action, request.name, request.value) ? YES
+                                                                                                               : NO;
+                                        }]];
             }
             return out;
         }
@@ -319,7 +322,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                                                           : nil];
 
             tag(element, token, node);
-            [element setAccessibilityCustomActions:customActions(node, token)];
+            [element setAccessibilityCustomActions:customActions(node, element)];
         }
 
         // ── The bridge ──────────────────────────────────────────────────────
@@ -344,7 +347,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             ~MacPlatform() override
             {
                 clear();
-                Channels::instance().withdraw(token);
+                [container setAccessibilityParent:nil];
             }
 
             MacPlatform(const MacPlatform&) = delete;
@@ -407,11 +410,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 return out;
             }
 
-            // Everything gone: VoiceOver is told, and keeps nothing usable.
+            // AppKit may retain elements and custom actions beyond the bridge.
+            // Disconnect before notifying it, including during a full rebuild.
+            void invalidate(NSAccessibilityElement* gone)
+            {
+                untag(gone);
+                [gone setAccessibilityCustomActions:nil];
+                [gone setAccessibilityChildren:@[]];
+                [gone setAccessibilityParent:nil];
+                [gone setAccessibilityElement:NO];
+                superSetFocused(gone, NO);
+                NSAccessibilityPostNotification(gone, NSAccessibilityUIElementDestroyedNotification);
+            }
+
+            // Safe repeatedly, including while accessibility is inactive.
             void clear()
             {
+                Channels::instance().withdraw(token);
+                token = 0;
+                (void)take(*channel);
                 for (NSAccessibilityElement* gone in [elements allValues])
-                    NSAccessibilityPostNotification(gone, NSAccessibilityUIElementDestroyedNotification);
+                    invalidate(gone);
                 [elements removeAllObjects];
                 [container setAccessibilityChildren:@[]];
                 mirror = {};
@@ -425,11 +444,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                     return;
                 if (changes.full)
                     clear();
+                if (token == 0)
+                    token = Channels::instance().enroll(channel);
                 bool layout = changes.full;
                 for (const NodeId id : changes.removed)
                     if (NSAccessibilityElement* gone = element(id))
                     {
-                        NSAccessibilityPostNotification(gone, NSAccessibilityUIElementDestroyedNotification);
+                        invalidate(gone);
                         [elements removeObjectForKey:@(static_cast<unsigned long long>(id))];
                         layout = true;
                     }

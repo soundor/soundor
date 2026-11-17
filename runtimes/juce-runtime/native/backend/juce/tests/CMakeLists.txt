@@ -117,7 +117,6 @@ foreach(consumer soundor_juce_tests soundor_juce_platform_tests soundor_debug_ta
     if(MSVC)
       target_compile_options(${consumer} PRIVATE /utf-8)
     endif()
-    soundor_attach_plugin_shim(${consumer})
   endif()
 endforeach()
 

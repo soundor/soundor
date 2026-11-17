@@ -177,9 +177,8 @@ TEST_SUITE("a11y macOS bridge")
         NSAccessibilityElement* knob = f.find("Gain");
         const std::string name = object_getClassName(knob);
         CHECK(name == a11y::detail::macElementClassName());
-        CHECK(name.rfind(std::string("SoundorAXElement_" SOUNDOR_EXPECTED_ABI "_soundor_runtime_tests_"), 0) == 0);
-        CHECK(name.size()
-              > std::string("SoundorAXElement_" SOUNDOR_EXPECTED_ABI "_soundor_runtime_tests_").size() + 16);
+        CHECK(name.rfind(std::string("SoundorAXElement_" SOUNDOR_EXPECTED_ABI "_"), 0) == 0);
+        CHECK(name.size() == std::string("SoundorAXElement_" SOUNDOR_EXPECTED_ABI "_").size() + 32);
         CHECK((class_getSuperclass(object_getClass(knob)) == [NSAccessibilityElement class]));
         // No class under the bare name.
         CHECK((objc_getClass("SoundorAXElement") == nil));
@@ -238,20 +237,95 @@ TEST_SUITE("a11y macOS bridge")
         MacFixture f;
         f.build(controls);
         NSAccessibilityElement* knob = f.find("Gain");
+        NSAccessibilityCustomAction* custom = [knob accessibilityCustomActions].firstObject;
+        REQUIRE((custom != nil));
         f.run("knob.remove();");
         f.tick();
         CHECK((f.find("Gain") == nil));
-        // Queued, but refused: the node is gone.
-        [knob accessibilityPerformIncrement];
+        CHECK_FALSE([knob accessibilityPerformIncrement]);
+        CHECK_FALSE([custom handler]());
+        CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformIncrement)]);
+        CHECK(([knob accessibilityParent] == nil));
+        CHECK([[knob accessibilityChildren] count] == 0);
         f.tick();
         CHECK(f.eval("log.length").asNumber() == 0);
 
         // Kept by VoiceOver after the bridge is destroyed: refused.
         NSAccessibilityElement* button = f.find("Reset");
-        NSAccessibilityCustomAction* reset = [f.find("Sync") accessibilityCustomActions].firstObject;
+        NSAccessibilityElement* container = (__bridge id)f.platform->accessibilityContainer();
+        CHECK([button accessibilityPerformPress]); // pending work must be discarded
         f.platform.reset();
         CHECK_FALSE([button accessibilityPerformPress]);
-        CHECK((reset == nil));
+        CHECK([[container accessibilityChildren] count] == 0);
+        CHECK(([container accessibilityParent] == nil));
+        CHECK(([button accessibilityParent] == nil));
+
+        f.platform = a11y::createPlatformAccessibility({ { (__bridge void*)f.view, nullptr }, "Again" });
+        f.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+        NSAccessibilityElement* replacement = f.find("Reset");
+        REQUIRE((replacement != nil));
+        CHECK((object_getClass(button) == object_getClass(replacement)));
+        CHECK_FALSE([button accessibilityPerformPress]);
+        CHECK([replacement accessibilityPerformPress]);
+        f.tick();
+        CHECK(f.eval("log.join(' ')").asString() == "press");
+    }
+
+    TEST_CASE("externally retained elements and custom actions outlive the runtime without reaching it")
+    {
+        NSAccessibilityElement* kept = nil;
+        NSAccessibilityCustomAction* custom = nil;
+        @autoreleasepool
+        {
+            MacFixture f;
+            f.build(controls);
+            kept = f.find("Gain");
+            custom = [kept accessibilityCustomActions].firstObject;
+            REQUIRE((custom != nil));
+            CHECK([kept accessibilityPerformIncrement]);
+        }
+        CHECK_FALSE([kept accessibilityPerformIncrement]);
+        CHECK_FALSE([custom handler]());
+        CHECK(([kept accessibilityParent] == nil));
+        CHECK([[kept accessibilityCustomActions] count] == 0);
+        kept = nil;
+        CHECK_FALSE([custom handler]());
+    }
+
+    TEST_CASE("teardown releases Soundor ownership even when the container is retained")
+    {
+        __weak NSAccessibilityElement* released = nil;
+        NSAccessibilityElement* container = nil;
+        @autoreleasepool
+        {
+            MacFixture f;
+            f.build(controls);
+            released = f.find("Gain");
+            container = (__bridge id)f.platform->accessibilityContainer();
+            f.platform.reset();
+            f.platform.reset();
+        }
+        CHECK((released == nil));
+        CHECK([[container accessibilityChildren] count] == 0);
+        CHECK(([container accessibilityParent] == nil));
+    }
+
+    TEST_CASE("changing runtime invalidates the old tree and queued actions")
+    {
+        MacFixture first;
+        MacFixture next;
+        first.build(controls);
+        next.build(controls);
+        NSAccessibilityElement* old = first.find("Gain");
+        NSAccessibilityCustomAction* custom = [old accessibilityCustomActions].firstObject;
+        CHECK([old accessibilityPerformIncrement]);
+        first.platform->tick(next.host);
+        CHECK_FALSE([old accessibilityPerformIncrement]);
+        CHECK_FALSE([custom handler]());
+        next.tick();
+        CHECK(next.eval("log.length").asNumber() == 0);
+        CHECK(first.eval("log.length").asNumber() == 0);
     }
 
     TEST_CASE("only the active modal is presented")
