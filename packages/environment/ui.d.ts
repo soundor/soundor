@@ -897,9 +897,8 @@ declare module 'soundor:ui' {
   /**
    * The view's size in logical pixels, device pixels per logical pixel and
    * its safe area. The same frozen object until one of them changes, so it
-   * works as a store snapshot (`useSyncExternalStore(subscribeViewSize,
-   * viewSize)`). Before the host has given the view a size, width and height
-   * may be 0.
+   * works as a store snapshot; in React, `useViewSize()` reads it. Before the
+   * host has given the view a size, width and height may be 0.
    */
   export function viewSize(): ViewSize;
   /**
@@ -938,9 +937,8 @@ declare module 'soundor:ui' {
   /**
    * The editor's actual size, in whole logical pixels, and whether it can be
    * asked for another. The same frozen object until either changes, so it
-   * works as a store snapshot
-   * (`useSyncExternalStore(subscribeEditorSize, editorSize)`). Before the
-   * host has shown the editor, width and height are 0.
+   * works as a store snapshot; in React, `useEditorSize()` reads it. Before
+   * the host has shown the editor, width and height are 0.
    */
   export function editorSize(): EditorSize;
   /**
@@ -991,8 +989,8 @@ declare module 'soundor:ui' {
   export function isVisible(): boolean;
   /**
    * Calls `listener` with the new visibility when it changes, without an
-   * initial call. Returns an unsubscribe function. Use with isVisible
-   * to pause optional work while hidden, including through useSyncExternalStore.
+   * initial call. Returns an unsubscribe function. Use with isVisible to
+   * pause optional work while hidden; in React, `useEditorVisibility()` does.
    * Does not pause audio, timers or subscriptions automatically.
    */
   export function subscribeVisibility(
@@ -1009,7 +1007,7 @@ declare module 'soundor:ui' {
   /**
    * Calls `listener` when focus enters or leaves the editor, with true for
    * focus and false for blur; no initial call. Returns an unsubscribe
-   * function. Works with useSyncExternalStore(subscribeFocus, isFocused).
+   * function. In React, `useEditorFocus()` reads it.
    * Closing a native editor destroys its context, without a guaranteed
    * final notification.
    */

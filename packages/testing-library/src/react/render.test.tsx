@@ -7,6 +7,7 @@ import {
   Portal,
   FocusScope,
   useAnimationFrame,
+  useHostState,
   useParameter,
 } from '@soundor/react';
 import { getTestRuntime } from '@soundor/test-runtime';
@@ -17,12 +18,7 @@ import {
   useContext,
   useEffect,
   useState,
-  useSyncExternalStore,
 } from 'react';
-import {
-  getHostState as snapshot,
-  subscribeHostState as subscribe,
-} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import { expect, test, vi } from 'vitest';
 
@@ -282,7 +278,7 @@ test('setup helpers work before rendering and commit subscribed React updates sy
     testHost.set({ hostName: 'Before render' });
     function Status() {
       const gain = useParameter(parameters.gain);
-      const host = useSyncExternalStore(subscribe, snapshot);
+      const host = useHostState();
       return (
         <Text>
           {host.hostName}: {gain}

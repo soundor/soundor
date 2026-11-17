@@ -29,14 +29,14 @@ A component's `ref` is its node: `ref.current.animate(…)`,
 `isVisible()` and `isFocused()` return booleans.
 `subscribeVisibility(listener)` calls the listener once per change, with the
 new boolean, and returns an unsubscribe function. It does not call the listener
-on subscription. The two work with React's `useSyncExternalStore`:
+on subscription. In React,
+[`useEditorVisibility()`](/docs/hooks/use-editor-visibility) reads it:
 
 ```tsx
-import { useSyncExternalStore } from 'react';
-import { subscribeVisibility, isVisible } from 'soundor:ui';
+import { useEditorVisibility } from '@soundor/react';
 
 function Analyzer() {
-  const visible = useSyncExternalStore(subscribeVisibility, isVisible);
+  const visible = useEditorVisibility();
   return visible ? <Spectrum /> : null;
 }
 ```
@@ -61,8 +61,8 @@ inside the editor keeps it focused. Moving to the browser's address bar,
 elsewhere in the DAW, or another application loses focus without necessarily
 hiding the editor. `subscribeFocus(listener)` reports both focus (`true`) and
 blur (`false`), once per change, without an initial call, and returns an
-unsubscribe function. Use `useSyncExternalStore(subscribeFocus, isFocused)`
-to read it in React.
+unsubscribe function. In React, [`useEditorFocus()`](/docs/hooks/use-editor-focus)
+reads it.
 
 The test runtime starts unfocused. Use `runtime.setFocus(true)` to simulate
 focus. In Testing Library, `testEditor.setVisible(false)` and
@@ -243,8 +243,7 @@ tick, before the frame at the new size is laid out and drawn; a reloaded
 runtime starts with no subscribers. Before the host has sized the view,
 `width` and `height` may be 0.
 
-[`useViewSize()`](/docs/hooks/use-view-size) is the React way in:
-`useSyncExternalStore(subscribeViewSize, viewSize)`.
+[`useViewSize()`](/docs/hooks/use-view-size) is the React way in.
 
 ## The editor's size
 
@@ -278,7 +277,7 @@ false.
 whenever it changes, whoever resized the editor: the user, the DAW, or the
 web page, or a request. Never for an unchanged size; a listener that throws is reported
 and the others are still called. It returns a function that unsubscribes.
-In React, `useSyncExternalStore(subscribeEditorSize, editorSize)` reads it.
+In React, [`useEditorSize()`](/docs/hooks/use-editor-size) reads it.
 
 ### Asking for a size
 
@@ -343,7 +342,7 @@ editor resizes or, scaling, zooms. The size it asks for is the size at the
 press plus how far the pointer went since, so nothing drifts:
 
 ```tsx
-const editor = useSyncExternalStore(subscribeEditorSize, editorSize);
+const editor = useEditorSize();
 const drag = useRef<
   { x: number; y: number; width: number; height: number } | undefined
 >(undefined);

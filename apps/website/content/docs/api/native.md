@@ -128,12 +128,12 @@ native: {
 ```
 
 ```tsx
-import { useSyncExternalStore } from 'react';
+import { useNativeStream } from '@soundor/react';
 // in the UI
 import { streams } from 'soundor:native';
 
 // React state, re-rendered when a newer value arrives
-const peak = useSyncExternalStore(streams.peak.subscribe, streams.peak.get);
+const peak = useNativeStream(streams.peak);
 
 // or drawn as it arrives, without rendering again
 useEffect(() => streams.spectrum.subscribe((spectrum) => draw(spectrum)), []);
@@ -150,7 +150,8 @@ nativeStreams.spectrum.commit(bins.size());
 ```
 
 - **`get()`** returns the latest value the UI received: the same object until
-  a newer one arrives, so it works as `useSyncExternalStore`'s snapshot, and
+  a newer one arrives, so it works as a store snapshot (that is what
+  [`useNativeStream()`](/docs/hooks/use-native-stream) reads), and
   `undefined` before native code published one. A UI that opens, or reloads,
   starts with the value published last.
 - **`subscribe(listener)`** calls `listener(value, sequence)` with each newer

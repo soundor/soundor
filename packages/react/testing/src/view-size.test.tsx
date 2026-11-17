@@ -1,4 +1,11 @@
-import { Modal, Pressable, Text, useViewSize, View } from '@soundor/react';
+import {
+  Modal,
+  Pressable,
+  Text,
+  useEditorSize,
+  useViewSize,
+  View,
+} from '@soundor/react';
 import { getTestRuntime, type TestRuntime } from '@soundor/test-runtime';
 import {
   render,
@@ -7,8 +14,8 @@ import {
   testView,
   userEvent,
 } from '@soundor/testing-library/react';
-import { useState, useSyncExternalStore } from 'react';
-import { editorSize, subscribeEditorSize, viewSize } from 'soundor:ui';
+import { useState } from 'react';
+import { viewSize } from 'soundor:ui';
 import { describe, expect, it, vi } from 'vitest';
 
 /** Counts its renders, and shows the size it sees. */
@@ -192,14 +199,11 @@ describe('the safe area', () => {
 describe('the editor size', () => {
   function Editor({ renders }: { renders: () => void }) {
     renders();
-    const { width, height } = useSyncExternalStore(
-      subscribeEditorSize,
-      editorSize,
-    );
+    const { width, height } = useEditorSize();
     return <Text>{`editor ${width} × ${height}`}</Text>;
   }
 
-  it('re-renders a store of it once per change, apart from the view', async () => {
+  it('re-renders once per change, apart from the view', async () => {
     const renders = vi.fn<() => void>();
     await render(<Editor renders={renders} />);
     expect(screen.getByText('editor 800 × 600')).toBeDefined();

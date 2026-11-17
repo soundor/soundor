@@ -18,7 +18,7 @@ runtimes.
 soundor.config.ts   identity, both runtimes, two native streams:
                     `spectrum` (buffer<float32>, 128 bands) and `peak`
 src/App.tsx         the plugin UI: draws each spectrum into a Canvas,
-                    shows the peak with useSyncExternalStore
+                    shows the peak with useNativeStream
 src/spectrum.ts     decibels to bar heights, bars that fall slowly
 
 lib/                the analysis, in Rust: an FFT on the audio thread,
@@ -74,7 +74,7 @@ The spectrum is drawn from the stream's subscriber, without rendering React
 again; the peak is ordinary React state:
 
 ```tsx
-const peak = useSyncExternalStore(streams.peak.subscribe, streams.peak.get);
+const peak = useNativeStream(streams.peak);
 ```
 
 ## In the browser

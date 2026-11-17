@@ -19,8 +19,8 @@ automation, a preset, another view, the audio side, or this UI.
 - **Notification timing follows the runtime.** JUCE delivers parameter
   changes on its UI tick, coalescing a burst of audio-thread automation to
   the latest value. Web and simulated parameters notify subscribers
-  synchronously from `set()`. The hook reads the latest value through React
-  `useSyncExternalStore`.
+  synchronously from `set()`. The hook reads the latest value through React's
+  `useSyncExternalStore`, subscribing once while the component is mounted.
 - **Typed from the config:** a numeric parameter gives a `number`, a
   `boolean` a `boolean`, a `choice` one of its options' values.
 - **Show and move it as the host does:** `format()` gives the host's text,

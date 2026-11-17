@@ -29,8 +29,8 @@ const stop = subscribeHostState(({ transport }) =>
 | `subscribeHostState(listener)` | Reports new snapshots, every frame while playing. Returns an unsubscribe function; does not call the listener synchronously on registration. |
 
 `getHostState` and `subscribeHostState` replace the previous `snapshot` and
-`subscribe` exports. They work with React's
-`useSyncExternalStore(subscribeHostState, getHostState)`.
+`subscribe` exports. In React, [`useHostState()`](/docs/hooks/use-host-state)
+reads them.
 
 ## Environment
 

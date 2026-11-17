@@ -3,15 +3,13 @@ import {
   StyleSheet,
   Text,
   View,
+  useHostState,
   useParameter,
+  usePresetSelection,
   useStateValue,
 } from '@soundor/react';
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import type { HistoryOptions } from 'soundor:history';
-import {
-  getHostState as snapshot,
-  subscribeHostState as subscribe,
-} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import { presets } from 'soundor:presets';
 import { state } from 'soundor:state';
@@ -21,15 +19,12 @@ import { Knob } from './Knob';
 
 export function App() {
   const catalog = presets.factory.list();
-  const selection = useSyncExternalStore(
-    presets.subscribe,
-    presets.getSnapshot,
-  );
+  const selection = usePresetSelection();
   const preset = catalog.findIndex((entry) => entry.id === selection.factoryId);
   const selected = catalog[preset];
   const description = useStateValue(state.presetDescription);
   const [help, setHelp] = useState(false);
-  const host = useSyncExternalStore(subscribe, snapshot);
+  const host = useHostState();
   const sync = useParameter(parameters.sync),
     hold = useParameter(parameters.hold),
     bypass = useParameter(parameters.bypass);
