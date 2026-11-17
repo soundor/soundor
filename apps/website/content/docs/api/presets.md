@@ -92,15 +92,11 @@ are not guaranteed to change at the same sample.
 ## React
 
 ```tsx
-import { Pressable, Text, View } from '@soundor/react';
-import { useSyncExternalStore } from 'react';
+import { Pressable, Text, usePresetSelection, View } from '@soundor/react';
 import { presets } from 'soundor:presets';
 
 function FactoryPresets() {
-  const selection = useSyncExternalStore(
-    presets.subscribe,
-    presets.getSnapshot,
-  );
+  const selection = usePresetSelection(presets);
   return (
     <View>
       <Text>

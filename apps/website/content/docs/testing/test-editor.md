@@ -13,14 +13,14 @@ testEditor.requests(): readonly { width: number; height: number }[];
 `testEditor.resize()` merges `size` (whole logical pixels of the editor) into the simulated
 editor's size and tells `soundor:ui`'s `subscribeEditorSize()` subscribers
 when it changed, so a component reading
-[`editorSize()`](/docs/api/ui#the-editors-size) re-renders. Only the
+[`useEditorSize()`](/docs/hooks/use-editor-size) re-renders. Only the
 editor: the view keeps its size, as in an editor that scales, so resize it
 too with [`testView`](/docs/testing/test-view) where an editor lays out
 again.
 
 ```tsx
 function Zoom() {
-  const editor = useSyncExternalStore(subscribeEditorSize, editorSize);
+  const editor = useEditorSize();
   const view = useViewSize();
   return <Text>{`${Math.round((editor.width / view.width) * 100)}%`}</Text>;
 }

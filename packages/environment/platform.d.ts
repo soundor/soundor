@@ -76,7 +76,7 @@ declare module 'soundor:host' {
   };
   /** Constant for this editor's lifetime. */
   export const environment: Readonly<HostEnvironment>;
-  /** The current immutable host state; the same object until it changes. */
+  /** The current immutable host state; the same object until it changes. In React, `useHostState()` reads it. */
   export function getHostState(): HostSnapshot;
   /** Calls listener on changes, without an initial call. Returns an unsubscribe function. */
   export function subscribeHostState(

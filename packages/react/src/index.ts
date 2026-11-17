@@ -43,8 +43,16 @@ export {
   useAnimationFrame,
   useParameter,
   useStateValue,
+  useNativeStream,
   useHistory,
   useViewSize,
+  useEditorSize,
+  useEditorVisibility,
+  useEditorFocus,
+  useHostState,
+  usePresetSelection,
+  type NativeStreamLike,
+  type PresetsLike,
   type ParameterLike,
 } from './hooks';
 export {

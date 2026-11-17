@@ -22,7 +22,7 @@ declare module 'soundor:history' {
     canRedo(): boolean;
     undoLabel(): string | null;
     redoLabel(): string | null;
-    /** Stable immutable status snapshot, suitable for useSyncExternalStore. */
+    /** Stable immutable status snapshot; in React, `useHistory()` reads it. */
     snapshot(): HistoryStatus;
     /** Subscribe to changes in availability or labels; does not call immediately. */
     subscribe(listener: (status: HistoryStatus) => void): () => void;

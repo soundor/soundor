@@ -6,17 +6,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useHostState,
   useParameter,
   useStateValue,
   useViewSize,
   View,
 } from '@soundor/react';
-import { useRef, useSyncExternalStore } from 'react';
-import {
-  plugin,
-  getHostState as snapshot,
-  subscribeHostState as subscribe,
-} from 'soundor:host';
+import { useRef } from 'react';
+import { plugin } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
 import type { PointerEvent, KeyboardEvent, WheelEvent } from 'soundor:ui';
@@ -79,7 +76,7 @@ function GainFader({ short }: { readonly short: boolean }) {
 
 /** The host's tempo and transport, as it reports them. */
 function HostStatus() {
-  const host = useSyncExternalStore(subscribe, snapshot);
+  const host = useHostState();
   const transport = host.transport;
   return (
     <Text style={styles.caption}>

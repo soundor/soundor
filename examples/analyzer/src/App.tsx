@@ -3,24 +3,21 @@
 //
 // The spectrum arrives up to once a frame and is drawn straight into a
 // canvas from the stream's subscriber, without rendering React again; the
-// peak is React state (useSyncExternalStore), re-rendered as it changes.
+// peak is React state (useNativeStream), re-rendered as it changes.
 
 import {
   Canvas,
   StyleSheet,
   Text,
   useCanvasSize,
+  useEditorVisibility,
+  useNativeStream,
   View,
   type CanvasSize,
 } from '@soundor/react';
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useSyncExternalStore,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { streams } from 'soundor:native';
-import { subscribeVisibility, isVisible, type UiNode } from 'soundor:ui';
+import type { UiNode } from 'soundor:ui';
 
 import { hold } from './spectrum';
 
@@ -89,8 +86,7 @@ function Spectrum() {
 }
 
 function Peak() {
-  // get and subscribe work unbound, as useSyncExternalStore calls them.
-  const peak = useSyncExternalStore(streams.peak.subscribe, streams.peak.get);
+  const peak = useNativeStream(streams.peak);
   const text = peak === undefined || peak <= -96 ? '-∞' : peak.toFixed(1);
   return (
     <Text style={styles.peak} accessibilityLabel="Peak level">
@@ -102,7 +98,7 @@ function Peak() {
 export function App() {
   // Closing the native editor destroys this UI. A hidden editor or browser
   // tab can keep it alive: stop subscribing until it is shown again.
-  const visible = useSyncExternalStore(subscribeVisibility, isVisible);
+  const visible = useEditorVisibility();
   return (
     <View style={styles.root}>
       {visible && (

@@ -11,13 +11,11 @@
 //
 // Its look is the <Svg> below: replace it with anything, keeping the View.
 
-import { View } from '@soundor/react';
+import { useEditorSize, View } from '@soundor/react';
 import { Path, Svg } from '@soundor/react/svg';
-import { useRef, useSyncExternalStore } from 'react';
+import { useRef } from 'react';
 import {
-  editorSize,
   requestEditorSize,
-  subscribeEditorSize,
   type KeyboardEvent,
   type PointerEvent,
 } from 'soundor:ui';
@@ -36,7 +34,7 @@ interface Drag {
 }
 
 export function ResizeGrip({ color = '#8a8f99' }: { readonly color?: string }) {
-  const editor = useSyncExternalStore(subscribeEditorSize, editorSize);
+  const editor = useEditorSize();
   const drag = useRef<Drag | null>(null);
   if (!editor.resizable) return null;
 
