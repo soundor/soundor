@@ -457,6 +457,31 @@ impl<P: Processor> TestProcessor<P> {
         )
     }
 
+    /// Internal sender, independent of host MIDI capabilities.
+    pub fn midi_sender(&self, source: crate::MidiSource) -> crate::midi::MidiSender {
+        self.instance.midi.sender(source)
+    }
+
+    /// Injects a host event for the next block, retaining its sample offset.
+    /// Full input storage requests reset before the next block.
+    pub fn midi_input(&mut self, event: crate::MidiEvent) -> Result<(), crate::MidiError> {
+        let result = self.instance.midi.input.push(event);
+        if result == Err(crate::MidiError::Full) {
+            self.instance.midi.recovery = true;
+        }
+        result
+    }
+
+    /// Explicit host output of the most recent block, even with host MIDI disabled.
+    pub fn midi_output(&self) -> &[crate::MidiEvent] {
+        self.instance.midi.output.events()
+    }
+
+    /// Explicit observer publications of the most recent block.
+    pub fn midi_publications(&self) -> &[crate::MidiEvent] {
+        self.instance.midi.publication.events()
+    }
+
     /// Resets the processor, as a host does between playbacks.
     pub fn reset(&mut self) -> Status {
         self.instance.reset()

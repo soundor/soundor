@@ -84,6 +84,8 @@ pub struct ProcessContext<'a> {
     pub state: &'a StateSnapshot,
     /// The block's audio.
     pub audio: Audio<'a>,
+    /// Sample-timed MIDI input, explicit host output and observer publication.
+    pub midi: crate::midi::Midi<'a>,
     /// The host's transport at the start of the block.
     pub transport: &'a Transport,
     /// Sets the config's read-only parameters (meters) the processing owns.

@@ -27,3 +27,32 @@ promise sample-accurate scheduling.
 The wire representation contains the original two or three channel-message
 bytes. System messages, SysEx, running status, MIDI 2.0, named MIDI buses and
 MIDI files are outside this contract.
+
+## Rust processing
+
+`ctx.midi.input()` borrows the current block's ordered events. Input does
+not automatically become output. Use `ctx.midi.output().push(event)` for
+host output and `ctx.midi.publish(event)` for control-thread observations.
+Both return `Result<(), MidiError>`; internal output storage exists even
+when host output is disabled.
+
+Each buffer holds **1024 events**. Offsets must be less than the current
+block length; only offset zero is accepted in a zero-frame block. Invalid
+events are refused, never retimed. Events sort by offset, retaining arrival
+order for ties: host events first, then internal messages in successful
+enqueue order. If a runtime splits a large block, offsets seen by the
+processor are relative to each chunk; output offsets retain the original
+block position.
+
+`MidiSender::send(message)` delivers at zero in the next block. Sending is
+nonblocking: contention and saturation return `MidiError::Full`; inactive
+processors return `MidiError::Inactive`. No JavaScript timer supplies audio
+timing. Storage is fixed and the audio path neither allocates nor locks.
+
+Overflow requests `Processor::reset()` before the next block and discards
+partial pending input, so a missed release cannot keep a processor voice
+active indefinitely. Implement `reset()` to stop all voices. Output
+saturation also requests reset; runtime adapters must additionally recover
+external notes. `ctx.midi.dropped()` reports cumulative input losses.
+Reset and prepare discard pending input and publications; destroying the
+processor invalidates all its sender clones.

@@ -235,3 +235,418 @@ mod tests {
         );
     }
 }
+
+/// Maximum events in each processor input, output and publication buffer.
+pub const MIDI_CAPACITY: usize = 1024;
+
+const EMPTY: MidiEvent = MidiEvent {
+    message: MidiMessage::NoteOff {
+        channel: 1,
+        note: 0,
+        velocity: 0,
+    },
+    sample_offset: 0,
+    source: None,
+};
+
+/// Why an event could not be accepted. A full buffer requests recovery:
+/// processing is reset before the next block so a lost release cannot leave
+/// a processor voice active indefinitely.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MidiError {
+    /// The message or its offset is invalid.
+    Invalid,
+    /// Fixed storage is full; the event was refused.
+    Full,
+    /// The processor is not prepared or has been destroyed.
+    Inactive,
+}
+
+pub(crate) struct EventBuffer {
+    events: [MidiEvent; MIDI_CAPACITY],
+    length: usize,
+    pub dropped: u64,
+}
+
+impl Default for EventBuffer {
+    fn default() -> Self {
+        Self {
+            events: [EMPTY; MIDI_CAPACITY],
+            length: 0,
+            dropped: 0,
+        }
+    }
+}
+
+impl EventBuffer {
+    pub fn clear(&mut self) {
+        self.length = 0;
+    }
+    pub fn events(&self) -> &[MidiEvent] {
+        &self.events[..self.length]
+    }
+    // Stable insertion: preserves producer order at the same sample. No
+    // allocation (slice::sort's implementation may allocate).
+    pub fn push(&mut self, event: MidiEvent) -> Result<(), MidiError> {
+        if event.message.encode().is_err() {
+            return Err(MidiError::Invalid);
+        }
+        if self.length == MIDI_CAPACITY {
+            self.dropped = self.dropped.saturating_add(1);
+            return Err(MidiError::Full);
+        }
+        let position = self
+            .events()
+            .partition_point(|previous| previous.sample_offset <= event.sample_offset);
+        self.events.copy_within(position..self.length, position + 1);
+        self.events[position] = event;
+        self.length += 1;
+        Ok(())
+    }
+}
+
+/// The block's MIDI, borrowed independently of its audio. Input is never
+/// automatically echoed or published; the processor chooses what to send.
+pub struct Midi<'a> {
+    pub(crate) input: &'a [MidiEvent],
+    pub(crate) output: MidiOutput<'a>,
+    pub(crate) publication: MidiOutput<'a>,
+    pub(crate) dropped: u64,
+}
+
+impl<'a> Midi<'a> {
+    /// Ordered by offset, then arrival order. UI/controller messages arrive
+    /// at offset zero of the next block, without sample scheduling promises.
+    pub fn input(&self) -> &[MidiEvent] {
+        self.input
+    }
+    /// Explicit output to the host; storage exists even if host output is off.
+    pub fn output(&mut self) -> &mut MidiOutput<'a> {
+        &mut self.output
+    }
+    /// Explicit publication to opted-in control-thread observers. Independent
+    /// of host output; incoming messages are never published automatically.
+    pub fn publish(&mut self, event: MidiEvent) -> Result<(), MidiError> {
+        self.publication.push(event)
+    }
+    /// Cumulative lost input events; a change means reset was requested.
+    pub fn dropped(&self) -> u64 {
+        self.dropped
+    }
+}
+
+/// Fixed output storage with explicit errors. Invalid offsets are refused,
+/// never moved to zero. For a zero-frame block only offset zero is valid.
+pub struct MidiOutput<'a> {
+    pub(crate) buffer: &'a mut EventBuffer,
+    pub(crate) frames: usize,
+    pub(crate) base: u32,
+}
+
+impl MidiOutput<'_> {
+    /// Adds an event in block order. On saturation, returns `Full`, counts
+    /// the loss and requests processor reset before the following block.
+    pub fn push(&mut self, mut event: MidiEvent) -> Result<(), MidiError> {
+        if !valid_offset(event.sample_offset, self.frames) {
+            return Err(MidiError::Invalid);
+        }
+        event.sample_offset += self.base;
+        self.buffer.push(event)
+    }
+    /// Cumulative events refused because this output was full.
+    pub fn dropped(&self) -> u64 {
+        self.buffer.dropped
+    }
+}
+
+pub(crate) fn valid_offset(offset: u32, frames: usize) -> bool {
+    if frames == 0 {
+        offset == 0
+    } else {
+        (offset as usize) < frames
+    }
+}
+
+pub(crate) struct MidiStorage {
+    pub incoming: std::sync::Arc<MidiInbox>,
+    pub seen_dropped: u64,
+    pub input: EventBuffer,
+    pub chunk: EventBuffer,
+    pub output: EventBuffer,
+    pub publication: EventBuffer,
+    pub recovery: bool,
+    pub last_dropped: u64,
+}
+
+impl Default for MidiStorage {
+    fn default() -> Self {
+        Self {
+            incoming: std::sync::Arc::new(MidiInbox::default()),
+            seen_dropped: 0,
+            input: EventBuffer::default(),
+            chunk: EventBuffer::default(),
+            output: EventBuffer::default(),
+            publication: EventBuffer::default(),
+            recovery: false,
+            last_dropped: 0,
+        }
+    }
+}
+
+impl MidiStorage {
+    pub fn reset(&mut self) {
+        self.incoming.queue.drain(|_| {});
+        self.input.clear();
+        self.chunk.clear();
+        self.output.clear();
+        self.publication.clear();
+        self.recovery = false;
+    }
+    pub fn chunk(&mut self, offset: usize, frames: usize) {
+        self.chunk.clear();
+        for event in self.input.events() {
+            let position = event.sample_offset as usize;
+            if position >= offset
+                && (position < offset + frames || (frames == 0 && position == offset))
+            {
+                let mut event = *event;
+                event.sample_offset -= offset as u32;
+                // A subrange cannot contain more events than the input.
+                let _ = self.chunk.push(event);
+            }
+        }
+    }
+    pub fn context(&mut self, frames: usize, base: u32) -> Midi<'_> {
+        Midi {
+            input: self.chunk.events(),
+            output: MidiOutput {
+                buffer: &mut self.output,
+                frames,
+                base,
+            },
+            publication: MidiOutput {
+                buffer: &mut self.publication,
+                frames,
+                base,
+            },
+            dropped: self.input.dropped,
+        }
+    }
+}
+
+/// A bounded MIDI mailbox. Producers serialize with a single nonblocking
+/// attempt; the consumer never takes their gate. Atomic slots let the
+/// consumer read without aliasing or locks. Queue storage is fixed, and
+/// producer contention is reported just like saturation.
+pub(crate) struct MidiQueue {
+    slots: [std::sync::atomic::AtomicU64; MIDI_CAPACITY],
+    head: std::sync::atomic::AtomicUsize,
+    tail: std::sync::atomic::AtomicUsize,
+    producer: std::sync::atomic::AtomicBool,
+    pub dropped: std::sync::atomic::AtomicU64,
+}
+
+impl Default for MidiQueue {
+    fn default() -> Self {
+        Self {
+            slots: std::array::from_fn(|_| std::sync::atomic::AtomicU64::new(0)),
+            head: std::sync::atomic::AtomicUsize::new(0),
+            tail: std::sync::atomic::AtomicUsize::new(0),
+            producer: std::sync::atomic::AtomicBool::new(false),
+            dropped: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+}
+
+impl MidiQueue {
+    pub fn push(&self, event: MidiEvent) -> Result<(), MidiError> {
+        use std::sync::atomic::Ordering::*;
+        let (bytes, _) = event.message.encode().map_err(|_| MidiError::Invalid)?;
+        if self
+            .producer
+            .compare_exchange(false, true, Acquire, Relaxed)
+            .is_err()
+        {
+            self.dropped.fetch_add(1, Relaxed);
+            return Err(MidiError::Full);
+        }
+        let tail = self.tail.load(Relaxed);
+        if tail.wrapping_sub(self.head.load(Acquire)) == MIDI_CAPACITY {
+            self.producer.store(false, Release);
+            self.dropped.fetch_add(1, Relaxed);
+            return Err(MidiError::Full);
+        }
+        let source = match event.source {
+            None => 0,
+            Some(MidiSource::Host) => 1,
+            Some(MidiSource::Ui) => 2,
+            Some(MidiSource::Controller) => 3,
+        };
+        let packed = u64::from(event.sample_offset) << 32
+            | (source << 24)
+            | u64::from(bytes[2]) << 16
+            | u64::from(bytes[1]) << 8
+            | u64::from(bytes[0]);
+        self.slots[tail % MIDI_CAPACITY].store(packed, Relaxed);
+        self.tail.store(tail.wrapping_add(1), Release);
+        self.producer.store(false, Release);
+        Ok(())
+    }
+
+    // Single consumer, called at most once per queue per block/tick. It
+    // drains a bounded snapshot, so concurrent producers cannot extend work.
+    pub fn drain(&self, mut receive: impl FnMut(MidiEvent)) {
+        use std::sync::atomic::Ordering::*;
+        let mut head = self.head.load(Relaxed);
+        let tail = self.tail.load(Acquire);
+        while head != tail {
+            let packed = self.slots[head % MIDI_CAPACITY].load(Relaxed);
+            let bytes = [packed as u8, (packed >> 8) as u8, (packed >> 16) as u8];
+            let kind = bytes[0] >> 4;
+            let length = if kind == 12 || kind == 13 { 2 } else { 3 };
+            // Only validated producer data can reach these slots.
+            if let Ok(message) = MidiMessage::decode(&bytes[..length]) {
+                receive(MidiEvent {
+                    message,
+                    sample_offset: (packed >> 32) as u32,
+                    source: match (packed >> 24) & 255 {
+                        1 => Some(MidiSource::Host),
+                        2 => Some(MidiSource::Ui),
+                        3 => Some(MidiSource::Controller),
+                        _ => None,
+                    },
+                });
+            }
+            head = head.wrapping_add(1);
+        }
+        self.head.store(head, Release);
+    }
+}
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    #[test]
+    fn bounded_queue_recovers_and_retains_order() {
+        let queue = MidiQueue::default();
+        for offset in 0..MIDI_CAPACITY {
+            queue
+                .push(MidiEvent {
+                    sample_offset: offset as u32,
+                    ..EMPTY
+                })
+                .unwrap();
+        }
+        assert_eq!(queue.push(EMPTY), Err(MidiError::Full));
+        let mut expected = 0;
+        queue.drain(|event| {
+            assert_eq!(event.sample_offset, expected);
+            expected += 1;
+        });
+        assert_eq!(expected as usize, MIDI_CAPACITY);
+        queue.push(EMPTY).unwrap();
+        let mut count = 0;
+        queue.drain(|_| count += 1);
+        assert_eq!(count, 1);
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct MidiInbox {
+    queue: MidiQueue,
+    pub active: std::sync::atomic::AtomicBool,
+}
+
+/// A cloneable nonblocking sender, safe for multiple producers. Delivery is
+/// at offset zero of the next block. Clones become inactive when the
+/// processor is destroyed. Contention or capacity exhaustion returns `Full`
+/// and requests recovery, rather than waiting on the audio thread.
+#[derive(Clone)]
+pub struct MidiSender {
+    pub(crate) inbox: std::sync::Arc<MidiInbox>,
+    pub(crate) source: MidiSource,
+}
+
+impl MidiSender {
+    /// Queues a typed message. Failure is explicit; do not assume a failed
+    /// Note On/Off was delivered. No allocation or blocking.
+    pub fn send(&self, message: MidiMessage) -> Result<(), MidiError> {
+        if !self.inbox.active.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(MidiError::Inactive);
+        }
+        self.inbox.queue.push(MidiEvent {
+            message,
+            sample_offset: 0,
+            source: Some(self.source),
+        })
+    }
+}
+
+impl MidiStorage {
+    pub fn sender(&self, source: MidiSource) -> MidiSender {
+        MidiSender {
+            inbox: self.incoming.clone(),
+            source,
+        }
+    }
+    pub fn receive(&mut self) {
+        use std::sync::atomic::Ordering::Acquire;
+        let dropped = self.incoming.queue.dropped.load(Acquire);
+        if dropped != self.seen_dropped {
+            self.seen_dropped = dropped;
+            self.input.dropped = self.input.dropped.saturating_add(1);
+            self.recovery = true;
+        }
+        self.incoming.queue.drain(|event| {
+            if self.input.push(event).is_err() {
+                self.recovery = true;
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod concurrent_tests {
+    use super::*;
+    #[test]
+    fn fan_in_preserves_each_producers_order() {
+        let queue = std::sync::Arc::new(MidiQueue::default());
+        let mut threads = Vec::new();
+        for source in 0..4 {
+            let queue = queue.clone();
+            threads.push(std::thread::spawn(move || {
+                for n in 0..256 {
+                    let event = MidiEvent {
+                        message: MidiMessage::ControlChange {
+                            channel: source + 1,
+                            controller: 1,
+                            value: 0,
+                        },
+                        sample_offset: n,
+                        source: None,
+                    };
+                    while queue.push(event).is_err() {
+                        std::thread::yield_now();
+                    }
+                }
+            }));
+        }
+        let mut expected = [0; 4];
+        while expected.iter().sum::<u32>() < 1024 {
+            queue.drain(|event| {
+                let MidiMessage::ControlChange { channel, .. } = event.message else {
+                    panic!("wrong message")
+                };
+                let next = &mut expected[channel as usize - 1];
+                assert_eq!(event.sample_offset, *next);
+                *next += 1;
+            });
+            std::thread::yield_now();
+        }
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        assert_eq!(expected, [256; 4]);
+    }
+}
