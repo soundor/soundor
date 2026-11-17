@@ -23,12 +23,14 @@ runs:
   steps:
     # Mesa's lavapipe is a Vulkan driver on the CPU: GPU tests run on it
     # (SOUNDOR_REQUIRE_GPU=1 makes them fail rather than skip without one).
+    # X11 and XInput 2 headers for native input (loaded at run time, never
+    # linked); XTest for its tests' input under Xvfb.
     - name: Install build tools (Linux)
       if: runner.os == 'Linux'
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends ccache lld-18 ninja-build libfontconfig1-dev libfreetype-dev libglib2.0-dev dbus-daemon mesa-vulkan-drivers libvulkan1 libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libxtst6 xvfb xauth
+        sudo apt-get install -y --no-install-recommends ccache lld-18 ninja-build libfontconfig1-dev libfreetype-dev libglib2.0-dev dbus-daemon mesa-vulkan-drivers libvulkan1 libx11-dev libxext-dev libxi-dev libxtst-dev libxcb1-dev libxcb-shape0-dev xvfb xauth
 
     - name: Install build tools (macOS)
       if: runner.os == 'macOS'

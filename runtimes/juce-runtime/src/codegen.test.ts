@@ -203,7 +203,10 @@ describe('generateJuceSources', () => {
       'runtimeHost().surface().setVisible(isShowing());',
     );
     expect(editor).toContain(
-      'runtimeHost().surface().setFocused(hasKeyboardFocus(true));',
+      'runtimeHost().surface().setFocused(viewFocused());',
+    );
+    expect(editor).toContain(
+      'return nativeInput != nullptr ? nativeInput->focused() : hasKeyboardFocus(true);',
     );
     const timer = editor.slice(
       editor.indexOf('void AudioProcessorEditor::timerCallback()'),
@@ -213,6 +216,56 @@ describe('generateJuceSources', () => {
     );
     expect(timer.indexOf('sizeSurface();')).toBeLessThan(
       timer.indexOf('host->tick();'),
+    );
+  });
+
+  it("reads Linux input natively, in JUCE's event loop, and leaves JUCE's input to other platforms", () => {
+    const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    const update = editor.slice(
+      editor.indexOf('void AudioProcessorEditor::updateNativeInput()'),
+      editor.indexOf('void AudioProcessorEditor::detachNativeInput('),
+    );
+    // Only on Linux, for the peer's native window, read when readable.
+    expect(update).toMatch(
+      /^[^]*?#if JUCE_LINUX[^]*input::createPlatformInput\([^]*#endif/,
+    );
+    expect(update).toContain('juce::LinuxEventLoop::registerFdCallback(');
+    expect(update).toContain("JUCE's input instead");
+    // Over the editor's area only, and JUCE's while its menus and dialogs show.
+    expect(update).toContain('.width = static_cast<float>(getWidth()),');
+    expect(update).toContain('nativeInput->setSuspended(juceModal, ended);');
+    // Input not yet read is delivered before the tick runs the UI's code.
+    const timer = editor.slice(
+      editor.indexOf('void AudioProcessorEditor::timerCallback()'),
+    );
+    expect(timer.indexOf('updateNativeInput();')).toBeLessThan(
+      timer.indexOf('host->tick();'),
+    );
+    // JUCE's callbacks give way to it, so nothing arrives twice.
+    for (const callback of [
+      'mouseMove(const juce::MouseEvent& event)',
+      'mouseEnter(const juce::MouseEvent& event)',
+      'mouseExit(const juce::MouseEvent& event)',
+      'mouseDown(const juce::MouseEvent& event)',
+      'mouseDrag(const juce::MouseEvent& event)',
+      'mouseUp(const juce::MouseEvent& event)',
+      'mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)',
+      'keyPressed(const juce::KeyPress& key)',
+      'keyStateChanged(bool isKeyDown)',
+    ]) {
+      const body = editor.slice(
+        editor.indexOf(`AudioProcessorEditor::${callback}`),
+      );
+      expect(body.slice(0, body.indexOf('}')), callback).toMatch(
+        /if \(nativeInput != nullptr\)\s+return/,
+      );
+    }
+    // The editor closes it before the runtime it delivers to.
+    const destructor = editor.slice(
+      editor.indexOf('AudioProcessorEditor::~AudioProcessorEditor()'),
+    );
+    expect(destructor.indexOf('detachNativeInput(false);')).toBeLessThan(
+      destructor.indexOf('host.reset();'),
     );
   });
 

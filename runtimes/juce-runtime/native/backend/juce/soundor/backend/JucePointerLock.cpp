@@ -20,16 +20,43 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             juce::MouseInputSource source;
         };
 
-        std::unique_ptr<PointerLock::Source> desktopSource(int pointerId)
+        class NativeSource final : public PointerLock::Source
         {
-            auto* source = juce::Desktop::getInstance().getMouseSource(pointerId - 1);
-            if (source == nullptr || ! source->isMouse())
-                return nullptr;
-            return std::make_unique<DesktopSource>(*source);
-        }
+        public:
+            explicit NativeSource(input::PlatformInput& native) : input(native) {}
+
+            [[nodiscard]] bool isDragging() const override { return input.buttons() != 0; }
+            [[nodiscard]] juce::Point<float> screenPosition() const override
+            {
+                const auto at = input.pointerOnScreen().value_or(ui::Point {});
+                return { at.x, at.y };
+            }
+            void setScreenPosition(juce::Point<float> position) override
+            {
+                input.warpPointer({ position.x, position.y });
+            }
+
+        private:
+            input::PlatformInput& input;
+        };
     } // namespace
 
-    PointerLock::PointerLock() : PointerLock(desktopSource) {}
+    std::unique_ptr<PointerLock::Source> desktopPointerSource(int pointerId)
+    {
+        auto* source = juce::Desktop::getInstance().getMouseSource(pointerId - 1);
+        if (source == nullptr || ! source->isMouse())
+            return nullptr;
+        return std::make_unique<DesktopSource>(*source);
+    }
+
+    std::unique_ptr<PointerLock::Source> nativePointerSource(input::PlatformInput& input, int pointerId)
+    {
+        if (pointerId != 1)
+            return nullptr;
+        return std::make_unique<NativeSource>(input);
+    }
+
+    PointerLock::PointerLock() : PointerLock(desktopPointerSource) {}
 
     PointerLock::PointerLock(Sources provided) : sources(std::move(provided)) {}
 

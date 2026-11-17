@@ -187,9 +187,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return (static_cast<unsigned char>(c) & 0xC0) == 0x80;
         }
 
-        // Pixels a wheel line scrolls, as browsers do.
-        constexpr float pixelsPerLine = 40;
-
         // Applies a measure mode to a natural size.
         float constrain(float natural, float available, YGMeasureMode mode)
         {

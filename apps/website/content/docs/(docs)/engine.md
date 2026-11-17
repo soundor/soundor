@@ -217,6 +217,11 @@ doctor` warns when this machine's is newer than 2.39.
 GIO comes from GLib (`libglib2.0-dev` on Ubuntu/Debian). CMake propagates the
 dynamic library through source builds and prebuilt imports automatically.
 
+An engine built from source also needs the X11 and XInput 2 headers
+(`libx11-dev` and `libxi-dev`; `libX11-devel` and `libXi-devel` on Fedora),
+for Soundor's own Linux input. Nothing is linked: an editor loads `libX11`
+and `libXi`, which every X11 or XWayland desktop has, when it opens.
+
 The static library comes with the compiler on most distributions. On Fedora and
 RHEL it is a separate package, and every build stops without it, before compiling
 anything:

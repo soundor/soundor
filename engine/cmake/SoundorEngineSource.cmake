@@ -89,6 +89,18 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
 endif()
+# Native input: Soundor's own where it has one (Linux: X11 and XInput 2), the
+# plugin framework's elsewhere (see src/input/Platform.cpp).
+list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # Only their headers: libX11 and libXi are loaded when a view opens, so an
+  # engine needs no X11 to load (src/input/linux/Xlib.h).
+  find_package(X11)
+  if(NOT X11_FOUND OR NOT X11_Xi_INCLUDE_PATH OR NOT X11_Xkb_INCLUDE_PATH)
+    message(FATAL_ERROR "Soundor's Linux input needs the X11 and XInput 2 headers (libx11-dev and libxi-dev on Debian and Ubuntu, libX11-devel and libXi-devel on Fedora).")
+  endif()
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/linux/Keys.cpp src/input/linux/Scroll.cpp src/input/linux/X11Input.cpp)
+endif()
 # The GPU: ANGLE's devices and contexts, the GPU compositor and where it
 # presents (see SoundorAngle.cmake).
 if(SOUNDOR_HAS_GPU)
@@ -120,6 +132,9 @@ if(SOUNDOR_ENABLE_DEVTOOLS)
 endif()
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_include_directories(soundor_runtime SYSTEM PRIVATE ${X11_INCLUDE_DIR} ${X11_Xi_INCLUDE_PATH})
+endif()
 # Each with the name it is registered under, which its bytecode carries,
 # lowered from src/ while building (soundor_embed_module()).
 soundor_embed_module(soundor_runtime languageModule src/js/language.js soundor:internal/language)

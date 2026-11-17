@@ -3,6 +3,7 @@
 // JUCE backend: the pointer lock a Soundor view asks for (Surface::pointerLock).
 
 #include <soundor/Abi.h>
+#include <soundor/input/Platform.h>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -36,7 +37,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         // The source of a Soundor pointer id, or null.
         using Sources = std::function<std::unique_ptr<Source>(int pointerId)>;
 
-        // juce::Desktop's mouse sources: pointer id n is source n - 1.
+        // juce::Desktop's mouse sources (desktopPointerSource()).
         PointerLock();
         explicit PointerLock(Sources provided);
         ~PointerLock();
@@ -63,4 +64,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         juce::Point<float> start;  // in the view
         juce::Point<float> offset; // the moves back, added up
     };
+
+    // juce::Desktop's mouse source for a pointer id (pointer n is source n -
+    // 1), or null: where JUCE's input is the view's.
+    [[nodiscard]] std::unique_ptr<PointerLock::Source> desktopPointerSource(int pointerId);
+
+    // The mouse (pointer 1) of Soundor's native input, or null: where the
+    // view's input is Soundor's own (Linux). Its screen positions are the
+    // native input's physical pixels, which the lock only hands back to it.
+    [[nodiscard]] std::unique_ptr<PointerLock::Source> nativePointerSource(input::PlatformInput& input, int pointerId);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

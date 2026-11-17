@@ -690,9 +690,11 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     (`dblclick`) to the same node, unless the click's listeners removed it.
     The JUCE adapter reports `MouseEvent::getNumberOfClicks()`, JUCE's count
     by its double-click timeout, which the editor sets to the platform's
-    (`backend::useDoubleClickTime()`: macOS's and Windows' setting, the
-    XSETTINGS `Net/DoubleClickTime` on Linux, else JUCE's 400 ms); synthetic
-    input says its count (`clickCount`).
+    (`backend::useDoubleClickTime()`: macOS's and Windows' setting, else
+    JUCE's 400 ms). On Linux Soundor counts them itself
+    (`input::ClickCounter`, by the XSETTINGS `Net/DoubleClickTime`; see
+    [native input](#native-input)); synthetic input says its count
+    (`clickCount`).
   - **Movement:** each pointer event's `movement` is how far the pointer moved
     since its previous input (`movementX`/`movementY`).
   - **Screen:** `PointerInput::screen` is where the pointer is on the screen
@@ -704,7 +706,8 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     release, a cancel, `exitPointerLock()` or the node leaving the tree, its
     events carry the position the lock began with, only `movement` changing.
     The backend reads `Surface::pointerLock()` after input and every tick: the
-    JUCE adapter's `PointerLock` keeps the locked pointer in the view, where
+    JUCE adapter's `PointerLock` (moving JUCE's mouse, or on Linux the native
+    input's pointer) keeps the locked pointer in the view, where
     the editor shows no cursor: when it strays from where the lock began it is
     moved back, and drags carry on past the view's edges as if nothing stopped
     them (a cursor is a window's on Linux, so a pointer that left the view
@@ -1243,6 +1246,155 @@ exists. It activates while VoiceOver or Switch Control is on. Its
 attachment, lifecycle and the manual VoiceOver checklist are in
 [Apple bridge notes](/docs/contribute/apple-accessibility).
 
+### Native input
+
+The view's input is Soundor's own where the engine has a backend for the
+platform, and the plugin framework's (JUCE's) elsewhere. Either way it ends
+in the same `ui::Surface` calls (`ui/Input.h`'s normalized input), so hit
+testing, capture, hover, clicks, focus, keyboard navigation, scrolling and
+every `soundor:ui` and React event are the same, and plugin code cannot tell
+where input came from.
+
+| Platform                    | Pointer, wheel, keys, text, focus      | The native view    |
+| --------------------------- | -------------------------------------- | ------------------ |
+| Linux (X11, XWayland)       | Soundor (`src/input/linux/`, XInput 2) | JUCE's peer window |
+| macOS, Windows              | JUCE (`JuceInput.cpp`)                 | JUCE               |
+| Linux without X11 libraries | JUCE, with a warning in the log        | JUCE's peer window |
+
+`input::createPlatformInput()` (`include/soundor/input/Platform.h`) makes
+one `input::PlatformInput` for one native view, as
+`a11y::createPlatformAccessibility()` does for accessibility, and returns
+null where there is no backend (or it cannot start, saying why). The backend
+reads its events (`read()`, into `input::Event`s: pointer, wheel, key with
+the text it types, committed text, focus) and the framework adapter gives
+them to the surface the way it gives the framework's: the generated JUCE
+editor's `deliverNative()` uses the same `deliver()` (zoom, DevTools,
+pointer lock, cursor), wheel, key and text paths as its JUCE callbacks.
+
+**Event ownership (Linux).** JUCE keeps its window, and its own X11
+connection, which JUCE's event loop reads. Soundor opens a connection of its
+own per view. On it, it puts an input-only window of its own over the
+editor's area of JUCE's window (`ViewGeometry`, following the editor's
+place and size) and selects that window's pointer, button and crossing
+events with XInput 2, and the view's key and focus events (keys go to the
+focused window, the view, wherever the pointer is). The X server delivers a
+device event to the deepest window that takes it, as XInput 2 events where
+a client selected those, and then not as the core events another client
+selected there, so JUCE's connection no longer receives the editor's
+presses, motion or keys (`X11InputTests.cpp` checks it against a client
+selecting what JUCE's peers select), each reaches Soundor once, and what
+JUCE draws around the editor (a Standalone's title bar and buttons) keeps
+JUCE's input. The input window has no cursor of its own, so it shows the one
+JUCE sets on its window. While JUCE shows a menu or a modal dialog of its own
+(`ModalComponentManager`, which JUCE's menus are shown through too: a
+Standalone's options), the input is suspended (`setSuspended()`): what was in progress
+ends, the input window is unmapped and the view's keys deselected, so JUCE
+has the view's input as its menus expect (a press beside one closes it). Nothing intercepts JUCE or its connection, and two consumers
+never read one queue. The editor registers the connection's descriptor with
+`juce::LinuxEventLoop::registerFdCallback()`, which in a plugin is the
+host's run loop (VST3 `IRunLoop`) on its UI thread, and also reads every
+tick; there is no thread of its own, and nothing reaches the audio thread.
+JUCE's callbacks give way while the native input runs, so what JUCE
+synthesizes (moves when components change) is not delivered twice. Each
+editor's input selects only its own view's events. Enter, leave and
+focus still also reach JUCE, which manages the window; keyboard focus is
+requested through JUCE (`grabKeyboardFocus()`, as a press did with JUCE's
+input), so embedding and XEmbed keep working as JUCE does them.
+
+**Isolation.** Each editor's input has its own connection, selections,
+device state and input context, gone with it: closing the connection
+releases the selections, the input context and any implicit grab, even when
+the host destroyed the window first. libX11, libXi and (optionally)
+libxkbcommon are loaded with `dlopen` when the first view opens
+(`src/input/linux/Xlib.h`, read-only once loaded), so an engine links no
+X11 and a plugin loads without it. X errors on the connection go to an
+error hook on that display (`XESetError`, found through the display's
+extension list), never to the process's handler, which Xlib's default
+would make exit; a lost connection (libX11 1.7's per-display
+`XSetIOErrorExitHandler`) stops that view's input instead of the host.
+No grab is taken but the X server's implicit one, from a press to its
+release.
+
+**Pointer.** Positions are the event's in the view (physical pixels,
+fractional), converted to the editor's logical pixels with the geometry the
+editor gives every tick and resize (`ViewGeometry`: its place and scale in
+the native window, so a host's `setScaleFactor()` and high-density displays
+convert as JUCE's did); `screen` is the root position over the same scale.
+The first button pressed is the `Down`; others pressed or released while one
+is held are moves with `button` set, and the last release the `Up`, as Web
+pointer events chord them. The implicit grab carries moves and the release
+outside the view. A press the view can no longer finish is cancelled: the
+view unmapped or destroyed, a grab taking the pointer (`Leave` with mode
+`Grab`/`Ungrab` while pressed), or a later event showing the buttons
+released elsewhere. Clicks are counted by `input::ClickCounter` (same
+button, within the double-click time and 4 pixels, not after a drag). Back
+and forward buttons are not reported (as before).
+
+**Scrolling.** XInput 2.1 scroll classes (`XIQueryDevice`,
+`XIScrollClassInfo`) give each device's scroll valuators and their
+increment: a valuator adds up what was scrolled, so a motion scrolls its
+difference from the value before, over the increment, in notches
+(`input::x11::ScrollDevices`, per slave device: a master's events say which
+slave in `sourceid`). Values are taken from the device again whenever they
+may have moved unseen: when the pointer enters the view, on
+`XI_DeviceChanged` (a new slave behind the master, or a device's classes
+changing) and on `XI_HierarchyChanged` (devices added or removed). Both
+axes are read from one motion, so diagonal scrolling is one event, and
+fractions are kept (`double`, then `float` pixels). XInput 2.1 also sends
+older clients wheel buttons (4 to 7) emulated from those valuators, flagged
+`XIPointerEmulated`; those are ignored, and only a wheel without scroll axes
+scrolls by its buttons, so nothing scrolls twice. Whole notches are
+`WheelInput::Unit::Line`s (three a notch, as JUCE reported a wheel's), and
+fractions (touchpads, high-resolution wheels) are pixels at the same
+distance a notch (`3 × ui::pixelsPerLine`), so a device scrolls as far
+however its scrolling comes. What was read together, at one place with the
+same modifiers, is one wheel event. Touchpad scrolling follows the device
+directly: no easing is added, and kinetic scrolling is the driver's or
+compositor's. The surface's scrolling (nested views, Shift for horizontal,
+Control as zoom, clamping) is unchanged and takes fractional offsets.
+
+**Keys.** Key events come as XInput 2 events and are made into the core
+events they replace (with XKB's effective modifiers and group, so the
+current layout), for the input method and Xlib. `KeyboardEvent.key` is the
+keysym of the key's level without Control (`XkbLookupKeySym`), as the Web
+names it (`input/linux/Keys.cpp`: named keys, `"Dead"` for dead keys, else
+the keysym's character, through xkbcommon's `xkb_keysym_to_utf8` where it is
+loaded); modifiers are Shift, Control, Alt (Mod1) and Meta (Mod4, Super),
+a modifier key's own press holding it. Repeats are keys pressed again while
+held; releases go to the keys whose press was reported. A keyboard layout
+changing (`MappingNotify`, XKB's included) refreshes Xlib's map. Key events
+sent to the view (an XEmbed embedder forwards keys so) arrive as core
+events and are read the same. Losing the focus releases held keys first.
+An unhandled key goes nowhere else: the X server delivered it to this
+window alone, as it did to JUCE's (which dropped it too); Soundor never
+grabs the keyboard or sees keys while the host has the focus.
+
+**Text and composition.** Text is an X input method's (XIM) on the same
+connection: Xlib's own (dead keys and Compose sequences, by the locale's
+Compose table, with no daemon) or the user's server (XMODIFIERS: IBus,
+Fcitx). The context composes only while the view has the focus and its
+focused node is a text input (`setTextInputFocused()`), so elsewhere keys
+stay keys. A key the input method takes is not reported; what it gives back
+is, and what it commits arrives as text (`ui::TextInput`). Preedit is the
+input method's to show (`XIMPreeditNothing`): Soundor has no composition
+events to show it in the field. A locale Xlib does not support means no
+input method: keys still type their keysym's character. Xlib's locale
+modifiers are the process's: they are set (`XSetLocaleModifiers("")`) only
+where nothing in the process set them.
+
+**Focus.** The native focus is the view's window having the X keyboard
+focus (it or a window in it, after each `XI_FocusIn`/`XI_FocusOut`; a
+keyboard grab by another client counts as lost). It is what the surface
+(`Surface::setFocused`) and accessibility are told; which node has focus is
+the surface's, as before.
+
+**Where to add others.** Another platform adds `src/input/<platform>/` and
+a case in `src/input/Platform.cpp`, and its framework adapter stops
+delivering what it replaces, as the JUCE editor does with `nativeInput`.
+Native Wayland (a `wl_seat` on the compositor's surface) would be the next
+on Linux; macOS (`NSEvent` on the editor's `NSView`) and Windows (window
+messages, `WM_POINTER`) remain JUCE's.
+
 ### `RuntimeHost`
 
 `RuntimeHost` is what a backend creates per plugin view: a runtime and context
@@ -1773,6 +1925,18 @@ compositor and WebGL (see "The GPU").
   BSD for the rest). The install's `licenses/` directory has their notices;
   ship them with the plugin.
 
+### Native input dependencies
+
+Linux builds need the X11 and XInput 2 headers (`libx11-dev` and
+`libxi-dev` on Debian and Ubuntu, `libX11-devel` and `libXi-devel` on
+Fedora); nothing is linked. At run time the input loads `libX11.so.6` and
+`libXi.so.6`, which every X11 and XWayland desktop has (JUCE's windows need
+libX11 already), and `libxkbcommon.so.0` for keysyms' characters where it
+is there (GTK and Qt require it); without libX11 or libXi the editor keeps
+JUCE's input and says so in the log. The native tests also link XTest
+(`libxtst-dev`) and run under `xvfb-run`. All three libraries are MIT
+licensed system libraries, not shipped with a plugin.
+
 ### Accessibility dependencies
 
 Windows uses native UI Automation system libraries (`uiautomationcore`, `ole32`,
@@ -1936,6 +2100,14 @@ cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
 cmake --build build/juce --target soundor_juce_editor_resize
 (cd build/juce && xvfb-run -a -s "-screen 0 1920x1200x24" ctest -R editor_resize)
 ```
+
+On Linux, `soundor_juce_editor_input` uses the same plugin with real X11
+input (XTest): each editor must read its input natively (the plugin's log
+says `input: native`, never JUCE's fallback), a press must toggle the plugin's bypass once and take the keyboard focus,
+land where it is drawn under a host's scale of 1.5, keep working across
+editors closed and opened again, and stay with the instance it was made in
+when two are open. CI's Linux JUCE job runs it next to the resize test
+(`-DSOUNDOR_INPUT_PLUGIN=…`, `ctest -R editor_input`).
 
 Requires CMake ≥ 3.25 for the presets (the library itself needs 3.22) and a
 C++20 compiler. CI builds with Clang 18 and GCC on Linux, Apple Clang on macOS,
