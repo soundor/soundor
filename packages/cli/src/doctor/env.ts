@@ -33,7 +33,7 @@ export function runEnvironmentChecks(
 }
 
 /**
- * Rust, which compiles every plugin's audio processing (`native/`): Cargo
+ * Rust, which compiles every plugin's Rust library (`lib/`): Cargo
  * and a rustc at least {@link REQUIRED_RUST}. Never installs anything.
  */
 export function checkRust(probe: CommandProbe = probeCommand): DoctorCheck {
@@ -44,7 +44,7 @@ export function checkRust(probe: CommandProbe = probeCommand): DoctorCheck {
     return {
       label: 'Rust',
       status: 'fail',
-      detail: `${cargo.ok ? 'rustc' : 'Cargo'} was not found; it compiles the plugin's audio processing (native/).`,
+      detail: `${cargo.ok ? 'rustc' : 'Cargo'} was not found; it compiles the plugin's Rust library (lib/).`,
       suggestion: `Install Rust ${required} or newer with rustup (https://rustup.rs).`,
     };
   const match = /rustc (\d+)\.(\d+)\.(\d+)/.exec(rustc.version ?? '');

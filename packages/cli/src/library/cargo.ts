@@ -1,8 +1,8 @@
 /**
  * Cargo, as the CLI runs it for a runtime: `cargo rustc` on the project's
- * `native/` crate, for the crate type and target the runtime asks for, in a
- * target directory of the project's own (`.soundor/cache/native`), so that
- * neither rust-analyzer's `cargo check` nor `cargo test` in `native/` waits
+ * `lib/` crate, for the crate type and target the runtime asks for, in a
+ * target directory of the project's own (`.soundor/cache/lib`), so that
+ * neither rust-analyzer's `cargo check` nor `cargo test` in `lib/` waits
  * on the build's lock or invalidates its artifacts. Cargo compiles
  * incrementally: a build after a UI-only change does no work.
  */
@@ -11,15 +11,24 @@ import { existsSync, watch, type FSWatcher } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import type {
-  NativeBuildRequest,
-  NativeCrateContext,
-  NativeLibrary,
+  LibraryBuildRequest,
+  LibraryBuildContext,
+  LibraryArtifact,
 } from '@soundor/config';
 import { EnvError, RuntimeError, type Logger } from '@soundor/core';
 
 /** The crate's manifest in a project, when it has one. */
-export function nativeManifest(root: string): string | undefined {
-  const manifest = resolve(root, 'native', 'Cargo.toml');
+export function libraryManifest(root: string): string | undefined {
+  const manifest = resolve(root, 'lib', 'Cargo.toml');
+  if (existsSync(resolve(root, 'native', 'Cargo.toml'))) {
+    if (existsSync(manifest))
+      throw new EnvError(
+        'Both lib/Cargo.toml and native/Cargo.toml exist. Keep the Rust processor and controller library in lib/ and move or remove the obsolete native/ crate yourself. Soundor cannot choose between them; no files have been changed.',
+      );
+    throw new EnvError(
+      'The Rust library directory has moved: rename native/ to lib/ (native/Cargo.toml → lib/Cargo.toml), then run soundor gen. Soundor will not rename or delete your files.',
+    );
+  }
   return existsSync(manifest) ? manifest : undefined;
 }
 
@@ -77,10 +86,10 @@ export function rustHostTriple(): string {
   return host;
 }
 
-export interface BuildNativeOptions {
+export interface BuildLibraryOptions {
   readonly root: string;
   readonly manifest: string;
-  readonly request: NativeBuildRequest;
+  readonly request: LibraryBuildRequest;
   readonly logger: Logger;
   readonly signal?: AbortSignal;
   readonly spawn?: SpawnCargo;
@@ -91,7 +100,7 @@ export interface BuildNativeOptions {
 export function cargoArguments(
   root: string,
   manifest: string,
-  request: NativeBuildRequest,
+  request: LibraryBuildRequest,
   target: string,
 ): { args: string[]; targetDir: string } {
   const staticCrt = request.staticCrt === true && target.endsWith('-msvc');
@@ -101,7 +110,7 @@ export function cargoArguments(
     root,
     '.soundor',
     'cache',
-    'native',
+    'lib',
     staticCrt ? 'target-crt-static' : 'target',
   );
   const args = [
@@ -128,9 +137,9 @@ export function cargoArguments(
 }
 
 /** Compiles the crate's library; resolves to its path. */
-export async function buildNativeLibrary(
-  options: BuildNativeOptions,
-): Promise<NativeLibrary> {
+export async function buildLibrary(
+  options: BuildLibraryOptions,
+): Promise<LibraryArtifact> {
   const { request, logger } = options;
   const target = request.target ?? (options.host ?? rustHostTriple)();
   const { args } = cargoArguments(
@@ -176,7 +185,7 @@ export async function buildNativeLibrary(
   });
   if (code !== 0)
     throw new RuntimeError(
-      `The native crate (${options.manifest}) failed to compile for ${target}; Cargo's errors are above.`,
+      `The Rust library (${options.manifest}) failed to compile for ${target}; Cargo's errors are above.`,
     );
   const extension =
     request.crateType === 'cdylib' ? /\.(wasm|so|dylib|dll)$/ : /\.(a|lib)$/;
@@ -192,7 +201,7 @@ export async function buildNativeLibrary(
  * Calls `listener` after the crate's sources or manifest change, at most once
  * per `delay` milliseconds. `target/` is ignored.
  */
-export function watchNativeCrate(
+export function watchLibrary(
   dir: string,
   listener: () => void,
   delay = 150,
@@ -218,19 +227,19 @@ export function watchNativeCrate(
   };
 }
 
-/** The `ctx.native` the CLI gives runtimes, or undefined without a crate. */
-export function nativeCrateContext(
+/** The `ctx.lib` the CLI gives runtimes, or undefined without a crate. */
+export function libraryBuildContext(
   root: string,
   logger: Logger,
   signal?: AbortSignal,
   options: { watch?: boolean; spawn?: SpawnCargo } = {},
-): NativeCrateContext | undefined {
-  const manifest = nativeManifest(root);
+): LibraryBuildContext | undefined {
+  const manifest = libraryManifest(root);
   if (manifest === undefined) return undefined;
   return {
     manifest,
     build: (request) =>
-      buildNativeLibrary({
+      buildLibrary({
         root,
         manifest,
         request,
@@ -241,7 +250,7 @@ export function nativeCrateContext(
     ...(options.watch === true
       ? {
           onChange: (listener: () => void) =>
-            watchNativeCrate(resolve(root, 'native'), listener),
+            watchLibrary(resolve(root, 'lib'), listener),
         }
       : {}),
   };

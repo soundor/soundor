@@ -118,7 +118,7 @@ Consider contributing broadly useful sources to Soundor's built-in collection.
 
 ## Lifecycle and ownership
 
-You own your UI in `src/`, Rust code in `native/`, and optional browser input
+You own your UI in `src/`, Rust code in `lib/`, and optional browser input
 modules. Soundor owns the host inside `@soundor/web-runtime`; no implementation
 files are copied into your project.
 
@@ -359,7 +359,7 @@ cancellation, browser limitations and migration from `WebNativeApi`.
 ## Audio: the plugin's processor, in WebAssembly
 
 The Web host runs the same audio processing as the JUCE plugin: the
-project's Rust crate, `native/`, compiled to WebAssembly
+project's Rust crate, `lib/`, compiled to WebAssembly
 (`wasm32-unknown-unknown`) and run in an AudioWorklet. There is no Web Audio
 code of your own to write, and nothing to keep in step with the plugin's
 DSP. See [The audio processing](/docs/juce-runtime#the-audio-processing) for
@@ -369,11 +369,11 @@ the processor itself.
 source → input bus → the processor (AudioWorklet) → output bus → master gain → speakers
 ```
 
-- **Building.** `soundor dev web` and `soundor build web` compile `native/`
+- **Building.** `soundor dev web` and `soundor build web` compile `lib/`
   with Cargo (`cargo rustc --crate-type cdylib --target
-  wasm32-unknown-unknown --release`, in `.soundor/cache/native`) before
+  wasm32-unknown-unknown --release`, in `.soundor/cache/lib`) before
   Vite runs. The module is part of the bundle, so a static build needs no
-  other file and works below any path and in iframes. A change to `native/`
+  other file and works below any path and in iframes. A change to `lib/`
   during `soundor dev web` builds it again and reloads the page.
 - **Requirements.** Rust and its `wasm32-unknown-unknown` target
   (`rustup target add wasm32-unknown-unknown`), which `soundor doctor`

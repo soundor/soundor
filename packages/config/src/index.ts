@@ -112,9 +112,9 @@ export type {
   RuntimeMode,
   RuntimePhase,
   LiveUiContext,
-  NativeBuildRequest,
-  NativeCrateContext,
-  NativeLibrary,
+  LibraryBuildRequest,
+  LibraryBuildContext,
+  LibraryArtifact,
   UiBundleContext,
 } from './context';
 

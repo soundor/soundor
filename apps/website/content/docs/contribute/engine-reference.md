@@ -1325,7 +1325,7 @@ its values any more.
 
 ## Rust processor hosting
 
-A plugin's audio processing is its Rust crate (`native/`, the
+A plugin's audio processing is its Rust crate (`lib/`, the
 [Rust SDK](/docs/rust-processor) in the `soundor` npm package). The engine
 hosts it, natively and in the browser; the runtimes decide when, with which
 configuration, and where its audio comes from and goes.
@@ -1438,7 +1438,7 @@ its lifecycle.
 |                                                                     | Owns                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The Rust SDK (`controller.rs`, `schedule.rs`, `executor.rs`, …)     | `Controller`, the contexts, the stores, `schedule()`'s state machine, the per-instance worker, the value encoding (`wire.rs`), state JSON (`json.rs`), and the controller's C ABI (`controller_ffi.rs`, `host.rs`), which `export!` defines                          |
-| `soundor gen` (`packages/cli/src/native/controller-codegen.ts`)     | the generated `NativeMethods` trait and its dispatch (by method number, arguments decoded, results encoded), the native types, typed `ParameterAccess` and `StateAccess`, and the descriptor (`describeController()` in `@soundor/core`)                             |
+| `soundor gen` (`packages/cli/src/library/controller-codegen.ts`)    | the generated `NativeMethods` trait and its dispatch (by method number, arguments decoded, results encoded), the native types, typed `ParameterAccess` and `StateAccess`, and the descriptor (`describeController()` in `@soundor/core`)                             |
 | The engine (`processor/RustController.h`, `src/js/RustMethods.cpp`) | `RustControllerAbi.h`; `processor::RustController`: the descriptor check, create and destroy, calls, operations and their completions, the bounded `pump()`, the services as C callbacks; the generic bindings: one JavaScript function per described method         |
 | A runtime (`juce-runtime`)                                          | when it is created and destroyed (with the plugin instance), its services (`ControllerServices`: parameter editors, the state store, History, presets), waking (`wake()` → an `AsyncUpdater` → `pump()`), and installing it into each editor (`installController()`) |
 
@@ -1978,7 +1978,7 @@ iterator debugging, C runtime and DevTools layout, all in the link-time anchor
 ```text
 soundor-engine.json      what the archive is: version, ABI namespace, source commit,
                          variant, target, toolchain, features, Hermes, link order
-lib/                     the engine, ada, Yoga
+lib/                           the engine, ada, Yoga
 hermes/                  the variant's Hermes libraries, its headers (JSI), bin/hermesc
 skia/  angle/            their static libraries; ANGLE's headers
 include/soundor/Abi.h    the generated ABI header, for reference

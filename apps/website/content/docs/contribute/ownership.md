@@ -12,7 +12,7 @@ user code. Both first-party runtimes keep their hosts inside their packages.
 ## Where the code is
 
 `packages/cli/src/commands/gen.ts` orchestrates generation. The CLI's
-`native/scaffold.ts` supplies a starter crate when `native/Cargo.toml` is absent. Existing
+`library/scaffold.ts` supplies a starter crate when `lib/Cargo.toml` is absent. Existing
 crates keep their sources, tests, package names and layout unchanged. Core's `paths.ts`, `codegen.ts` and `generate.ts` define the
 output paths, collection and writing of derived files.
 
@@ -20,7 +20,7 @@ output paths, collection and writing of derived files.
 
 | Location                            | Owner and lifetime                                                 |
 | ----------------------------------- | ------------------------------------------------------------------ |
-| `native/`, `rust-toolchain.toml`    | User-owned; `gen` creates a crate only when its manifest is absent |
+| `lib/`, `rust-toolchain.toml`       | User-owned; `gen` creates a crate only when its manifest is absent |
 | `.soundor/generated/`               | Shared declarations and Rust SDK, regenerated from config          |
 | `.soundor/generated/runtimes/<id>/` | Runtime codegen output, `ctx.paths.gen`                            |
 | `.soundor/cache/<id>/`              | Runtime scratch/build data, `ctx.paths.cache`                      |

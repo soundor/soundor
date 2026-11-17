@@ -8,7 +8,7 @@
     "dev": "soundor dev juce",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
-    "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
+    "test:rust": "soundor gen && cargo test --manifest-path lib/Cargo.toml",
     "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {

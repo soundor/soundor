@@ -21,7 +21,7 @@ import {
   webRuntime,
 } from './index';
 import {
-  fakeNative,
+  fakeLibrary,
   makeCtx,
   SOURCE_CLIENT_DIR,
   tempProject,
@@ -452,17 +452,67 @@ describe('webDoctor', () => {
   });
 });
 
-describe('the audio processor', () => {
+describe('the Rust library', () => {
+  it('rebuilds lib on source changes, reloads the page, and stops watching on abort', async () => {
+    const root = await tempProject();
+    const controller = new AbortController();
+    const lib = fakeLibrary(root);
+    let changed: (() => void) | undefined;
+    const stop = vi.fn<() => void>();
+    const ctx = makeCtx(root, {
+      signal: controller.signal,
+      lib: {
+        ...lib,
+        onChange: (listener) => {
+          changed = listener;
+          return stop;
+        },
+      },
+    });
+    const module = {};
+    const server = {
+      ...fakeServer(),
+      moduleGraph: {
+        getModuleById: vi.fn<() => object>(() => module),
+        invalidateModule: vi.fn<(module: object) => void>(),
+      },
+      ws: { send: vi.fn<(message: { type: string }) => void>() },
+    };
+    const running = webDev(testConfig, ctx, {
+      createServer: (async () => server) as never,
+    });
+    try {
+      await vi.waitFor(() => expect(server.listen).toHaveBeenCalledOnce());
+      changed!();
+      await vi.waitFor(() =>
+        expect(server.ws.send).toHaveBeenCalledWith({ type: 'full-reload' }),
+      );
+      expect(lib.requests).toEqual(
+        Array.from({ length: 2 }, () => ({
+          crateType: 'cdylib',
+          target: 'wasm32-unknown-unknown',
+          profile: 'release',
+        })),
+      );
+      expect(server.moduleGraph.invalidateModule).toHaveBeenCalledWith(module);
+    } finally {
+      controller.abort();
+      await running;
+    }
+    expect(stop).toHaveBeenCalledOnce();
+    expect(server.close).toHaveBeenCalledOnce();
+  });
+
   it('is compiled to WebAssembly, optimized, for dev and build', async () => {
     const root = await tempProject();
-    const native = fakeNative(root);
-    const ctx = makeCtx(root, { native });
+    const lib = fakeLibrary(root);
+    const ctx = makeCtx(root, { lib });
     await webGen(testConfig, ctx);
     const build = vi.fn<() => Promise<undefined>>(
       async () => undefined,
     ) as never;
     await webBuild(testConfig, ctx, { build });
-    expect(native.requests).toEqual([
+    expect(lib.requests).toEqual([
       {
         crateType: 'cdylib',
         target: 'wasm32-unknown-unknown',
@@ -471,11 +521,11 @@ describe('the audio processor', () => {
     ]);
   });
 
-  it('is required: a project without native/ is told to create it', async () => {
+  it('is required: a project without lib/ is told to create it', async () => {
     const root = await tempProject();
-    const ctx = makeCtx(root, { native: null });
+    const ctx = makeCtx(root, { lib: null });
     await expect(
       webBuild(testConfig, ctx, { build: vi.fn<() => void>() as never }),
-    ).rejects.toThrow(/no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor gen/);
+    ).rejects.toThrow(/no Rust library \(lib\/Cargo.toml\)[\s\S]*soundor gen/);
   });
 });

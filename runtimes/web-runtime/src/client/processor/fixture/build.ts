@@ -1,5 +1,5 @@
 // The fixture processor (the SDK's fixture contract) built with Cargo for
-// wasm32-unknown-unknown, as the Web runtime builds a plugin's native/.
+// wasm32-unknown-unknown, as the Web runtime builds a plugin's lib/.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

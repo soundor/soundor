@@ -1,15 +1,15 @@
 ---
 title: 'Rust audio processing'
-description: 'One native/ crate, run through JUCE FFI and WebAssembly in an AudioWorklet.'
+description: 'One lib/ crate, run through JUCE FFI and WebAssembly in an AudioWorklet.'
 ---
 
 Write the UI in TypeScript and React and the audio processing in Rust. Both
-runtimes execute the same `native/` crate. JUCE supplies the plugin host
+runtimes execute the same `lib/` crate. JUCE supplies the plugin host
 integration; the Web runtime supplies Web Audio routing and an AudioWorklet.
 
 ## Files and tools
 
-`soundor gen` creates `native/Cargo.toml`, `native/src/processor.rs`, processor tests,
+`soundor gen` creates `lib/Cargo.toml`, `lib/src/processor.rs`, processor tests,
 and `rust-toolchain.toml` once. The toolchain file requests `stable`. Install
 Rust with Cargo before running the CLI; for the Web runtime also install
 `rustup target add wasm32-unknown-unknown`. `soundor doctor` checks these
@@ -36,7 +36,7 @@ Soundor manages only its SDK integration, leaving unrelated dependencies alone.
 
 ## A processor
 
-For a config with a float32 parameter named `gain`, `native/src/processor.rs` can be:
+For a config with a float32 parameter named `gain`, `lib/src/processor.rs` can be:
 
 ```rust
 use soundor::prelude::*;
@@ -172,7 +172,7 @@ fn process(&mut self, ctx: &mut ProcessContext) {
 and links it into the JUCE plugin with CMake. `soundor build web` compiles it to
 a WebAssembly module and includes it in the static Web build. `soundor dev`
 watches the crate as well as the UI. Cargo's incremental cache lives under
-`.soundor/cache/native/`; UI-only rebuilds do not recompile the crate. Restart
+`.soundor/cache/lib/`; UI-only rebuilds do not recompile the crate. Restart
 development after changing the config or runtime-specific C++ host code.
 
 The internal native ABI uses versioned, sized C structures and an opaque
@@ -221,7 +221,7 @@ not provide a hard real-time guarantee even when Rust processing allocates nothi
 
 1. Run `soundor gen` to create the Rust crate and toolchain file, then edit the processor.
 2. Port plugin DSP from the JUCE `process` override and Web `audio.ts` to
-   `Processor` in `native/src/processor.rs`. Move reusable allocations to `prepare`.
+   `Processor` in `lib/src/processor.rs`. Move reusable allocations to `prepare`.
 3. Remove the JUCE DSP override; the generated processor now owns the JUCE
    processing lifecycle. Keep runtime-specific native methods and editor code.
 4. Move custom Web input sources into a browser module and migrate to the

@@ -18,8 +18,8 @@ import {
   type CollectingCodegenSink,
   type LifecycleContext,
   type Logger,
-  type NativeBuildRequest,
-  type NativeCrateContext,
+  type LibraryBuildRequest,
+  type LibraryBuildContext,
   type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
@@ -68,23 +68,23 @@ export interface MakeCtxOptions {
   readonly signal?: AbortSignal;
   readonly ui?: LifecycleContext['ui'];
   /** The project's Rust crate; a fake that records builds by default, none with null. */
-  readonly native?: NativeCrateContext | null;
+  readonly lib?: LibraryBuildContext | null;
 }
 
 /** A fake Rust crate: records builds, and writes an empty, valid module. */
-export interface FakeNative extends NativeCrateContext {
-  readonly requests: NativeBuildRequest[];
+export interface FakeLibrary extends LibraryBuildContext {
+  readonly requests: LibraryBuildRequest[];
 }
 
-export function fakeNative(root: string): FakeNative {
-  const requests: NativeBuildRequest[] = [];
+export function fakeLibrary(root: string): FakeLibrary {
+  const requests: LibraryBuildRequest[] = [];
   return {
-    manifest: join(root, 'native', 'Cargo.toml'),
+    manifest: join(root, 'lib', 'Cargo.toml'),
     requests,
     build: async (request) => {
       requests.push(request);
-      const path = join(root, '.soundor', 'cache', 'native', 'processor.wasm');
-      await mkdir(join(root, '.soundor', 'cache', 'native'), {
+      const path = join(root, '.soundor', 'cache', 'lib', 'processor.wasm');
+      await mkdir(join(root, '.soundor', 'cache', 'lib'), {
         recursive: true,
       });
       await writeFile(path, Uint8Array.from([0, 97, 115, 109, 1, 0, 0, 0]));
@@ -116,9 +116,9 @@ export function makeCtx(root: string, overrides: MakeCtxOptions = {}): TestCtx {
     ui: overrides.ui,
     signing: { macos: { identity: '-', source: 'default' } },
     signal: overrides.signal ?? new AbortController().signal,
-    ...(overrides.native === null
+    ...(overrides.lib === null
       ? {}
-      : { native: overrides.native ?? fakeNative(root) }),
+      : { lib: overrides.lib ?? fakeLibrary(root) }),
   };
 }
 

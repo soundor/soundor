@@ -9,7 +9,7 @@ check what happens. Tests run in Node with [Vitest](https://vitest.dev),
 against a simulated Soundor runtime: no DAW, no plugin build, no browser.
 
 Test audio separately with the [Rust processor harness](/docs/testing/rust-processor).
-It runs the actual `native/` crate, with lifecycle and allocation checks;
+It runs the actual `lib/` crate, with lifecycle and allocation checks;
 runtime integration tests then verify JUCE FFI, WebAssembly and AudioWorklet audio.
 
 ```tsx

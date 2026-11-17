@@ -33,7 +33,7 @@ import { rewriteLocations, SourceMap } from '../dev/source-map';
 import { createDevTerminal, formatSummary } from '../dev/terminal';
 import { resolveDevToolsClientDist } from '../devtools/client';
 import { openDevTools } from '../devtools/open';
-import { nativeCrateContext } from '../native/cargo';
+import { libraryBuildContext } from '../library/cargo';
 import { watchUi } from '../ui/bundle';
 import { cliVersion } from '../version';
 import { runGen } from './gen';
@@ -293,7 +293,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       signal: controller.signal,
       devtools: debug?.connection,
       session,
-      native: nativeCrateContext(
+      lib: libraryBuildContext(
         root,
         logger.child(options.runtime),
         controller.signal,

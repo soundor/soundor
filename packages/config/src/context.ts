@@ -76,20 +76,20 @@ export interface LiveUiContext {
 }
 
 /**
- * The project's Rust crate, `native/`, which holds the plugin's audio
- * processing: the CLI compiles it with Cargo, for each runtime's target,
+ * The project's Rust crate, `lib/`, which holds the plugin's processor
+ * and controller: the CLI compiles it with Cargo, for each runtime's target,
  * before or while the runtime links or loads it. Runtimes never run Cargo
  * themselves.
  */
-export interface NativeCrateContext {
-  /** Absolute path to the crate's manifest, `native/Cargo.toml`. */
+export interface LibraryBuildContext {
+  /** Absolute path to the crate's manifest, `lib/Cargo.toml`. */
   readonly manifest: string;
   /**
    * Compiles the crate's library (incrementally: unchanged sources build in
    * a moment) and resolves to it. Rejects with the compiler's diagnostics,
    * which it has already logged.
    */
-  build(request: NativeBuildRequest): Promise<NativeLibrary>;
+  build(request: LibraryBuildRequest): Promise<LibraryArtifact>;
   /**
    * Set by `soundor dev`: calls `listener` after the crate's sources change
    * (debounced), so that the runtime can build it again. Returns a function
@@ -98,8 +98,8 @@ export interface NativeCrateContext {
   readonly onChange?: (listener: () => void) => () => void;
 }
 
-/** What {@link NativeCrateContext.build} compiles. */
-export interface NativeBuildRequest {
+/** What {@link LibraryBuildContext.build} compiles. */
+export interface LibraryBuildRequest {
   /**
    * `staticlib`, linked into a native plugin, or `cdylib`, a WebAssembly
    * module.
@@ -117,7 +117,7 @@ export interface NativeBuildRequest {
 }
 
 /** A compiled library of the crate. */
-export interface NativeLibrary {
+export interface LibraryArtifact {
   /** Absolute path to the library (`.a`, `.lib` or `.wasm`). */
   readonly path: string;
   /** The Rust target triple it was compiled for. */
@@ -172,10 +172,10 @@ export interface LifecycleContext<Options extends object = object> {
   /** The plugin UI bundle, for `dev` and `build` of projects with a UI. */
   readonly ui?: UiBundleContext;
   /**
-   * The project's Rust crate (`native/`), for `dev` and `build`; undefined
+   * The project's Rust crate (`lib/`), for `dev` and `build`; undefined
    * when the project has none.
    */
-  readonly native?: NativeCrateContext;
+  readonly lib?: LibraryBuildContext;
   /** Only provided for supported runtimes in the debug development phase. */
   readonly devtools?: DevToolsConnection;
   /** Only provided in `dev`, by a host that shows the session in a terminal. */

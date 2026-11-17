@@ -151,7 +151,7 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
-      # The Web runtime compiles a plugin's native/ to WebAssembly: its tests,
+      # The Web runtime compiles a plugin's lib/ to WebAssembly: its tests,
       # and the examples' web builds, need Rust's target for it.
       - name: Rust for WebAssembly
         run: rustup target add wasm32-unknown-unknown

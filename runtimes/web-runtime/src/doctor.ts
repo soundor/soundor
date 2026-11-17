@@ -1,7 +1,7 @@
 /**
  * The Web runtime's `doctor` checks: a Node.js that Vite supports, Vite
  * itself (installed with this package), Rust's WebAssembly target (the
- * audio processor, native/, is compiled to it) and legacy Web host
+ * Rust processor and controller library, lib/, is compiled to it) and legacy Web host
  * migration. Dependencies are injected so the report is unit-testable.
  */
 
@@ -50,7 +50,7 @@ export function checkWasmTarget(libraries: string[] | undefined): DoctorCheck {
       label: 'Rust WebAssembly target',
       status: 'fail',
       detail:
-        "rustc was not found; it compiles the plugin's audio processing (native/) to WebAssembly.",
+        "rustc was not found; it compiles the plugin's Rust library (lib/) to WebAssembly.",
       suggestion:
         'Install Rust with rustup (https://rustup.rs), then: rustup target add wasm32-unknown-unknown',
     };
@@ -59,7 +59,7 @@ export function checkWasmTarget(libraries: string[] | undefined): DoctorCheck {
       label: 'Rust WebAssembly target',
       status: 'fail',
       detail:
-        'wasm32-unknown-unknown is not installed: the audio processing (native/) cannot be compiled for the browser.',
+        'wasm32-unknown-unknown is not installed: the Rust library (lib/) cannot be compiled for the browser.',
       suggestion: 'rustup target add wasm32-unknown-unknown',
     };
   return {

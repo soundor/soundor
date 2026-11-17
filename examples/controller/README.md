@@ -1,9 +1,9 @@
 # Soundor Controller
 
 A ring modulator whose native methods are Rust: the plugin's **controller**
-(`native/src/controller.rs`), beside its **processor** (`native/src/lib.rs`).
-Both are the one crate, `native/`; `soundor::export!(PluginProcessor,
-PluginController)` makes them what the JUCE runtime runs.
+(`lib/src/controller.rs`), beside its **processor** (`lib/src/processor.rs`).
+Both are the one crate, `lib/`; `soundor::export!(PluginProcessor,
+PluginController)` exports them for both the JUCE and Web runtimes.
 
 - `click()` is synchronous: it runs on the control thread inside the
   JavaScript call, and counts in the controller's local store, which lasts
@@ -26,9 +26,10 @@ another type, is a compile error. See the
 
 ```sh
 pnpm --filter controller dev         # the plugin, in the VST3 host or the Standalone
+pnpm --filter controller dev:web     # the same Rust library in the browser
 pnpm --filter controller test        # the UI, with the methods mocked
 pnpm --filter controller test:rust   # the processor and the controller, in Rust
 ```
 
-The controller runs in the JUCE runtime; the Web runtime keeps its own
-TypeScript native methods, so this example is native only.
+Both runtimes run the processor and controller from `lib/`, including the
+same native methods and events API.

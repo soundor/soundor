@@ -2,7 +2,7 @@ import type { createProcessorNode } from '@soundor/engine/web/processor';
 
 /**
  * One AudioContext: selected input → the plugin's processor (its Rust crate,
- * native/, as WebAssembly in an AudioWorklet) → master volume → speakers.
+ * lib/, as WebAssembly in an AudioWorklet) → master volume → speakers.
  * Input instances belong to the transport, and release their resources on
  * pause, replacement or disposal, including work that finishes after a switch.
  */
@@ -20,7 +20,7 @@ export type WebAudioCleanup = () => void;
 
 /** The plugin's processor, as the host runs it. */
 export interface WebProcessorSource {
-  /** The WebAssembly module of native/. */
+  /** The WebAssembly module of lib/. */
   readonly wasm: Uint8Array;
   /** Every parameter, in the config's order: the processor's values. */
   readonly parameters: readonly WebParameter[];
@@ -428,7 +428,7 @@ export class WebAudioHost {
           },
           onError: (message) =>
             this.#update({
-              error: `The audio processor (native/) failed: ${message}`,
+              error: `The audio processor (lib/) failed: ${message}`,
             }),
         });
         try {
@@ -488,7 +488,7 @@ export class WebAudioHost {
       if (this.#disposed) return;
       report(error);
       this.#update({
-        error: `The audio processor (native/) could not start, so the input passes through: ${describe(error)}`,
+        error: `The audio processor (lib/) could not start, so the input passes through: ${describe(error)}`,
       });
       input.disconnect();
     }

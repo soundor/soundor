@@ -2,7 +2,7 @@ import { defineSoundorConfig } from '@soundor/config';
 import { juceRuntime } from '@soundor/juce-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
-// A ring modulator whose controller is Rust (native/src/controller.rs): the
+// A ring modulator whose controller is Rust (lib/src/controller.rs): the
 // UI's native methods, a counter kept between calls, async methods that
 // compute a wavetable off the control thread and publish it to the
 // processor, and a scheduled update cancelled when it waits too long.

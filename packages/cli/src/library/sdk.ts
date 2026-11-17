@@ -2,7 +2,7 @@
  * The Rust SDK as a project gets it: the `soundor` crate this package ships
  * (`rust/soundor`), copied by `soundor gen` into
  * `.soundor/generated/rust/soundor` with its `src/plugin.rs` generated from
- * the project's config. A project's `native/Cargo.toml` depends on it by
+ * the project's config. A project's `lib/Cargo.toml` depends on it by
  * that path, so Cargo, rust-analyzer and `cargo test` work as with any path
  * dependency, with no registry and no `node_modules` layout to assume.
  */
@@ -19,7 +19,7 @@ import { renderPluginRs } from './codegen';
 /** Where the SDK goes, within `.soundor/generated`. */
 export const SDK_GENERATED_DIR = 'rust/soundor';
 
-/** This package's copy of the SDK: from `src/native/` or the bundled `dist/`. */
+/** This package's copy of the SDK: from `src/library/` or the bundled `dist/`. */
 export function sdkSourceDir(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (;;) {

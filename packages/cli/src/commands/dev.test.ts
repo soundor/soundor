@@ -232,6 +232,7 @@ const runtime = {
     ctx.codegen.emit({ path: 'runtime.txt', contents: 'generated\\n' });
   },
   async dev(_config, ctx) {
+    if ('native' in ctx || ctx.lib.manifest !== ctx.fs.resolve('lib/Cargo.toml')) throw new Error('Wrong Rust library context');
     globalThis.__soundorDevEvents.push('dev:' + ctx.mode);
     ctx.logger.info('runtime ready');
     if (${String(options.ready)}) {

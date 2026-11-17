@@ -120,7 +120,7 @@ export class WasmProcessor {
     const exports = instance.exports as unknown as Exports;
     if (typeof exports.soundor_wasm_create !== 'function')
       throw new Error(
-        "The audio processor's module has no Soundor exports: does native/src/lib.rs call soundor::export!?",
+        "The audio processor's module has no Soundor exports: does lib/src/lib.rs call soundor::export!?",
       );
     const built = [0, 1, 2, 3, 4].map((index) =>
       exports.soundor_wasm_contract(index),

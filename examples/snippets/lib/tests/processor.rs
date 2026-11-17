@@ -1,5 +1,5 @@
 //! The snippets' gain, tested through Soundor's testing harness.
-//! `cargo test --manifest-path native/Cargo.toml` (after `soundor gen`).
+//! `cargo test --manifest-path lib/Cargo.toml` (after `soundor gen`).
 
 use soundor::testing::TestProcessor;
 use soundor_snippets::PluginProcessor;

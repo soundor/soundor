@@ -103,7 +103,7 @@ type StandaloneLauncher = (
 async function requireManagedHost(ctx: Ctx): Promise<void> {
   if (await ctx.fs.exists(ctx.fs.resolve('runtimes', RUNTIME_ID))) {
     throw new EnvError(
-      'The JUCE host is now managed by @soundor/juce-runtime. Review customizations in runtimes/juce, move audio processing and native methods to native/ and plugin settings to soundor.config.ts, then remove runtimes/juce yourself. C++ host customizations are no longer used. Existing files are never deleted; the legacy host cannot be combined with the managed host. See https://soundor.dev/docs/juce-runtime#migration.',
+      'The JUCE host is now managed by @soundor/juce-runtime. Review customizations in runtimes/juce, move audio processing and native methods to lib/ and plugin settings to soundor.config.ts, then remove runtimes/juce yourself. C++ host customizations are no longer used. Existing files are never deleted; the legacy host cannot be combined with the managed host. See https://soundor.dev/docs/juce-runtime#migration.',
     );
   }
 }
@@ -199,10 +199,10 @@ export async function juceDev(
         );
   if (live === undefined && ui !== undefined)
     await writeNativeUi(ui, uiDir, 'development');
-  let stopWatchingNative: (() => void) | undefined;
+  let stopWatchingLibrary: (() => void) | undefined;
   try {
     await watcher?.ready;
-    const rustLibrary = await buildRust(
+    const rustLibrary = await buildLibrary(
       ctx,
       platform,
       options.windowsCrt,
@@ -319,22 +319,20 @@ export async function juceDev(
     }
     if (devLaunch === 'vst3') await devHost?.launch();
 
-    // The audio processing changed: Cargo, then the plugin's link, with the
+    // The Rust library changed: Cargo, then the plugin's link, with the
     // VST3 host's plugin closed meanwhile and opened again after.
     let rebuilding = Promise.resolve();
-    stopWatchingNative = ctx.native?.onChange?.(() => {
+    stopWatchingLibrary = ctx.lib?.onChange?.(() => {
       rebuilding = rebuilding.then(async () => {
-        ctx.logger.info('The native crate changed; rebuilding the plugin');
+        ctx.logger.info('The Rust library changed; rebuilding the plugin');
         const rebuild = async () => {
-          await buildRust(ctx, platform, options.windowsCrt, 'debug');
+          await buildLibrary(ctx, platform, options.windowsCrt, 'debug');
           await compile();
         };
         try {
           if (devHost === undefined) await rebuild();
           else await devHost.rebuild(rebuild);
-          ctx.logger.info(
-            'Rebuilt the plugin with the changed audio processing.',
-          );
+          ctx.logger.info('Rebuilt the plugin with the changed Rust library.');
           ctx.session?.ready(rows);
         } catch (error) {
           if (!ctx.signal.aborted)
@@ -353,28 +351,28 @@ export async function juceDev(
     ctx.session?.ready(rows);
     await waitForAbort(ctx.signal);
   } finally {
-    stopWatchingNative?.();
+    stopWatchingLibrary?.();
     await devHost?.close();
     watcher?.close();
   }
 }
 
 /**
- * Compiles the project's Rust crate (native/), the plugin's audio
- * processing, into the static library the plugin links.
+ * Compiles the project's Rust library (lib/), the plugin's processor
+ * and controller, into the static library the plugin links.
  */
-async function buildRust(
+async function buildLibrary(
   ctx: Ctx,
   platform: NodeJS.Platform,
   crt: WindowsCrt,
   profile: 'debug' | 'release',
 ): Promise<string> {
-  if (ctx.native === undefined)
+  if (ctx.lib === undefined)
     throw new EnvError(
-      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor gen` to create missing Rust starter files.",
+      "The project has no Rust library (lib/Cargo.toml), which holds the plugin's processor and controller. Run `soundor gen` to create missing Rust starter files.",
     );
-  ctx.logger.info('Compiling the audio processing (native/) with Cargo');
-  const library = await ctx.native.build({
+  ctx.logger.info('Compiling the Rust library (lib/) with Cargo');
+  const library = await ctx.lib.build({
     crateType: 'staticlib',
     profile,
     // As the plugin's C runtime: /MT is static.
@@ -417,7 +415,7 @@ export async function juceBuild(
     if (debug) await rm(uiDir, { recursive: true, force: true });
     await writeNativeUi(ctx.ui, uiDir, debug ? 'development' : 'production');
   }
-  const rustLibrary = await buildRust(
+  const rustLibrary = await buildLibrary(
     ctx,
     platform,
     options.windowsCrt,

@@ -1,6 +1,6 @@
 #pragma once
 
-// A plugin's Rust processor (the project's native/ crate), called through its
+// A plugin's Rust processor (the project's lib/ crate), called through its
 // C ABI (RustProcessorAbi.h): the engine's native side of processor hosting.
 // A runtime owns the audio callback and the plugin's lifecycle, and gives
 // this the block in place, as one array of channel pointers with each bus's

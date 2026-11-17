@@ -2,7 +2,7 @@
 
 // The C ABI between a native runtime and a plugin's Rust controller: what
 // `soundor::export!(PluginProcessor, PluginController)` defines in the
-// project's `native/` crate (the SDK's controller_ffi.rs and host.rs, whose
+// project's `lib/` crate (the SDK's controller_ffi.rs and host.rs, whose
 // #[repr(C)] structures these mirror field for field). The engine declares
 // it and never calls these symbols itself: the plugin's binary links the
 // library that defines them, and hands them to processor::RustController

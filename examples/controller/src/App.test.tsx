@@ -11,7 +11,7 @@ import { expect, test, vi } from 'vitest';
 import { App } from './App';
 
 // The Rust controller's methods, mocked as the UI sees them: synchronous
-// ones return their value, async ones a promise (native/tests/controller.rs
+// ones return their value, async ones a promise (lib/tests/controller.rs
 // tests the controller itself).
 function mockController() {
   let clicks = 0;

@@ -40,7 +40,7 @@ A project has three main parts:
    parameters, typed native API, and enabled runtimes.
 2. **The UI:** `src/main.tsx` mounts React components from `@soundor/react`.
    The components use Soundor nodes, events, and services.
-3. **The Rust crate:** `native/` contains your processor and controller.
+3. **The Rust crate:** `lib/` contains your processor and controller.
    Both JUCE and Web hosts are managed by Soundor; optional custom Web inputs
    live in browser modules.
 
@@ -71,7 +71,7 @@ documents the native implementation and its limits.
 
 ## What you implement per runtime
 
-You write audio processing once in the Rust crate `native/`. JUCE calls it
+You write audio processing once in the Rust crate `lib/`. JUCE calls it
 through native FFI; Web runs its WebAssembly build in an AudioWorklet.
 Soundor compiles both with Cargo and generates the parameter and layout types
 from the config. See [Rust audio processing](/docs/rust-processor).

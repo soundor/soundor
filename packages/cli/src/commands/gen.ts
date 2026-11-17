@@ -24,8 +24,9 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
-import { nativeScaffoldFiles } from '../native/scaffold';
-import { rustSdkFiles } from '../native/sdk';
+import { libraryManifest } from '../library/cargo';
+import { libraryScaffoldFiles } from '../library/scaffold';
+import { rustSdkFiles } from '../library/sdk';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
 
@@ -65,6 +66,7 @@ export async function runGen(
   const cwd = options.cwd ?? process.cwd();
   const configPath = resolveConfigPath(cwd, options.configPath);
   const root = rootFromConfigPath(configPath);
+  const manifest = libraryManifest(root);
   const config = await parseConfig({ path: configPath });
   const fs = createNodeFileSystem(root);
   const logger = createConsoleLogger('soundor');
@@ -87,8 +89,8 @@ export async function runGen(
 
   // An existing crate owns its layout and package/library names. Never add
   // starter sources or tests to it based on the plugin's display name.
-  if (options.check !== true && !(await fs.exists('native/Cargo.toml'))) {
-    for (const file of nativeScaffoldFiles(config)) {
+  if (options.check !== true && manifest === undefined) {
+    for (const file of libraryScaffoldFiles(config)) {
       if (!(await fs.exists(file.path))) {
         await fs.write(file.path, file.contents);
       }

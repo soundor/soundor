@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -10,13 +17,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { checkRust } from '../doctor/env';
 import { cliVersion } from '../version';
 import {
-  buildNativeLibrary,
+  buildLibrary,
   cargoArguments,
-  nativeCrateContext,
+  libraryBuildContext,
+  libraryManifest,
   type SpawnCargo,
 } from './cargo';
 import { renderPluginRs, rustField } from './codegen';
-import { crateName, nativeScaffoldFiles } from './scaffold';
+import { crateName, libraryScaffoldFiles } from './scaffold';
 import { rustSdkFiles, sdkSourceDir } from './sdk';
 
 const FIXTURE = resolve(__dirname, '../../rust/fixture/soundor.config.ts');
@@ -29,7 +37,7 @@ afterEach(async () => {
 });
 
 async function project(config: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'soundor-native-'));
+  const dir = await mkdtemp(join(tmpdir(), 'soundor-library-'));
   temporary.push(dir);
   await writeFile(join(dir, 'soundor.config.ts'), config);
   return dir;
@@ -109,21 +117,21 @@ describe('the SDK a project gets', () => {
   });
 });
 
-describe('the native scaffold', () => {
+describe('the Rust library scaffold', () => {
   it('is a crate that depends on the generated SDK', async () => {
     const config = await parseConfig({ path: FIXTURE });
-    const files = nativeScaffoldFiles(config);
+    const files = libraryScaffoldFiles(config);
     expect(files.map((file) => file.path)).toEqual([
       'rust-toolchain.toml',
-      'native/Cargo.toml',
-      'native/.gitignore',
-      'native/src/lib.rs',
+      'lib/Cargo.toml',
+      'lib/.gitignore',
+      'lib/src/lib.rs',
       // The fixture declares native methods: a controller for them.
-      'native/src/controller.rs',
-      'native/src/processor.rs',
-      'native/tests/controller.rs',
-      'native/tests/processor.rs',
-      'native/tests/realtime.rs',
+      'lib/src/controller.rs',
+      'lib/src/processor.rs',
+      'lib/tests/controller.rs',
+      'lib/tests/processor.rs',
+      'lib/tests/realtime.rs',
     ]);
     const manifest = files[1]!.contents;
     expect(manifest).toContain('name = "sdk-fixture"');
@@ -157,13 +165,11 @@ describe('the native scaffold', () => {
 
   it('requires a controller without methods and uses the blanket NativeMethods implementation', async () => {
     const config = await parseConfig({ path: FIXTURE });
-    const files = nativeScaffoldFiles({
+    const files = libraryScaffoldFiles({
       ...config,
       native: { ...config.native, methods: {} },
     });
-    expect(files.map((file) => file.path)).toContain(
-      'native/src/controller.rs',
-    );
+    expect(files.map((file) => file.path)).toContain('lib/src/controller.rs');
     expect(files[3]!.contents).toContain(
       'soundor::export!(PluginProcessor, PluginController);',
     );
@@ -181,7 +187,7 @@ describe('the native scaffold', () => {
       );
       temporary.push(root);
       const files = [
-        ...nativeScaffoldFiles(config),
+        ...libraryScaffoldFiles(config),
         ...rustSdkFiles(config).map((file) => ({
           ...file,
           path: `.soundor/generated/${file.path}`,
@@ -193,18 +199,8 @@ describe('the native scaffold', () => {
         await writeFile(target, file.contents);
       }
       for (const args of [
-        ['fmt', '--check', '--manifest-path', 'native/Cargo.toml'],
-        ['test', '--manifest-path', 'native/Cargo.toml'],
-        [
-          'rustc',
-          '--manifest-path',
-          'native/Cargo.toml',
-          '--lib',
-          '--crate-type',
-          'cdylib',
-          '--target',
-          'wasm32-unknown-unknown',
-        ],
+        ['fmt', '--check', '--manifest-path', 'lib/Cargo.toml'],
+        ['test', '--manifest-path', 'lib/Cargo.toml'],
       ]) {
         const result = spawnSync('cargo', args, {
           cwd: root,
@@ -216,6 +212,33 @@ describe('the native scaffold', () => {
           stderr: result.stderr,
         }).toMatchObject({ status: 0, error: undefined });
       }
+      const ctx = libraryBuildContext(root, createConsoleLogger('test'))!;
+      expect(ctx.manifest).toBe(join(root, 'lib/Cargo.toml'));
+      const native = await ctx.build({
+        crateType: 'staticlib',
+        profile: 'debug',
+      });
+      const wasm = await ctx.build({
+        crateType: 'cdylib',
+        profile: 'release',
+        target: 'wasm32-unknown-unknown',
+      });
+      expect((await stat(native.path)).size).toBeGreaterThan(0);
+      expect(native.path).toContain(join('.soundor', 'cache', 'lib', 'target'));
+      expect(wasm.target).toBe('wasm32-unknown-unknown');
+      expect(wasm.path).toContain(join('wasm32-unknown-unknown', 'release'));
+      const compiled = await WebAssembly.compile(
+        new Uint8Array(await readFile(wasm.path)),
+      );
+      const exports = WebAssembly.Module.exports(compiled).map(
+        (entry) => entry.name,
+      );
+      expect(exports).toEqual(
+        expect.arrayContaining([
+          'soundor_processor_create',
+          'soundor_web_controller_create',
+        ]),
+      );
     }
   }, 120_000);
 
@@ -228,18 +251,65 @@ describe('the native scaffold', () => {
 });
 
 describe('Cargo', () => {
+  it('discovers only lib/Cargo.toml and diagnoses legacy and ambiguous layouts', async () => {
+    const root = await project('export default {};');
+    expect(libraryManifest(root)).toBeUndefined();
+    await mkdir(join(root, 'native'));
+    await writeFile(join(root, 'native/Cargo.toml'), '# legacy');
+    expect(() => libraryManifest(root)).toThrow(/rename native\/ to lib\//);
+    await mkdir(join(root, 'lib'));
+    await writeFile(join(root, 'lib/Cargo.toml'), '# current');
+    expect(() => libraryManifest(root)).toThrow(
+      /Both lib\/Cargo.toml and native\/Cargo.toml/,
+    );
+    await rm(join(root, 'native'), { recursive: true });
+    expect(libraryManifest(root)).toBe(join(root, 'lib/Cargo.toml'));
+  });
+
+  it('watches lib sources and the manifest, ignores Cargo output, and stops cleanly', async () => {
+    const root = await project('export default {};');
+    await mkdir(join(root, 'lib/src'), { recursive: true });
+    await mkdir(join(root, 'lib/target'));
+    await writeFile(join(root, 'lib/Cargo.toml'), '# current');
+    const ctx = libraryBuildContext(
+      root,
+      createConsoleLogger('test'),
+      undefined,
+      { watch: true },
+    )!;
+    let changes = 0;
+    const stop = ctx.onChange!(() => {
+      changes++;
+    });
+    try {
+      await writeFile(join(root, 'lib/src/controller.rs'), '// controller');
+      await expect.poll(() => changes).toBe(1);
+      await writeFile(join(root, 'lib/Cargo.toml'), '# changed');
+      await expect.poll(() => changes).toBe(2);
+      await writeFile(join(root, 'lib/target/output'), 'artifact');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(changes).toBe(2);
+      stop();
+      await writeFile(join(root, 'lib/src/processor.rs'), '// stopped');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(changes).toBe(2);
+    } finally {
+      stop();
+    }
+  });
+
   it('builds the crate type and target asked for, in the project cache', () => {
     const { args, targetDir } = cargoArguments(
       '/p',
-      '/p/native/Cargo.toml',
+      '/p/lib/Cargo.toml',
       { crateType: 'staticlib', profile: 'release' },
       'x86_64-unknown-linux-gnu',
     );
-    expect(targetDir).toBe(join('/p', '.soundor', 'cache', 'native', 'target'));
+    expect(targetDir).toBe(join('/p', '.soundor', 'cache', 'lib', 'target'));
     expect(args).toEqual([
       'rustc',
       '--manifest-path',
-      '/p/native/Cargo.toml',
+      '/p/lib/Cargo.toml',
       '--lib',
       '--crate-type',
       'staticlib',
@@ -255,7 +325,7 @@ describe('Cargo', () => {
   it('links the C runtime statically for MSVC, in a directory of its own', () => {
     const { args, targetDir } = cargoArguments(
       'C:/p',
-      'C:/p/native/Cargo.toml',
+      'C:/p/lib/Cargo.toml',
       { crateType: 'staticlib', profile: 'debug', staticCrt: true },
       'x86_64-pc-windows-msvc',
     );
@@ -266,7 +336,7 @@ describe('Cargo', () => {
     expect(args).not.toContain('--release');
     const gnu = cargoArguments(
       '/p',
-      '/p/native/Cargo.toml',
+      '/p/lib/Cargo.toml',
       { crateType: 'staticlib', profile: 'debug', staticCrt: true },
       'x86_64-unknown-linux-gnu',
     );
@@ -275,7 +345,7 @@ describe('Cargo', () => {
 
   it("finds the crate's library among Cargo's artifacts", async () => {
     const root = await project('export default {};');
-    const manifest = join(root, 'native', 'Cargo.toml');
+    const manifest = join(root, 'lib', 'Cargo.toml');
     const spawn: SpawnCargo = async (_, { onStdout }) => {
       onStdout(
         JSON.stringify({
@@ -298,7 +368,7 @@ describe('Cargo', () => {
       onStdout('not json');
       return 0;
     };
-    const library = await buildNativeLibrary({
+    const library = await buildLibrary({
       root,
       manifest,
       request: { crateType: 'staticlib', profile: 'debug' },
@@ -315,9 +385,9 @@ describe('Cargo', () => {
   it('fails with what Cargo reported', async () => {
     const root = await project('export default {};');
     await expect(
-      buildNativeLibrary({
+      buildLibrary({
         root,
-        manifest: join(root, 'native', 'Cargo.toml'),
+        manifest: join(root, 'lib', 'Cargo.toml'),
         request: {
           crateType: 'cdylib',
           profile: 'release',
@@ -332,7 +402,7 @@ describe('Cargo', () => {
   it('is given to runtimes only for a project with a crate', async () => {
     const root = await project('export default {};');
     expect(
-      nativeCrateContext(root, createConsoleLogger('test')),
+      libraryBuildContext(root, createConsoleLogger('test')),
     ).toBeUndefined();
   });
 });

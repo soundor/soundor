@@ -23,12 +23,12 @@ src/App.tsx         the plugin UI (@soundor/react): a fader, the host's
                     stacked when the editor is narrow
 src/ResizeGrip.tsx  a resize grip of its own, in the view's corner
 
-native/             the audio processing, in Rust: applies `gain`
+lib/                the audio processing, in Rust: applies `gain`
                     (src/lib.rs), with its tests (tests/)
 ```
 
 The UI is the same in both, and so is the audio: both runtimes run the Rust
-processing in `native/src/processor.rs`, a gain ramped from block to block:
+processing in `lib/src/processor.rs`, a gain ramped from block to block:
 
 ```rust
 fn process(&mut self, ctx: &mut ProcessContext) {
@@ -46,7 +46,7 @@ fn process(&mut self, ctx: &mut ProcessContext) {
 }
 ```
 
-`cargo test --manifest-path native/Cargo.toml` (or `pnpm test:rust`) tests it
+`cargo test --manifest-path lib/Cargo.toml` (or `pnpm test:rust`) tests it
 in plain Rust. The Web host compiles the same crate to WebAssembly and runs it
 in an AudioWorklet.
 
