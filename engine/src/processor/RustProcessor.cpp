@@ -18,8 +18,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
     }
 
     RustProcessor::RustProcessor(RustContract expected, const RustProcessorFunctions& functions,
-                                 midi::Functions midiFunctions)
-        : abi(functions), midiFunctions(midiFunctions), contract(expected)
+                                 midi::Functions midiApi)
+        : abi(functions), midiFunctions(midiApi), contract(expected)
     {
         if (abi.info == nullptr || abi.create == nullptr || abi.prepare == nullptr || abi.process == nullptr
             || abi.reset == nullptr || abi.destroy == nullptr)
