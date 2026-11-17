@@ -19,7 +19,7 @@ import { Knob } from './Knob';
 
 export function App() {
   const catalog = presets.factory.list();
-  const selection = usePresetSelection();
+  const selection = usePresetSelection(presets);
   const preset = catalog.findIndex((entry) => entry.id === selection.factoryId);
   const selected = catalog[preset];
   const description = useStateValue(state.presetDescription);

@@ -20,7 +20,7 @@ declare module 'soundor:presets' {
         options?: import('soundor:history').HistoryOptions,
       ): void;
     };
-    /** Stable immutable snapshot; in React, `usePresetSelection()` reads it. */
+    /** Stable immutable snapshot; in React, `usePresetSelection(presets)` reads it. */
     getSnapshot(): PresetSelection;
     /** Subscribe to selection/modified changes; does not call immediately. */
     subscribe(listener: () => void): () => void;

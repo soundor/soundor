@@ -12,7 +12,7 @@ import {
   subscribeHostState,
   type HostSnapshot,
 } from 'soundor:host';
-import { presets, type PresetSelection } from 'soundor:presets';
+import type { PresetSelection } from 'soundor:presets';
 import {
   editorSize,
   isFocused,
@@ -164,15 +164,23 @@ export function useHostState(): HostSnapshot {
   return useSyncExternalStore(subscribeHostState, getHostState);
 }
 
+/** What usePresetSelection needs of soundor:presets' `presets`. */
+export interface PresetsLike {
+  getSnapshot(): PresetSelection;
+  subscribe(listener: () => void): () => void;
+}
+
 /**
  * Which factory preset is selected (`factoryId`, null for custom content) and
  * whether the preset-controlled values were modified since, re-rendering when
- * either changes. The catalog is `presets.factory.list()`, and a preset
- * loads with `presets.factory.load(id)`.
+ * either changes. It takes `presets` from `soundor:presets` rather than
+ * importing it, so that a plugin that shows no presets does not need the
+ * module. The catalog is `presets.factory.list()`, and a preset loads with
+ * `presets.factory.load(id)`.
  *
- *   const { factoryId, modified } = usePresetSelection();
+ *   const { factoryId, modified } = usePresetSelection(presets);
  */
-export function usePresetSelection(): PresetSelection {
+export function usePresetSelection(presets: PresetsLike): PresetSelection {
   return useSyncExternalStore(presets.subscribe, presets.getSnapshot);
 }
 

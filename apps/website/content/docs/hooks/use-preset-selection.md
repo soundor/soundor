@@ -4,7 +4,7 @@ description: Which factory preset is selected and whether it was modified, re-re
 ---
 
 ```ts
-function usePresetSelection(): PresetSelection;
+function usePresetSelection(presets: PresetsLike): PresetSelection;
 
 interface PresetSelection {
   readonly factoryId: string | null; // null for custom or restored content
@@ -12,7 +12,7 @@ interface PresetSelection {
 }
 ```
 
-`usePresetSelection()` returns the selection of the config's
+`usePresetSelection(presets)` returns the selection of the config's
 [factory presets](/docs/api/presets) and re-renders the component when the
 selected preset or whether it was modified changes: a load, an edit of a
 value the preset controls, an undo or a restored state.
@@ -22,7 +22,7 @@ import { Pressable, Text, usePresetSelection, View } from '@soundor/react';
 import { presets } from 'soundor:presets';
 
 function FactoryPresets() {
-  const { factoryId, modified } = usePresetSelection();
+  const { factoryId, modified } = usePresetSelection(presets);
   return (
     <View>
       <Text>
@@ -49,5 +49,8 @@ function FactoryPresets() {
   when `factoryId` or `modified` changed.
 - **A plugin without presets** has an empty catalog and a `null` selection.
 
-It reads [`soundor:presets`](/docs/api/presets)'s `getSnapshot()` and
-`subscribe()`, which code outside React can use directly.
+It takes `presets` from [`soundor:presets`](/docs/api/presets), as
+[`useParameter`](/docs/hooks/use-parameter) takes a parameter, instead of
+importing the module itself: a plugin that shows no presets needs nothing
+from it. It reads `getSnapshot()` and `subscribe()`, which code outside React
+can use directly.

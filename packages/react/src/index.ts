@@ -52,6 +52,7 @@ export {
   useHostState,
   usePresetSelection,
   type NativeStreamLike,
+  type PresetsLike,
   type ParameterLike,
 } from './hooks';
 export {

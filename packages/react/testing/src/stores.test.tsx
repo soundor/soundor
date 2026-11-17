@@ -196,7 +196,7 @@ describe('useHostState', () => {
 describe('usePresetSelection', () => {
   function Selection({ renders }: { renders: () => void }) {
     renders();
-    const { factoryId, modified } = usePresetSelection();
+    const { factoryId, modified } = usePresetSelection(presets);
     return <Text>{`${factoryId ?? 'custom'}${modified ? ' *' : ''}`}</Text>;
   }
 
@@ -216,7 +216,7 @@ describe('usePresetSelection', () => {
   it('returns the snapshot the module does', async () => {
     const seen = vi.fn<(selection: unknown) => void>();
     function Probe() {
-      seen(usePresetSelection());
+      seen(usePresetSelection(presets));
       return null;
     }
     await act(() => presets.factory.load('warm'));

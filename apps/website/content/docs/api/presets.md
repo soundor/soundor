@@ -96,7 +96,7 @@ import { Pressable, Text, usePresetSelection, View } from '@soundor/react';
 import { presets } from 'soundor:presets';
 
 function FactoryPresets() {
-  const selection = usePresetSelection();
+  const selection = usePresetSelection(presets);
   return (
     <View>
       <Text>
