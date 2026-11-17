@@ -72,7 +72,7 @@ pnpm --filter soundor test                            # the CLI package is named
 `test` depends on `^build` in turbo, so filtered vitest runs need the
 dependencies built first (`pnpm build` or `pnpm turbo run build --filter=<pkg>...`).
 
-Native runtime (`engines/engine`, from that directory):
+Native runtime (`engine`, from that directory):
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, doctest suites  → build/dev
@@ -169,7 +169,7 @@ pnpm --filter soundor-benchmark bench --only ui,canvas # some groups or scenario
 Regenerating checked-in generated files:
 
 - `UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test` — the golden
-  `soundor:native` C++ output in `engines/engine/tests/generated`, and the
+  `soundor:native` C++ output in `engine/tests/generated`, and the
   generated parameters (`TestParameters.cpp`) with their JavaScript-computed
   parity table (`ParameterParity.h`) in
   `runtimes/juce-runtime/native/backend/juce/tests/generated`, compiled by the
@@ -177,7 +177,7 @@ Regenerating checked-in generated files:
 - `UPDATE_FIXTURES=1 pnpm --filter @soundor/web-runtime exec vitest run src/fixtures.test.ts`
   — the Web runtime's generated client fixtures in `src/client/testing/`.
 - `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
-  (from `engines/engine`, after a dev build) — the engine's frames in
+  (from `engine`, after a dev build) — the engine's frames in
   `tests/layout/corpus.json`, for a change meant to change layout.
 - `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
@@ -262,7 +262,7 @@ read the docs bundled with the installed package
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
-- `engines/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
+- `engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
   Also the engine in the browser: `wasm/` compiles the shared core
   (`cmake/SoundorCoreSources.cmake`, the same sources the native runtime
   compiles) to `soundor-core.wasm` with a pinned Emscripten
@@ -318,7 +318,7 @@ expressions, and gestures, event routing, error
 messages), so a behavior change in one runtime usually needs the matching change
 in the other. Layout is the same C++ in both: styles are read by
 `ui/StyleReader.cpp` and laid out by `ui/Surface.cpp`, natively and in the
-WebAssembly core, and `engines/engine/tests/layout/corpus.json` holds the
+WebAssembly core, and `engine/tests/layout/corpus.json` holds the
 engine's frames, which the web adapter's tests must match exactly.
 
 ### Dependencies and compatibility
@@ -345,7 +345,7 @@ has no runtime-version check or config-feature version gates. See
 
 Soundor owns its accessibility semantics: React props → `node.accessibility`
 (`soundor:ui`) → the semantic tree (`a11y::SurfaceSemantics` natively; the
-same rules in `engines/engine/web/src/ui/semantics.ts`) → a platform backend.
+same rules in `engine/web/src/ui/semantics.ts`) → a platform backend.
 The backends are ARIA (web), native AT-SPI over system GDBus (Linux), native UI Automation
 (Windows) and Soundor's own Apple bridges (macOS, iOS). JUCE only supplies the native view; UI Automation
 types never leave `src/a11y/windows/`. Keep the native and web rules in
@@ -361,7 +361,7 @@ directories or initialization hooks are needed. `gen` regenerates
 and checks derived output only. Shared plugin code belongs in the generated
 framework or runtime package, rather than user-owned starter templates.
 
-### Native runtime invariants (`engines/engine`)
+### Native runtime invariants (`engine`)
 
 - The core library is backend-independent and never includes JUCE; JUCE
   adapters live in `backend/juce/`. A third-party header (Hermes, Yoga, Skia,
@@ -383,7 +383,7 @@ framework or runtime package, rather than user-owned starter templates.
   function, lowered for Hermes by the engine's `toNativeModule()`,
   `scripts/native-module.ts`): the plugin's `bundle.js` (the JUCE runtime
   lowers the CLI's `bundle.mjs`), and the runtime's own modules, lowered from
-  `engines/engine/src/**/*.js` while building (so native builds need Node and the
+  `engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
   link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
@@ -417,7 +417,7 @@ framework or runtime package, rather than user-owned starter templates.
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
   extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the
   targets a source build defines, after checking them. A new linked
-  dependency needs its license notice in the archive (`engines/engine/licenses/`).
+  dependency needs its license notice in the archive (`engine/licenses/`).
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug builds assert that no JSI
   value outlives its context).

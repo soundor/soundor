@@ -3,8 +3,8 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { engineInputs } from '../../engines/engine/scripts/engine-inputs.mjs';
-import { selectEngine } from '../../engines/engine/scripts/engine-selection.mjs';
+import { engineInputs } from '../../engine/scripts/engine-inputs.mjs';
+import { selectEngine } from '../../engine/scripts/engine-selection.mjs';
 import { nativeInputs } from '../../hosts/vst3-host/src/inputs.ts';
 import { selectHost } from '../../hosts/vst3-host/src/prepare.ts';
 import {
@@ -19,11 +19,11 @@ if (!['engine', 'host'].includes(kind))
 const affected = process.env.NATIVE_AFFECTED === 'true';
 const cache = join(process.env.RUNNER_TEMP, 'soundor-cache');
 const { fingerprint } =
-  kind === 'engine' ? engineInputs('engines/engine') : nativeInputs();
+  kind === 'engine' ? engineInputs('engine') : nativeInputs();
 const selection = affected
   ? { mode: 'source', reason: `${kind} package affected` }
   : kind === 'engine'
-    ? await selectEngine('engines/engine', cache)
+    ? await selectEngine('engine', cache)
     : await selectHost();
 const key = artifactKey(kind, fingerprint);
 // Main keeps same-commit artifacts for release publishing. Affected packages

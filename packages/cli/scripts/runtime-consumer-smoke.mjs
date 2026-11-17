@@ -37,7 +37,7 @@ function run(command, args, { cwd = temporary, status = 0 } = {}) {
 try {
   const tarballs = {};
   for (const folder of [
-    'engines/engine',
+    'engine',
     'packages/core',
     'packages/environment',
     'packages/config',
@@ -332,7 +332,7 @@ void bad; void broken;
   // the installed consumer; the installed package must never try a source build.
   if (process.env.SOUNDOR_ENGINE_WASM === undefined) {
     const { engine } = await import(
-      pathToFileURL(resolve(repository, 'engines/engine/dist/index.mjs')).href
+      pathToFileURL(resolve(repository, 'engine/dist/index.mjs')).href
     );
     process.env.SOUNDOR_ENGINE_WASM = (
       await engine({ target: 'web' })

@@ -213,7 +213,7 @@ describe('SVG scene validation contract', () => {
       "from './types'",
     );
     const b = readFileSync(
-      resolve('../../packages/test-runtime/src/svg-scene.ts'),
+      resolve('../packages/test-runtime/src/svg-scene.ts'),
       'utf8',
     );
     expect(a).toBe(b);

@@ -12,7 +12,7 @@ pnpm install
 pnpm build
 ```
 
-The workspace contains public packages under `packages/`, `engines/` and `runtimes/`,
+The workspace contains public packages under `packages/`, `engine/` and `runtimes/`,
 private shared configs under `configs/`, application examples under `examples/`,
 and rendering benchmarks under `tools/benchmark/`. See
 [Packages](/docs/contribute/packages) for package ownership.
@@ -24,7 +24,7 @@ Skia, ANGLE, and Hermes and caches them in the user cache directory;
 
 ## Native checks
 
-The engine builds without JUCE. From `engines/engine/`:
+The engine builds without JUCE. From `engine/`:
 
 ```sh
 cmake --workflow --preset dev        # Debug, warnings as errors, doctest suites

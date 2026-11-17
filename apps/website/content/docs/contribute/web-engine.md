@@ -7,7 +7,7 @@ The web runtime's `soundor:ui` is the engine itself. The engine's
 platform-independent C++ core (its node tree, style reading, Yoga layout and
 text layout) is compiled to WebAssembly, and a DOM adapter in TypeScript shows
 the tree as real HTML elements and routes the browser's input to Soundor
-events. Both live in `engines/engine` and ship as `@soundor/engine/web`. The
+events. Both live in `engine` and ship as `@soundor/engine/web`. The
 web runtime only starts it, gives it the page's assets, and wires it into the
 host page.
 
@@ -157,7 +157,7 @@ when it has audio. It loads no Yoga of its own, no Hermes and no Skia.
 
 ## Tests
 
-From `engines/engine`, after `pnpm build:wasm` (or with `SOUNDOR_ENGINE_WASM`
+From `engine`, after `pnpm build:wasm` (or with `SOUNDOR_ENGINE_WASM`
 naming a module, as CI does with the packed archive's):
 
 |                                                    |                                                                                                                                                                                                                                                                                                                           |

@@ -569,7 +569,7 @@ importers:
 
   configs/typescript-config: {}
 
-  engines/engine:
+  engine:
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
@@ -609,10 +609,10 @@ importers:
         version: 1.65.0
       '@soundor/tsdown-config':
         specifier: workspace:^
-        version: link:../../configs/tsdown-config
+        version: link:../configs/tsdown-config
       '@soundor/typescript-config':
         specifier: workspace:^
-        version: link:../../configs/typescript-config
+        version: link:../configs/typescript-config
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -1577,7 +1577,7 @@ importers:
     dependencies:
       '@soundor/engine':
         specifier: workspace:*
-        version: link:../../engines/engine
+        version: link:../../engine
       '@soundor/runtime-sdk':
         specifier: workspace:^
         version: link:../../packages/runtime-sdk
@@ -1614,7 +1614,7 @@ importers:
     dependencies:
       '@soundor/engine':
         specifier: workspace:^
-        version: link:../../engines/engine
+        version: link:../../engine
       '@soundor/runtime-sdk':
         specifier: workspace:^
         version: link:../../packages/runtime-sdk

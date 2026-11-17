@@ -8,7 +8,7 @@ export default defineConfig({
   },
   plugins: ['typescript', 'react', 'import', 'vitest'],
   // Literal module inputs, including deliberately malformed JavaScript.
-  ignorePatterns: ['engines/engine/tests/fixtures/**/*.js'],
+  ignorePatterns: ['engine/tests/fixtures/**/*.js'],
   rules: {
     // Vitest accepts an optional diagnostic message after the value.
     'vitest/valid-expect': ['warn', { maxArgs: 2 }],
@@ -16,10 +16,7 @@ export default defineConfig({
   overrides: [
     {
       // A reassigned ancestor cursor is not a captured alias for callbacks.
-      files: [
-        'engines/engine/web/src/ui/node.ts',
-        'packages/test-runtime/src/node.ts',
-      ],
+      files: ['engine/web/src/ui/node.ts', 'packages/test-runtime/src/node.ts'],
       rules: {
         'typescript/no-this-alias': ['warn', { allowedNames: ['node'] }],
       },

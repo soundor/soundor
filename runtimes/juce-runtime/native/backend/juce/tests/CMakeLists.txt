@@ -160,7 +160,7 @@ target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
   ../soundor/backend/JuceTransport.cpp
   ../soundor/backend/JuceRustProcessor.cpp)
 target_include_directories(soundor_juce_state_tests PRIVATE generated/state ..)
-target_compile_definitions(soundor_juce_state_tests PRIVATE SOUNDOR_STATE_CORPUS="${engine_dir}/../../packages/core/test-data/state-snapshots.json" JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
+target_compile_definitions(soundor_juce_state_tests PRIVATE SOUNDOR_STATE_CORPUS="${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../packages/core/test-data/state-snapshots.json" JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
 target_link_libraries(soundor_juce_state_tests PRIVATE Soundor::Engine soundor::runtime_internal soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)
 add_dependencies(soundor_juce_state_tests soundor_juce_test_rust_library)
 soundor_link_rust_processor(soundor_juce_state_tests "${soundor_test_rust_library}")

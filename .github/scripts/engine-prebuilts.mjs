@@ -1,4 +1,4 @@
-// Engine prebuilt releases (engines/engine/README.md, "Prebuilt engines"),
+// Engine prebuilt releases (engine/README.md, "Prebuilt engines"),
 // for .github/workflows/engine-prebuilts.yml:
 //
 //   plan [--revision <n>]            what to build, or the release to reuse
@@ -39,7 +39,7 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createGzip } from 'node:zlib';
 
-import { webInputs } from '../../engines/engine/scripts/engine-inputs.mjs';
+import { webInputs } from '../../engine/scripts/engine-inputs.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -110,9 +110,8 @@ export function plan({ version, commit, revision }) {
 }
 
 export function engineVersion() {
-  return JSON.parse(
-    readFileSync(join(root, 'engines/engine/package.json'), 'utf8'),
-  ).version;
+  return JSON.parse(readFileSync(join(root, 'engine/package.json'), 'utf8'))
+    .version;
 }
 
 // ── Archives ──────────────────────────────────────────────────────────────
@@ -936,7 +935,7 @@ async function main([command, ...args]) {
         target,
         // The module must be this checkout's: its inputs, now.
         ...(target === webTarget && {
-          webFingerprint: webInputs(join(root, 'engines/engine')).fingerprint,
+          webFingerprint: webInputs(join(root, 'engine')).fingerprint,
         }),
       });
       console.log(

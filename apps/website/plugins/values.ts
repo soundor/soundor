@@ -8,7 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import type { SiteValues } from '../src/lib/placeholders.ts';
 
 const ROOT = new URL('../../../', import.meta.url);
-const PACKAGE_DIRS = ['packages', 'engines', 'runtimes', 'hosts', 'configs'];
+const PACKAGE_DIRS = ['packages', 'runtimes', 'hosts', 'configs'];
 
 type Manifest = {
   name: string;
@@ -18,7 +18,11 @@ type Manifest = {
 };
 
 function manifests(): Manifest[] {
-  const found: Manifest[] = [];
+  const found: Manifest[] = [
+    JSON.parse(
+      readFileSync(new URL('engine/package.json', ROOT), 'utf-8'),
+    ) as Manifest,
+  ];
   for (const dir of PACKAGE_DIRS) {
     for (const entry of readdirSync(new URL(`${dir}/`, ROOT), {
       withFileTypes: true,

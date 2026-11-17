@@ -12,7 +12,7 @@ import { generateNativeModuleSources } from './native-codegen';
 
 /**
  * Exercises every supported shape. Its generated C++ is checked in under
- * engines/engine/tests/generated and compiled by the native test suite, which calls
+ * engine/tests/generated and compiled by the native test suite, which calls
  * each method from JavaScript. Regenerate with:
  *
  *   UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test
@@ -125,7 +125,7 @@ export const fixtureNativeApi: NativeApiDeclaration = {
 
 const goldenDir = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../engines/engine/tests/generated',
+  '../../../engine/tests/generated',
 );
 
 function modelOf(declaration: NativeApiDeclaration) {

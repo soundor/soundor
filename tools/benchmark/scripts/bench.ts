@@ -49,7 +49,7 @@ import { parseArgs } from 'node:util';
 import { prMarkdown, type BuildFacts, type Change } from './pr.ts';
 
 const benchmark = path.resolve(import.meta.dirname, '..');
-const native = path.resolve(benchmark, '../../engines/engine');
+const native = path.resolve(benchmark, '../../engine');
 
 const { values: options } = parseArgs({
   options: {

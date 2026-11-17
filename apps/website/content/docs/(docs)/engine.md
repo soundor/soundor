@@ -35,7 +35,7 @@ plugin (JUCE)                     your processor, editor, DSP
             └─ System GIO          native Linux AT-SPI (dynamically linked)
 ```
 
-Bundled dependencies are pinned (`engines/engine/cmake/SoundorDependencies.cmake`),
+Bundled dependencies are pinned (`engine/cmake/SoundorDependencies.cmake`),
 linked statically and hidden. Linux accessibility uses the system shared GIO library;
 macOS uses native NSAccessibility.
 
@@ -311,7 +311,7 @@ without compiling the native engine. Run `pnpm test:native` for engine tests,
 always exercise source builds unless a prebuilt-check preset is selected:
 
 ```sh
-cd engines/engine
+cd engine
 cmake --workflow --preset dev          # Debug engine and its tests
 cmake --workflow --preset sanitize     # with ASan/UBSan
 ```
@@ -366,7 +366,7 @@ The engine is MIT licensed. Its dependencies are permissive (BSD, MIT,
 Apache-2.0, zlib, IJG and similar) but require their notices to accompany
 binaries: every prebuilt archive carries all of them in `licenses/`, and the
 npm package the ones the dependencies' own builds leave out
-(`engines/engine/licenses`, see its README). **A plugin you distribute
+(`engine/licenses`, see its README). **A plugin you distribute
 contains the engine**, so distribute those notices with it, whichever mode
 built it. JUCE is never part of the engine; its license is between you and
 JUCE.
