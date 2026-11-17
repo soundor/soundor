@@ -9,7 +9,6 @@
 import { parseArgs } from 'node:util';
 
 import { Vst3HostError } from './errors.ts';
-import { launchHost } from './host.ts';
 import { nativeInputs } from './inputs.ts';
 import { type BuildMode, prepareHost } from './prepare.ts';
 import { resolveHost } from './resolve.ts';
@@ -47,6 +46,9 @@ async function open(): Promise<void> {
     if (!Number.isFinite(value)) throw new Error(`--${name} is a number`);
     return value;
   };
+  // Preparation runs from source before workspace packages have been built.
+  // Only opening an editor needs the client and its shared MIDI codec.
+  const { launchHost } = await import('./host.ts');
   const host = await launchHost({
     plugin,
     className: values.class,
