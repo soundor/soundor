@@ -55,6 +55,9 @@ jobs:
         with:
           cache: ${{ inputs.cache }}
 
+      - name: Rust for WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+
       # The packages, the examples' web builds (never their native builds),
       # then the site; it fails on a broken link or an incomplete page.
       # The examples' web builds lay out with the engine's WebAssembly core:

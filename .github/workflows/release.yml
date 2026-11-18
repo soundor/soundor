@@ -157,6 +157,9 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           cache: false
+      - name: Rust for WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+
       # The web runtime's tests lay out with the engine's WebAssembly core,
       # built from this commit when it publishes a new engine version.
       - uses: ./.github/actions/emsdk
