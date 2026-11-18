@@ -22,6 +22,7 @@ namespace
                                                    backing:NSBackingStoreBuffered
                                                      defer:NO];
             window.releasedWhenClosed = NO;
+            [window orderFront:nil];
             parent = window.contentView;
             input = input::createPlatformInput({ .view = { (__bridge void*)parent } });
             REQUIRE(input != nullptr);
@@ -250,7 +251,9 @@ TEST_SUITE("native input: AppKit")
     {
         Fixture f;
         [f.window makeKeyWindow];
+        REQUIRE(f.window.keyWindow);
         f.input->requestFocus();
+        REQUIRE((f.window.firstResponder == f.native));
         f.input->setTextInputFocused(true);
         CHECK([f.native performKeyEquivalent:f.key(NSEventTypeKeyDown, @"c", 8, false, NSEventModifierFlagCommand)]);
         auto events = f.read();
@@ -275,7 +278,9 @@ TEST_SUITE("native input: AppKit")
     {
         Fixture f;
         [f.window makeKeyWindow];
+        REQUIRE(f.window.keyWindow);
         f.input->requestFocus();
+        REQUIRE((f.window.firstResponder == f.native));
         f.input->setTextInputFocused(true);
         id<NSTextInputClient> client = static_cast<id<NSTextInputClient>>(f.native);
         [client setMarkedText:@"に" selectedRange:NSMakeRange(1, 0) replacementRange:NSMakeRange(NSNotFound, 0)];
@@ -332,7 +337,9 @@ TEST_SUITE("native input: AppKit")
     {
         Fixture f;
         [f.window makeKeyWindow];
+        REQUIRE(f.window.keyWindow);
         f.input->requestFocus();
+        REQUIRE((f.window.firstResponder == f.native));
         std::vector<input::Event> events;
         f.input->read(events);
         REQUIRE(f.input->focused());
@@ -357,10 +364,11 @@ TEST_SUITE("native input: AppKit")
 
     TEST_CASE("teardown releases the child view when nobody else retains it")
     {
-        Fixture f;
-        __weak NSView* weakView = f.native;
+        __weak NSView* weakView = nil;
         @autoreleasepool
         {
+            Fixture f;
+            weakView = f.native;
             f.input.reset();
             f.native = nil;
         }

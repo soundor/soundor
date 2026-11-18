@@ -281,7 +281,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                 const bool up = type == NSEventTypeLeftMouseUp || type == NSEventTypeRightMouseUp
                                 || type == NSEventTypeOtherMouseUp;
                 const unsigned before = held;
-                const auto button = static_cast<unsigned>(event.buttonNumber);
+                // Left/right responder selectors already identify the button.
+                // NSEvent's public mouse-event factory leaves buttonNumber at zero.
+                const unsigned button = type == NSEventTypeRightMouseDown || type == NSEventTypeRightMouseUp ? 1U
+                                        : type == NSEventTypeLeftMouseDown || type == NSEventTypeLeftMouseUp
+                                            ? 0U
+                                            : static_cast<unsigned>(event.buttonNumber);
                 if ((down || up) && buttonMask(button) == 0)
                     return;
                 if (down)
