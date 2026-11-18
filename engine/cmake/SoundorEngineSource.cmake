@@ -73,14 +73,14 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/web/Web.cpp)
 # The core the WebAssembly engine is built from too.
 list(APPEND SOUNDOR_RUNTIME_SOURCES ${SOUNDOR_CORE_SOURCES})
-# macOS and iOS: Soundor's own accessibility bridges (Objective-C++, ARC).
+# Apple runtime classes, accessibility and macOS input (Objective-C++, ARC).
 if(APPLE)
   enable_language(OBJCXX)
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/AppleShared.mm)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/AppleShared.mm src/platform/apple/RuntimeClass.mm)
   if(IOS)
     list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/IosPlatform.mm)
   else()
-    list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/MacPlatform.mm)
+    list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/MacPlatform.mm src/input/apple/MacInput.mm)
   endif()
 endif()
 if(WIN32)
@@ -89,9 +89,12 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
 endif()
-# Native input: Soundor's own where it has one (Linux: X11 and XInput 2), the
+# Native input: macOS (AppKit), Linux (X11 and XInput 2), and the
 # plugin framework's elsewhere (see src/input/Platform.cpp).
 list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp)
+if(APPLE AND NOT IOS)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/apple/Translation.cpp)
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # Only their headers: libX11 and libXi are loaded when a view opens, so an
   # engine needs no X11 to load (src/input/linux/Xlib.h).

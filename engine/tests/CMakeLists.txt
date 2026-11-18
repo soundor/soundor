@@ -95,6 +95,7 @@ if(SOUNDOR_JS_SOURCE)
     main.cpp
     a11y/SemanticsTests.cpp
     input/ClickCounterTests.cpp
+    input/MacTranslationTests.cpp
     js/ContextTests.cpp
     js/ErrorTests.cpp
     js/JobTests.cpp
@@ -228,8 +229,12 @@ if(SOUNDOR_JS_SOURCE)
     target_link_libraries(soundor_runtime_tests PRIVATE X11::X11 X11::Xtst)
   endif()
 
+  if(NOT APPLE OR IOS)
+    target_sources(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src/input/apple/Translation.cpp)
+  endif()
+
   if(APPLE AND NOT IOS)
-    target_sources(soundor_runtime_tests PRIVATE apple/MacBridgeTests.mm)
+    target_sources(soundor_runtime_tests PRIVATE apple/MacBridgeTests.mm input/MacInputTests.mm)
     target_link_libraries(soundor_runtime_tests PRIVATE "-framework AppKit")
     set_target_properties(soundor_runtime_tests PROPERTIES OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED ON)
     target_compile_options(soundor_runtime_tests PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
@@ -512,7 +517,7 @@ if(APPLE AND NOT IOS AND SOUNDOR_JS_SOURCE)
           -DLIBRARY=$<TARGET_FILE:soundor_apple_module_${variant}>
           -DNM=${SOUNDOR_NM_EXE}
           -DAPPLE=TRUE
-          "-DALLOWED=soundor_apple_create$<SEMICOLON>soundor_apple_class$<SEMICOLON>soundor_apple_press$<SEMICOLON>soundor_apple_retain_element$<SEMICOLON>soundor_apple_destroy"
+          "-DALLOWED=soundor_apple_create$<SEMICOLON>soundor_apple_class$<SEMICOLON>soundor_apple_press$<SEMICOLON>soundor_apple_retain_element$<SEMICOLON>soundor_apple_destroy$<SEMICOLON>soundor_apple_input_class"
           -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
     endforeach()
   endif()

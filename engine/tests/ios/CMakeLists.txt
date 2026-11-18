@@ -15,6 +15,7 @@ add_library(soundor_ios_a11y STATIC
   ${native}/src/a11y/Platform.cpp
   ${native}/src/a11y/PlatformSupport.cpp
   ${native}/src/a11y/Semantics.cpp
+  ${native}/src/platform/apple/RuntimeClass.mm
   ${native}/src/a11y/apple/AppleShared.mm
   ${native}/src/a11y/apple/IosPlatform.mm)
 target_include_directories(soundor_ios_a11y PRIVATE ${native}/include ${native}/src ${CMAKE_CURRENT_BINARY_DIR}/generated)

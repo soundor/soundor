@@ -21,19 +21,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
     //
     // Linux (X11, XWayland included): pointer, wheel, keyboard, text and
     // focus, read with XInput 2 on a connection of the input's own (see
-    // contribute/engine-reference.md, "Native input"). Elsewhere there is
-    // none yet: the framework's input stays.
+    // contribute/engine-reference.md, "Native input").
+    // macOS uses a child NSView; Windows keeps the framework's input.
 
     // The native view the input is read in. Linux: the X11 window (its XID)
-    // the framework shows the editor in.
+    // the framework shows the editor in. macOS: the framework's NSView.
     struct NativeView
     {
         void* handle = nullptr;
     };
 
     // Where the editor is in the native view: its top-left corner in the
-    // view's physical pixels, physical pixels per logical pixel of the
-    // editor, and its size in its logical pixels (0: to the view's edges).
+    // view's physical pixels (macOS: AppKit points), native units per
+    // logical pixel of the editor, and its size in its logical pixels (0: to the view's edges).
     // Pointer input is read over that area alone (a framework's own
     // controls around it keep theirs), and positions are given in the
     // editor's logical pixels from its top-left, as a framework gives them.
@@ -104,11 +104,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
         // an input method composes only then, so elsewhere keys stay keys.
         virtual void setTextInputFocused(bool focused) = 0;
 
-        // Whether the view's window has the keyboard focus.
+        // Request the native first responder after the framework focuses the
+        // editor. Platforms whose framework owns the responder need no work.
+        virtual void requestFocus() {}
+
+        // Whether the view has the keyboard focus.
         [[nodiscard]] virtual bool focused() const = 0;
         // The buttons held, as PointerInput::buttons.
         [[nodiscard]] virtual unsigned buttons() const = 0;
-        // Where the pointer last was on the screen, in physical pixels, and
+        // Where the pointer is on the screen, in native units (macOS: desktop
+        // points, Linux: physical pixels), and
         // moves it there (a pointer lock keeping it in the view). Under
         // Wayland (XWayland), moving it is up to the compositor.
         [[nodiscard]] virtual std::optional<ui::Point> pointerOnScreen() const = 0;
@@ -116,7 +121,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
     };
 
     // The platform's input for `options.view`, or null where Soundor reads
-    // none (not Linux), or cannot (`failure` says why: no X server, no
+    // none, or cannot (`failure` says why: no X server, no
     // XInput 2, the view gone): the framework's input stays.
     [[nodiscard]] std::unique_ptr<PlatformInput> createPlatformInput(const PlatformOptions& options,
                                                                      std::string* failure = nullptr);

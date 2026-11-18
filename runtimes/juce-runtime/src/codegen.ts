@@ -1115,9 +1115,8 @@ namespace ${NS}
         bool gpuLost = false;
         // The cursor shown over the view.
         ui::Cursor cursor = ui::Cursor::Default;
-        // Linux: the view's input, read by Soundor on a connection of its
-        // own, for the peer's native window (a new one: a new input). Null
-        // elsewhere, and where it could not start: JUCE's input then.
+        // Native input for the peer: XInput 2 on Linux, an AppKit child view
+        // on macOS. Null elsewhere, or when attachment failed: JUCE's input then.
         std::unique_ptr<input::PlatformInput> nativeInput;
         void* nativeInputView = nullptr;
         int nativeInputDescriptor = -1;
@@ -1800,7 +1799,7 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::updateNativeInput()
     {
-#if JUCE_LINUX
+#if JUCE_LINUX || JUCE_MAC
         auto* peer = getPeer();
         void* view = peer != nullptr ? peer->getNativeHandle() : nullptr;
         if (view != nativeInputView)
@@ -1818,12 +1817,22 @@ ${renderEditorArea(editor)}
                 {
                     // Read when its connection is readable: JUCE's event loop
                     // is the host's (a VST3 host's IRunLoop) on its UI thread.
+#if JUCE_LINUX
                     nativeInputDescriptor = nativeInput->fileDescriptor();
                     juce::LinuxEventLoop::registerFdCallback(nativeInputDescriptor,
                                                              [this](int) { readNativeInput(); });
+#endif
+#if JUCE_MAC
+                    if (hasKeyboardFocus(true))
+                        nativeInput->requestFocus();
+#endif
                     // What JUCE's input began ends: its input stops here.
                     releaseKeys(true);
+#if JUCE_MAC
+                    log(js::LogLevel::Info, "input: native (AppKit)");
+#else
                     log(js::LogLevel::Info, "input: native (X11, XInput 2)");
+#endif
                 }
                 else
                     log(js::LogLevel::Warn, "native input could not start (" + why + "): JUCE's input instead");
@@ -1834,7 +1843,12 @@ ${renderEditorArea(editor)}
         // The editor's place and scale in the native window's physical
         // pixels, and its size: only its area is read (a Standalone's window
         // has JUCE's own controls around it, which keep JUCE's input).
+#if JUCE_MAC
+        // AppKit uses points; Retina backing pixels do not scale NSEvents.
+        constexpr float physical = 1;
+#else
         const auto physical = static_cast<float>(peer->getPlatformScaleFactor());
+#endif
         const auto origin = peer->getComponent().getLocalPoint(this, juce::Point<float>()) * physical;
         const auto unit = peer->getComponent().getLocalPoint(this, juce::Point<float>(1, 0)) * physical;
         nativeInput->setGeometry({ .x = origin.x,
@@ -1842,6 +1856,13 @@ ${renderEditorArea(editor)}
                                    .scale = unit.x - origin.x,
                                    .width = static_cast<float>(getWidth()),
                                    .height = static_cast<float>(getHeight()) });
+#if JUCE_MAC
+        // A programmatic JUCE focus request finishes before handing its native
+        // responder to the child. Doing this from focusGained would recurse
+        // through JUCE's peer become/resignFirstResponder callbacks.
+        if (hasKeyboardFocus(true) && ! nativeInput->focused())
+            nativeInput->requestFocus();
+#endif
         // JUCE's own menus and dialogs (a Standalone's options) take the
         // view's input while they show, as they would with JUCE's input: a
         // press beside a menu closes it.
@@ -1903,7 +1924,12 @@ ${renderEditorArea(editor)}
                 // A press takes the keyboard, as it does with JUCE's input:
                 // JUCE focuses its window, as its own input would.
                 if (nativeInput != nullptr && ! nativeInput->focused())
+                {
                     grabKeyboardFocus();
+#if JUCE_MAC
+                    nativeInput->requestFocus();
+#endif
+                }
             }
             else if (pointer->phase == ui::PointerInput::Phase::Move && pointer->buttons != 0)
             {
@@ -1922,7 +1948,7 @@ ${renderEditorArea(editor)}
             const float viewZoom = zoom();
             const auto origin = uiArea().getPosition();
             wheel->position = { (wheel->position.x - origin.x) / viewZoom, (wheel->position.y - origin.y) / viewZoom };
-            // The X server delivered it to this view alone: unhandled, it
+            // The native platform delivered it to this view alone: unhandled, it
             // goes nowhere else, as with JUCE's.
             runtimeHost().surface().wheel(*wheel);
             runtimeHost().runtime().runPendingJobs();

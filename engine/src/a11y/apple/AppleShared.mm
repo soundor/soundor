@@ -1,17 +1,10 @@
 #include "a11y/apple/AppleShared.h"
 
-#include <objc/runtime.h>
-
-#include <cstdio>
-#include <cstdlib>
-#include <stdexcept>
+#include "platform/apple/RuntimeClass.h"
 
 #if ! __has_feature(objc_arc)
     #error "AppleShared.mm is built with ARC (-fobjc-arc)"
 #endif
-
-#define SOUNDOR_STRINGIFY_(x) #x
-#define SOUNDOR_STRINGIFY(x) SOUNDOR_STRINGIFY_(x)
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail::apple
 {
@@ -92,24 +85,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail::apple
 
     Class makeElementClass(Class base, const std::vector<std::pair<SEL, IMP>>& methods)
     {
-        std::string name;
-        do
-        {
-            std::uint64_t random[2] {};
-            arc4random_buf(random, sizeof random);
-            char suffix[40];
-            std::snprintf(suffix, sizeof suffix, "%016llx%016llx", static_cast<unsigned long long>(random[0]),
-                          static_cast<unsigned long long>(random[1]));
-            name = std::string("SoundorAXElement_") + SOUNDOR_STRINGIFY(SOUNDOR_ABI_NAMESPACE) + "_" + suffix;
-        } while (objc_getClass(name.c_str()) != nil);
-        Class created = objc_allocateClassPair(base, name.c_str(), 0);
-        if (created == Nil)
-            throw std::runtime_error("Could not allocate Soundor accessibility class");
+        std::vector<platform::apple::Method> additions;
         for (const auto& [selector, implementation] : methods)
-            class_addMethod(created, selector, implementation,
-                            method_getTypeEncoding(class_getInstanceMethod(base, selector)));
-        objc_registerClassPair(created);
-        return created;
+            additions.push_back(
+                { selector, implementation, method_getTypeEncoding(class_getInstanceMethod(base, selector)) });
+        return platform::apple::makeRuntimeClass("SoundorAXElement", base, additions);
     }
 
     NSString* string(const std::string& text)

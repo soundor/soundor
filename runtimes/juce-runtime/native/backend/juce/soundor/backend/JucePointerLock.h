@@ -70,7 +70,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     [[nodiscard]] std::unique_ptr<PointerLock::Source> desktopPointerSource(int pointerId);
 
     // The mouse (pointer 1) of Soundor's native input, or null: where the
-    // view's input is Soundor's own (Linux). Its screen positions are the
-    // native input's physical pixels, which the lock only hands back to it.
+    // view's input is Soundor's own (Linux or macOS). Screen positions use
+    // the native input's units, which the lock only hands back to it.
     [[nodiscard]] std::unique_ptr<PointerLock::Source> nativePointerSource(input::PlatformInput& input, int pointerId);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

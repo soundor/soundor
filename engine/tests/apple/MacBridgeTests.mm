@@ -5,6 +5,7 @@
 #include "a11y/apple/MacPlatform.h"
 
 #include <soundor/a11y/Platform.h>
+#include <soundor/input/Platform.h>
 
 #import <AppKit/AppKit.h>
 #include <objc/runtime.h>
@@ -184,6 +185,24 @@ TEST_SUITE("a11y macOS bridge")
         CHECK((objc_getClass("SoundorAXElement") == nil));
         // The container is the system's own class.
         CHECK(([(__bridge id)f.platform->accessibilityContainer() class] == [NSAccessibilityElement class]));
+    }
+
+    TEST_CASE("the native input child preserves the accessibility container and action routing")
+    {
+        MacFixture f;
+        f.build(controls);
+        id container = (__bridge id)f.platform->accessibilityContainer();
+        auto input = input::createPlatformInput({ .view = { (__bridge void*)f.view } });
+        REQUIRE(input != nullptr);
+        CHECK_FALSE(f.view.subviews.lastObject.isAccessibilityElement);
+        CHECK(((__bridge id)f.platform->accessibilityContainer() == container));
+        CHECK([f.find("Reset") accessibilityPerformPress]);
+        f.tick();
+        CHECK(f.eval("log.join(' ')").asString() == "press");
+        input.reset();
+        CHECK([f.find("Reset") accessibilityPerformPress]);
+        f.tick();
+        CHECK(f.eval("log.join(' ')").asString() == "press press");
     }
 
     TEST_CASE("VoiceOver's actions reach plugin code on the next tick, if the element offers them")
