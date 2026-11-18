@@ -115,12 +115,19 @@ TEST_CASE("native Windows pointer messages are delivered once on a JUCE-owned HW
 {
     Editor first;
     Editor second;
+    // JUCE's hover hit test uses the desktop z-order at the message's screen position.
+    second.setTopLeftPosition(first.getRight() + 20, first.getY());
+    first.toFront(false);
+    POINT screenPoint { 20, 30 };
+    const LPARAM position = MAKELPARAM(screenPoint.x, screenPoint.y);
+    REQUIRE(ClientToScreen(first.window, &screenPoint));
+    REQUIRE(WindowFromPoint(screenPoint) == first.window);
     first.read();
     second.read();
-    SendMessageW(first.window, WM_MOUSEMOVE, 0, MAKELPARAM(20, 30));
+    SendMessageW(first.window, WM_MOUSEMOVE, 0, position);
     CHECK(juce::Desktop::getInstance().getMainMouseSource().getComponentUnderMouse() == &first);
-    SendMessageW(first.window, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(20, 30));
-    SendMessageW(first.window, WM_LBUTTONUP, 0, MAKELPARAM(20, 30));
+    SendMessageW(first.window, WM_LBUTTONDOWN, MK_LBUTTON, position);
+    SendMessageW(first.window, WM_LBUTTONUP, 0, position);
     const auto events = first.read();
     REQUIRE(events.size() == 3);
     CHECK(std::get<ui::PointerInput>(events[0]).phase == ui::PointerInput::Phase::Move);
