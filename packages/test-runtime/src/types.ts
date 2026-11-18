@@ -212,6 +212,8 @@ export interface Style {
   /** 0 to 1, for the node and everything in it. */
   opacity?: number;
   transform?: readonly TransformOperation[];
+  /** Hint to prepare this node for transform changes. */
+  willChange?: 'auto' | 'transform';
   /** Images: how the image fills the box. */
   resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
 }

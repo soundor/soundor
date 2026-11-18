@@ -130,6 +130,36 @@ namespace
 
 TEST_SUITE("native animation frames")
 {
+    TEST_CASE("transform hint caches a view before its style moves it")
+    {
+        test::WebFixture f;
+        f.host.surface().setSize({ 100, 100 });
+        f.run(R"(
+            import {root,createView} from 'soundor:ui';
+            root.style.backgroundColor='blue';
+            globalThis.panel=createView({position:'absolute',top:10,left:10,width:20,height:20,
+                backgroundColor:'red',willChange:'transform'});
+            root.appendChild(panel);
+        )");
+        Target target;
+        render::RasterCompositor compositor(target);
+        compositor.composite(f.host.frame());
+        CHECK(target.pixels.pixels()[15 * 100 + 15] == 0xffff0000);
+
+        f.eval("panel.style.transform = [{ translateX: 30 }]");
+        const auto& moved = f.host.frame();
+        CHECK(moved.statistics.layersRasterized == 0);
+        compositor.composite(moved);
+        CHECK(target.pixels.pixels()[15 * 100 + 15] == 0xff0000ff);
+        CHECK(target.pixels.pixels()[15 * 100 + 45] == 0xffff0000);
+
+        f.eval("panel.style.backgroundColor = 'lime'");
+        const auto& repainted = f.host.frame();
+        CHECK(repainted.statistics.layersRasterized > 0);
+        compositor.composite(repainted);
+        CHECK(target.pixels.pixels()[15 * 100 + 45] == 0xff00ff00);
+    }
+
     TEST_CASE("paint animation damages transparent overlays without running Yoga")
     {
         double time = 0;

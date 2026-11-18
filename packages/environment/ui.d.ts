@@ -350,6 +350,8 @@ declare module 'soundor:ui' {
      * centre, in order; layout is unchanged.
      */
     transform?: readonly TransformOperation[];
+    /** Hint to prepare this node for transform changes. Use `auto` to clear it. */
+    willChange?: 'auto' | 'transform';
     /** Images: how the image fills the box. */
     resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
   }

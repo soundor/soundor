@@ -1023,6 +1023,7 @@ const styles = StyleSheet.create({
   },
   bothTrackY: {
     zIndex: 1,
+    willChange: 'transform',
     position: 'absolute',
     top: 2,
     bottom: 12,
@@ -1034,6 +1035,7 @@ const styles = StyleSheet.create({
   bothThumbY: { width: 8, borderRadius: 4, backgroundColor: '#22d3ee' },
   bothTrackX: {
     zIndex: 1,
+    willChange: 'transform',
     position: 'absolute',
     left: 2,
     right: 12,
@@ -1089,6 +1091,7 @@ const styles = StyleSheet.create({
   },
   customOverlayTrack: {
     zIndex: 1,
+    willChange: 'transform',
     position: 'absolute',
     left: 8,
     right: 8,

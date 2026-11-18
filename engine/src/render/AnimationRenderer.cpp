@@ -43,8 +43,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         bool isolated(const ui::Node& node, const gpu::Device* device)
         {
             const ui::Style& style = node.presentedStyle();
-            return node.hasCompositorPresentation() || style.transform.count != 0 || style.opacity < 1 || style.clips()
-                   || gpuCanvas(node, device);
+            return node.hasCompositorPresentation() || style.willChange == ui::WillChange::Transform
+                   || style.transform.count != 0 || style.opacity < 1 || style.clips() || gpuCanvas(node, device);
         }
         bool ancestorOf(ui::Surface& surface, ui::NodeId ancestor, const ui::Node& node)
         {
@@ -57,7 +57,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
     bool AnimationRenderer::needed(const ui::Node& node)
     {
-        if (node.hasCompositorPresentation() || node.style().transform.count != 0)
+        if (node.hasCompositorPresentation() || node.style().transform.count != 0
+            || node.style().willChange == ui::WillChange::Transform)
             return true;
         return std::ranges::any_of(node.children(), [](const ui::Node* child) { return needed(*child); });
     }

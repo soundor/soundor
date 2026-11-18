@@ -143,6 +143,26 @@ describe('scroll indicators', () => {
     expect(horizontalTrack.style.display).toBe('none');
   });
 
+  it('keeps both bars and tracks within the content extent at rounded offsets', () => {
+    const { element, vertical, horizontal, track, horizontalTrack } = setup(1, {
+      ...BOX,
+      contentWidth: 399.75,
+      contentHeight: 399.75,
+    });
+    element.scrollTop = 300;
+    element.scrollLeft = 300;
+    pointer(element, 'pointermove', 105, 115);
+
+    expect(
+      parseFloat(vertical.style.top) + parseFloat(vertical.style.height),
+    ).toBeCloseTo(399.75);
+    expect(
+      parseFloat(horizontal.style.left) + parseFloat(horizontal.style.width),
+    ).toBeCloseTo(399.75);
+    expect(track.style.top).toBe('299.75px');
+    expect(horizontalTrack.style.left).toBe('299.75px');
+  });
+
   it('scrolls by a drag of the bar, in proportion, and keeps it from the view', () => {
     const { element, vertical, track } = setup();
     const seen = vi.fn<() => void>();

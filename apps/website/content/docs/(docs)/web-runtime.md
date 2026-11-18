@@ -550,6 +550,9 @@ docs, a phone, the panel open). The host stays out of its way:
 
 ### Resizing and scaling
 
+On mobile, the web host follows the visible viewport as the browser toolbars
+expand and collapse. The plugin view scales or resizes to fit that space.
+
 Two different things change how big the plugin looks:
 
 - **Resizing** changes the view's size in logical pixels: the size its UI is
