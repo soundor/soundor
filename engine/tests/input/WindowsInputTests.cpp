@@ -177,17 +177,17 @@ TEST_SUITE("native input: Win32 HWND")
     TEST_CASE("capture loss cancels exactly once without a spurious mouse up")
     {
         Fixture f;
-        Window other;
         f.send(WM_LBUTTONDOWN, MK_LBUTTON);
+        REQUIRE(GetCapture() == f.window.handle);
         f.read();
-        SetCapture(other.handle);
+        // Release capture externally so User32 sends WM_CAPTURECHANGED to the adapter.
+        REQUIRE(ReleaseCapture());
         const auto events = f.read();
         REQUIRE(events.size() == 1);
         CHECK(std::get<ui::PointerInput>(events[0]).phase == ui::PointerInput::Phase::Cancel);
         CHECK(f.adapter->buttons() == 0);
         f.send(WM_LBUTTONUP);
         CHECK(f.inputEvents().empty());
-        ReleaseCapture();
     }
 
     TEST_CASE("wheel messages convert screen coordinates and retain fractional axes")
