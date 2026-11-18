@@ -27,6 +27,9 @@ target_sources(soundor_juce_platform_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JucePointerLock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JucePresentation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceTransport.cpp)
+if(WIN32)
+  target_sources(soundor_juce_platform_tests PRIVATE WindowsNativeInputTests.cpp)
+endif()
 target_include_directories(soundor_juce_platform_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_compile_definitions(soundor_juce_platform_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(soundor_juce_platform_tests

@@ -212,7 +212,7 @@ if(SOUNDOR_JS_SOURCE)
   endif()
 
   if(WIN32)
-    target_sources(soundor_runtime_tests PRIVATE a11y/WindowsTests.cpp)
+    target_sources(soundor_runtime_tests PRIVATE a11y/WindowsTests.cpp input/WindowsInputTests.cpp)
   endif()
 
 
@@ -227,6 +227,11 @@ if(SOUNDOR_JS_SOURCE)
     endif()
     target_sources(soundor_runtime_tests PRIVATE input/LinuxKeysTests.cpp input/LinuxScrollTests.cpp input/X11InputTests.cpp)
     target_link_libraries(soundor_runtime_tests PRIVATE X11::X11 X11::Xtst)
+  endif()
+
+  target_sources(soundor_runtime_tests PRIVATE input/WindowsTranslationTests.cpp)
+  if(NOT WIN32)
+    target_sources(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src/input/windows/Translation.cpp)
   endif()
 
   if(NOT APPLE OR IOS)

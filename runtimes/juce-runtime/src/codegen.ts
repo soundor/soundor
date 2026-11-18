@@ -1029,6 +1029,7 @@ namespace ${NS}
         void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
         bool keyPressed(const juce::KeyPress&) override;
         bool keyStateChanged(bool isKeyDown) override;
+        void focusGained(FocusChangeType) override;
         void focusLost(FocusChangeType) override;
 
     protected:
@@ -1799,7 +1800,7 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::updateNativeInput()
     {
-#if JUCE_LINUX || JUCE_MAC
+#if JUCE_LINUX || JUCE_MAC || JUCE_WINDOWS
         auto* peer = getPeer();
         void* view = peer != nullptr ? peer->getNativeHandle() : nullptr;
         if (view != nativeInputView)
@@ -1828,7 +1829,12 @@ ${renderEditorArea(editor)}
 #endif
                     // What JUCE's input began ends: its input stops here.
                     releaseKeys(true);
-#if JUCE_MAC
+#if JUCE_WINDOWS
+                    // JUCE's WH_GETMESSAGE hook otherwise translates keys before
+                    // the HWND subclass. Native focus remains on the same HWND.
+                    giveAwayKeyboardFocus();
+                    log(js::LogLevel::Info, "input: native (Win32)");
+#elif JUCE_MAC
                     log(js::LogLevel::Info, "input: native (AppKit)");
 #else
                     log(js::LogLevel::Info, "input: native (X11, XInput 2)");
@@ -2110,6 +2116,21 @@ ${renderEditorArea(editor)}
         if (nativeInput != nullptr)
             return false;
         return ! isKeyDown && releaseKeys(false);
+    }
+
+    void AudioProcessorEditor::focusGained(FocusChangeType)
+    {
+#if JUCE_WINDOWS
+        // Leave JUCE's logical focus empty for this editor, so its keyboard
+        // hook passes raw messages to the HWND. Other JUCE controls keep their
+        // normal logical focus, and Soundor's native focus still belongs to
+        // the existing HWND. Surface navigation and UIA use viewFocused().
+        if (nativeInput != nullptr)
+        {
+            giveAwayKeyboardFocus();
+            nativeInput->requestFocus();
+        }
+#endif
     }
 
     void AudioProcessorEditor::focusLost(FocusChangeType)

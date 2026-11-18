@@ -22,10 +22,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
     // Linux (X11, XWayland included): pointer, wheel, keyboard, text and
     // focus, read with XInput 2 on a connection of the input's own (see
     // contribute/engine-reference.md, "Native input").
-    // macOS uses a child NSView; Windows keeps the framework's input.
+    // macOS uses a child NSView; Windows subclasses the framework's HWND.
 
     // The native view the input is read in. Linux: the X11 window (its XID)
     // the framework shows the editor in. macOS: the framework's NSView.
+    // Windows: the framework's Unicode HWND (no new window is created).
     struct NativeView
     {
         void* handle = nullptr;

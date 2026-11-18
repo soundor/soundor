@@ -1260,7 +1260,7 @@ where input came from.
 | --------------------------- | -------------------------------------- | ---------------------- |
 | Linux (X11, XWayland)       | Soundor (`src/input/linux/`, XInput 2) | JUCE's peer window     |
 | macOS                       | Soundor (`src/input/apple/`, AppKit)   | Child of JUCE's NSView |
-| Windows                     | JUCE (`JuceInput.cpp`)                 | JUCE                   |
+| Windows                     | Soundor (`src/input/windows/`, Win32)  | JUCE's existing HWND   |
 | Linux without X11 libraries | JUCE, with a warning in the log        | JUCE's peer window     |
 
 `input::createPlatformInput()` (`include/soundor/input/Platform.h`) makes
@@ -1272,6 +1272,125 @@ the text it types, committed text, focus) and the framework adapter gives
 them to the surface the way it gives the framework's: the generated JUCE
 editor's `deliverNative()` uses the same `deliver()` (zoom, DevTools,
 pointer lock, cursor), wheel, key and text paths as its JUCE callbacks.
+
+**Event ownership (Windows).** The prebuilt engine subclasses JUCE's existing
+Unicode `HWND` with `SetWindowSubclass`, using per-instance reference data.
+It creates no window, message loop, worker thread or global hook. The UI
+thread's window callback appends normalized input; the generated editor
+drains it before each runtime tick. Pointer messages outside the editor's
+geometry, non-input messages and system shortcuts continue through
+`DefSubclassProc`. Hover moves also continue for JUCE's cursor and
+component-under-mouse bookkeeping; its translated Soundor callbacks remain
+suppressed, so they do not provide a second input path. The accessibility
+subclass still handles `WM_GETOBJECT`.
+JUCE retains embedding, window ownership, resize, painting and host integration.
+Its translated Soundor callbacks are suppressed while native input is attached;
+JUCE modal menus/dialogs suspend the adapter and take their own input.
+
+JUCE's Windows keyboard hook can translate a message before dispatching it
+to the window procedure, even when `keyPressed` returns false. The generated
+editor therefore gives away its JUCE logical component focus while native
+input owns it, including after programmatic focus requests. The same HWND
+keeps native focus. JUCE's hook then leaves these raw key messages alone.
+Other JUCE controls retain their normal focus; Soundor's navigation and
+accessibility use the adapter's native focus and the surface's semantic focus.
+Soundor neither installs another hook nor modifies JUCE's hook.
+
+**Windows pointer, capture and DPI.** `WM_MOUSEMOVE`, button messages (including
+double-click variants and both X buttons), `WM_MOUSELEAVE` and
+`TrackMouseEvent` supply pointer input. The first held button takes native
+capture; dragging continues outside the editor, and the last release yields
+capture. `WM_CAPTURECHANGED` cancels a stolen drag, without a synthetic up.
+Chording follows the shared pointer contract: the first press is Down, the
+last release is Up, and intermediate changes are Move events with updated
+button bits. X buttons use Web button numbers 3/4 and masks 8/16.
+
+Signed client coordinates are relative to the HWND. Geometry from JUCE
+already includes its platform DPI factor and editor/host scaling; subtract
+the editor origin and divide by that scale once. Wheel coordinates are
+screen coordinates and go through `ScreenToClient` first. No additional
+`GetDpiForWindow()/96` factor is applied. Event screen positions use
+`ClientToScreen` in the HWND's DPI context, divided by the editor scale.
+Pointer-lock anchors use `GetPhysicalCursorPos`/`SetPhysicalCursorPos`, so a
+timer running in a different host DPI context does not virtualize the anchor.
+Mixed-DPI, DPI-unaware host embedding and scale changes need real Windows
+host testing.
+
+**Windows scrolling.** `WM_MOUSEWHEEL` and `WM_MOUSEHWHEEL` retain the signed
+native delta as floating-point lines (`delta / WHEEL_DELTA * 3`). Sub-120
+deltas are delivered immediately, without accumulating integer notches or
+rounding. Positive vertical wheel input means up; positive horizontal input
+means right, normalized to the shared down/right convention. Both axes can
+arrive in separate ordered messages. This uses the same three-lines-per-notch
+contract as the other adapters, not a guessed touchpad pixel size.
+
+These messages do not identify precise pixel deltas, gesture phases or
+momentum reliably. Precision touchpads and drivers may expose fractional
+wheel messages or already quantized input. Soundor preserves what Win32
+supplies; it cannot reconstruct information the driver omitted. There is no
+artificial inertia or invented phase metadata. Raw Input, pointer hooks and
+Direct Manipulation are not introduced. Verify diagonal, small-delta and
+continued touchpad scrolling on actual devices.
+
+**Windows keyboard and text.** `WM_KEYDOWN/UP` and `WM_SYSKEYDOWN/UP` track
+physical presses by scan code plus extended-key bit, keeping left/right
+modifier and keypad identities distinct internally. Releases retain the
+press's logical name across layout changes; repeat remains a down event.
+The shared public event exposes `KeyboardEvent.key`, not a physical `code`.
+Named keys use the Win32 virtual-key map; character names use the active
+layout with `ToUnicodeEx`'s no-state-change flag (Windows 10 1607+), so naming
+does not mutate the dead-key buffer. Shift, Control, Alt/AltGr and Windows-key
+state are read on the UI thread. Alt menu/host shortcuts and Windows system
+keys also continue down the native window chain. Ordinary focused-editor
+keys belong to Soundor, as on Linux; dispatch is asynchronous and does not
+synchronously ask JavaScript whether the host should consume a key.
+
+The host's normal `TranslateMessage`/dispatch path supplies `WM_CHAR` and
+`WM_SYSCHAR`; Soundor does not call `TranslateMessage` a second time.
+Adjacent matching character messages are attached to the pending key event,
+so the surface can prevent the typed text. A commit without an adjacent
+pending key becomes `TextInput` for the focused text node. UTF-16 surrogate
+pairs and Unicode `WM_UNICHAR` are decoded without losing supplementary
+characters. If a host drains Soundor between key and character messages,
+that later character is a separate text commit, like an IME result.
+
+Each adapter owns an IMM context, associates it only while text input is
+focused and native input is enabled, and restores the HWND's previous
+context on detach. Native `WM_IME_*` processing goes to `DefWindowProcW`
+instead of JUCE's text-target handler: Windows keeps its composition and
+candidate UI. Soundor reads each complete `GCS_RESULTSTR` commit as one
+`TextInput` and suppresses duplicate default character generation; direct
+`WM_IME_CHAR` commits are also supported. Composition is
+cancelled on focus loss, suspension or teardown. This preserves the existing
+shared committed-text API; it adds no incompatible composition API. Inline
+preedit, surrounding document text, document-range replacement and a precise
+caret rectangle are not in that API. Candidate UI anchors at the editor's
+lower edge. Full TSF document-store integration, context-sensitive IMEs and
+dictation remain outside this adapter; test installed IMEs and dead-key
+layouts manually in the target hosts.
+
+**Windows lifecycle and verification.** Focus and visibility changes,
+`WM_CANCELMODE` and editor teardown cancel capture/composition and release
+held keys. Cancellation is repeatable. Subclasses are removed before the
+callback state is destroyed and during `WM_NCDESTROY`; HWND destruction and
+adapter destruction can occur in either order. The window procedure retains
+only its own queue state across reentrant focus/capture/IMM calls. It holds no
+runtime or surface pointer, and cannot dispatch into a destroyed runtime.
+Callback address plus instance ID isolates independently linked engine
+versions, without process-global mutable input state or registered classes.
+Input and UIA have independent subclass entries and clean up independently.
+
+Portable normalization tests cover fractions, axes, coordinate scaling,
+physical pairing and UTF-16. Windows HWND tests cover messages, capture,
+focus, IME commit callbacks, reentrant destruction, repeated attach/detach,
+multiple editors and UIA coexistence. Generated-editor tests check native
+selection and suppression of duplicate JUCE dispatch. Windows JUCE peer tests
+also exercise queued key translation through JUCE's existing message hook,
+programmatic focus handoff and independent pointer delivery. These protocol tests
+do not establish DAW compatibility or validate a physical precision touchpad
+or a complete IME session. Windows builds and runtime tests must run on a
+Windows machine; manually verify host shortcuts, standalone menus, mixed DPI,
+accessibility and repeated editor open/close with multiple plugins.
 
 **Event ownership (macOS).** The prebuilt engine adds a transparent,
 flipped child `NSView` over the editor's area of JUCE's native view.
@@ -1500,8 +1619,8 @@ the surface's, as before.
 a case in `src/input/Platform.cpp`, and its framework adapter stops
 delivering what it replaces, as the JUCE editor does with `nativeInput`.
 Native Wayland (a `wl_seat` on the compositor's surface) would be the next
-on Linux; macOS (`NSEvent` on the editor's `NSView`) and Windows (window
-messages, `WM_POINTER`) remain JUCE's.
+on Linux; macOS uses AppKit responder methods and Windows uses the
+existing HWND's subclass chain.
 
 ### `RuntimeHost`
 
@@ -2044,6 +2163,11 @@ is there (GTK and Qt require it); without libX11 or libXi the editor keeps
 JUCE's input and says so in the log. The native tests also link XTest
 (`libxtst-dev`) and run under `xvfb-run`. All three libraries are MIT
 licensed system libraries, not shipped with a plugin.
+
+Windows native input uses the system `user32`, `comctl32` and `imm32`
+libraries. They are propagated for source and prebuilt consumers through
+`SoundorPlatformLibraries.cmake`; no third-party dependency or per-plugin
+native compilation is added.
 
 ### Accessibility dependencies
 
