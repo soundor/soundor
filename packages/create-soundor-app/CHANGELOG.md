@@ -1,5 +1,40 @@
 # create-soundor-app
 
+## 0.18.0
+
+### Minor Changes
+
+- [#326](https://github.com/soundor/soundor/pull/326) [`8002969`](https://github.com/soundor/soundor/commit/800296968109a085fd4711912ba196c7c650aede) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Require every plugin to export its Rust processor and controller. Scaffold separate entry, controller and processor modules, including an empty controller when no native methods are configured.
+
+  Run the same generated Rust NativeMethods contract in browsers through WASM, with instance stores, wake-driven async execution, control-thread scheduling, host services and resource publication to the separate AudioWorklet processor. Remove production WebNativeApi implementations and the browser host's native option. Move those methods to Rust and regenerate/rebuild existing projects. The portable Send/Sync bounds remain; unblock is native-only, and browser futures execute cooperatively on the main thread.
+
+- [#328](https://github.com/soundor/soundor/pull/328) [`3f303a0`](https://github.com/soundor/soundor/commit/3f303a014274a3b23d2a406db3e3aae44128c253) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Remove the `soundor init` command and runtime initialization hook. Runtime authors
+  now implement only `gen`, `dev`, `build`, and `doctor`. Both first-party hosts
+  remain package-managed, including the legacy-host migration diagnostics.
+
+  `soundor gen` creates a Rust starter crate when `lib/Cargo.toml` is absent, preserving
+  existing files and leaving existing crates untouched; development and builds run it automatically. Check mode remains read-only.
+  New projects run generation after dependency installation.
+
+- [#307](https://github.com/soundor/soundor/pull/307) [`d3fe0e2`](https://github.com/soundor/soundor/commit/d3fe0e284f82c13386d90c64803fb1e6475ab91e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** a plugin's audio processing is Rust, in the project's `lib/` crate, and the JUCE runtime runs it. `soundor init` scaffolds `lib/` (a processor and its tests) and `rust-toolchain.toml`; `soundor gen` writes the `soundor` crate the processor depends on, the Rust SDK shipped in the `soundor` package, with the config's parameters, read-only parameters, native streams and audio layouts typed for it; `soundor dev` and `soundor build` compile it with Cargo, and `soundor doctor` checks for Rust. The generated `soundor::AudioProcessor` now implements `prepareToPlay()`, `reset()` and `processBlock()` itself and calls the Rust processor through its C ABI: a JUCE processor no longer implements `process()`, and a project's `PluginProcessor` keeps only what is not processing (its editor, its buses without an `audio` declaration, its native API). Runtimes receive the crate as `ctx.lib`.
+
+  Rust static libraries link directly using the plugin's existing export controls. Windows needs no LLVM archive/object rewriting tools, and Linux Release binaries still omit debug information.
+
+- [#331](https://github.com/soundor/soundor/pull/331) [`f28464c`](https://github.com/soundor/soundor/commit/f28464c9ef2dd445f1d6344197c93065dcc8a9cd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** the plugin's Rust processor and controller library now lives in `lib/`. Rename `native/` to `lib/`, update Cargo manifest paths in scripts and tooling, and run `soundor gen`. Legacy and ambiguous layouts produce a migration error without changing user files.
+
+  Runtime authors must use `ctx.lib`, `LibraryBuildContext`, `LibraryBuildRequest`, and `LibraryArtifact` in place of the Rust crate's native-named context and types. Cargo options, processor/controller ABI, and the public `soundor:native` methods/events API are unchanged. Both JUCE and Web compile the same library for their targets.
+
+### Patch Changes
+
+- [#301](https://github.com/soundor/soundor/pull/301) [`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Clean up lint warnings and update callback references after React commits, keeping installed listeners stable.
+
+- [#327](https://github.com/soundor/soundor/pull/327) [`a114b13`](https://github.com/soundor/soundor/commit/a114b13ae6fe4924d9c7fb3b662c02285a8c97f7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Manage the complete Web host inside the runtime package, without a scaffolded
+  runtimes/web project. Configure built-in input sources with webRuntime({ inputs })
+  or supply a browser TypeScript/JavaScript module and compose custom inputs with
+  factories from @soundor/web-runtime/input. Custom input modules use a separate browser TypeScript project;
+  projects using built-in inputs need no browser configuration. Legacy web host directories require explicit migration;
+  the user-owned Vite integration entry is removed.
+
 ## 0.17.1
 
 ### Patch Changes

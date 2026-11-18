@@ -1,5 +1,61 @@
 # @soundor/config
 
+## 0.18.0
+
+### Minor Changes
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare plugin kind, categories and vendor metadata, audio buses and complete supported layouts, latency/tail reporting, parameter groups and a host bypass role. Generate JUCE host integration and explicit browser channel counts, with validation for unsupported browser buses. Existing projects retain handwritten audio setup unless they opt into the audio contract. MIDI and presets are separate features.
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare validated factory presets in config and load them synchronously through soundor:presets or the generated C++ processor. Share the existing parameter/state stores and StateHistory, including opt-in atomic undo entries, nested transactions, selection and modified tracking, and restoration matching. Expose JUCE host programs from the same catalog; preserve DAW state/preset compatibility without changing the snapshot format. Include matching Web and simulated runtime APIs.
+
+- [#333](https://github.com/soundor/soundor/pull/333) [`23162f7`](https://github.com/soundor/soundor/commit/23162f7bf06b592d48f129c3255bb5d2de47a856) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the MIDI 1.0 channel message contract, integer byte conversions, and independent host MIDI input/output configuration (both disabled by default).
+
+- [#333](https://github.com/soundor/soundor/pull/333) [`c15667d`](https://github.com/soundor/soundor/commit/c15667dee72d1d70cb3bf8c19275791fd5fc93a6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Wire MIDI into native and Web processor hosting, the JavaScript module, controller transport and test runtime. Add bounded AudioWorklet delivery, explicit Web MIDI device routing, JUCE capabilities, VST3 host virtual input/conversion and optional Linux ALSA input. MIDI effects default to an audio-free layout.
+
+- [#321](https://github.com/soundor/soundor/pull/321) [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** native channels are now called native streams, so they are not confused with an audio buffer's channels. The behavior is unchanged: they still go from audio to the UI only, keep only the latest value, deliver at most one value per frame, and publish without locks or allocations.
+
+  - Config: `native.channels` is now `native.streams`, and no method can be called `streams`.
+  - UI: `import { streams } from 'soundor:native'`, typed `NativeStream<T>`.
+  - Rust: `ctx.streams.peak.publish(…)`. `soundor::Streams`, `ValueStream`, `BufferStream` and `StreamElement` replace `Channels`, `ValueChannel`, `BufferChannel` and `ChannelElement`. `TestProcessor::stream()` and `stream_buffer()` replace `channel()` and `channel_buffer()`.
+  - C++: `soundor::native::Streams` replaces `native::Channels`, and the processor's member is `nativeStreams`. The engine's `soundor/js/Streams.h` declares `js::ValueStream<T>` and `js::BufferStream<T>`, with `js::deliverStreams()`, `bind::connectStreams()` and `bind::installStreams()`. `TickStatistics::streams` replaces `TickStatistics::channels`.
+  - Tests: `publishStream(name, value)` from `@soundor/testing-library` replaces `publishChannel()`.
+  - Web: the generated contract exports `streams` to the project's `runtimes/web` code. `@soundor/engine/web`'s processor takes `streams` and reports changes through `onStreams`.
+
+  The Rust processor's binary interfaces keep their layout and their WebAssembly export names (`soundor_wasm_channel_*`), so the processor ABI version is unchanged.
+
+- [#321](https://github.com/soundor/soundor/pull/321) [`b7dbe5f`](https://github.com/soundor/soundor/commit/b7dbe5fa46dca1be9c82094ae2482a37610aa194) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking (processor ABI 2):** the Rust audio processor can read persistent state. A state field declared with `audio: true` keeps its usual persistence, presets and History, and the processor also reads it as `ctx.state` in `prepare()` and `process()`. `ctx.state` is a generated `soundor::StateSnapshot` that holds only the `audio: true` fields, typed as declared, so reading a UI-only field fails to compile. An audio field is a number, a boolean, or an array of them with a `maxLength` (`StateArray<T, N>`, which reads as a slice). `maxLength` is an array's capacity. Any array field may declare one, and every value of the field is checked against it on every write path (sets, restored projects, factory presets, History).
+
+  A change reaches the next block. A block sees one snapshot from start to end, and fields written together arrive together. Reading takes no lock, allocates nothing and copies nothing. Natively, the engine's `processor::AudioState` (a triple buffer that `PersistentState::audioState()` owns) hands snapshots to the audio thread. In the browser, the page posts each snapshot to the AudioWorklet (`ProcessorNode.setState()`), which writes it into the module between render quanta.
+
+  The processor ABI is now version 2: `SoundorPrepare` and `SoundorBlock` carry the state, and `SoundorProcessorInfo` and `RustContract` its size. Rebuild a plugin's processor with this SDK. `TestProcessor::state_mut()` sets the state in tests.
+
+- [#321](https://github.com/soundor/soundor/pull/321) [`439c5f4`](https://github.com/soundor/soundor/commit/439c5f4355ba1656ac1c3b472ba93ff3fc701fb6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The Rust audio processor gains audio resources: immutable data of any length that the processing reads, such as a wavetable, an impulse response or a lookup table. Declare them under `native.resources` (`wavetable: { type: 'buffer<float32>' }`), publish them from `prepare()` (`ctx.resources.wavetable.publish(table)`, which moves the value instead of copying it), and read them in `process()` (`ctx.resources.wavetable.get()`, a `&[f32]` that stays the same for the whole block). The latest publication wins.
+
+  Taking and reading a resource never allocates, frees, locks or waits. A replaced resource is freed off the audio thread: by the next publication, the next `prepare()`, or when the processor is destroyed. Resources are not saved with the plugin and are not part of presets or History. They live in the Rust SDK alone, so the processor ABI is unchanged.
+
+- [#328](https://github.com/soundor/soundor/pull/328) [`3f303a0`](https://github.com/soundor/soundor/commit/3f303a014274a3b23d2a406db3e3aae44128c253) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Remove the `soundor init` command and runtime initialization hook. Runtime authors
+  now implement only `gen`, `dev`, `build`, and `doctor`. Both first-party hosts
+  remain package-managed, including the legacy-host migration diagnostics.
+
+  `soundor gen` creates a Rust starter crate when `lib/Cargo.toml` is absent, preserving
+  existing files and leaving existing crates untouched; development and builds run it automatically. Check mode remains read-only.
+  New projects run generation after dependency installation.
+
+- [#307](https://github.com/soundor/soundor/pull/307) [`d3fe0e2`](https://github.com/soundor/soundor/commit/d3fe0e284f82c13386d90c64803fb1e6475ab91e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** a plugin's audio processing is Rust, in the project's `lib/` crate, and the JUCE runtime runs it. `soundor init` scaffolds `lib/` (a processor and its tests) and `rust-toolchain.toml`; `soundor gen` writes the `soundor` crate the processor depends on, the Rust SDK shipped in the `soundor` package, with the config's parameters, read-only parameters, native streams and audio layouts typed for it; `soundor dev` and `soundor build` compile it with Cargo, and `soundor doctor` checks for Rust. The generated `soundor::AudioProcessor` now implements `prepareToPlay()`, `reset()` and `processBlock()` itself and calls the Rust processor through its C ABI: a JUCE processor no longer implements `process()`, and a project's `PluginProcessor` keeps only what is not processing (its editor, its buses without an `audio` declaration, its native API). Runtimes receive the crate as `ctx.lib`.
+
+  Rust static libraries link directly using the plugin's existing export controls. Windows needs no LLVM archive/object rewriting tools, and Linux Release binaries still omit debug information.
+
+- [#331](https://github.com/soundor/soundor/pull/331) [`f28464c`](https://github.com/soundor/soundor/commit/f28464c9ef2dd445f1d6344197c93065dcc8a9cd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** the plugin's Rust processor and controller library now lives in `lib/`. Rename `native/` to `lib/`, update Cargo manifest paths in scripts and tooling, and run `soundor gen`. Legacy and ambiguous layouts produce a migration error without changing user files.
+
+  Runtime authors must use `ctx.lib`, `LibraryBuildContext`, `LibraryBuildRequest`, and `LibraryArtifact` in place of the Rust crate's native-named context and types. Cargo options, processor/controller ABI, and the public `soundor:native` methods/events API are unchanged. Both JUCE and Web compile the same library for their targets.
+
+### Patch Changes
+
+- [#301](https://github.com/soundor/soundor/pull/301) [`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Clean up lint warnings and update callback references after React commits, keeping installed listeners stable.
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f), [`085d5a6`](https://github.com/soundor/soundor/commit/085d5a607fde5a76fb87986d90f49b350bc75c41), [`23162f7`](https://github.com/soundor/soundor/commit/23162f7bf06b592d48f129c3255bb5d2de47a856), [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d), [`b7dbe5f`](https://github.com/soundor/soundor/commit/b7dbe5fa46dca1be9c82094ae2482a37610aa194), [`439c5f4`](https://github.com/soundor/soundor/commit/439c5f4355ba1656ac1c3b472ba93ff3fc701fb6), [`84678d1`](https://github.com/soundor/soundor/commit/84678d157ca75d9cfa125d784c0ad07df3c7a5a6), [`ec9f9e7`](https://github.com/soundor/soundor/commit/ec9f9e734c75fe1b6622df88a8862a45aa8008bf)]:
+  - @soundor/core@0.18.0
+  - @soundor/expression@0.18.0
+
 ## 0.17.1
 
 ### Patch Changes

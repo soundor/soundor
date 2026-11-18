@@ -1,5 +1,21 @@
 # @soundor/environment
 
+## 0.18.0
+
+### Minor Changes
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare validated factory presets in config and load them synchronously through soundor:presets or the generated C++ processor. Share the existing parameter/state stores and StateHistory, including opt-in atomic undo entries, nested transactions, selection and modified tracking, and restoration matching. Expose JUCE host programs from the same catalog; preserve DAW state/preset compatibility without changing the snapshot format. Include matching Web and simulated runtime APIs.
+
+- [#333](https://github.com/soundor/soundor/pull/333) [`085d5a6`](https://github.com/soundor/soundor/commit/085d5a607fde5a76fb87986d90f49b350bc75c41) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add independent bounded MIDI observer destinations, explicit controller opt-in and task-context sends, subscription generation tracking and a shared JavaScript MIDI facade for runtime adapters.
+
+- [#333](https://github.com/soundor/soundor/pull/333) [`23162f7`](https://github.com/soundor/soundor/commit/23162f7bf06b592d48f129c3255bb5d2de47a856) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the MIDI 1.0 channel message contract, integer byte conversions, and independent host MIDI input/output configuration (both disabled by default).
+
+- [#306](https://github.com/soundor/soundor/pull/306) [`84678d1`](https://github.com/soundor/soundor/commit/84678d157ca75d9cfa125d784c0ad07df3c7a5a6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Rename `soundor:state-history` to `soundor:history`, its `stateHistory` export to `history`, and its `StateHistory` interface to `History`. Rename the React hook to `useHistory` and the generated JUCE processor member to `history`. Update imports, hook calls, and native member access to the new names.
+
+- [#339](https://github.com/soundor/soundor/pull/339) [`dbb5055`](https://github.com/soundor/soundor/commit/dbb5055d43ebdff4a6fd2c62050561375124c05f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add hooks for the external state a plugin UI reads, so a component no longer calls `useSyncExternalStore` on a `soundor:*` module: `useEditorVisibility()`, `useEditorFocus()`, `useEditorSize()` (the editor's own size, beside `useViewSize()`), `useHostState()`, `usePresetSelection(presets)` and `useNativeStream(stream)`. `usePresetSelection()` takes `presets` from `soundor:presets` instead of importing it, so a plugin that shows no presets needs nothing from that module. Each takes the same stable snapshots the modules already supplied, so it re-renders once per change and subscribes while the component is mounted. `useParameter()`, `useStateValue()` and `useNativeStream()` now subscribe once for as long as their source stays the same, where `useParameter()` and `useStateValue()` subscribed again on every render. The docs, examples and `soundor:*` declarations use the hooks.
+
+- [#344](https://github.com/soundor/soundor/pull/344) [`49d772d`](https://github.com/soundor/soundor/commit/49d772db72626e65523d33e39df3b1b4982d0e01) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the opt-in `willChange: 'transform'` style. The web renderer forwards the hint to CSS. The native renderer can reuse a cached subtree when only that view's transform changes.
+
 ## 0.17.1
 
 ### Patch Changes
