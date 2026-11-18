@@ -1,5 +1,6 @@
 import { defineSoundorConfig } from '@soundor/config';
 import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 // A ring modulator whose controller is Rust (lib/src/controller.rs): the
@@ -25,7 +26,12 @@ export default defineSoundorConfig({
     defaultLayout: 'stereo',
   },
   editor: { width: 560, height: 420 },
-  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] }), webRuntime()],
+  runtimes: [
+    juceRuntime({ formats: ['vst3', 'standalone'] }),
+    // The same plugin as a Linux VST3 without JUCE: soundor build vst3.
+    vst3Runtime(),
+    webRuntime(),
+  ],
   parameters: {
     rate: {
       type: 'float32',

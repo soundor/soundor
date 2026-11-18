@@ -735,6 +735,9 @@ importers:
       '@soundor/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@soundor/vst3-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/vst3-runtime
       '@soundor/web-runtime':
         specifier: workspace:*
         version: link:../../runtimes/web-runtime
@@ -1679,6 +1682,43 @@ importers:
         version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
   runtimes/juce-runtime:
+    dependencies:
+      '@soundor/engine':
+        specifier: workspace:*
+        version: link:../../engine
+      '@soundor/runtime-sdk':
+        specifier: workspace:^
+        version: link:../../packages/runtime-sdk
+    devDependencies:
+      '@soundor/config':
+        specifier: workspace:^
+        version: link:../../packages/config
+      '@soundor/tsdown-config':
+        specifier: workspace:^
+        version: link:../../configs/tsdown-config
+      '@soundor/typescript-config':
+        specifier: workspace:^
+        version: link:../../configs/typescript-config
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      soundor:
+        specifier: workspace:^
+        version: link:../../packages/cli
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.7(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  runtimes/vst3-runtime:
     dependencies:
       '@soundor/engine':
         specifier: workspace:*

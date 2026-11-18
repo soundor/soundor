@@ -1,0 +1,4 @@
+/prebuilt
+/native/build
+/rust/target
+/tests/plugin/.soundor

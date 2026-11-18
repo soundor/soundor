@@ -14,11 +14,13 @@
     "test:watch": "vitest watch",
     "typecheck": "soundor gen && tsc -b",
     "build:web": "soundor build web",
-    "dev:web": "soundor dev web"
+    "dev:web": "soundor dev web",
+    "build:vst3": "soundor build vst3"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
     "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },
