@@ -219,7 +219,7 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it('reads Linux and macOS input natively, leaving window ownership with JUCE', () => {
+  it('reads desktop input natively, leaving window ownership with JUCE', () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
     const update = editor.slice(
       editor.indexOf('void AudioProcessorEditor::updateNativeInput()'),
@@ -227,7 +227,7 @@ describe('generateJuceSources', () => {
     );
     // AppKit uses the peer view; Linux also reads its connection when readable.
     expect(update).toMatch(
-      /^[^]*?#if JUCE_LINUX \|\| JUCE_MAC[^]*input::createPlatformInput\([^]*#endif/,
+      /^[^]*?#if JUCE_LINUX \|\| JUCE_MAC \|\| JUCE_WINDOWS[^]*input::createPlatformInput\([^]*#endif/,
     );
     expect(update).toContain('juce::LinuxEventLoop::registerFdCallback(');
     expect(update).toContain(
@@ -236,10 +236,19 @@ describe('generateJuceSources', () => {
     expect(update).toContain('#if JUCE_MAC\n        // AppKit uses points;');
     expect(update).toContain('constexpr float physical = 1;');
     expect(update).toContain('input: native (AppKit)');
+    expect(update).toContain('input: native (Win32)');
+    expect(update).toContain('giveAwayKeyboardFocus();');
     expect(update).toContain(
       'if (hasKeyboardFocus(true) && ! nativeInput->focused())',
     );
     expect(editor).toContain('nativeInput->requestFocus();');
+    const focus = editor.slice(
+      editor.indexOf('void AudioProcessorEditor::focusGained('),
+      editor.indexOf('void AudioProcessorEditor::focusLost('),
+    );
+    expect(focus).toContain('#if JUCE_WINDOWS');
+    expect(focus).toContain('giveAwayKeyboardFocus();');
+    expect(focus).toContain('nativeInput->requestFocus();');
     expect(update).toContain("JUCE's input instead");
     // Over the editor's area only, and JUCE's while its menus and dialogs show.
     expect(update).toContain('.width = static_cast<float>(getWidth()),');

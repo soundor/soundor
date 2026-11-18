@@ -84,12 +84,12 @@ if(APPLE)
   endif()
 endif()
 if(WIN32)
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp src/input/windows/WindowsInput.cpp src/input/windows/Translation.cpp)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
 endif()
-# Native input: macOS (AppKit), Linux (X11 and XInput 2), and the
+# Native input: Windows (Win32), macOS (AppKit), Linux (X11 and XInput 2), and the
 # plugin framework's elsewhere (see src/input/Platform.cpp).
 list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp)
 if(APPLE AND NOT IOS)

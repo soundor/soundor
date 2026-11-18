@@ -2,6 +2,8 @@
 
 #if defined(__linux__) && ! defined(__ANDROID__)
     #include "input/linux/X11Input.h"
+#elif defined(_WIN32)
+    #include "input/windows/WindowsInput.h"
 #elif defined(__APPLE__)
     #include <TargetConditionals.h>
     #if TARGET_OS_OSX
@@ -17,8 +19,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
         return x11::createInput(options, failure);
 #elif defined(__APPLE__) && TARGET_OS_OSX
         return apple::createInput(options, failure);
+#elif defined(_WIN32)
+        return win32::createInput(options, failure);
 #else
-        // Windows and iOS: the framework's input (JUCE) for now.
+        // iOS: the framework's input (JUCE) for now.
         if (failure != nullptr)
             *failure = "no native input on this platform";
         static_cast<void>(options);
