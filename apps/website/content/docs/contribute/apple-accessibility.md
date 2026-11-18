@@ -61,9 +61,9 @@ to `NSView`, `NSWindow` or framework classes. The container is a system-class
 
 **Why dynamic classes are necessary.** Accessibility actions such as press,
 increment, decrement, cancel and setting a value require custom Objective-C
-methods. The future native macOS input backend will have similar requirements;
-it should follow the same naming and lifetime principles. This bridge does
-not implement native input handling.
+methods. The native macOS input adapter likewise needs custom AppKit
+responder methods and shares the same class registration utility, naming
+and lifetime principles.
 
 **Why names are randomized.** Objective-C class registration is process-wide.
 Independent plugins in one DAW may use the same or different engine versions.
@@ -207,3 +207,10 @@ and as a VST3 in a host (Logic, Reaper), and in the Standalone app:
       VoiceOver on, then adding it again: no crash.
 
 iOS: see [the iOS bridge](/docs/contribute/ios-accessibility).
+
+The native macOS input adapter uses the same randomized class utility
+(`src/platform/apple/RuntimeClass.mm`) and lifetime policy. Its transparent
+child view is not an accessibility element; JUCE's existing native-child
+attachment continues to expose Soundor's accessibility container. See
+[Native input](./engine-reference#native-input) for responder ownership,
+text input and teardown.

@@ -1256,11 +1256,12 @@ testing, capture, hover, clicks, focus, keyboard navigation, scrolling and
 every `soundor:ui` and React event are the same, and plugin code cannot tell
 where input came from.
 
-| Platform                    | Pointer, wheel, keys, text, focus      | The native view    |
-| --------------------------- | -------------------------------------- | ------------------ |
-| Linux (X11, XWayland)       | Soundor (`src/input/linux/`, XInput 2) | JUCE's peer window |
-| macOS, Windows              | JUCE (`JuceInput.cpp`)                 | JUCE               |
-| Linux without X11 libraries | JUCE, with a warning in the log        | JUCE's peer window |
+| Platform                    | Pointer, wheel, keys, text, focus      | The native view        |
+| --------------------------- | -------------------------------------- | ---------------------- |
+| Linux (X11, XWayland)       | Soundor (`src/input/linux/`, XInput 2) | JUCE's peer window     |
+| macOS                       | Soundor (`src/input/apple/`, AppKit)   | Child of JUCE's NSView |
+| Windows                     | JUCE (`JuceInput.cpp`)                 | JUCE                   |
+| Linux without X11 libraries | JUCE, with a warning in the log        | JUCE's peer window     |
 
 `input::createPlatformInput()` (`include/soundor/input/Platform.h`) makes
 one `input::PlatformInput` for one native view, as
@@ -1271,6 +1272,112 @@ the text it types, committed text, focus) and the framework adapter gives
 them to the surface the way it gives the framework's: the generated JUCE
 editor's `deliverNative()` uses the same `deliver()` (zoom, DevTools,
 pointer lock, cursor), wheel, key and text paths as its JUCE callbacks.
+
+**Event ownership (macOS).** The prebuilt engine adds a transparent,
+flipped child `NSView` over the editor's area of JUCE's native view.
+AppKit hit testing delivers `NSEvent`s directly to its `NSResponder`
+methods; the view draws nothing, and JUCE still owns the window, embedding,
+rendering and accessibility attachment. There are no event monitors,
+swizzles or per-plugin Objective-C++ sources. Controls around the editor
+keep JUCE's events. The generated editor suppresses its translated JUCE
+callbacks while native input is attached, avoiding duplicate delivery.
+The child is hidden while JUCE shows a modal component or menu, restoring
+JUCE hit testing and cancelling pressed input.
+
+AppKit callbacks append normalized `input::Event`s on the main thread.
+The editor drains them before each runtime tick, in arrival order; there is
+no file descriptor, worker thread or call into JavaScript from an AppKit
+method. JUCE's component focus and the child's native first-responder
+status are coordinated by `requestFocus()`. Window key notifications and
+responder changes release held keys and cancel an active pointer before
+reporting lost focus. Notifications belong to that view's window, never a
+process-wide event monitor. Geometry and window changes are sampled each
+tick. A hidden or detached view ends its input too.
+
+**macOS pointer and scrolling.** AppKit coordinates are points, independent
+of Retina backing pixels. The child is flipped to a top-left origin and
+its position and size follow `ViewGeometry`. Host scaling is removed once;
+the editor applies its existing Soundor UI zoom when delivering events.
+Primary, secondary and middle buttons follow the shared Web button masks;
+additional buttons are ignored. Chorded buttons produce moves between the
+first down and final up. AppKit counts clicks and delivers captured drags
+and releases outside the view; no system-wide mouse grab is installed.
+Existing pointer lock uses CoreGraphics cursor positions and warping in
+matching desktop coordinates. Cursor warping remains subject to macOS and
+host policy.
+
+Scrolling reads `scrollingDeltaX`, `scrollingDeltaY` and
+`hasPreciseScrollingDeltas`. Precise deltas remain fractional pixels in
+editor units; conventional wheel deltas are lines (three per notch).
+Signs are converted to Soundor's positive-down/right convention without
+reversing the user's macOS scrolling preference. `phase` and `momentumPhase`
+keep one gesture targeted at its initial position, through native momentum.
+Each nonzero event stays in order with pointer and key events. Zero-delta
+boundaries update gesture state but emit no wheel event. AppKit supplies
+momentum; Soundor adds no inertia or smoothing. See Apple’s
+[scrolling delta](https://developer.apple.com/documentation/appkit/nsevent/scrollingdeltax)
+and [trackpad event](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingTouchEvents/HandlingTouchEvents.html) documentation. The shared `WheelInput`
+currently exposes deltas, not gesture phase notifications.
+
+**macOS keyboard and text.** Virtual key codes pair downs and ups even if
+modifiers or the layout change while held; `KeyboardEvent.key` uses the
+layout's Unicode characters or a Web named key. The shared API has no
+physical `KeyboardEvent.code` field. Repeat comes from AppKit and held-key
+state. `flagsChanged:` reports modifier transitions, including separate
+left/right keys, Caps Lock and Fn; the shared modifier mask remains Shift,
+Control, Alt/Option and Meta/Command.
+
+While a Soundor text input is focused, an `NSTextInputContext` drives the
+view's [NSTextInputClient](https://developer.apple.com/documentation/appkit/nstextinputclient) methods. Ordinary input emits a key followed by
+its committed text, preserving the surface's `preventDefault` behavior.
+An IME keeps marked text in the client until it commits Unicode through
+`insertText:replacementRange:`; composition keys stay with the input
+method, and its editing commands return to Soundor's key path. Commits
+without a key become `ui::TextInput`, as on Linux. Composition is discarded
+on blur, suspension and teardown. Text editing Command shortcuts are
+reserved only while the child is first responder and a text input is
+focused; other menu equivalents remain available to AppKit and the host.
+
+The current shared text abstraction accepts committed text at Soundor's
+selection. It does not provide surrounding document text, document-range
+replacement, inline marked-text rendering or a caret rectangle. The client
+therefore exposes only its local composition buffer; candidate windows
+anchor to the editor bounds. It rejects replacement outside that buffer
+instead of appending text at the wrong position, with a debug diagnostic. IMEs requiring surrounding text, dictation
+replacement and the press-and-hold accent panel need macOS testing and may
+not work fully. This adapter does not add a separate text editing API or
+claim full native text-editor compatibility.
+
+**macOS isolation and teardown.** Accessibility and input share
+`src/platform/apple/RuntimeClass.mm`: each hidden, independently linked
+engine lazily registers its own class with 128 random bits from
+`arc4random_buf`. Editor instances reuse their binary's `SoundorInputView`
+class but own separate event queues, input contexts, held-key state and
+tracking areas. Closing an editor removes window observers, clears the
+view's C++ association before AppKit teardown, discards composition,
+removes tracking areas and detaches the child. An externally retained view
+or input context can no longer reach destroyed C++ state. Native input is
+detached before the editor destroys its runtime.
+
+Registered classes persist for the host process. There is no class disposal
+or deliberate binary pinning. Physical unloading can still leave class
+metadata with implementations pointing into unmapped code; input inherits
+accessibility's [runtime lifecycle limitations](./apple-accessibility#objective-c-runtime-lifecycle-and-macos-limitations).
+Closing an editor and physically unloading a module are different events.
+
+**macOS verification.** Portable translation tests cover fractional wheel
+deltas, both axes, modifiers and key naming. `MacInputTests.mm` checks the
+actual child view, event order, drags, key pairing/repeat, focus,
+composition callbacks, suspension, multiple instances and retained-object
+teardown. The two-module Apple host checks independent input classes for
+independently linked engine copies; the C++-only archive consumer checks
+prebuilt linkage. These tests use native protocols and synthetic events,
+not external accessibility clients. They cannot prove host compatibility
+or safe physical unloading. Before release, test real trackpads (natural
+scrolling on/off, diagonal and momentum scrolling), Retina and mixed-scale
+displays, drag capture, keyboard layouts/dead keys and Japanese/Chinese/
+Korean IMEs, host menu shortcuts, Standalone menus, VoiceOver, and repeated
+VST3/AU editor open/close in DAWs with multiple plugin instances and versions.
 
 **Event ownership (Linux).** JUCE keeps its window, and its own X11
 connection, which JUCE's event loop reads. Soundor opens a connection of its

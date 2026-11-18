@@ -5,6 +5,7 @@
 #include "a11y/apple/MacPlatform.h"
 
 #include <soundor/a11y/Platform.h>
+#include <soundor/input/Platform.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #import <AppKit/AppKit.h>
@@ -38,6 +39,7 @@ namespace
                      .ok();
             view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 64, 64)];
             accessibility = soundor::a11y::createPlatformAccessibility({ { (__bridge void*)view, nullptr }, "M" });
+            input = soundor::input::createPlatformInput({ .view = { (__bridge void*)view } });
             tick();
         }
 
@@ -57,6 +59,7 @@ namespace
         soundor::RuntimeHost host { {} };
         NSView* view = nil;
         std::unique_ptr<soundor::a11y::PlatformAccessibility> accessibility;
+        std::unique_ptr<soundor::input::PlatformInput> input;
         bool ok = false;
     };
 
@@ -100,4 +103,12 @@ SOUNDOR_MODULE_EXPORT void* soundor_apple_retain_element(void* handle)
 SOUNDOR_MODULE_EXPORT void soundor_apple_destroy(void* handle)
 {
     delete static_cast<Instance*>(handle);
+}
+
+// The input adapter follows the same per-binary runtime class isolation.
+SOUNDOR_MODULE_EXPORT const char* soundor_apple_input_class(void* handle)
+{
+    auto& instance = *static_cast<Instance*>(handle);
+    className = object_getClassName(instance.view.subviews.lastObject);
+    return className.c_str();
 }

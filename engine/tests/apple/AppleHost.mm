@@ -16,6 +16,7 @@ namespace
         void* library = nullptr;
         void* (*create)() = nullptr;
         const char* (*className)(void*) = nullptr;
+        const char* (*inputClassName)(void*) = nullptr;
         int (*press)(void*) = nullptr;
         void* (*retain)(void*) = nullptr;
         void (*destroy)(void*) = nullptr;
@@ -49,6 +50,7 @@ namespace
         }
         module.create = symbol<void* (*)()>(module.library, "soundor_apple_create");
         module.className = symbol<const char* (*)(void*)>(module.library, "soundor_apple_class");
+        module.inputClassName = symbol<const char* (*)(void*)>(module.library, "soundor_apple_input_class");
         module.press = symbol<int (*)(void*)>(module.library, "soundor_apple_press");
         module.retain = symbol<void* (*)(void*)>(module.library, "soundor_apple_retain_element");
         module.destroy = symbol<void (*)(void*)>(module.library, "soundor_apple_destroy");
@@ -67,7 +69,7 @@ int main(int argc, char** argv)
     Module b = load(argv[2]);
     @autoreleasepool
     {
-        if (a.create == nullptr || b.create == nullptr)
+        if (a.create == nullptr || b.create == nullptr || a.inputClassName == nullptr || b.inputClassName == nullptr)
             return 1;
 
         void* second = b.create();
@@ -78,6 +80,11 @@ int main(int argc, char** argv)
             if (first == nullptr || second == nullptr)
                 return 1;
 
+            const std::string inputA = a.inputClassName(first);
+            const std::string inputB = b.inputClassName(second);
+            expect(inputA != inputB, "each plugin binary registers its own input view class");
+            expect(inputA.rfind("SoundorInputView_", 0) == 0 && inputB.rfind("SoundorInputView_", 0) == 0,
+                   "input views use the shared randomized class registration");
             const std::string classA = a.className(first);
             const std::string classB = b.className(second);
             std::printf("classes: %s, %s\n", classA.c_str(), classB.c_str());
@@ -90,6 +97,7 @@ int main(int argc, char** argv)
 
             // Two instances of one plugin share its class, with their own trees.
             void* third = a.create();
+            expect(third != nullptr && inputA == a.inputClassName(third), "a binary reuses its input view class");
             expect(third != nullptr && classA == a.className(third), "a second instance shares its plugin's class");
 
             expect(a.press(first) == 1, "plugin A is pressed through its bridge");
