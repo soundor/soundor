@@ -12,24 +12,33 @@ using namespace soundor;
 
 namespace
 {
+    // CI cannot reliably activate an unbundled executable. Model only the
+    // WindowServer key-window state; first-responder changes remain real AppKit.
+    __weak NSWindow* keyWindow = nil;
+
+    Class windowClass()
+    {
+        static Class registered = []
+        {
+            const platform::apple::Method methods[] {
+                { @selector(isKeyWindow),
+                  reinterpret_cast<IMP>(+[](id self, SEL) -> BOOL { return self == keyWindow; }),
+                  method_getTypeEncoding(class_getInstanceMethod([NSWindow class], @selector(isKeyWindow))) }
+            };
+            return platform::apple::makeRuntimeClass("SoundorTestInputWindow", [NSWindow class], methods);
+        }();
+        return registered;
+    }
+
     struct Fixture
     {
         Fixture()
         {
-            static const bool applicationReady = []
-            {
-                [NSApplication sharedApplication];
-                // Unbundled test executables default to Prohibited, which
-                // prevents real key-window transitions even for titled windows.
-                const bool allowed = [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-                [NSApp finishLaunching];
-                return allowed;
-            }();
-            REQUIRE(applicationReady);
-            window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 400, 300)
-                                                 styleMask:NSWindowStyleMaskTitled
-                                                   backing:NSBackingStoreBuffered
-                                                     defer:NO];
+            [NSApplication sharedApplication];
+            window = [[windowClass() alloc] initWithContentRect:NSMakeRect(100, 100, 400, 300)
+                                                      styleMask:NSWindowStyleMaskTitled
+                                                        backing:NSBackingStoreBuffered
+                                                          defer:NO];
             window.releasedWhenClosed = NO;
             [window orderFront:nil];
             parent = window.contentView;
@@ -50,28 +59,16 @@ namespace
 
         void focus()
         {
-            if (@available(macOS 14.0, *))
-                [NSApp activate];
-            else
-                [NSApp activateIgnoringOtherApps:YES];
-            [window makeKeyAndOrderFront:nil];
-            // Activation is asynchronous. The command-line test runner has no
-            // application event loop to deliver its WindowServer events for us.
-            NSDate* deadline = [NSDate dateWithTimeIntervalSinceNow:2];
-            while (! window.keyWindow && deadline.timeIntervalSinceNow > 0)
+            if (keyWindow != window)
             {
-                NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                                    untilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]
-                                                       inMode:NSDefaultRunLoopMode
-                                                      dequeue:YES];
-                if (event != nil)
-                    [NSApp sendEvent:event];
-                [window makeKeyWindow];
+                NSWindow* previous = keyWindow;
+                keyWindow = window;
+                if (previous != nil)
+                    [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidResignKeyNotification
+                                                                        object:previous];
+                [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidBecomeKeyNotification
+                                                                    object:window];
             }
-            INFO("AppKit focus: active=", static_cast<bool>(NSApp.active),
-                 " policy=", static_cast<long>(NSApp.activationPolicy), " visible=", static_cast<bool>(window.visible),
-                 " canBecomeKey=", static_cast<bool>(window.canBecomeKeyWindow),
-                 " applicationKeyWindowMatches=", static_cast<bool>(NSApp.keyWindow == window));
             REQUIRE(window.keyWindow);
             input->requestFocus();
             REQUIRE((window.firstResponder == native));
