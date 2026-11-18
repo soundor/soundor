@@ -117,12 +117,15 @@ TEST_CASE("native Windows pointer messages are delivered once on a JUCE-owned HW
     Editor second;
     first.read();
     second.read();
+    SendMessageW(first.window, WM_MOUSEMOVE, 0, MAKELPARAM(20, 30));
+    CHECK(juce::Desktop::getInstance().getMainMouseSource().getComponentUnderMouse() == &first);
     SendMessageW(first.window, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(20, 30));
     SendMessageW(first.window, WM_LBUTTONUP, 0, MAKELPARAM(20, 30));
     const auto events = first.read();
-    REQUIRE(events.size() == 2);
-    CHECK(std::get<ui::PointerInput>(events[0]).phase == ui::PointerInput::Phase::Down);
-    CHECK(std::get<ui::PointerInput>(events[1]).phase == ui::PointerInput::Phase::Up);
+    REQUIRE(events.size() == 3);
+    CHECK(std::get<ui::PointerInput>(events[0]).phase == ui::PointerInput::Phase::Move);
+    CHECK(std::get<ui::PointerInput>(events[1]).phase == ui::PointerInput::Phase::Down);
+    CHECK(std::get<ui::PointerInput>(events[2]).phase == ui::PointerInput::Phase::Up);
     CHECK(first.translatedPresses == 0);
     CHECK(second.read().empty());
     CHECK(second.translatedPresses == 0);

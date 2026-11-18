@@ -1279,7 +1279,10 @@ It creates no window, message loop, worker thread or global hook. The UI
 thread's window callback appends normalized input; the generated editor
 drains it before each runtime tick. Pointer messages outside the editor's
 geometry, non-input messages and system shortcuts continue through
-`DefSubclassProc`. The accessibility subclass still handles `WM_GETOBJECT`.
+`DefSubclassProc`. Hover moves also continue for JUCE's cursor and
+component-under-mouse bookkeeping; its translated Soundor callbacks remain
+suppressed, so they do not provide a second input path. The accessibility
+subclass still handles `WM_GETOBJECT`.
 JUCE retains embedding, window ownership, resize, painting and host integration.
 Its translated Soundor callbacks are suppressed while native input is attached;
 JUCE modal menus/dialogs suspend the adapter and take their own input.

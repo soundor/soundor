@@ -564,6 +564,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
                                                                     .buttons = held });
                         return std::nullopt;
                     case WM_MOUSEMOVE:
+                        static_cast<void>(mouse(message, wParam, lParam));
+                        // JUCE still maintains its component-under-mouse and
+                        // cursor state. Its Soundor callbacks are suppressed;
+                        // normalized input comes only from our native queue.
+                        return std::nullopt;
                     case WM_LBUTTONDOWN:
                     case WM_LBUTTONUP:
                     case WM_LBUTTONDBLCLK:
