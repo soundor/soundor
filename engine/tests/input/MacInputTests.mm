@@ -246,6 +246,31 @@ TEST_SUITE("native input: AppKit")
         CHECK(std::get<input::KeyEvent>(events[3]).key.modifiers == 0);
     }
 
+    TEST_CASE("editing equivalents belong only to the focused editor in the key window")
+    {
+        Fixture f;
+        [f.window makeKeyWindow];
+        f.input->requestFocus();
+        f.input->setTextInputFocused(true);
+        CHECK([f.native performKeyEquivalent:f.key(NSEventTypeKeyDown, @"c", 8, false, NSEventModifierFlagCommand)]);
+        auto events = f.read();
+        REQUIRE(events.size() == 1);
+        CHECK(std::get<input::KeyEvent>(events[0]).key.key == "c");
+        CHECK(std::get<input::KeyEvent>(events[0]).typed.empty());
+        [f.native keyUp:f.key(NSEventTypeKeyUp, @"c", 8, false, NSEventModifierFlagCommand)];
+        events = f.read();
+        REQUIRE(events.size() == 1);
+        CHECK_FALSE(std::get<input::KeyEvent>(events[0]).key.down);
+        CHECK_FALSE(
+            [f.native performKeyEquivalent:f.key(NSEventTypeKeyDown, @"q", 12, false, NSEventModifierFlagCommand)]);
+        Fixture other;
+        [other.window makeKeyWindow];
+        other.input->requestFocus();
+        CHECK_FALSE(
+            [f.native performKeyEquivalent:other.key(NSEventTypeKeyDown, @"c", 8, false, NSEventModifierFlagCommand)]);
+        CHECK(f.read().empty());
+    }
+
     TEST_CASE("marked text stays in the input client until a Unicode commit")
     {
         Fixture f;

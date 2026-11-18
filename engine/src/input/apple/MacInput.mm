@@ -542,21 +542,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                                                                             input->flags(event);
                                                                     }));
                 add(@selector(performKeyEquivalent:),
-                    reinterpret_cast<IMP>(
-                        +[](id self, SEL, NSEvent* event) -> BOOL
-                        {
-                            auto* input = owner(self);
-                            if (input == nullptr || input->suspended || ! input->ownsFocus() || ! input->textFocused)
-                                return NO;
-                            // Reserve text editing shortcuts for Soundor; leave host menu
-                            // equivalents (Quit, Hide, window switching...) to AppKit.
-                            NSString* name = event.charactersIgnoringModifiers.lowercaseString;
-                            if ((event.modifierFlags & NSEventModifierFlagCommand) == 0 || name.length != 1 ||
-                                [@"acvxzy" rangeOfString:name].location == NSNotFound)
-                                return NO;
-                            input->key(event);
-                            return YES;
-                        }));
+                    reinterpret_cast<IMP>(+[](id self, SEL, NSEvent* event) -> BOOL
+                                          {
+                                              auto* input = owner(self);
+                                              if (input == nullptr || input->suspended || ! input->focused()
+                                                  || event.window != input->view.window || ! input->textFocused)
+                                                  return NO;
+                                              // Reserve text editing shortcuts for Soundor; leave host menu
+                                              // equivalents (Quit, Hide, window switching...) to AppKit.
+                                              NSString* name = event.charactersIgnoringModifiers.lowercaseString;
+                                              if ((event.modifierFlags & NSEventModifierFlagCommand) == 0
+                                                  || name.length != 1 ||
+                                                  [@"acvxzy" rangeOfString:name].location == NSNotFound)
+                                                  return NO;
+                                              input->key(event);
+                                              return YES;
+                                          }));
                 add(@selector(inputContext), reinterpret_cast<IMP>(+[](id self, SEL) -> NSTextInputContext*
                                                                    {
                                                                        auto* input = owner(self);
