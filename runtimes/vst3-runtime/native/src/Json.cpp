@@ -691,7 +691,11 @@ namespace soundor::vst3::json
             if (c != '.')
                 digits += c;
         int exponent = 0;
-        std::from_chars(scientific.data() + e + 1, scientific.data() + scientific.size(), exponent);
+        // from_chars takes a '-', never a '+'.
+        auto exponentText = scientific.substr(e + 1);
+        if (! exponentText.empty() && exponentText.front() == '+')
+            exponentText.remove_prefix(1);
+        std::from_chars(exponentText.data(), exponentText.data() + exponentText.size(), exponent);
         // ECMAScript Number::toString: k digits, n the decimal point's position.
         const int k = static_cast<int>(digits.size());
         const int n = exponent + 1;

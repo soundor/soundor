@@ -240,14 +240,20 @@ impl ParameterValue for f32 {
     }
 }
 
-impl ParameterValue for i32 {
-    fn from_plain(plain: f64) -> Self {
-        plain.round() as i32
-    }
-    fn to_plain(self) -> f64 {
-        f64::from(self)
-    }
+// Every integer type a parameter may have (soundor.config's int8 … uint32).
+macro_rules! integer_parameter_value {
+    ($($integer:ty),*) => {$(
+        impl ParameterValue for $integer {
+            fn from_plain(plain: f64) -> Self {
+                plain.round() as $integer
+            }
+            fn to_plain(self) -> f64 {
+                f64::from(self)
+            }
+        }
+    )*};
 }
+integer_parameter_value!(i8, u8, i16, u16, i32, u32);
 
 impl ParameterValue for bool {
     fn from_plain(plain: f64) -> Self {

@@ -333,6 +333,8 @@ namespace soundor::vst3
             return;
         }
         const auto status = rust->prepare(sampleRate, maxFrames, layout, blockValues, audioState.acquire());
+        // Notes released downstream only for a reset after this: nothing sounds yet.
+        midiGeneration = soundor_midi_generation(rust->nativeHandle());
         prepared = status == SOUNDOR_STATUS_OK;
         if (! prepared)
             log("Soundor: the plugin's Rust processor could not be prepared (status " + std::to_string(status)

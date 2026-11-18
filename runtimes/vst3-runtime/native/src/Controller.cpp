@@ -330,12 +330,25 @@ namespace soundor::vst3
             plainValues[*index] = definition.toValue(*index, std::clamp(value, 0.0, 1.0));
             markChanged(*index);
         }
-        else if (tag == programParameterId && ! restoring && ! definition.presets.empty())
+        else if (tag == programParameterId && ! restoring && ! loadingProgram && ! definition.presets.empty())
         {
+            // The host's program selector: the factory preset, loaded as the
+            // UI loads one (its parameters told to the host).
             const auto count = static_cast<double>(definition.presets.size() - 1);
-            const auto program = static_cast<int>(std::lround(std::clamp(value, 0.0, 1.0) * count));
-            if (program != factoryPresets->selectedIndex())
-                requestedProgram.store(program);
+            const auto program = static_cast<std::size_t>(std::lround(std::clamp(value, 0.0, 1.0) * count));
+            if (static_cast<int>(program) != factoryPresets->selectedIndex())
+            {
+                loadingProgram = true;
+                try
+                {
+                    factoryPresets->loadFactory(definition.presets[program].id);
+                }
+                catch (const std::exception& error)
+                {
+                    log(std::string("Soundor: the host's program could not be loaded: ") + error.what());
+                }
+                loadingProgram = false;
+            }
         }
         return result;
     }
@@ -368,23 +381,14 @@ namespace soundor::vst3
     {
         if (shutDown)
             return;
-        if (const int program = requestedProgram.exchange(-1); program >= 0
-            && static_cast<std::size_t>(program) < definition.presets.size())
-        {
-            try
-            {
-                factoryPresets->loadFactory(definition.presets[static_cast<std::size_t>(program)].id);
-            }
-            catch (const std::exception& error)
-            {
-                log(std::string("Soundor: the host's program could not be loaded: ") + error.what());
-            }
-        }
         if (midi != nullptr)
             midi->pump();
-        if (controller != nullptr && (woken.exchange(false) || true))
+        if (controller != nullptr)
+        {
+            woken.store(false);
             if (controller->pump())
                 woken.store(true);
+        }
     }
 
     Vst::Parameter* Controller::parameterAt(std::size_t index)

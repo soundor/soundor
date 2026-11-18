@@ -104,9 +104,8 @@ namespace soundor::vst3
         void addUi(UiParameters* ui);
         void removeUi(UiParameters* ui);
         void editorClosed(Editor* editor);
-        // Runs the Rust controller's queue and MIDI's, and applies requests
-        // the host made from another thread: the editor's tick, and the run
-        // loop's timer, call it.
+        // Runs the Rust controller's queue and MIDI's: the editor's tick, and
+        // the run loop's timer, call it.
         void pump();
 
         OBJ_METHODS(Controller, EditControllerEx1)
@@ -137,8 +136,8 @@ namespace soundor::vst3
         std::shared_ptr<midi::Host> midi;
         Steinberg::IPtr<Steinberg::Linux::IRunLoop> runLoop;
         std::atomic<bool> woken { false };
-        std::atomic<int> requestedProgram { -1 };
         bool restoring = false;
+        bool loadingProgram = false;
         bool shutDown = false;
     };
 } // namespace soundor::vst3
