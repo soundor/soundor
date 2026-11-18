@@ -68,6 +68,10 @@ namespace
                     [NSApp sendEvent:event];
                 [window makeKeyWindow];
             }
+            INFO("AppKit focus: active=", static_cast<bool>(NSApp.active),
+                 " policy=", static_cast<long>(NSApp.activationPolicy), " visible=", static_cast<bool>(window.visible),
+                 " canBecomeKey=", static_cast<bool>(window.canBecomeKeyWindow),
+                 " applicationKeyWindowMatches=", static_cast<bool>(NSApp.keyWindow == window));
             REQUIRE(window.keyWindow);
             input->requestFocus();
             REQUIRE((window.firstResponder == native));
