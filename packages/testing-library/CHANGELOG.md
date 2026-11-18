@@ -1,5 +1,27 @@
 # @soundor/testing-library
 
+## 0.18.0
+
+### Minor Changes
+
+- [#321](https://github.com/soundor/soundor/pull/321) [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** native channels are now called native streams, so they are not confused with an audio buffer's channels. The behavior is unchanged: they still go from audio to the UI only, keep only the latest value, deliver at most one value per frame, and publish without locks or allocations.
+
+  - Config: `native.channels` is now `native.streams`, and no method can be called `streams`.
+  - UI: `import { streams } from 'soundor:native'`, typed `NativeStream<T>`.
+  - Rust: `ctx.streams.peak.publish(…)`. `soundor::Streams`, `ValueStream`, `BufferStream` and `StreamElement` replace `Channels`, `ValueChannel`, `BufferChannel` and `ChannelElement`. `TestProcessor::stream()` and `stream_buffer()` replace `channel()` and `channel_buffer()`.
+  - C++: `soundor::native::Streams` replaces `native::Channels`, and the processor's member is `nativeStreams`. The engine's `soundor/js/Streams.h` declares `js::ValueStream<T>` and `js::BufferStream<T>`, with `js::deliverStreams()`, `bind::connectStreams()` and `bind::installStreams()`. `TickStatistics::streams` replaces `TickStatistics::channels`.
+  - Tests: `publishStream(name, value)` from `@soundor/testing-library` replaces `publishChannel()`.
+  - Web: the generated contract exports `streams` to the project's `runtimes/web` code. `@soundor/engine/web`'s processor takes `streams` and reports changes through `onStreams`.
+
+  The Rust processor's binary interfaces keep their layout and their WebAssembly export names (`soundor_wasm_channel_*`), so the processor ABI version is unchanged.
+
+### Patch Changes
+
+- [#301](https://github.com/soundor/soundor/pull/301) [`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Clean up lint warnings and update callback references after React commits, keeping installed listeners stable.
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f), [`c15667d`](https://github.com/soundor/soundor/commit/c15667dee72d1d70cb3bf8c19275791fd5fc93a6), [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d), [`84678d1`](https://github.com/soundor/soundor/commit/84678d157ca75d9cfa125d784c0ad07df3c7a5a6), [`dbb5055`](https://github.com/soundor/soundor/commit/dbb5055d43ebdff4a6fd2c62050561375124c05f), [`49d772d`](https://github.com/soundor/soundor/commit/49d772db72626e65523d33e39df3b1b4982d0e01)]:
+  - @soundor/react@0.18.0
+  - @soundor/test-runtime@0.18.0
+
 ## 0.17.1
 
 ### Patch Changes

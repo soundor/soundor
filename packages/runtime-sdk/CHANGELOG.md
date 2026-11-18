@@ -1,5 +1,32 @@
 # @soundor/runtime-sdk
 
+## 0.18.0
+
+### Minor Changes
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare validated factory presets in config and load them synchronously through soundor:presets or the generated C++ processor. Share the existing parameter/state stores and StateHistory, including opt-in atomic undo entries, nested transactions, selection and modified tracking, and restoration matching. Expose JUCE host programs from the same catalog; preserve DAW state/preset compatibility without changing the snapshot format. Include matching Web and simulated runtime APIs.
+
+- [#333](https://github.com/soundor/soundor/pull/333) [`c15667d`](https://github.com/soundor/soundor/commit/c15667dee72d1d70cb3bf8c19275791fd5fc93a6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Wire MIDI into native and Web processor hosting, the JavaScript module, controller transport and test runtime. Add bounded AudioWorklet delivery, explicit Web MIDI device routing, JUCE capabilities, VST3 host virtual input/conversion and optional Linux ALSA input. MIDI effects default to an audio-free layout.
+
+- [#328](https://github.com/soundor/soundor/pull/328) [`3f303a0`](https://github.com/soundor/soundor/commit/3f303a014274a3b23d2a406db3e3aae44128c253) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Remove the `soundor init` command and runtime initialization hook. Runtime authors
+  now implement only `gen`, `dev`, `build`, and `doctor`. Both first-party hosts
+  remain package-managed, including the legacy-host migration diagnostics.
+
+  `soundor gen` creates a Rust starter crate when `lib/Cargo.toml` is absent, preserving
+  existing files and leaving existing crates untouched; development and builds run it automatically. Check mode remains read-only.
+  New projects run generation after dependency installation.
+
+- [#331](https://github.com/soundor/soundor/pull/331) [`f28464c`](https://github.com/soundor/soundor/commit/f28464c9ef2dd445f1d6344197c93065dcc8a9cd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** the plugin's Rust processor and controller library now lives in `lib/`. Rename `native/` to `lib/`, update Cargo manifest paths in scripts and tooling, and run `soundor gen`. Legacy and ambiguous layouts produce a migration error without changing user files.
+
+  Runtime authors must use `ctx.lib`, `LibraryBuildContext`, `LibraryBuildRequest`, and `LibraryArtifact` in place of the Rust crate's native-named context and types. Cargo options, processor/controller ABI, and the public `soundor:native` methods/events API are unchanged. Both JUCE and Web compile the same library for their targets.
+
+### Patch Changes
+
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f), [`085d5a6`](https://github.com/soundor/soundor/commit/085d5a607fde5a76fb87986d90f49b350bc75c41), [`23162f7`](https://github.com/soundor/soundor/commit/23162f7bf06b592d48f129c3255bb5d2de47a856), [`c15667d`](https://github.com/soundor/soundor/commit/c15667dee72d1d70cb3bf8c19275791fd5fc93a6), [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d), [`b7dbe5f`](https://github.com/soundor/soundor/commit/b7dbe5fa46dca1be9c82094ae2482a37610aa194), [`439c5f4`](https://github.com/soundor/soundor/commit/439c5f4355ba1656ac1c3b472ba93ff3fc701fb6), [`3f303a0`](https://github.com/soundor/soundor/commit/3f303a014274a3b23d2a406db3e3aae44128c253), [`84678d1`](https://github.com/soundor/soundor/commit/84678d157ca75d9cfa125d784c0ad07df3c7a5a6), [`d3fe0e2`](https://github.com/soundor/soundor/commit/d3fe0e284f82c13386d90c64803fb1e6475ab91e), [`ec9f9e7`](https://github.com/soundor/soundor/commit/ec9f9e734c75fe1b6622df88a8862a45aa8008bf), [`f28464c`](https://github.com/soundor/soundor/commit/f28464c9ef2dd445f1d6344197c93065dcc8a9cd)]:
+  - @soundor/config@0.18.0
+  - @soundor/core@0.18.0
+  - @soundor/expression@0.18.0
+
 ## 0.17.1
 
 ### Patch Changes

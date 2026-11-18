@@ -1,6 +1,0 @@
----
-'@soundor/engine': minor
-'@soundor/juce-runtime': minor
----
-
-Read Linux input natively instead of through JUCE. On X11 (XWayland included) the engine's new `input::PlatformInput` (`soundor/input/Platform.h`) reads a plugin view's pointer, wheel, keys, text and focus with XInput 2 on a connection of its own, which the X server then delivers in place of the core events JUCE selects, so each event reaches the UI once; the generated JUCE editor services it through JUCE's event loop (the host's VST3 run loop) and gives it to the surface as it gives JUCE's input. Touchpads and high-resolution wheels scroll smoothly by fractions of a notch, horizontally and diagonally, from the XInput 2.1 scroll valuators, without the emulated wheel buttons scrolling twice; a stepped wheel still scrolls three lines a notch. Text goes through an X input method (dead keys and Compose with no daemon, IBus or Fcitx where configured) while a text input has the focus. Clicks are counted by the desktop's double-click time, chorded buttons are moves as Web pointer events have them, and a press the view loses is cancelled. libX11 and libXi are loaded at run time, never linked (building the engine needs their headers: `libx11-dev`, `libxi-dev`); without them the editor keeps JUCE's input and logs why. macOS and Windows keep JUCE's input.

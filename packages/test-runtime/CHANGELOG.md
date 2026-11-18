@@ -1,5 +1,35 @@
 # @soundor/test-runtime
 
+## 0.18.0
+
+### Minor Changes
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare validated factory presets in config and load them synchronously through soundor:presets or the generated C++ processor. Share the existing parameter/state stores and StateHistory, including opt-in atomic undo entries, nested transactions, selection and modified tracking, and restoration matching. Expose JUCE host programs from the same catalog; preserve DAW state/preset compatibility without changing the snapshot format. Include matching Web and simulated runtime APIs.
+
+- [#333](https://github.com/soundor/soundor/pull/333) [`c15667d`](https://github.com/soundor/soundor/commit/c15667dee72d1d70cb3bf8c19275791fd5fc93a6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Wire MIDI into native and Web processor hosting, the JavaScript module, controller transport and test runtime. Add bounded AudioWorklet delivery, explicit Web MIDI device routing, JUCE capabilities, VST3 host virtual input/conversion and optional Linux ALSA input. MIDI effects default to an audio-free layout.
+
+- [#321](https://github.com/soundor/soundor/pull/321) [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** native channels are now called native streams, so they are not confused with an audio buffer's channels. The behavior is unchanged: they still go from audio to the UI only, keep only the latest value, deliver at most one value per frame, and publish without locks or allocations.
+
+  - Config: `native.channels` is now `native.streams`, and no method can be called `streams`.
+  - UI: `import { streams } from 'soundor:native'`, typed `NativeStream<T>`.
+  - Rust: `ctx.streams.peak.publish(…)`. `soundor::Streams`, `ValueStream`, `BufferStream` and `StreamElement` replace `Channels`, `ValueChannel`, `BufferChannel` and `ChannelElement`. `TestProcessor::stream()` and `stream_buffer()` replace `channel()` and `channel_buffer()`.
+  - C++: `soundor::native::Streams` replaces `native::Channels`, and the processor's member is `nativeStreams`. The engine's `soundor/js/Streams.h` declares `js::ValueStream<T>` and `js::BufferStream<T>`, with `js::deliverStreams()`, `bind::connectStreams()` and `bind::installStreams()`. `TickStatistics::streams` replaces `TickStatistics::channels`.
+  - Tests: `publishStream(name, value)` from `@soundor/testing-library` replaces `publishChannel()`.
+  - Web: the generated contract exports `streams` to the project's `runtimes/web` code. `@soundor/engine/web`'s processor takes `streams` and reports changes through `onStreams`.
+
+  The Rust processor's binary interfaces keep their layout and their WebAssembly export names (`soundor_wasm_channel_*`), so the processor ABI version is unchanged.
+
+- [#344](https://github.com/soundor/soundor/pull/344) [`49d772d`](https://github.com/soundor/soundor/commit/49d772db72626e65523d33e39df3b1b4982d0e01) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the opt-in `willChange: 'transform'` style. The web renderer forwards the hint to CSS. The native renderer can reuse a cached subtree when only that view's transform changes.
+
+### Patch Changes
+
+- [#301](https://github.com/soundor/soundor/pull/301) [`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Clean up lint warnings and update callback references after React commits, keeping installed listeners stable.
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare plugin kind, categories and vendor metadata, audio buses and complete supported layouts, latency/tail reporting, parameter groups and a host bypass role. Generate JUCE host integration and explicit browser channel counts, with validation for unsupported browser buses. Existing projects retain handwritten audio setup unless they opt into the audio contract. MIDI and presets are separate features.
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f), [`085d5a6`](https://github.com/soundor/soundor/commit/085d5a607fde5a76fb87986d90f49b350bc75c41), [`23162f7`](https://github.com/soundor/soundor/commit/23162f7bf06b592d48f129c3255bb5d2de47a856), [`bb8b0a0`](https://github.com/soundor/soundor/commit/bb8b0a051a150d6edb2ef1859fae66bc3169f09d), [`b7dbe5f`](https://github.com/soundor/soundor/commit/b7dbe5fa46dca1be9c82094ae2482a37610aa194), [`439c5f4`](https://github.com/soundor/soundor/commit/439c5f4355ba1656ac1c3b472ba93ff3fc701fb6), [`84678d1`](https://github.com/soundor/soundor/commit/84678d157ca75d9cfa125d784c0ad07df3c7a5a6), [`ec9f9e7`](https://github.com/soundor/soundor/commit/ec9f9e734c75fe1b6622df88a8862a45aa8008bf)]:
+  - @soundor/core@0.18.0
+  - @soundor/expression@0.18.0
+
 ## 0.17.1
 
 ### Patch Changes
