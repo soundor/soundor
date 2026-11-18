@@ -48,6 +48,32 @@ namespace
         Fixture(const Fixture&) = delete;
         Fixture& operator=(const Fixture&) = delete;
 
+        void focus()
+        {
+            if (@available(macOS 14.0, *))
+                [NSApp activate];
+            else
+                [NSApp activateIgnoringOtherApps:YES];
+            [window makeKeyAndOrderFront:nil];
+            // Activation is asynchronous. The command-line test runner has no
+            // application event loop to deliver its WindowServer events for us.
+            NSDate* deadline = [NSDate dateWithTimeIntervalSinceNow:2];
+            while (! window.keyWindow && deadline.timeIntervalSinceNow > 0)
+            {
+                NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                                    untilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]
+                                                       inMode:NSDefaultRunLoopMode
+                                                      dequeue:YES];
+                if (event != nil)
+                    [NSApp sendEvent:event];
+                [window makeKeyWindow];
+            }
+            REQUIRE(window.keyWindow);
+            input->requestFocus();
+            REQUIRE((window.firstResponder == native));
+            read();
+        }
+
         NSEvent* mouse(NSEventType type, float x = 10, float y = 20)
         {
             const NSPoint point = [native convertPoint:NSMakePoint(x * 2, y * 2) toView:nil];
@@ -259,10 +285,7 @@ TEST_SUITE("native input: AppKit")
     TEST_CASE("editing equivalents belong only to the focused editor in the key window")
     {
         Fixture f;
-        [f.window makeKeyWindow];
-        REQUIRE(f.window.keyWindow);
-        f.input->requestFocus();
-        REQUIRE((f.window.firstResponder == f.native));
+        f.focus();
         f.input->setTextInputFocused(true);
         CHECK([f.native performKeyEquivalent:f.key(NSEventTypeKeyDown, @"c", 8, false, NSEventModifierFlagCommand)]);
         auto events = f.read();
@@ -276,8 +299,7 @@ TEST_SUITE("native input: AppKit")
         CHECK_FALSE(
             [f.native performKeyEquivalent:f.key(NSEventTypeKeyDown, @"q", 12, false, NSEventModifierFlagCommand)]);
         Fixture other;
-        [other.window makeKeyWindow];
-        other.input->requestFocus();
+        other.focus();
         CHECK_FALSE(
             [f.native performKeyEquivalent:other.key(NSEventTypeKeyDown, @"c", 8, false, NSEventModifierFlagCommand)]);
         CHECK(f.read().empty());
@@ -286,10 +308,7 @@ TEST_SUITE("native input: AppKit")
     TEST_CASE("marked text stays in the input client until a Unicode commit")
     {
         Fixture f;
-        [f.window makeKeyWindow];
-        REQUIRE(f.window.keyWindow);
-        f.input->requestFocus();
-        REQUIRE((f.window.firstResponder == f.native));
+        f.focus();
         f.input->setTextInputFocused(true);
         id<NSTextInputClient> client = static_cast<id<NSTextInputClient>>(f.native);
         [client setMarkedText:@"に" selectedRange:NSMakeRange(1, 0) replacementRange:NSMakeRange(NSNotFound, 0)];
@@ -345,10 +364,7 @@ TEST_SUITE("native input: AppKit")
     TEST_CASE("native focus loss releases keys and captured pointer before notifying the surface")
     {
         Fixture f;
-        [f.window makeKeyWindow];
-        REQUIRE(f.window.keyWindow);
-        f.input->requestFocus();
-        REQUIRE((f.window.firstResponder == f.native));
+        f.focus();
         std::vector<input::Event> events;
         f.input->read(events);
         REQUIRE(f.input->focused());
