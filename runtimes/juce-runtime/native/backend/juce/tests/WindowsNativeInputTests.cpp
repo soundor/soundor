@@ -24,6 +24,8 @@ namespace
         Editor()
         {
             setWantsKeyboardFocus(true);
+            // Win32 hit testing skips transparent pixels in layered windows.
+            setOpaque(true);
             setSize(200, 100);
             addToDesktop(0);
             setVisible(true);
@@ -38,6 +40,7 @@ namespace
             native.reset();
             removeFromDesktop();
         }
+        void paint(juce::Graphics& graphics) override { graphics.fillAll(juce::Colours::black); }
         void focusGained(FocusChangeType) override
         {
             if (native != nullptr)
@@ -121,7 +124,7 @@ TEST_CASE("native Windows pointer messages are delivered once on a JUCE-owned HW
     POINT screenPoint { 20, 30 };
     const LPARAM position = MAKELPARAM(screenPoint.x, screenPoint.y);
     REQUIRE(ClientToScreen(first.window, &screenPoint));
-    REQUIRE(WindowFromPoint(screenPoint) == first.window);
+    REQUIRE(static_cast<void*>(WindowFromPoint(screenPoint)) == static_cast<void*>(first.window));
     first.read();
     second.read();
     SendMessageW(first.window, WM_MOUSEMOVE, 0, position);
