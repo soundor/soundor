@@ -4,7 +4,7 @@
 
 // What every platform adapter needs to live safely in a host process: a way
 // for platform callbacks to find the adapter without holding a pointer to it,
-// and a way to stay loaded once the platform may call into this binary.
+// and, on Windows, a way to stay loaded for native callbacks.
 
 #include <soundor/Config.h>
 
@@ -57,8 +57,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
         std::uintptr_t last = 0;
     };
 
+#if defined(_WIN32)
     // Keeps this binary (the plugin) loaded for the rest of the process. For
-    // when the platform holds on to code in it (Objective-C classes, COM
-    // objects, threads) longer than Soundor can know.
+    // when Windows holds on to code in it (COM objects, threads) longer
+    // than Soundor can know.
     void pinModule();
+#endif
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail

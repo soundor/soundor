@@ -1,9 +1,6 @@
-// A host process for two Soundor plugin binaries with the macOS accessibility
-// bridge (Module.mm, both linked to the same engine archive), checking
-// what a plugin host needs: both load, their element classes do not collide,
-// their trees are independent, destroying one leaves the other working, and
-// an element VoiceOver still holds after its plugin is destroyed and
-// "unloaded" is safe to message.
+// Two independent images link the same engine archive. These checks detect
+// observed coexistence and dlclose/reload failures; they cannot establish
+// safe physical unloading of registered Objective-C method implementations.
 
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
@@ -66,66 +63,82 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "usage: %s <module a> <module b>\n", argv[0]);
         return 2;
     }
+    Module a = load(argv[1]);
+    Module b = load(argv[2]);
     @autoreleasepool
     {
-        Module a = load(argv[1]);
-        Module b = load(argv[2]);
         if (a.create == nullptr || b.create == nullptr)
             return 1;
 
-        void* first = a.create();
         void* second = b.create();
-        expect(first != nullptr && second != nullptr, "both plugins create their bridges");
-        if (first == nullptr || second == nullptr)
-            return 1;
+        @autoreleasepool
+        {
+            void* first = a.create();
+            expect(first != nullptr && second != nullptr, "both plugins create their bridges");
+            if (first == nullptr || second == nullptr)
+                return 1;
 
-        const std::string classA = a.className(first);
-        const std::string classB = b.className(second);
-        std::printf("classes: %s, %s\n", classA.c_str(), classB.c_str());
-        expect(classA != classB, "the element classes differ");
-        expect(classA.rfind("SoundorAXElement_", 0) == 0 && classB.rfind("SoundorAXElement_", 0) == 0,
-               "both are Soundor's runtime classes");
-        expect(classA.find("_" SOUNDOR_EXPECTED_ABI "_soundor_apple_module_a_") != std::string::npos
-                   && classB.find("_" SOUNDOR_EXPECTED_ABI "_soundor_apple_module_b_") != std::string::npos,
-               "each carries the same engine ABI and its own binary identity");
+            const std::string classA = a.className(first);
+            const std::string classB = b.className(second);
+            std::printf("classes: %s, %s\n", classA.c_str(), classB.c_str());
+            expect(classA != classB, "the element classes differ");
+            expect(classA.rfind("SoundorAXElement_", 0) == 0 && classB.rfind("SoundorAXElement_", 0) == 0,
+                   "both are Soundor's runtime classes");
+            expect(classA.find("_" SOUNDOR_EXPECTED_ABI "_") != std::string::npos
+                       && classB.find("_" SOUNDOR_EXPECTED_ABI "_") != std::string::npos,
+                   "each carries the same engine ABI");
 
-        // Two instances of one plugin share its class, with their own trees.
-        void* third = a.create();
-        expect(third != nullptr && classA == a.className(third), "a second instance shares its plugin's class");
+            // Two instances of one plugin share its class, with their own trees.
+            void* third = a.create();
+            expect(third != nullptr && classA == a.className(third), "a second instance shares its plugin's class");
 
-        expect(a.press(first) == 1, "plugin A is pressed through its bridge");
-        expect(b.press(second) == 1, "plugin B is pressed through its own");
-        expect(a.press(third) == 1, "A's second instance has its own tree");
-        expect(a.press(first) == 2, "A's first instance is unaffected");
+            expect(a.press(first) == 1, "plugin A is pressed through its bridge");
+            expect(b.press(second) == 1, "plugin B is pressed through its own");
+            expect(a.press(third) == 1, "A's second instance has its own tree");
+            expect(a.press(first) == 2, "A's first instance is unaffected");
 
-        // VoiceOver keeps an element; the plugin is destroyed and unloaded.
-        id kept = (__bridge_transfer id)a.retain(first);
-        a.destroy(first);
-        a.destroy(third);
-        dlclose(a.library);
-        // The binary is pinned: the element's methods are still there...
-        void* still = dlopen(argv[1], RTLD_NOW | RTLD_NOLOAD);
-        expect(still != nullptr, "a plugin whose bridge ran stays loaded");
-        if (still != nullptr)
-            dlclose(still);
-        // ...and refuse to act for a bridge that has gone.
-        const BOOL pressed =
-            reinterpret_cast<BOOL (*)(id, SEL)>(objc_msgSend)(kept, @selector(accessibilityPerformPress));
-        expect(pressed == NO, "an element of a destroyed bridge refuses to act");
-        kept = nil;
+            // Test retained elements while their implementation image is loaded.
+            // Messaging one after physical unloading is an acknowledged safety risk.
+            id kept = (__bridge_transfer id)a.retain(first);
+            a.destroy(first);
+            a.destroy(third);
+            void* reopened = a.create();
+            expect(reopened != nullptr && classA == a.className(reopened), "reopening uses the binary's class");
+            if (reopened != nullptr)
+            {
+                expect(a.press(reopened) == 1, "reopened editor routes to fresh runtime state");
+                a.destroy(reopened);
+            }
+            const BOOL pressed =
+                reinterpret_cast<BOOL (*)(id, SEL)>(objc_msgSend)(kept, @selector(accessibilityPerformPress));
+            expect(pressed == NO, "an element of a destroyed bridge refuses to act");
+            expect([kept accessibilityParent] == nil, "retained element has no stale parent");
+            kept = nil;
+            // Drain autoreleased elements before giving the loader our reference.
+        }
+        expect(dlclose(a.library) == 0, "the host closes A's module handle");
+        void* resident = dlopen(argv[1], RTLD_NOW | RTLD_NOLOAD);
+        std::printf("After dlclose, A is %s; this is not proof of safe unloading.\n",
+                    resident != nullptr ? "still resident" : "not found by RTLD_NOLOAD");
+        if (resident != nullptr)
+            dlclose(resident);
 
         expect(b.press(second) == 2, "plugin B still works after A is gone");
 
         // Loading A again (a host reopening the plugin) works as before.
         Module again = load(argv[1]);
-        void* fourth = again.create != nullptr ? again.create() : nullptr;
-        expect(fourth != nullptr && again.press(fourth) == 1, "plugin A loads and works again");
-        if (fourth != nullptr)
-            again.destroy(fourth);
+        @autoreleasepool
+        {
+            void* fourth = again.create != nullptr ? again.create() : nullptr;
+            expect(fourth != nullptr && again.press(fourth) == 1, "plugin A loads and works again");
+            if (fourth != nullptr)
+                again.destroy(fourth);
+        }
+        expect(dlclose(again.library) == 0, "the host closes the reloaded module handle");
 
         b.destroy(second);
-        dlclose(b.library);
     }
+    expect(dlclose(b.library) == 0, "the host closes B after draining autoreleased objects");
     if (failures == 0)
         std::printf("Apple coexistence: ok\n");
     return failures == 0 ? 0 : 1;

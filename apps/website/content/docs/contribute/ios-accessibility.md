@@ -12,7 +12,7 @@ Source: [`engine/src/a11y/apple/`](https://github.com/soundor/soundor/tree/main/
   ABI-namespaced name, from `AppleShared.mm`;
 - no swizzling, and no change to any UIKit or framework class;
 - elements that reach their bridge by token only;
-- the binary pinned once the class exists;
+- registered classes persist without explicit disposal or artificial module pinning;
 - requests performed by `tick()` on the UI thread.
 
 ## State

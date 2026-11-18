@@ -1241,8 +1241,9 @@ the module stays mapped once COM objects are exposed, as a vtable safeguard.
 
 The macOS bridge (`src/a11y/apple/`) is Soundor's own: virtual
 `NSAccessibilityElement`s, one runtime-created element class per binary
-under a random name, no swizzling, and the binary pinned once the class
-exists. It activates while VoiceOver or Switch Control is on. Its
+under a random 128-bit name, no swizzling, no explicit class disposal and no
+artificial module pinning. Physical binary unloading remains a safety risk.
+It activates while VoiceOver or Switch Control is on. Its
 attachment, lifecycle and the manual VoiceOver checklist are in
 [Apple bridge notes](/docs/contribute/apple-accessibility).
 

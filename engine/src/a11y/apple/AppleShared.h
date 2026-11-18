@@ -35,6 +35,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail::apple
 
     // Marks `element` as `node`'s, of the bridge with `token`.
     void tag(id element, std::uintptr_t token, const Node& node);
+    // Disconnects an externally retained element from its semantic node.
+    void untag(id element);
     // Whether the element's node offers `action`.
     [[nodiscard]] bool offered(id element, Action action);
     // Queues a request from `element` for its bridge; whether it was taken
@@ -49,7 +51,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail::apple
     // The element class: a subclass of `base` with `methods` added (each with
     // the encoding of `base`'s own method of that selector), registered once
     // per binary under "SoundorAXElement_<ABI namespace>_<random>". The
-    // binary is pinned first: the class is never disposed.
+    // class is never disposed. The caller serializes lazy registration.
+    // No module pinning: physical binary unloading remains unsafe.
     [[nodiscard]] Class makeElementClass(Class base, const std::vector<std::pair<SEL, IMP>>& methods);
 
     [[nodiscard]] NSString* string(const std::string& text);

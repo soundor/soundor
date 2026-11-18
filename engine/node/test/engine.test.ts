@@ -204,7 +204,6 @@ function checkout(): string {
   for (const file of [
     'SoundorAbi.cmake',
     'SoundorAbi.h.in',
-    'SoundorPluginShim.cmake',
     'SoundorCompilerOptions.cmake',
     'SoundorCoreSources.cmake',
     'SoundorDependencies.cmake',
