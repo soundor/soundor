@@ -92,7 +92,8 @@ namespace
     };
 
     // Real NSEvent has no public initializer for fractional scroll phases.
-    // Override its accessors, then send it through the actual NSResponder path.
+    // A plain NSObject with those accessors avoids NSEvent class-cluster
+    // allocation while exercising the actual input view's NSResponder path.
     const char scrollDataKey = 0;
     NSEvent* scroll(double x, double y, NSEventPhase phase, NSEventPhase momentum = NSEventPhaseNone)
     {
@@ -125,7 +126,7 @@ namespace
             add(@selector(modifierFlags), reinterpret_cast<IMP>(+[](id, SEL) -> NSEventModifierFlags { return 0; }));
             add(@selector(locationInWindow),
                 reinterpret_cast<IMP>(+[](id, SEL) -> NSPoint { return NSMakePoint(30, 250); }));
-            return platform::apple::makeRuntimeClass("SoundorTestScroll", [NSEvent class], methods);
+            return platform::apple::makeRuntimeClass("SoundorTestScroll", [NSObject class], methods);
         }();
         NSEvent* event = [[eventClass alloc] init];
         objc_setAssociatedObject(
