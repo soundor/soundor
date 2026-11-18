@@ -16,7 +16,16 @@ namespace
     {
         Fixture()
         {
-            [NSApplication sharedApplication];
+            static const bool applicationReady = []
+            {
+                [NSApplication sharedApplication];
+                // Unbundled test executables default to Prohibited, which
+                // prevents real key-window transitions even for titled windows.
+                const bool allowed = [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+                [NSApp finishLaunching];
+                return allowed;
+            }();
+            REQUIRE(applicationReady);
             window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 400, 300)
                                                  styleMask:NSWindowStyleMaskTitled
                                                    backing:NSBackingStoreBuffered
