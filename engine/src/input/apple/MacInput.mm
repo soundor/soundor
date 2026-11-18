@@ -642,7 +642,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                                                   input->selection = NSMakeRange(0, 0);
                                                   if (input->handlingKey != nil)
                                                       input->committed =
-                                                          [(input->committed ?: @"") stringByAppendingString:text];
+                                                          [(input->committed != nil ? input->committed : @"")
+                                                              stringByAppendingString:text];
                                                   else if (text.length != 0)
                                                       input->pending.emplace_back(ui::TextInput { utf8(text) });
                                               }
