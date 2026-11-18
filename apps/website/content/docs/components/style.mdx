@@ -104,6 +104,12 @@ list of `translateX`, `translateY`, `scale`, `scaleX`, `scaleY` and `rotate`
 moves how the node is drawn and hit, not its layout;
 [`Animated.View`](/docs/components/animated-view) animates it.
 
+`willChange: 'transform'` asks the renderer to prepare a view for transform
+changes. The web runtime passes it to CSS as `will-change: transform`. The
+JUCE runtime can reuse the view's cached pixels while its transform changes.
+Use the hint on individual views where it helps, since cached layers take
+memory. Omit it or use `'auto'` for the default.
+
 ## Outline
 
 `outlineWidth` draws a line around a node, as CSS's `outline`: outside its

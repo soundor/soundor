@@ -27,6 +27,15 @@ function setup() {
 
 const el = (node: UiNode) => UiNode.elementOf(node);
 
+it('passes a transform hint to CSS and clears it when removed', () => {
+  setup();
+  const node = view.createNode('view');
+  node.style = { willChange: 'transform' };
+  expect(el(node).style.getPropertyValue('will-change')).toBe('transform');
+  node.style = {};
+  expect(el(node).style.getPropertyValue('will-change')).toBe('');
+});
+
 /** A view whose style scrolls both ways: a scroll view. */
 function scrollView(view: UiView): UiNode {
   const node = view.createNode('view');

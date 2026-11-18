@@ -258,6 +258,7 @@ export function cssFor(style: Style, type: NodeType): Css {
     set('box-shadow', boxShadowCss(style.boxShadow));
   if (style.transform !== undefined)
     css['transform'] = transformCss(style.transform);
+  set('will-change', style.willChange);
   if (style.zIndex !== undefined) css['z-index'] = String(style.zIndex);
   if (style.opacity !== undefined) {
     css['opacity'] = String(Math.min(1, Math.max(0, style.opacity)));

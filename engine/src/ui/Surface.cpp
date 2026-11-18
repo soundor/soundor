@@ -89,6 +89,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             style.boxShadow = {};
             style.opacity = 1;
             style.transform = {};
+            style.willChange = WillChange::Auto;
             style.resizeMode = {};
             style.pointerEvents = {};
             style.cursor = {};
@@ -534,7 +535,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Style drawn = before;
         drawn.cursor = style.cursor;
         if (drawn != style)
-            markChanged(node);
+        {
+            // The hinted group stays cached across base-style transforms.
+            if (drawn.willChange == WillChange::Transform && style.willChange == WillChange::Transform)
+                drawn.transform = style.transform;
+            if (drawn == style)
+                markChanged();
+            else
+                markChanged(node);
+        }
     }
 
     void Surface::setText(NodeId id, std::string text)

@@ -250,6 +250,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             {
                 static constexpr std::array<std::string_view, 4> resizeModes { "cover", "contain", "stretch",
                                                                                "center" };
+                static constexpr std::array<std::string_view, 2> changeHints { "auto", "transform" };
                 assign(out.backgroundColor, color("backgroundColor"));
                 assign(out.borderColor, color("borderColor"));
                 if (const auto radius = number("borderRadius"))
@@ -266,6 +267,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     out.opacity = std::clamp(*opacity, 0.0f, 1.0f);
                 if (std::optional<Presentation> transform = source.transform())
                     out.transform = *transform;
+                assign(out.willChange, choice<WillChange>("willChange", changeHints));
                 assign(out.resizeMode, choice<ResizeMode>("resizeMode", resizeModes));
             }
 

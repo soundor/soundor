@@ -161,7 +161,17 @@ export class ScrollIndicators {
       track.style.display = 'none';
       return;
     }
-    const { scrollLeft, scrollTop } = this.#element;
+    // The browser can round its scroll range up past the engine's fractional
+    // range, or report elastic overscroll. Keep the indicators within the
+    // engine's extent so their own boxes cannot extend the browser's range.
+    const scrollLeft = Math.max(
+      0,
+      Math.min(this.#element.scrollLeft, box.contentWidth - box.clientWidth),
+    );
+    const scrollTop = Math.max(
+      0,
+      Math.min(this.#element.scrollTop, box.contentHeight - box.clientHeight),
+    );
     // They are in the element, which scrolls them too: put back by what it did.
     const along = vertical
       ? box.y - box.borderTop + scrollTop

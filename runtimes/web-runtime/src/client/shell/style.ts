@@ -5,7 +5,8 @@ body { margin: 0; background: var(--sd-bg); }
   --sd-bg: #0b0c0f; --sd-surface: #15161a; --sd-raised: #1d1f24;
   --sd-line: #2a2c33; --sd-text: #e6e7ea; --sd-muted: #8b8f98;
   --sd-accent: #3a7bfd; --sd-ok: #34c77b; --sd-warn: #f2b13a; --sd-bad: #ff6b5e;
-  position: relative; display: flex; height: 100vh; overflow: hidden;
+  position: relative; display: flex;
+  height: 100vh; height: 100dvh; overflow: hidden;
   background: var(--sd-bg); color: var(--sd-text);
   font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: dark;

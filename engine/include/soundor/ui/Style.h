@@ -188,6 +188,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Center,  // centered at its own size, scaled down to fit
     };
 
+    enum class WillChange : std::uint8_t
+    {
+        Auto,
+        Transform
+    };
+
     // A shadow of the box (CSS `box-shadow`): its rounded rectangle, grown by
     // `spread`, moved by the offset and blurred by `blur` (a Gaussian of
     // sigma blur / 2, as CSS has it), drawn outside the border box, or with
@@ -285,6 +291,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // 0 (invisible) to 1; applies to the node and everything in it.
         float opacity = 1;
         Presentation transform;
+        WillChange willChange = WillChange::Auto;
         ResizeMode resizeMode = ResizeMode::Cover;
 
         TextStyle text;

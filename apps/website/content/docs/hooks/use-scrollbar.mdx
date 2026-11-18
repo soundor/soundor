@@ -9,6 +9,11 @@ They are ordinary nodes, so they look like whatever you draw, wherever you put
 them, in every runtime. They scroll any view whose style scrolls: a
 `View` or `Animated.View` with `overflow: 'scroll'` (or `overflowX`/`overflowY`).
 
+> **Safari and iOS WebKit.** WebKit can paint scrolling content over a custom
+> scrollbar even when the track has a higher `zIndex`. For a track that
+> overlays the content, set `willChange: 'transform'` on the track's style,
+> as shown below.
+
 ```tsx
 const list = useRef<UiNode>(null);
 const { vertical } = useScrollbar(list);
@@ -23,7 +28,18 @@ return (
       {children}
     </View>
     {vertical.visible && (
-      <View {...vertical.trackProps} style={styles.track}>
+      <View
+        {...vertical.trackProps}
+        style={{
+          position: 'absolute',
+          top: 2,
+          bottom: 2,
+          right: 2,
+          width: 8,
+          zIndex: 1,
+          willChange: 'transform',
+        }}
+      >
         <View
           {...vertical.thumbProps}
           style={[styles.thumb, vertical.pressed && styles.thumbPressed]}
@@ -38,12 +54,11 @@ return (
   the ones you need. Each has its own `visible`, `hovered`, `pressed`,
   `trackProps` and `thumbProps`. Where both show, each `visible` says whether to
   leave the corner to the other.
-- **Where they go:** beside the view, not in it, where they would scroll
-  away. Position them absolutely to draw over the content, as the built-in
-  indicators do, and set `zIndex: 1` on the overlay tracks to keep them above
-  the scrolling content in WebKit too. Or give them their own room in a row. To keep that room when
-  there is nothing to scroll, render the track always and only the thumb by
-  `visible`.
+- **Where they go:** render each track as a sibling of the scrolling view so
+  it stays in place. For an overlay, position the track absolutely and set
+  `zIndex: 1`. You can also give tracks their own room in a row. To keep that
+  room when there is nothing to scroll, render the track always and only show
+  the thumb when `visible` is true.
 - **The thumb** is the track's first child, at its start. The hook sets its
   length and its `transform` without rendering, so leave those out of its style.
 - **`visible`** is true where the view's style scrolls that axis and its
