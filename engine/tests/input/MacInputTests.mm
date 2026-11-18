@@ -27,7 +27,7 @@ namespace
             REQUIRE(input != nullptr);
             input->setGeometry({ .x = 20, .y = 30, .scale = 2, .width = 100, .height = 80 });
             native = parent.subviews.lastObject;
-            REQUIRE(native != nil);
+            REQUIRE((native != nil));
         }
 
         ~Fixture()
@@ -153,8 +153,8 @@ TEST_SUITE("native input: AppKit")
         CHECK(f.native.frame.origin.y == 110);
         CHECK(f.native.frame.size.width == 200);
         CHECK(f.native.frame.size.height == 160);
-        CHECK([f.parent hitTest:NSMakePoint(30, 250)] == f.native);
-        CHECK([f.parent hitTest:NSMakePoint(5, 5)] == f.parent);
+        CHECK(([f.parent hitTest:NSMakePoint(30, 250)] == f.native));
+        CHECK(([f.parent hitTest:NSMakePoint(5, 5)] == f.parent));
         auto nested = input::createPlatformInput({ .view = { (__bridge void*)f.native } });
         REQUIRE(nested != nullptr);
         nested->setGeometry({ .x = 5, .y = 6, .scale = 1, .width = 20, .height = 30 });
@@ -314,7 +314,7 @@ TEST_SUITE("native input: AppKit")
         CHECK(std::get<ui::PointerInput>(ended[0]).phase == ui::PointerInput::Phase::Cancel);
         CHECK_FALSE(std::get<input::KeyEvent>(ended[1]).key.down);
         CHECK(f.native.hidden);
-        CHECK([f.parent hitTest:NSMakePoint(30, 250)] == f.parent);
+        CHECK(([f.parent hitTest:NSMakePoint(30, 250)] == f.parent));
         ended.clear();
         f.input->setSuspended(true, ended);
         CHECK(ended.empty());
@@ -336,7 +336,7 @@ TEST_SUITE("native input: AppKit")
         std::vector<input::Event> events;
         f.input->read(events);
         REQUIRE(f.input->focused());
-        REQUIRE(f.window.firstResponder == f.native);
+        REQUIRE((f.window.firstResponder == f.native));
         [f.native mouseDown:f.mouse(NSEventTypeLeftMouseDown)];
         [f.native keyDown:f.key(NSEventTypeKeyDown, @"a", 0)];
         f.read();
@@ -364,7 +364,7 @@ TEST_SUITE("native input: AppKit")
             f.input.reset();
             f.native = nil;
         }
-        CHECK(weakView == nil);
+        CHECK((weakView == nil));
     }
 
     TEST_CASE(
@@ -372,7 +372,7 @@ TEST_SUITE("native input: AppKit")
     {
         Fixture first;
         Fixture second;
-        CHECK(object_getClass(first.native) == object_getClass(second.native));
+        CHECK((object_getClass(first.native) == object_getClass(second.native)));
         CHECK(std::string(object_getClassName(first.native)).starts_with("SoundorInputView_"));
         [first.native keyDown:first.key(NSEventTypeKeyDown, @"a", 0)];
         CHECK(second.read().empty());
@@ -381,16 +381,16 @@ TEST_SUITE("native input: AppKit")
         first.input->setTextInputFocused(true);
         NSTextInputContext* retainedContext = retained.inputContext;
         first.input.reset();
-        CHECK(retained.superview == nil);
+        CHECK((retained.superview == nil));
         CHECK(retained.trackingAreas.count == 0);
         CHECK_FALSE(retained.acceptsFirstResponder);
-        CHECK(retained.inputContext == nil);
+        CHECK((retained.inputContext == nil));
         [retained keyDown:first.key(NSEventTypeKeyDown, @"a", 0)];
         [static_cast<id<NSTextInputClient>>(retained) insertText:@"late" replacementRange:NSMakeRange(NSNotFound, 0)];
         [retainedContext discardMarkedText];
         CHECK(second.read().empty());
         first.input = input::createPlatformInput({ .view = { (__bridge void*)first.parent } });
         REQUIRE(first.input != nullptr);
-        CHECK(object_getClass(first.parent.subviews.lastObject) == object_getClass(retained));
+        CHECK((object_getClass(first.parent.subviews.lastObject) == object_getClass(retained)));
     }
 }
