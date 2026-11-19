@@ -13,7 +13,7 @@
 #include <limits>
 #include <optional>
 
-namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
 {
     // soundor.config's `editor`, as far as placing the UI goes.
     struct Layout
@@ -86,4 +86,4 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
     //   editor, the configured size in its middle being the safe area.
     //   Nothing is stretched.
     [[nodiscard]] Placement place(const Layout& layout, ui::Size editor);
-} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor

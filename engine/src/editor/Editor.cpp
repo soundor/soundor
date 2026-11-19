@@ -1,6 +1,6 @@
+#include <soundor/editor/Editor.h>
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
-#include <soundor/view/View.h>
 #if SOUNDOR_DEVTOOLS
     #include <soundor/debug/Bridge.h>
 #endif
@@ -11,7 +11,7 @@
 #include <utility>
 #include <variant>
 
-namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
 {
     namespace
     {
@@ -34,7 +34,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
 #endif
     } // namespace
 
-    View::View(Platform& owner, Options provided)
+    Editor::Editor(Platform& owner, Options provided)
         : platform(owner),
           options(std::move(provided)),
           pointerLock(
@@ -43,7 +43,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
               })
     {
         if (options.raster == nullptr)
-            throw std::invalid_argument("view::View needs a RasterTarget");
+            throw std::invalid_argument("editor::Editor needs a RasterTarget");
         // Before the runtime: the GPU compositor and canvases' WebGL share it,
         // so WebGL is shown without copies. Null where there is no GPU
         // composition.
@@ -54,7 +54,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         auto runtimeOptions = std::move(options.runtime);
         options.runtime = {};
         runtimeOptions.gpuDevice = gpuDevice;
-        // What this View logs goes where the runtime's log goes.
+        // What this Editor logs goes where the runtime's log goes.
         logSink = runtimeOptions.runtime.log;
         if (! options.bundleDirectory.empty())
             session = std::make_unique<DevSession>(
@@ -81,7 +81,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
 #endif
     }
 
-    View::~View()
+    Editor::~Editor()
     {
         bridge.reset();
         // While the runtime and the input's pointer are still there.
@@ -99,12 +99,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         gpuDevice.reset();
     }
 
-    RuntimeHost& View::runtime() noexcept
+    RuntimeHost& Editor::runtime() noexcept
     {
         return session != nullptr ? session->host() : *host;
     }
 
-    void View::log(js::LogLevel level, const std::string& message) const
+    void Editor::log(js::LogLevel level, const std::string& message) const
     {
         if (logSink)
             logSink(level, message);
@@ -112,7 +112,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
 
     // ── Frames ───────────────────────────────────────────────────────────────
 
-    void View::frame()
+    void Editor::frame()
     {
         const auto state = platform.state();
         // Input not read yet goes first (its descriptor is also watched).
@@ -142,7 +142,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             render();
     }
 
-    void View::resized()
+    void Editor::resized()
     {
         const auto state = platform.state();
         // Where the editor now is, for the native input.
@@ -158,7 +158,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             render();
     }
 
-    void View::tickRuntime()
+    void Editor::tickRuntime()
     {
         if (session != nullptr)
             session->tick();
@@ -166,10 +166,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             host->tick();
     }
 
-    void View::place(const Platform::State& state)
+    void Editor::place(const Platform::State& state)
     {
         last = state;
-        where = view::place(options.layout, state.size);
+        where = editor::place(options.layout, state.size);
         auto& surface = runtime().surface();
         surface.setVisible(state.visible);
         surface.setFocused(focused());
@@ -186,7 +186,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         surface.setScale(platform.surfaceScale(state.pixelScale * where.zoom, gpuCompositor != nullptr));
     }
 
-    void View::updateCompositor(const Platform::State& state)
+    void Editor::updateCompositor(const Platform::State& state)
     {
         bool rebuild = state.nativeView != compositorView;
         if (gpuCompositor != nullptr && ! gpuCompositor->healthy())
@@ -230,7 +230,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         }
     }
 
-    void View::render()
+    void Editor::render()
     {
 #if SOUNDOR_DEVTOOLS
         updateRendererBadge();
@@ -243,7 +243,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         compositor->composite(runtime().frame(capabilities));
     }
 
-    void View::updateRendererBadge()
+    void Editor::updateRendererBadge()
     {
 #if SOUNDOR_DEVTOOLS
         if (! showRenderer)
@@ -280,7 +280,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
 
     // ── Accessibility, pointer lock, cursor ──────────────────────────────────
 
-    void View::updateAccessibility(const Platform::State& state)
+    void Editor::updateAccessibility(const Platform::State& state)
     {
         if (state.nativeView != accessibilityView)
         {
@@ -321,14 +321,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         accessibility->tick(runtime());
     }
 
-    void View::updatePointerLock()
+    void Editor::updatePointerLock()
     {
         const auto lock = runtime().surface().pointerLock();
         pointerLock.update(lock ? std::optional<int>(lock->pointerId) : std::nullopt,
                            lock ? where.toEditor(lock->position) : ui::Point {});
     }
 
-    void View::updateCursor()
+    void Editor::updateCursor()
     {
         // None while the pointer is locked: it stays in this view for that.
         const auto wanted = pointerLock.active() ? ui::Cursor::None : runtime().surface().cursor();
@@ -340,7 +340,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
 
     // ── Input ────────────────────────────────────────────────────────────────
 
-    void View::updateInput(const Platform::State& state)
+    void Editor::updateInput(const Platform::State& state)
     {
         if (options.nativeInput && state.nativeView != inputView)
         {
@@ -378,7 +378,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         readInput();
     }
 
-    void View::stopInput(bool tellUi)
+    void Editor::stopInput(bool tellUi)
     {
         if (input == nullptr)
             return;
@@ -395,7 +395,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
                 deliver(event);
     }
 
-    void View::endInput()
+    void Editor::endInput()
     {
         pointerLock.release();
         if (input == nullptr)
@@ -406,7 +406,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             deliver(event);
     }
 
-    void View::readInput()
+    void Editor::readInput()
     {
         // Not again while what was read is delivered (the UI's code runs).
         if (input == nullptr || reading)
@@ -422,7 +422,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             input->setTextInputFocused(textInputFocused());
     }
 
-    void View::deliver(input::Event& event)
+    void Editor::deliver(input::Event& event)
     {
         if (auto* pointerInput = std::get_if<ui::PointerInput>(&event))
             pointer(*pointerInput);
@@ -436,7 +436,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             focus(change->focused);
     }
 
-    void View::pointer(ui::PointerInput event)
+    void Editor::pointer(ui::PointerInput event)
     {
         if (event.phase == ui::PointerInput::Phase::Down)
             platform.pressed();
@@ -456,7 +456,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         updateCursor();
     }
 
-    bool View::wheel(ui::WheelInput event)
+    bool Editor::wheel(ui::WheelInput event)
     {
 #if SOUNDOR_DEVTOOLS
         // The picker takes the view's input.
@@ -470,7 +470,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         return handled;
     }
 
-    bool View::key(const ui::KeyInput& event, const std::string& typed)
+    bool Editor::key(const ui::KeyInput& event, const std::string& typed)
     {
         auto& current = runtime();
 #if SOUNDOR_DEVTOOLS
@@ -483,27 +483,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         return handled;
     }
 
-    void View::text(const ui::TextInput& event)
+    void Editor::text(const ui::TextInput& event)
     {
         auto& current = runtime();
         current.surface().text(event);
         current.runtime().runPendingJobs();
     }
 
-    void View::focus(bool now)
+    void Editor::focus(bool now)
     {
         runtime().surface().setFocused(now);
     }
 
-    bool View::focused() const
+    bool Editor::focused() const
     {
         return input != nullptr ? input->focused() : last.focused;
     }
 
-    bool View::textInputFocused()
+    bool Editor::textInputFocused()
     {
         auto& surface = runtime().surface();
         const auto* node = surface.find(surface.focused());
         return node != nullptr && node->type() == ui::NodeType::Input;
     }
-} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor

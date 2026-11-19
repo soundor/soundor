@@ -21,7 +21,7 @@ the prebuilt engine. What makes a plugin itself is data, read at run time.
 | `native/src/Factory.cpp`                                           | `GetPluginFactory`: the two classes, described from the descriptor                                                                            |
 | `native/src/Processor.*`                                           | The component (`AudioEffect`): buses, processing, MIDI, state                                                                                 |
 | `native/src/Controller.*`                                          | The edit controller (`EditControllerEx1`, `IMidiMapping`): parameters, state store, History, presets, the Rust controller                     |
-| `native/src/Editor.*`, `X11.*`                                     | The view (`IPlugView`, X11EmbedWindowID): its window and run loop, the engine's `view::View`                                                  |
+| `native/src/Editor.*`, `X11.*`                                     | The view (`IPlugView`, X11EmbedWindowID): its window and run loop, the engine's `editor::Editor`                                              |
 | `native/src/Descriptor.*`                                          | The descriptor, parsed once per module (with the engine's `soundor::json`)                                                                    |
 | `native/src/Expression.*`                                          | The expression interpreter; `generated/ExpressionRuntime.h` is the C++ compiler's helpers (`pnpm gen:expression`)                             |
 | `native/src/State*.*`, `Presets.*`, `ParameterHost.*`, `Modules.*` | Persistent state, documents, presets, History-aware parameter edits, the generic `soundor:state`, `soundor:presets`, `soundor:native` modules |
@@ -101,13 +101,13 @@ build's UI directory and log file.
   state), so the processor outlives the Rust controller that publishes to it,
   whichever the host destroys first.
 - **The editor** owns an X11 window (its own connection) and the engine's
-  `view::View`, as the JUCE runtime's editor does: the runtime
+  `editor::Editor`, as the JUCE runtime's editor does: the runtime
   (`DevSession` in development), placing the UI, the compositor, native
   input, the pointer lock, the cursor, accessibility and, in Debug builds,
-  DevTools. The editor is its `view::Platform`: the window's size, content
+  DevTools. The editor is its `editor::Platform`: the window's size, content
   scale and screen position, the host's focus, the cursor, sizes held to the
   config's limits and asked of the host (`resizeView()`), and the run loop
-  (the View's 60 Hz frame and the input's descriptor). It gives the runtime
+  (the engine's Editor's 60 Hz frame and the input's descriptor). It gives the runtime
   `platform::systemHttpClient()` for `fetch()`. Xlib is loaded with
   `dlopen`, as the engine does, and its headers stay in `X11.cpp`.
 

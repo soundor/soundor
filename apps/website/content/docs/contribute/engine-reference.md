@@ -57,7 +57,7 @@ the project), registers the plugin under its runtime's name, long-polls
 threads, through the system's HTTP stack (`platform::systemHttpClient()`,
 proxies off, redirects refused, no timeout for the poll). Nothing in the
 plugin listens. Every runtime's editor makes one in Debug builds through
-`view::View` (see "`view::View`"), which calls `tick()`, `pointer()`,
+`editor::Editor` (see "`editor::Editor`"), which calls `tick()`, `pointer()`,
 `key()` and `renderFrame()`.
 Commands arrive as JSON text: `debug::Value::parse` (the engine's
 `soundor::json`, at most 64 levels) and `debug::Command::parse` decode them
@@ -765,7 +765,7 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
 - **The view's size:** the backend gives the Surface its logical size
   (`Surface::setSize`, which ignores an unchanged size) and its scale
   (`Surface::setScale`); Yoga lays both roots out at that size. Every
-  runtime's editor does so through `view::View`, every frame and from
+  runtime's editor does so through `editor::Editor`, every frame and from
   `resized()`. `RuntimeHost::tick()` calls
   `ui::notifyViewSize()` after parameter changes and before pending jobs
   and animation frames: when the size or scale differs from what
@@ -779,7 +779,7 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   the Surface the view's safe area (`Surface::setSafeArea`, nullopt for the
   whole view; layout never reads it) and the size of the editor it shows
   the view in (`Surface::setEditorSize`, in the editor's logical pixels,
-  0×0 until set). `view::View` sets both every frame from `view::place()`:
+  0×0 until set). `editor::Editor` sets both every frame from `editor::place()`:
   the configured size centred in the layout when the editor scales with
   `fit: 'cover'` (the UI then covers the whole editor), the maximum centred
   in the editor when one that lays out again is beyond it, and the editor's
@@ -799,8 +799,8 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   or `null`. No JSI value or callback is kept: the backend takes the request
   (`takeEditorSizeRequest()`) after the input or the tick that ran the
   code, and resizes the editor, which tells the surface the new size as
-  any resize does. `view::View::frame()` takes it once a frame, after the
-  tick, and hands it to the editor (`view::Platform::requestSize()`: JUCE's
+  any resize does. `editor::Editor::frame()` takes it once a frame, after the
+  tick, and hands it to the editor (`editor::Platform::requestSize()`: JUCE's
   `setSize()`, a VST3 view's `IPlugFrame::resizeView()`).
 - **Events:** capture and bubble as in the DOM, as `PointerEvent`,
   `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
@@ -1658,7 +1658,7 @@ existing HWND's subclass chain.
 `RuntimeHost` is what a backend creates per plugin view: a runtime and context
 with `soundor:parameters` and the generated `soundor:native` installed. The
 backend calls `tick()` from its UI thread every frame. A plugin editor owns
-one through `view::View` (below), which ticks it in `frame()`. Each host has
+one through `editor::Editor` (below), which ticks it in `frame()`. Each host has
 its own `ui::Surface` (`surface()`). The view sizes it every frame and
 forwards mouse, wheel and keyboard input to it, then runs pending jobs.
 
@@ -1671,20 +1671,20 @@ installing the modules. A failing entry is logged and leaves the host usable.
 `Options::gpuDevice` is the device canvases' WebGL contexts use (see "WebGL"),
 and `tick()` shows what they drew.
 
-### `view::View`
+### `editor::Editor`
 
-`view::View` (`include/soundor/view/View.h`) is what every runtime's editor
+`editor::Editor` (`include/soundor/editor/Editor.h`) is what every runtime's editor
 does with the engine, in one place: the JUCE runtime's generated
 `AudioProcessorEditor` and the VST3 runtime's `IPlugView` both make one and
-give it a `view::Platform`, their side of it. The editor owns the native view
+give it an `editor::Platform`, their side of it. The editor owns the native view
 and what drives it (a 60 Hz `juce::Timer`, a VST3 host's `IRunLoop`); the
-View owns the rest:
+Editor owns the rest:
 
 - **The runtime:** a `RuntimeHost`, or a `DevSession` that reloads it when
   `Options::bundleDirectory` is set, and the GPU device it shares with the
   compositor (`GpuCompositor::createDevice()`).
-- **Placing the UI:** `view::place()` (`include/soundor/view/Layout.h`) takes
-  soundor.config's `editor` (`view::Layout`: the configured size,
+- **Placing the UI:** `editor::place()` (`include/soundor/editor/Layout.h`) takes
+  soundor.config's `editor` (`editor::Layout`: the configured size,
   `resizable`, `resize`, `fit`, the maximum) and the editor's logical size,
   and returns the zoom, the area the UI is drawn in and the safe area. A
   fixed editor is all layout at a zoom of 1. One that lays out again fills
@@ -1708,14 +1708,14 @@ View owns the rest:
 - **Input:** the platform's own (`input::PlatformInput`) for each native
   view, or, with `Options::nativeInput` off or where it could not start, the
   framework's, which the editor gives to `pointer()`, `wheel()`, `key()` and
-  `text()`. Both arrive in the editor's logical pixels; the View follows a
+  `text()`. Both arrive in the editor's logical pixels; the Editor follows a
   locked pointer, lets the DevTools picker take its input first, gives it to
   the Surface in the layout's coordinates and runs pending jobs.
 - **The pointer lock, the cursor and accessibility**, from the Surface: the
   editor only shows a cursor (`Platform::setCursor()`) and, on macOS, lists
   the accessibility container as its view's child.
 
-`view::Platform::State` is what the editor says every frame: the native
+`editor::Platform::State` is what the editor says every frame: the native
 view, the editor's logical size, its top-left corner in the native view and
 native units per logical pixel (physical pixels; AppKit points on macOS),
 its pixel density, its top-left on the screen for accessibility, whether it

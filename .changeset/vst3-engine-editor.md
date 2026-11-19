@@ -2,7 +2,7 @@
 '@soundor/vst3-runtime': patch
 ---
 
-The editor runs on the engine's `view::View`, as the JUCE runtime's does, and so now matches it:
+The editor runs on the engine's `editor::Editor`, as the JUCE runtime's does, and so now matches it:
 
 - An editor with `resize: 'layout'` and a maximum size keeps its layout at the maximum, centred (`fit: 'contain'`), or covers the view and reports the maximum as its safe area (`fit: 'cover'`), when a host makes it larger.
 - On the GPU, a resize presents at the new size at once instead of on the next frame.

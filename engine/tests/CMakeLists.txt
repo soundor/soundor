@@ -97,8 +97,8 @@ if(SOUNDOR_JS_SOURCE)
     input/ClickCounterTests.cpp
     input/MacTranslationTests.cpp
     input/PointerLockTests.cpp
-    view/LayoutTests.cpp
-    view/ViewTests.cpp
+    editor/LayoutTests.cpp
+    editor/EditorTests.cpp
     js/ContextTests.cpp
     js/ErrorTests.cpp
     js/JobTests.cpp

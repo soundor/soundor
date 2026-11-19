@@ -238,8 +238,8 @@ namespace soundor::vst3
         uiParameters = std::make_shared<UiParameters>(definition, owner.editors(), owner.historyManager());
         owner.addUi(uiParameters.get());
         attachedToHost = true;
-        view::Platform& platform = *this;
-        pluginView = std::make_unique<view::View>(platform, viewOptions());
+        editor::Platform& platform = *this;
+        engineEditor = std::make_unique<editor::Editor>(platform, editorOptions());
         runLoop->registerTimer(this, 16);
         runLoop->registerEventHandler(this, window->fileDescriptor());
         tick();
@@ -251,18 +251,18 @@ namespace soundor::vst3
         return window != nullptr ? reinterpret_cast<void*>(window->id()) : nullptr; // NOLINT(performance-no-int-to-ptr)
     }
 
-    view::View::Options Editor::viewOptions()
+    editor::Editor::Options Editor::editorOptions()
     {
         const auto& editor = definition.editor;
         constexpr float unbounded = std::numeric_limits<float>::infinity();
         const float maxWidth = editor.maxWidth > 0 ? static_cast<float>(editor.maxWidth) : unbounded;
         const float maxHeight = editor.maxHeight > 0 ? static_cast<float>(editor.maxHeight) : unbounded;
 
-        view::View::Options result;
+        editor::Editor::Options result;
         result.layout = { .size = { static_cast<float>(editor.width), static_cast<float>(editor.height) },
                           .resizable = editor.resizable,
-                          .resize = editor.scale ? view::Layout::Resize::Scale : view::Layout::Resize::Layout,
-                          .fit = editor.cover ? view::Layout::Fit::Cover : view::Layout::Fit::Contain,
+                          .resize = editor.scale ? editor::Layout::Resize::Scale : editor::Layout::Resize::Layout,
+                          .fit = editor.cover ? editor::Layout::Fit::Cover : editor::Layout::Fit::Contain,
                           .maximum = { maxWidth, maxHeight } };
         // A resizable editor whose limits allow another size, as the JUCE
         // runtime's and the Web host's.
@@ -331,11 +331,11 @@ namespace soundor::vst3
             runLoop->unregisterTimer(this);
             runLoop->unregisterEventHandler(this);
         }
-        if (pluginView != nullptr)
+        if (engineEditor != nullptr)
         {
             // A press or keys in progress end in the UI (a gesture ends).
-            pluginView->endInput();
-            pluginView.reset();
+            engineEditor->endInput();
+            engineEditor.reset();
         }
         if (uiParameters != nullptr)
         {
@@ -357,13 +357,13 @@ namespace soundor::vst3
 
     void Editor::readWindowEvents()
     {
-        if (window != nullptr && window->pump() && (pluginView == nullptr || ! pluginView->gpu()))
+        if (window != nullptr && window->pump() && (engineEditor == nullptr || ! engineEditor->gpu()))
             image.repaint();
     }
 
-    // ── view::Platform ───────────────────────────────────────────────────────
+    // ── editor::Platform ───────────────────────────────────────────────────────
 
-    view::Platform::State Editor::state()
+    editor::Platform::State Editor::state()
     {
         State now;
         now.nativeView = nativeWindow();
@@ -411,7 +411,7 @@ namespace soundor::vst3
         plugFrame->resizeView(this, &held);
     }
 
-    void Editor::placed(const view::Placement& placement)
+    void Editor::placed(const editor::Placement& placement)
     {
         image.setPlacement(static_cast<int>(std::lround(placement.area.x * contentScale)),
                            static_cast<int>(std::lround(placement.area.y * contentScale)),
@@ -420,7 +420,7 @@ namespace soundor::vst3
 
     void Editor::inputStarted(input::PlatformInput& input)
     {
-        // Read when its connection is readable. It goes with the View, whose
+        // Read when its connection is readable. It goes with the engine's Editor, whose
         // handlers close() unregisters (all of this editor's at once).
         if (const int descriptor = input.fileDescriptor(); descriptor >= 0 && runLoop)
             runLoop->registerEventHandler(this, descriptor);
@@ -458,12 +458,12 @@ namespace soundor::vst3
 
     void Editor::tick()
     {
-        if (pluginView == nullptr)
+        if (engineEditor == nullptr)
             return;
         try
         {
             readWindowEvents();
-            pluginView->frame();
+            engineEditor->frame();
             if (controller != nullptr)
                 controller->pump();
         }
@@ -480,8 +480,8 @@ namespace soundor::vst3
 
     void PLUGIN_API Editor::onFDIsSet(Linux::FileDescriptor fd)
     {
-        if (pluginView != nullptr && fd == pluginView->inputDescriptor())
-            pluginView->readInput();
+        if (engineEditor != nullptr && fd == engineEditor->inputDescriptor())
+            engineEditor->readInput();
         else
             readWindowEvents();
     }
@@ -494,10 +494,10 @@ namespace soundor::vst3
         if (window != nullptr)
         {
             window->resize(rect.getWidth(), rect.getHeight());
-            if (pluginView != nullptr)
+            if (engineEditor != nullptr)
             {
-                pluginView->resized();
-                if (! pluginView->gpu())
+                engineEditor->resized();
+                if (! engineEditor->gpu())
                     image.repaint();
             }
         }

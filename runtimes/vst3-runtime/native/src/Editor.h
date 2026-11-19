@@ -5,7 +5,7 @@
 // runtime: a window in the host's (its own X11 child window, on a
 // connection of its own), the run loop the host lends (IRunLoop: a 60 Hz
 // timer and the connections' descriptors), sizes, and the host's calls. The
-// engine's view::View does the rest, as for the JUCE runtime's editor:
+// engine's editor::Editor does the rest, as for the JUCE runtime's editor:
 // the runtime, placing the UI, the compositor (on the GPU in the window
 // where there is one, else on the CPU, whose frames this shows with
 // XPutImage), native input (XInput 2), the pointer lock, the cursor and
@@ -14,8 +14,8 @@
 #include "Controller.h"
 #include "X11.h"
 
+#include <soundor/editor/Editor.h>
 #include <soundor/render/Compositor.h>
-#include <soundor/view/View.h>
 
 #include <pluginterfaces/gui/iplugview.h>
 #include <pluginterfaces/gui/iplugviewcontentscalesupport.h>
@@ -29,7 +29,7 @@ namespace soundor::vst3
     namespace render = soundor::render;
     namespace input = soundor::input;
     namespace ui = soundor::ui;
-    namespace view = soundor::view;
+    namespace editor = soundor::editor;
 
     // A CPU compositor's frames, shown in the editor's window.
     class WindowTarget final : public render::RasterTarget
@@ -64,7 +64,7 @@ namespace soundor::vst3
                          public Steinberg::IPlugViewContentScaleSupport,
                          public Steinberg::Linux::ITimerHandler,
                          public Steinberg::Linux::IEventHandler,
-                         private view::Platform
+                         private editor::Platform
     {
     public:
         explicit Editor(Controller& owner);
@@ -103,7 +103,7 @@ namespace soundor::vst3
     private:
         void open();
         void close();
-        [[nodiscard]] view::View::Options viewOptions();
+        [[nodiscard]] editor::Editor::Options editorOptions();
         // The view's logical size, from its physical rect.
         [[nodiscard]] ui::Size logicalSize() const;
         [[nodiscard]] void* nativeWindow() const noexcept;
@@ -112,12 +112,12 @@ namespace soundor::vst3
         [[nodiscard]] Steinberg::ViewRect constrained(Steinberg::ViewRect wanted) const;
         [[nodiscard]] Steinberg::ViewRect physical(ui::Size logical) const;
 
-        // view::Platform
+        // editor::Platform
         State state() override;
         void setCursor(ui::Cursor shape) override;
         ui::Size holdSize(ui::Size wanted) override;
         void requestSize(ui::Size wanted) override;
-        void placed(const view::Placement& placement) override;
+        void placed(const editor::Placement& placement) override;
         void inputStarted(input::PlatformInput& input) override;
         void inputFailed(const std::string& why) override;
 
@@ -130,7 +130,7 @@ namespace soundor::vst3
         js::LogSink logSink;
         WindowTarget image;
         // After the window and the image it shows frames in, so it goes first.
-        std::unique_ptr<view::View> pluginView;
+        std::unique_ptr<editor::Editor> engineEditor;
         bool focusedByHost = false;
         bool attachedToHost = false;
     };

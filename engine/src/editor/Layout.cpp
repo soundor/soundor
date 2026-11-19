@@ -1,9 +1,9 @@
-#include <soundor/view/Layout.h>
+#include <soundor/editor/Layout.h>
 
 #include <algorithm>
 #include <cmath>
 
-namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
 {
     namespace
     {
@@ -54,4 +54,4 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
                  .area = centred({ designed.width * zoom, designed.height * zoom }, editor),
                  .safeArea = std::nullopt };
     }
-} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor

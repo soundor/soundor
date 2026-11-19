@@ -1,4 +1,4 @@
-#include <soundor/view/Layout.h>
+#include <soundor/editor/Layout.h>
 
 #include <doctest/doctest.h>
 
@@ -10,8 +10,8 @@ namespace
 {
     constexpr float unbounded = std::numeric_limits<float>::infinity();
 
-    view::Layout layoutOf(view::Layout::Resize resize, view::Layout::Fit fit,
-                          ui::Size maximum = { unbounded, unbounded })
+    editor::Layout layoutOf(editor::Layout::Resize resize, editor::Layout::Fit fit,
+                            ui::Size maximum = { unbounded, unbounded })
     {
         return { .size = { 400, 300 }, .resizable = true, .resize = resize, .fit = fit, .maximum = maximum };
     }
@@ -25,11 +25,11 @@ namespace
     }
 } // namespace
 
-TEST_SUITE("view layout")
+TEST_SUITE("editor layout")
 {
     TEST_CASE("a fixed editor is laid out over all of itself")
     {
-        const auto placed = view::place({ .size = { 400, 300 } }, { 500, 320 });
+        const auto placed = editor::place({ .size = { 400, 300 } }, { 500, 320 });
         CHECK(placed.zoom == 1);
         checkRect(placed.area, { 0, 0, 500, 320 });
         CHECK_FALSE(placed.safeArea);
@@ -37,42 +37,42 @@ TEST_SUITE("view layout")
 
     TEST_CASE("an editor that lays out again fills the editor up to its maximum")
     {
-        using enum view::Layout::Resize;
-        using enum view::Layout::Fit;
+        using enum editor::Layout::Resize;
+        using enum editor::Layout::Fit;
         SUBCASE("without a maximum")
         {
-            const auto placed = view::place(layoutOf(Layout, Contain), { 900, 700 });
+            const auto placed = editor::place(layoutOf(Layout, Contain), { 900, 700 });
             checkRect(placed.area, { 0, 0, 900, 700 });
             CHECK_FALSE(placed.safeArea);
         }
         SUBCASE("contain: beyond the maximum, laid out at it in the middle")
         {
-            const auto placed = view::place(layoutOf(Layout, Contain, { 600, unbounded }), { 800, 500 });
+            const auto placed = editor::place(layoutOf(Layout, Contain, { 600, unbounded }), { 800, 500 });
             CHECK(placed.zoom == 1);
             checkRect(placed.area, { 100, 0, 600, 500 });
             CHECK_FALSE(placed.safeArea);
         }
         SUBCASE("cover: over the whole editor, the maximum in the middle safe")
         {
-            const auto placed = view::place(layoutOf(Layout, Cover, { 600, 400 }), { 800, 500 });
+            const auto placed = editor::place(layoutOf(Layout, Cover, { 600, 400 }), { 800, 500 });
             checkRect(placed.area, { 0, 0, 800, 500 });
             REQUIRE(placed.safeArea);
             checkRect(placed.safeArea.value_or(ui::Rect {}), { 100, 50, 600, 400 });
         }
         SUBCASE("within the maximum, all of it")
         {
-            const auto placed = view::place(layoutOf(Layout, Contain, { 600, 400 }), { 500, 350 });
+            const auto placed = editor::place(layoutOf(Layout, Contain, { 600, 400 }), { 500, 350 });
             checkRect(placed.area, { 0, 0, 500, 350 });
         }
     }
 
     TEST_CASE("an editor that scales zooms its configured layout")
     {
-        using enum view::Layout::Resize;
-        using enum view::Layout::Fit;
+        using enum editor::Layout::Resize;
+        using enum editor::Layout::Fit;
         SUBCASE("contain: the smaller zoom, in the middle")
         {
-            const auto placed = view::place(layoutOf(Scale, Contain), { 1000, 600 });
+            const auto placed = editor::place(layoutOf(Scale, Contain), { 1000, 600 });
             CHECK(placed.zoom == doctest::Approx(2));
             checkRect(placed.area, { 100, 0, 800, 600 });
             CHECK(placed.layoutSize().width == doctest::Approx(400));
@@ -81,7 +81,7 @@ TEST_SUITE("view layout")
         }
         SUBCASE("cover: laid out over the whole editor, the configured size safe")
         {
-            const auto placed = view::place(layoutOf(Scale, Cover), { 1000, 600 });
+            const auto placed = editor::place(layoutOf(Scale, Cover), { 1000, 600 });
             CHECK(placed.zoom == doctest::Approx(2));
             checkRect(placed.area, { 0, 0, 1000, 600 });
             REQUIRE(placed.safeArea);
@@ -89,13 +89,13 @@ TEST_SUITE("view layout")
         }
         SUBCASE("never beyond the zoom the maximum allows")
         {
-            const auto placed = view::place(layoutOf(Scale, Contain, { 600, unbounded }), { 1200, 900 });
+            const auto placed = editor::place(layoutOf(Scale, Contain, { 600, unbounded }), { 1200, 900 });
             CHECK(placed.zoom == doctest::Approx(1.5));
             checkRect(placed.area, { 300, 225, 600, 450 });
         }
         SUBCASE("an empty editor keeps a zoom of 1")
         {
-            const auto placed = view::place(layoutOf(Scale, Contain), { 0, 0 });
+            const auto placed = editor::place(layoutOf(Scale, Contain), { 0, 0 });
             CHECK(placed.zoom == 1);
         }
     }
@@ -103,7 +103,7 @@ TEST_SUITE("view layout")
     TEST_CASE("positions go between the editor and the layout")
     {
         const auto placed =
-            view::place(layoutOf(view::Layout::Resize::Scale, view::Layout::Fit::Contain), { 1000, 600 });
+            editor::place(layoutOf(editor::Layout::Resize::Scale, editor::Layout::Fit::Contain), { 1000, 600 });
         const auto layout = placed.toLayout({ 300, 200 });
         CHECK(layout.x == doctest::Approx(100));
         CHECK(layout.y == doctest::Approx(100));

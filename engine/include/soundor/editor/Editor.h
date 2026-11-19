@@ -1,11 +1,12 @@
 #pragma once
 
-// A plugin's view: what every runtime's editor does with the engine, in
-// one place. The editor (a JUCE AudioProcessorEditor, a VST3 IPlugView)
-// owns the native view and the loop that drives it; the View owns the rest:
+// A plugin's editor, as far as the engine goes: what every runtime's
+// editor does with it, in one place. The runtime's side (a JUCE
+// AudioProcessorEditor, a VST3 IPlugView) is a Platform: it owns the native
+// view and the loop that drives it, and editor::Editor owns the rest:
 //
 // - the runtime: a RuntimeHost, or a DevSession that reloads it;
-// - placing the UI in the editor (view::place(), soundor.config's `editor`);
+// - placing the UI in the editor (editor::place(), soundor.config's `editor`);
 // - the compositor: on the GPU in the native view where there is one, on the
 //   CPU into the editor's RasterTarget otherwise, and back to the CPU when
 //   the GPU is lost;
@@ -21,12 +22,12 @@
 
 #include <soundor/Abi.h>
 #include <soundor/a11y/Platform.h>
+#include <soundor/editor/Layout.h>
 #include <soundor/input/Platform.h>
 #include <soundor/input/PointerLock.h>
 #include <soundor/render/Compositor.h>
 #include <soundor/runtime/RuntimeHost.h>
 #include <soundor/ui/Style.h>
-#include <soundor/view/Layout.h>
 
 #include <chrono>
 #include <cstdint>
@@ -49,10 +50,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     } // namespace debug
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
-namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
 {
-    // What the editor tells its View, and does for it. Called on the UI
-    // thread, from the View's own calls (frame(), resized(), the input ones).
+    // The runtime's side of an Editor: what it tells the Editor, and does
+    // for it. Called on the UI thread, from the Editor's own calls (frame(),
+    // resized(), the input ones).
     class Platform
     {
     public:
@@ -123,7 +125,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         virtual void inputFailed(const std::string& why) { (void)why; }
         // Every frame, after the native input is told where the editor is.
         virtual void inputPlaced(input::PlatformInput& input) { (void)input; }
-        // The native input is going (a new native view, the View closing):
+        // The native input is going (a new native view, the Editor closing):
         // stop watching its descriptor.
         virtual void inputStopping(input::PlatformInput& input) { (void)input; }
         // The framework's pointer, for a pointer lock while there is no
@@ -137,13 +139,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         // The native view as accessibility takes it (macOS: with the
         // framework's element its elements are children of).
         [[nodiscard]] virtual a11y::NativeView accessibilityView(void* nativeView) { return { nativeView, nullptr }; }
-        // The platform accessibility the View now presents in the native
+        // The platform accessibility the Editor now presents in the native
         // view, or null (gone): macOS lists its container as the view's
         // accessibility child.
         virtual void accessibilityChanged(a11y::PlatformAccessibility* accessibility) { (void)accessibility; }
     };
 
-    class View
+    class Editor
     {
     public:
         struct Options
@@ -157,7 +159,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             std::uint32_t background = 0xFF000000;
             // Where the CPU compositor presents; the editor shows it.
             render::RasterTarget* raster = nullptr;
-            // The runtime's options; the View adds the GPU device.
+            // The runtime's options; the Editor adds the GPU device.
             RuntimeHost::Options runtime;
             // Not empty: `soundor dev`'s bundle directory, reloaded
             // (DevSession) rather than `runtime.resources`.
@@ -172,15 +174,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
             std::string runtimeName;
         };
 
-        View(Platform& owner, Options provided);
+        Editor(Platform& owner, Options provided);
         // Ends a press or keys in progress without telling the UI (endInput()
         // tells it), then destroys the runtime.
-        ~View();
+        ~Editor();
 
-        View(const View&) = delete;
-        View& operator=(const View&) = delete;
-        View(View&&) = delete;
-        View& operator=(View&&) = delete;
+        Editor(const Editor&) = delete;
+        Editor& operator=(const Editor&) = delete;
+        Editor(Editor&&) = delete;
+        Editor& operator=(Editor&&) = delete;
 
         // One frame: reads the native input, places the UI, ticks the runtime
         // (parameters, timers, async work), applies a size the UI asked for,
@@ -271,4 +273,4 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
         [[maybe_unused]] ui::NodeId rendererBadge = ui::noNode;
         void updateRendererBadge();
     };
-} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::view
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor

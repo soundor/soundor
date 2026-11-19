@@ -960,7 +960,7 @@ function renderEditorHeader(editor: ResolvedEditorConfig): string {
 #include <soundor/backend/JuceEditorConstrainer.h>
 #include <soundor/backend/JucePresentation.h>
 #include <soundor/backend/JuceRasterScale.h>
-#include <soundor/view/View.h>
+#include <soundor/editor/Editor.h>
 
 #include <map>
 #include <memory>
@@ -979,13 +979,13 @@ namespace ${NS}
     // Under \`soundor dev\` it is replaced by a fresh one on every UI build, so
     // do not keep the reference runtimeHost() returns.
     //
-    // The engine's view::View does that, as in every runtime's editor (the
+    // The engine's editor::Editor does that, as in every runtime's editor (the
     // runtime, placing the UI, the compositor, native input, the pointer
     // lock, the cursor, accessibility, DevTools); this is its JUCE side: the
     // component, its timer, JUCE's input where there is no native one, and
     // sizes as JUCE and the host have them.
     // Derive your plugin's editor from this.
-    class AudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer, private view::Platform
+    class AudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer, private editor::Platform
     {
     public:
         explicit AudioProcessorEditor(AudioProcessor& owner);
@@ -1014,7 +1014,7 @@ namespace ${NS}
         void focusLost(FocusChangeType) override;
 
     protected:
-        RuntimeHost& runtimeHost() noexcept { return soundorView->runtime(); }
+        RuntimeHost& runtimeHost() noexcept { return soundorEditor->runtime(); }
 
         AudioProcessor& processorRef;
 
@@ -1038,12 +1038,12 @@ namespace ${NS}
         // What a resize says of the host: that it replaced a size asked of it,
         // or set one of its own.
         void noteHostSize();
-        // soundor.config's \`editor\`, which view::place() places the UI by.
-        [[nodiscard]] static view::Layout editorLayout();
-        // Where in the view the UI is drawn (view::place()).
+        // soundor.config's \`editor\`, which editor::place() places the UI by.
+        [[nodiscard]] static editor::Layout editorLayout();
+        // Where in the view the UI is drawn (editor::place()).
         [[nodiscard]] juce::Rectangle<float> uiArea() const;
 
-        // view::Platform: what the View asks of JUCE.
+        // editor::Platform: what the engine's Editor asks of JUCE.
         State state() override;
         void setCursor(ui::Cursor cursor) override;
         // A size the UI asks for (requestEditorSize()), held to the editor's
@@ -1053,7 +1053,7 @@ namespace ${NS}
         ui::Size holdSize(ui::Size wanted) override;
         void requestSize(ui::Size wanted) override;
         float surfaceScale(float wanted, bool gpu) override;
-        void placed(const view::Placement& placement) override;
+        void placed(const editor::Placement& placement) override;
         void pressed() override;
         void inputStarted(input::PlatformInput& input) override;
         void inputFailed(const std::string& why) override;
@@ -1077,7 +1077,7 @@ namespace ${NS}
         std::map<int, std::string> heldKeys;
 
         // After the image it presents into, so it goes first.
-        std::unique_ptr<view::View> soundorView;
+        std::unique_ptr<editor::Editor> soundorEditor;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessorEditor)
     };
@@ -1188,7 +1188,7 @@ function renderEditorRequest(editor: ResolvedEditorConfig): string {
 }
 
 /**
- * editorLayout(): the config's \`editor\` for view::place(), which places the
+ * editorLayout(): the config's \`editor\` for editor::place(), which places the
  * UI in the view the same way in every runtime's editor.
  */
 function renderEditorLayout(editor: ResolvedEditorConfig): string {
@@ -1196,13 +1196,13 @@ function renderEditorLayout(editor: ResolvedEditorConfig): string {
     Number.isFinite(value)
       ? cppFloatF(value)
       : 'std::numeric_limits<float>::infinity()';
-  return `    view::Layout AudioProcessorEditor::editorLayout()
+  return `    editor::Layout AudioProcessorEditor::editorLayout()
     {
         // soundor.config: editor.
         return { .size = { ${cppFloatF(editor.width)}, ${cppFloatF(editor.height)} },
                  .resizable = ${editor.resizable ? 'true' : 'false'},
-                 .resize = view::Layout::Resize::${editor.resize === 'scale' ? 'Scale' : 'Layout'},
-                 .fit = view::Layout::Fit::${editor.fit === 'cover' ? 'Cover' : 'Contain'},
+                 .resize = editor::Layout::Resize::${editor.resize === 'scale' ? 'Scale' : 'Layout'},
+                 .fit = editor::Layout::Fit::${editor.fit === 'cover' ? 'Cover' : 'Contain'},
                  .maximum = { ${limit(editor.maxWidth)}, ${limit(editor.maxHeight)} } };
     }`;
 }
@@ -1283,7 +1283,7 @@ namespace ${NS}
         requireEngineAbi(static_cast<EngineAbi*>(nullptr));
         // Clicks count as a double click within the platform's time.
         backend::useDoubleClickTime();
-        view::View::Options viewOptions;
+        editor::Editor::Options editorOptions;
         RuntimeHost::Options options;
         options.runtime.log = logToJuce;
         // juceRuntime({ timeLimit }): how long one call into JavaScript may
@@ -1332,8 +1332,8 @@ ${renderNativeInstall(native)}
             file(level, message);
         };
         log = options.runtime.log;
-        // Reloaded from the bundle directory (view::View's DevSession).
-        viewOptions.bundleDirectory = pathFromHex(SOUNDOR_UI_DEV_DIR_HEX);
+        // Reloaded from the bundle directory (editor::Editor's DevSession).
+        editorOptions.bundleDirectory = pathFromHex(SOUNDOR_UI_DEV_DIR_HEX);
 #else
     #if SOUNDOR_HAS_UI
         options.resources = std::make_shared<platform::EmbeddedResources>(embedded::pluginUi());
@@ -1341,23 +1341,23 @@ ${renderNativeInstall(native)}
     #endif
         log = options.runtime.log;
 #endif
-        viewOptions.layout = editorLayout();
-        viewOptions.canRequestSize = ${canRequestEditorSize(editor) ? 'true' : 'false'};
-        viewOptions.background =
+        editorOptions.layout = editorLayout();
+        editorOptions.canRequestSize = ${canRequestEditorSize(editor) ? 'true' : 'false'};
+        editorOptions.background =
             getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId).getARGB();
-        viewOptions.raster = &image;
-        viewOptions.runtime = std::move(options);
+        editorOptions.raster = &image;
+        editorOptions.runtime = std::move(options);
 #if JUCE_LINUX || JUCE_MAC || JUCE_WINDOWS
-        viewOptions.nativeInput = true;
+        editorOptions.nativeInput = true;
 #else
-        viewOptions.nativeInput = false;
+        editorOptions.nativeInput = false;
 #endif
-        viewOptions.doubleClickTime =
+        editorOptions.doubleClickTime =
             std::chrono::milliseconds(std::clamp(backend::platformDoubleClickTime().value_or(400), 100, 5000));
-        viewOptions.name = AudioProcessor::pluginName;
-        viewOptions.runtimeName = "JUCE";
-        view::Platform& platform = *this;
-        soundorView = std::make_unique<view::View>(platform, std::move(viewOptions));
+        editorOptions.name = AudioProcessor::pluginName;
+        editorOptions.runtimeName = "JUCE";
+        editor::Platform& platform = *this;
+        soundorEditor = std::make_unique<editor::Editor>(platform, std::move(editorOptions));
 
         setWantsKeyboardFocus(true);
         setOpaque(true);
@@ -1370,7 +1370,7 @@ ${renderEditorSize(editor)}
         stopTimer();
         // The runtime, the native input, accessibility and the compositor,
         // while the native view they use still exists.
-        soundorView.reset();
+        soundorEditor.reset();
     }
 
 ${renderEditorRequest(editor)}
@@ -1382,13 +1382,13 @@ ${renderSurfaceScale(editor)}
     juce::Rectangle<float> AudioProcessorEditor::uiArea() const
     {
         const auto area =
-            view::place(editorLayout(), { static_cast<float>(getWidth()), static_cast<float>(getHeight()) }).area;
+            editor::place(editorLayout(), { static_cast<float>(getWidth()), static_cast<float>(getHeight()) }).area;
         return { area.x, area.y, area.width, area.height };
     }
 
     void AudioProcessorEditor::timerCallback()
     {
-        soundorView->frame();
+        soundorEditor->frame();
     }
 
     void AudioProcessorEditor::resized()
@@ -1396,14 +1396,14 @@ ${renderSurfaceScale(editor)}
         noteHostSize();
         // On the CPU, paint() presents the last complete frame until the
         // timer has settled JavaScript and rendered at the new size; the GPU
-        // compositor presents at the new size now (view::View::resized()).
-        if (soundorView != nullptr)
-            soundorView->resized();
+        // compositor presents at the new size now (editor::Editor::resized()).
+        if (soundorEditor != nullptr)
+            soundorEditor->resized();
     }
 
-    // ── view::Platform ───────────────────────────────────────────────────────
+    // ── editor::Platform ───────────────────────────────────────────────────────
 
-    view::Platform::State AudioProcessorEditor::state()
+    editor::Platform::State AudioProcessorEditor::state()
     {
         State now;
         now.size = { static_cast<float>(getWidth()), static_cast<float>(getHeight()) };
@@ -1444,7 +1444,7 @@ ${renderSurfaceScale(editor)}
         setMouseCursor(backend::mouseCursor(cursor));
     }
 
-    void AudioProcessorEditor::placed(const view::Placement& placement)
+    void AudioProcessorEditor::placed(const editor::Placement& placement)
     {
         image.setArea({ placement.area.x, placement.area.y, placement.area.width, placement.area.height });
     }
@@ -1457,7 +1457,7 @@ ${renderSurfaceScale(editor)}
     }
         // A press takes the keyboard, as it does with JUCE's input: JUCE
         // focuses its window, as its own input would.
-        auto* native = soundorView != nullptr ? soundorView->nativeInput() : nullptr;
+        auto* native = soundorEditor != nullptr ? soundorEditor->nativeInput() : nullptr;
         if (native != nullptr && ! native->focused())
         {
             grabKeyboardFocus();
@@ -1477,8 +1477,8 @@ ${renderSurfaceScale(editor)}
             juce::LinuxEventLoop::registerFdCallback(nativeInputDescriptor,
                                                      [this](int)
                                                      {
-                                                         if (soundorView != nullptr)
-                                                             soundorView->readInput();
+                                                         if (soundorEditor != nullptr)
+                                                             soundorEditor->readInput();
                                                      });
 #endif
 #if JUCE_MAC
@@ -1559,65 +1559,65 @@ ${renderSurfaceScale(editor)}
     {
         // Soundor reads the view's input itself: JUCE's (its synthesized
         // moves included) is not delivered twice.
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        soundorView->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+        soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Move));
     }
 
     void AudioProcessorEditor::mouseEnter(const juce::MouseEvent& event)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        soundorView->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+        soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Move));
     }
 
     void AudioProcessorEditor::mouseExit(const juce::MouseEvent& event)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        soundorView->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Leave));
+        soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Leave));
     }
 
     void AudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        soundorView->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Down));
+        soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Down));
     }
 
     void AudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        // A locked pointer goes on past the view's edges (the View follows it).
-        soundorView->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+        // A locked pointer goes on past the view's edges (the engine's Editor follows it).
+        soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Move));
     }
 
     void AudioProcessorEditor::mouseUp(const juce::MouseEvent& event)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        soundorView->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Up));
+        soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Up));
     }
 
     void AudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return;
-        if (! soundorView->wheel(backend::wheelInput(event.position, event.mods, wheel)))
+        if (! soundorEditor->wheel(backend::wheelInput(event.position, event.mods, wheel)))
             juce::AudioProcessorEditor::mouseWheelMove(event, wheel);
     }
 
     bool AudioProcessorEditor::keyPressed(const juce::KeyPress& key)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return false;
         const std::string name = backend::keyName(key);
         if (name.empty())
             return false;
         const bool repeat = ! heldKeys.emplace(key.getKeyCode(), name).second;
         // The key, then the text it types when the UI does not handle it.
-        return soundorView->key({ .down = true,
+        return soundorEditor->key({ .down = true,
                                   .key = name,
                                   .repeat = repeat,
                                   .modifiers = backend::modifiersOf(key.getModifiers()) },
@@ -1626,7 +1626,7 @@ ${renderSurfaceScale(editor)}
 
     bool AudioProcessorEditor::keyStateChanged(bool isKeyDown)
     {
-        if (soundorView->nativeInput() != nullptr)
+        if (soundorEditor->nativeInput() != nullptr)
             return false;
         return ! isKeyDown && releaseKeys(false);
     }
@@ -1637,8 +1637,8 @@ ${renderSurfaceScale(editor)}
         // Leave JUCE's logical focus empty for this editor, so its keyboard
         // hook passes raw messages to the HWND. Other JUCE controls keep their
         // normal logical focus, and Soundor's native focus still belongs to
-        // the existing HWND. Surface navigation and UIA use the View's focus.
-        if (auto* native = soundorView != nullptr ? soundorView->nativeInput() : nullptr)
+        // the existing HWND. Surface navigation and UIA use the engine's Editor's focus.
+        if (auto* native = soundorEditor != nullptr ? soundorEditor->nativeInput() : nullptr)
         {
             giveAwayKeyboardFocus();
             native->requestFocus();
@@ -1654,7 +1654,7 @@ ${renderSurfaceScale(editor)}
 
     bool AudioProcessorEditor::releaseKeys(bool all)
     {
-        if (soundorView == nullptr)
+        if (soundorEditor == nullptr)
             return false;
         bool handled = false;
         const auto modifiers = backend::modifiersOf(juce::ModifierKeys::currentModifiers);
@@ -1666,7 +1666,7 @@ ${renderSurfaceScale(editor)}
                 continue;
             }
             const ui::KeyInput input { .down = false, .key = key->second, .repeat = false, .modifiers = modifiers };
-            handled = soundorView->key(input) || handled;
+            handled = soundorEditor->key(input) || handled;
             key = heldKeys.erase(key);
         }
         return handled;
@@ -1676,7 +1676,7 @@ ${renderSurfaceScale(editor)}
     {
         g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
         // The GPU compositor presents over this view, in a layer or window of its own.
-        if (soundorView != nullptr && soundorView->gpu())
+        if (soundorEditor != nullptr && soundorEditor->gpu())
             return;
         // Only present completed frames. Native resize/expose callbacks can
         // arrive before JavaScript has observed the new size. Rendering here
