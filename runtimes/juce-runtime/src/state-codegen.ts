@@ -398,6 +398,7 @@ export function persistentProcessorSource(
   return `
     AudioProcessor::~AudioProcessor()
     {
+        for (auto& unsubscribe : stateChanges) unsubscribe();
         shutdownController();
         cancelPendingUpdate();
     }

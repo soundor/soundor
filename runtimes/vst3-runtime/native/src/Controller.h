@@ -129,6 +129,7 @@ namespace soundor::vst3
         [[nodiscard]] Vst::Parameter* parameterAt(std::size_t index);
         void markChanged(std::size_t index);
         void sendState();
+        void programSelected() noexcept;
         void ensureRustController();
 
         const Plugin& definition;

@@ -99,7 +99,14 @@ build's UI directory and log file.
   a token only this module resolves: when the controller does, it gets a
   `Link` (shared pointers to the `RustProcessor`, the streams and the host
   state), so the processor outlives the Rust controller that publishes to it,
-  whichever the host destroys first.
+  whichever the host destroys first. The component is still not declared
+  `kDistributable` (factory and `moduleinfo.json`), as JUCE's are not: what
+  needs one process would be lost, so hosts are not invited to split them.
+- **What the host is told.** A state change is `setDirty(true)` (parameters
+  speak for themselves); a restore ends with
+  `restartComponent(kParamValuesChanged)`; a selected factory preset moves the
+  program list's parameter (`beginEdit`, `performEdit`, `endEdit`), unless
+  the host chose it.
 - **The editor** owns an X11 window (its own connection) and the engine's
   `editor::Editor`, as the JUCE runtime's editor does: the runtime
   (`DevSession` in development), placing the UI, the compositor, native
@@ -160,8 +167,9 @@ adapter of another engine. The package depends on the exact engine version.
 - `tests/plugin.test.ts` builds nothing; after `pnpm test:plugin` builds the
   test plugin it checks, in the VST3 host: classes and buses, parameters and
   their text, audio and automation, the published parameter, MIDI in and
-  out, state round trips in a new instance, refused state, presets from the
-  program list, independent instances, the three exported symbols, the editor
+  out, state round trips in a new instance (and the restart after one), refused
+  state, presets from the program list, the class flags, the project marked
+  modified and the program selector following the UI (with a display), independent instances, the three exported symbols, the editor
   (open, resize within limits, close, twice; needs a display), and
   `Instances.cpp`: four instances of two builds of the plugin in one process.
 - CI (`.github/workflows/vst3.yml`) builds both adapters against the engine

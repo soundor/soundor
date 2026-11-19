@@ -88,6 +88,12 @@ export default defineSoundorConfig({
       parameters: { gain: 2, mode: 'invert' },
       state: { label: 'Loud' },
     },
+    {
+      id: 'quiet',
+      name: 'Quiet',
+      parameters: { gain: 0.5 },
+      state: { label: 'Quiet' },
+    },
   ],
   native: {
     methods: { twice: { args: { value: 'int32' }, returns: 'int32' } },

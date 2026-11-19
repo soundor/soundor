@@ -1,7 +1,9 @@
 #include "Presets.h"
 
 #include <cmath>
+#include <functional>
 #include <stdexcept>
+#include <utility>
 
 namespace soundor::vst3
 {
@@ -9,6 +11,7 @@ namespace soundor::vst3
     struct FactoryPresets::SelectionField final : history::Field
     {
         std::string current;
+        std::function<void()> changed;
 
         SelectionField()
         {
@@ -26,7 +29,11 @@ namespace soundor::vst3
                 std::string next;
                 Write(SelectionField& owner, std::string value) : field(owner), next(std::move(value)) {}
                 void install() noexcept override { field.current.swap(next); }
-                void notify() noexcept override {}
+                void notify() noexcept override
+                {
+                    if (field.changed)
+                        field.changed();
+                }
             };
             return std::make_unique<Write>(*this, std::get<std::string>(value));
         }
@@ -108,6 +115,11 @@ namespace soundor::vst3
             if (definition.presets[i].id == selected)
                 return static_cast<int>(i);
         return -1;
+    }
+
+    void FactoryPresets::onSelected(std::function<void()> listener)
+    {
+        selection->changed = std::move(listener);
     }
 
     void FactoryPresets::restored()

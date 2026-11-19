@@ -137,6 +137,7 @@ namespace soundor::vst3
         for (std::size_t i = 0; i < plugin.parameters.size(); ++i)
             parameterEditors.push_back(std::make_unique<ParameterEditor>(plugin, i, *this, stateHistory));
         factoryPresets = std::make_unique<FactoryPresets>(plugin, parameterEditors, *stateStore, stateHistory);
+        factoryPresets->onSelected([this]() noexcept { programSelected(); });
         // Every state change, from any path, reaches the processor whole.
         for (std::size_t i = 0; i < stateSchema.size(); ++i)
             stateSubscriptions.push_back(
@@ -418,6 +419,10 @@ namespace soundor::vst3
             log(std::string("Soundor: the saved state could not be applied: ") + error.what());
         }
         restoring = false;
+        // The host loaded the state, but nothing says it reads the values
+        // back: tell it they changed, as JUCE's wrapper does.
+        if (componentHandler != nullptr)
+            componentHandler->restartComponent(Vst::kParamValuesChanged);
         ensureRustController();
         return kResultOk;
     }
@@ -569,12 +574,31 @@ namespace soundor::vst3
             message->setMessageID("soundor.state");
             message->getAttributes()->setBinary("values", values.data(), static_cast<uint32>(values.size()));
             sendMessage(message);
+            // The host's parameters do not show it: the project is modified.
+            setDirty(true);
         }
         catch (const std::exception& error)
         {
             log(std::string("Soundor: the state could not be sent to the processor: ") + error.what());
         }
         message->release();
+    }
+
+    void Controller::programSelected() noexcept
+    {
+        // The host's program selector follows a preset the UI, the Rust
+        // controller or History selected; the host's own choice (and a
+        // restored project, which selects none) is already shown.
+        const int index = factoryPresets->selectedIndex();
+        if (index < 0 || restoring || loadingProgram || definition.presets.size() < 2)
+            return;
+        const double normalized = static_cast<double>(index) / static_cast<double>(definition.presets.size() - 1);
+        if (getParamNormalized(programParameterId) == normalized)
+            return;
+        EditControllerEx1::setParamNormalized(programParameterId, normalized);
+        beginEdit(programParameterId);
+        performEdit(programParameterId, normalized);
+        endEdit(programParameterId);
     }
 
     // ── The Rust controller's services ───────────────────────────────────────

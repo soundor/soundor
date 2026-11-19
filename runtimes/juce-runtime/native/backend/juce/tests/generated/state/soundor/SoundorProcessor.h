@@ -157,6 +157,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
+        std::vector<std::function<void()>> stateChanges;
         // What the Rust processing gets and gives each block, allocated once.
         processor::RustProcessor rust { processor::RustContract { 3, 0, 1, 48 }, processor::linkedRustProcessor(), midi::linkedMidi() };
         std::shared_ptr<midi::Host> midiBridge = std::make_shared<midi::Host>(rust.nativeHandle(), midi::linkedMidi());

@@ -164,6 +164,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         bypassParameter = backend::ParameterValue<bool>(*created[1]);
         modeParameter = backend::ParameterValue<choices::Mode>(*created[2]);
         factoryPresets = std::make_unique<FactoryPresets>(*this);
+        // Persistent state is not a parameter: a change to it, but a
+        // restore's, tells the host the project is modified.
+        for (const auto& [field, value] : state.storage().snapshot()) {
+            static_cast<void>(value);
+            stateChanges.push_back(state.storage().subscribe(field, [this](const std::string&) {
+                if (! deliveringRestorations)
+                    updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged(true));
+            }));
+        }
         // The Rust controller, if the crate exports one: last, once every
         // service it reaches exists.
         controllerServices = std::make_unique<ControllerServices>(*this);
@@ -269,6 +278,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     AudioProcessor::~AudioProcessor()
     {
+        for (auto& unsubscribe : stateChanges) unsubscribe();
         shutdownController();
         cancelPendingUpdate();
     }

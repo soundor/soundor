@@ -48,6 +48,9 @@ namespace soundor::vst3
         // The index of the selected preset, for the host's program list, or -1.
         [[nodiscard]] int selectedIndex() const;
         [[nodiscard]] history::StateHistory& historyManager() { return manager; }
+        // Called when the selection changes (a load, undo, redo), after the
+        // whole change is installed; it must not throw.
+        void onSelected(std::function<void()> listener);
         // A restored project: no factory preset is selected.
         void restored();
 

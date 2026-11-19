@@ -172,9 +172,12 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   runtime's format (`{"version":1,"parameters":{...},"state":{...}}`), so a
   saved project restores parameters and [persistent state](/docs/api/state).
   State the UI or the controller changes reaches the processor as a message,
-  so it works when a host runs the component and the controller apart.
+  so it works when a host runs the component and the controller apart, and
+  marks the host's project modified. After a restore, the host is told to
+  read the parameters back (`restartComponent`).
 - **Presets.** [Factory presets](/docs/api/presets) are the root unit's
-  program list, so a host's program selector loads them too.
+  program list, so a host's program selector loads them too, and shows the
+  one the UI, the controller or History selected.
 - **Host state.** [`soundor:host`](/docs/api/host) reports the application
   name and any channel metadata the host supplies to the controller. With a
   processor in the same process, the editor also sees the processing mode and

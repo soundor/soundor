@@ -70,8 +70,8 @@ export function moduleInfo(description: Description, sdkVersion = 'VST 3.8.1') {
         Name: plugin.name,
         ...base,
         'Sub Categories': subCategories,
-        // kDistributable: the component and its controller may run apart.
-        'Class Flags': 1,
+        // Not kDistributable: the component and its controller share a process.
+        'Class Flags': 0,
       },
       {
         CID: plugin.controllerCid,
