@@ -130,8 +130,8 @@ namespace soundor::vst3
                 {
                     field.target.installPlain(field.index, next);
                 }
-                catch (
-                    ...) // NOLINT(bugprone-empty-catch): installing never throws in practice; History needs noexcept.
+                // Installing never throws in practice; History needs noexcept.
+                catch (...) // NOLINT(bugprone-empty-catch)
                 {
                 }
             }
