@@ -57,6 +57,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@soundor/vst3-host": "workspace:^",
     "soundor": "workspace:^"
   }
 }

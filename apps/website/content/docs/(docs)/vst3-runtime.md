@@ -27,10 +27,10 @@ export default defineSoundorConfig({
 ```
 
 ```sh
-pnpm add -D @soundor/vst3-runtime
+pnpm add -D @soundor/vst3-runtime @soundor/vst3-host
 soundor build vst3           # .soundor/dist/vst3/Acme Reverb.vst3
 soundor build vst3 --debug   # a Debug build with DevTools
-soundor dev vst3             # a Debug build whose UI reloads on every change
+soundor dev vst3             # opens the Debug build in the VST3 host
 ```
 
 A project can list it beside the JUCE and web runtimes;
@@ -42,6 +42,8 @@ does (`pnpm --filter controller build:vst3`).
 - **Linux x86_64**, to build and to run. Windows, macOS, other architectures
   and cross-compilation are not supported; use the JUCE runtime there.
 - **Node** and **Rust** (stable, with Cargo).
+- **`@soundor/vst3-host`**, a required peer dependency. Opening the editor
+  during development needs an X11 or XWayland display.
 - **A C++ compiler driver**, `c++` (g++ or clang++), or the one `CXX` names:
   it links the plugin, with its C++ runtime linked statically. Rust needs a C
   compiler to link on Linux anyway. Debian and Ubuntu: `sudo apt install
@@ -65,6 +67,17 @@ C++ runtime, libcurl and the prebuilt adapter.
 The plugin's name, vendor (`plugin.vendor.name`, else the vendor part of
 `plugin.id`), version, categories, buses, MIDI, editor, parameters, state and
 presets come from the config, as for every runtime.
+
+## Developing
+
+`soundor dev vst3` opens the editor in the [Soundor VST3 host](/docs/contribute/vst3-host).
+UI edits reload in the open editor. Rust edits rebuild the plugin and reopen
+it in a fresh host process if it was open. Press **v** then **Enter** to
+reopen the host after closing it. Quitting `soundor dev` also closes its host.
+
+The Soundor VST3 host connects to DevTools automatically. You can also open the
+bundle in another host. Start that host with `SOUNDOR_DEVTOOLS_SESSION` set
+to the descriptor path printed by `soundor dev`.
 
 ## How a plugin is put together
 
@@ -176,8 +189,7 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   pointer back is the compositor's to allow.
 - **DevTools.** A Debug build (`soundor build vst3 --debug`, `soundor dev
   vst3`) connects to the DevTools session the environment variable
-  `SOUNDOR_DEVTOOLS_SESSION` names, which `soundor dev` prints: start the host
-  with it set.
+  `SOUNDOR_DEVTOOLS_SESSION` names.
 - **Instances.** Every instance is independent. When the component and the
   controller share a process, the controller also reaches the processor's
   memory: the Rust controller's audio resources, `soundor:midi` from the UI
@@ -186,8 +198,6 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
 ## Limitations
 
 - Linux x86_64 only; no AU, CLAP or standalone.
-- `soundor dev vst3` builds the plugin and keeps its UI current, but opens no
-  host: open the bundle in yours.
 - The Rust controller's scheduled work runs while an editor is open, or with
   a host that lends its run loop to the controller.
 - Dynamic latency (`mode: 'dynamic'`) is reported as zero. Dynamic tail

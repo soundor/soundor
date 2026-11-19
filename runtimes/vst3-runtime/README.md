@@ -16,11 +16,13 @@ export default defineSoundorConfig({
 ```
 
 ```sh
+pnpm add -D @soundor/vst3-runtime @soundor/vst3-host
 soundor build vst3   # .soundor/dist/vst3/Acme Reverb.vst3
+soundor dev vst3     # opens the Debug build in the VST3 host
 ```
 
 Linux x86_64 only. Building needs Node, Rust and a C++ compiler driver (g++
-or clang++) to link.
+or clang++) to link. `@soundor/vst3-host` is a required peer dependency.
 
 - [Guide and reference](https://soundor.dev/docs/vst3-runtime)
 - [Documentation](https://soundor.dev/docs)
