@@ -10,12 +10,25 @@
 #include "Descriptor.h"
 #include "Processor.h"
 
+#include <pluginterfaces/gui/iplugview.h>
 #include <pluginterfaces/vst/ivstaudioprocessor.h>
 #include <pluginterfaces/vst/ivsteditcontroller.h>
 #include <pluginterfaces/vst/vsttypes.h>
 #include <public.sdk/source/main/pluginfactory.h>
 
 using namespace Steinberg;
+
+#if ! SMTG_OS_LINUX
+// The editor and the controller implement Linux's run loop interfaces on
+// every platform (they are only queried for on Linux), whose ids the SDK
+// defines on Linux alone (coreiids.cpp).
+namespace Steinberg
+{
+    DEF_CLASS_IID(Linux::IEventHandler)
+    DEF_CLASS_IID(Linux::ITimerHandler)
+    DEF_CLASS_IID(Linux::IRunLoop)
+} // namespace Steinberg
+#endif
 
 extern "C" SMTG_EXPORT_SYMBOL IPluginFactory* PLUGIN_API GetPluginFactory()
 {
