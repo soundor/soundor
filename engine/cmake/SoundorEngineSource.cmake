@@ -79,7 +79,7 @@ list(APPEND SOUNDOR_RUNTIME_SOURCES ${SOUNDOR_CORE_SOURCES})
 if(APPLE)
   enable_language(OBJCXX)
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/AppleShared.mm src/platform/apple/RuntimeClass.mm
-       src/platform/apple/UrlSessionHttpClient.mm)
+       src/platform/apple/UrlSessionHttpClient.mm src/platform/apple/Clipboard.mm)
   if(IOS)
     list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/IosPlatform.mm)
   else()
@@ -88,7 +88,7 @@ if(APPLE)
 endif()
 if(WIN32)
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp src/input/windows/WindowsInput.cpp src/input/windows/Translation.cpp
-       src/platform/windows/WinHttpClient.cpp)
+       src/platform/windows/WinHttpClient.cpp src/platform/windows/Clipboard.cpp)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
@@ -100,14 +100,17 @@ if(APPLE AND NOT IOS)
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/apple/Translation.cpp)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  # Only their headers: libX11 and libXi are loaded when a view opens, so an
-  # engine needs no X11 to load (src/input/linux/Xlib.h).
+  # Only their headers: native input and clipboard load the X11 libraries
+  # on demand, so an engine needs no X11 to load.
   find_package(X11)
   if(NOT X11_FOUND OR NOT X11_Xi_INCLUDE_PATH OR NOT X11_Xkb_INCLUDE_PATH)
     message(FATAL_ERROR "Soundor's Linux input needs the X11 and XInput 2 headers (libx11-dev and libxi-dev on Debian and Ubuntu, libX11-devel and libXi-devel on Fedora).")
   endif()
+  if(NOT X11_xcb_INCLUDE_PATH)
+    message(FATAL_ERROR "Soundor's Linux clipboard needs the XCB headers (libxcb1-dev on Debian and Ubuntu, libxcb-devel on Fedora).")
+  endif()
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/linux/Keys.cpp src/input/linux/Scroll.cpp src/input/linux/X11Input.cpp
-       src/platform/linux/CurlHttpClient.cpp)
+       src/platform/linux/CurlHttpClient.cpp src/platform/linux/Clipboard.cpp)
 endif()
 # The GPU: ANGLE's devices and contexts, the GPU compositor and where it
 # presents (see SoundorAngle.cmake).
@@ -142,7 +145,7 @@ endif()
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_include_directories(soundor_runtime SYSTEM PRIVATE ${X11_INCLUDE_DIR} ${X11_Xi_INCLUDE_PATH})
+  target_include_directories(soundor_runtime SYSTEM PRIVATE ${X11_INCLUDE_DIR} ${X11_Xi_INCLUDE_PATH} ${X11_xcb_INCLUDE_PATH})
 endif()
 # Each with the name it is registered under, which its bytecode carries,
 # lowered from src/ while building (soundor_embed_module()).

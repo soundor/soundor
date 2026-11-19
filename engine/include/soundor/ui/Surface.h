@@ -104,9 +104,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         virtual ~Clipboard() = default;
         virtual std::string readText() = 0;
         virtual void writeText(std::string text) = 0;
+
+        // Backends that need to wait on the window server or another
+        // application's event loop can complete on a worker. False asks
+        // the caller to use the synchronous method. Writes complete without text.
+        using Completion = std::function<void(std::optional<std::string>)>;
+        virtual bool readTextAsync(Completion&&) { return false; }
+        virtual bool writeTextAsync(std::string_view, Completion&&) { return false; }
     };
 
-    // A clipboard private to the process, for backends without one.
+    // An in-memory clipboard for surfaces without a system clipboard.
     [[nodiscard]] std::shared_ptr<Clipboard> memoryClipboard();
 
     // The editing state of an input node: byte offsets into its text.

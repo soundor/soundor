@@ -221,7 +221,7 @@ if(SOUNDOR_JS_SOURCE)
 
 
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_sources(soundor_runtime_tests PRIVATE a11y/AtSpiTests.cpp)
+    target_sources(soundor_runtime_tests PRIVATE a11y/AtSpiTests.cpp platform/X11ClipboardTests.cpp)
     target_link_libraries(soundor_runtime_tests PRIVATE PkgConfig::SOUNDOR_GIO)
     # Native input: its translations, and the real thing under Xvfb with
     # XTest's input (the engine itself loads X11 at run time).

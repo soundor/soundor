@@ -1378,6 +1378,7 @@ function renderEditorSource(
 #include <soundor/backend/JuceInput.h>
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/history/Module.h>
+#include <soundor/platform/Clipboard.h>
 #include <soundor/platform/FileLog.h>
 
 #include <algorithm>
@@ -1437,7 +1438,7 @@ namespace ${NS}
         options.pluginVersion = AudioProcessor::pluginVersion;
         options.environment = backend::hostEnvironment(owner, ${cppString(RUNTIME_VERSION)});
         options.http = platform::systemHttpClient();
-        options.clipboard = std::make_shared<backend::JuceClipboard>();
+        options.clipboard = platform::systemClipboard();
         options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());
         // <user application data>/Soundor/<plugin id>: soundor:storage and soundor:fs.
         options.dataDirectory = std::filesystem::path(

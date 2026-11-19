@@ -383,7 +383,7 @@ describe('generateJuceSources', () => {
       'compositor = std::make_unique<render::RasterCompositor>(image);',
     );
     expect(editor).toContain(
-      'options.clipboard = std::make_shared<backend::JuceClipboard>();',
+      'options.clipboard = platform::systemClipboard();',
     );
     expect(fileMap(config).get('setup.cmake')).toContain(
       'backend/juce/soundor/backend/JuceInput.cpp',

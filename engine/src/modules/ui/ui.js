@@ -1387,7 +1387,9 @@ export function focusedNode() {
 /** The system clipboard's text (navigator.clipboard's shape). */
 export const clipboard = Object.freeze({
   readText: async () => native.readClipboard(),
-  writeText: async (text) => native.writeClipboard(String(text)),
+  writeText: async (text) => {
+    await native.writeClipboard(String(text));
+  },
 });
 
 /** A value in an error message: strings quoted, numbers as they are. */
@@ -2011,8 +2013,23 @@ function editKey(input, event) {
         }
         return true;
       case 'v': {
-        const pasted = native.readClipboard().replace(/[\r\n]+/g, ' ');
-        if (pasted !== '') replaceSelection(input, pasted, 'insertFromPaste');
+        const paste = (value) => {
+          const pasted = value.replace(/[\r\n]+/g, ' ');
+          if (pasted !== '') replaceSelection(input, pasted, 'insertFromPaste');
+        };
+        const pending = native.readClipboard();
+        if (typeof pending === 'string') paste(pending);
+        else
+          pending.then((value) => {
+            if (
+              input.isConnected &&
+              input.focused &&
+              input.value === text &&
+              input.selectionStart === start &&
+              input.selectionEnd === end
+            )
+              paste(value);
+          });
         return true;
       }
     }

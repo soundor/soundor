@@ -7,6 +7,7 @@
 #include "modules/ui/SvgScene.h"
 #include "ui/Color.h"
 #include "ui/StyleReader.h"
+#include "web/WebState.h"
 
 #include <algorithm>
 #include <array>
@@ -920,10 +921,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface) -> jsi::Value { return { double(surface.revision()) }; });
         }
 
+        template <typename Start>
+        std::optional<jsi::Value> asyncClipboardOperation(ContextState& context, const char* name, Start start)
+        {
+            auto& state = web::requireState(context);
+            // Only the UI thread consumes completions, after beginOperation
+            // has registered the promise, even if a worker replies immediately.
+            const auto id = std::make_shared<std::uint64_t>(0);
+            if (! start(
+                    [completions = state.completions, id](std::optional<std::string> text)
+                    {
+                        completions->post(
+                            [id, text = std::move(text)](web::State& ui, ContextState&) {
+                                ui.resolve(*id, [&](ContextState& c)
+                                           { return text ? bind::write(c, *text) : jsi::Value::undefined(); });
+                            });
+                    }))
+                return std::nullopt;
+            return state.beginOperation(context, name, *id);
+        }
+
         jsi::Value readClipboard(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return call(context, "readText", count, 0,
-                        [&](Surface& surface) { return bind::write(context, surface.clipboard().readText()); });
+                        [&](Surface& surface)
+                        {
+                            auto& clipboard = surface.clipboard();
+                            auto pending = asyncClipboardOperation(
+                                context, "clipboard.readText", [&](Clipboard::Completion complete)
+                                { return clipboard.readTextAsync(std::move(complete)); });
+                            if (pending)
+                                return std::move(*pending);
+                            return bind::write(context, clipboard.readText());
+                        });
         }
 
         jsi::Value writeClipboard(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
@@ -931,7 +961,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return call(context, "writeText", count, 1,
                         [&](Surface& surface)
                         {
-                            surface.clipboard().writeText(readString(context, args[0], "text"));
+                            auto& clipboard = surface.clipboard();
+                            auto text = readString(context, args[0], "text");
+                            auto pending = asyncClipboardOperation(
+                                context, "clipboard.writeText", [&](Clipboard::Completion complete)
+                                { return clipboard.writeTextAsync(text, std::move(complete)); });
+                            if (pending)
+                                return std::move(*pending);
+                            clipboard.writeText(std::move(text));
                             return jsi::Value::undefined();
                         });
         }
