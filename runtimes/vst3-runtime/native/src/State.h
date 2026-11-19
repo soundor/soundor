@@ -48,7 +48,7 @@ namespace soundor::vst3
         // `value` as field `index`'s canonical JSON; throws std::invalid_argument
         // saying what is wrong (a type mismatch, a range, a maxLength).
         [[nodiscard]] std::string canonical(std::size_t index, const json::Value& value) const;
-        [[nodiscard]] std::string canonical(std::size_t index, std::string_view json) const;
+        [[nodiscard]] std::string canonical(std::size_t index, std::string_view text) const;
         // A value of `type` (a descriptor type node), canonical; throws.
         [[nodiscard]] json::Value canonicalValue(const json::Value& type, const json::Value& value,
                                                  std::string_view path) const;

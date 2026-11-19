@@ -45,7 +45,7 @@ namespace soundor::vst3
     public:
         using Owner = std::uint64_t;
 
-        ParameterEditor(const Plugin& plugin, std::size_t parameter, ParameterTarget& target,
+        ParameterEditor(const Plugin& plugin, std::size_t parameter, ParameterTarget& owner,
                         history::StateHistory& history);
         ~ParameterEditor() override = default;
         ParameterEditor(const ParameterEditor&) = delete;
@@ -79,7 +79,7 @@ namespace soundor::vst3
     class UiParameters final : public parameters::Host
     {
     public:
-        UiParameters(const Plugin& plugin, std::span<const std::unique_ptr<ParameterEditor>> editors,
+        UiParameters(const Plugin& plugin, std::span<const std::unique_ptr<ParameterEditor>> fields,
                      history::StateHistory& history);
         ~UiParameters() override;
         UiParameters(const UiParameters&) = delete;

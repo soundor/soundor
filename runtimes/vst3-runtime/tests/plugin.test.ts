@@ -3,7 +3,17 @@
 // out. `pnpm test:plugin` builds it first; the editor tests need an X
 // display (CI runs them under xvfb-run).
 
-import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -18,15 +28,33 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { classIds, parameterVstId } from '../src/descriptor';
 
 const plugin = fileURLToPath(
-  new URL('./plugin/.soundor/dist/vst3/Soundor VST3 Test.vst3', import.meta.url),
+  new URL(
+    './plugin/.soundor/dist/vst3/Soundor VST3 Test.vst3',
+    import.meta.url,
+  ),
 );
-const display = process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '';
+const display =
+  process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '';
+// Instances.cpp, which `pnpm test:native` builds.
+const instances = fileURLToPath(
+  new URL(
+    '../native/build/tests/tests/soundor_vst3_instances',
+    import.meta.url,
+  ),
+);
 
 const hosts: Vst3Host[] = [];
 async function open(editor = false): Promise<Vst3Host> {
   if (!existsSync(plugin))
-    throw new Error(`${plugin} is missing: run \`pnpm test:plugin\`, which builds it first.`);
-  const host = await launchHost({ plugin, editor, sampleRate: 48000, blockSize: 256 });
+    throw new Error(
+      `${plugin} is missing: run \`pnpm test:plugin\`, which builds it first.`,
+    );
+  const host = await launchHost({
+    plugin,
+    editor,
+    sampleRate: 48000,
+    blockSize: 256,
+  });
   hosts.push(host);
   return host;
 }
@@ -36,7 +64,10 @@ afterEach(async () => {
 
 const FRAMES = 256;
 function constant(value: number): Float32Array[] {
-  return [new Float32Array(FRAMES).fill(value), new Float32Array(FRAMES).fill(value)];
+  return [
+    new Float32Array(FRAMES).fill(value),
+    new Float32Array(FRAMES).fill(value),
+  ];
 }
 /** The last output sample of the main bus's first channel. */
 async function output(host: Vst3Host, input = 0.5): Promise<number> {
@@ -44,7 +75,9 @@ async function output(host: Vst3Host, input = 0.5): Promise<number> {
   return result.outputs[0]![0]![FRAMES - 1]!;
 }
 function parameter(parameters: ParameterInfo[], id: string): ParameterInfo {
-  const found = parameters.find((candidate) => candidate.id === parameterVstId(id));
+  const found = parameters.find(
+    (candidate) => candidate.id === parameterVstId(id),
+  );
   if (found === undefined) throw new Error(`no parameter ${id}`);
   return found;
 }
@@ -72,35 +105,66 @@ describe('the VST3 test plugin', () => {
       factory: { vendor: 'Soundor', url: 'https://soundor.dev' },
     });
     expect(info.subCategories).toEqual(['Fx', 'Tools']);
-    expect(info.buses.audioInputs).toMatchObject([{ name: 'Input', type: 'main', channels: 2 }]);
-    expect(info.buses.audioOutputs).toMatchObject([{ name: 'Output', type: 'main', channels: 2 }]);
+    expect(info.buses.audioInputs).toMatchObject([
+      { name: 'Input', type: 'main', channels: 2 },
+    ]);
+    expect(info.buses.audioOutputs).toMatchObject([
+      { name: 'Output', type: 'main', channels: 2 },
+    ]);
     expect(info.buses.eventInputs).toHaveLength(1);
     expect(info.buses.eventOutputs).toHaveLength(1);
     const manifest = JSON.parse(
       readFileSync(`${plugin}/Contents/Resources/moduleinfo.json`, 'utf8'),
     ) as { Classes: { CID: string }[] };
-    expect(manifest.Classes.map((entry) => entry.CID)).toEqual([ids.processor, ids.controller]);
+    expect(manifest.Classes.map((entry) => entry.CID)).toEqual([
+      ids.processor,
+      ids.controller,
+    ]);
   });
 
   it("gives the host the parameters, with the config's text and flags", async () => {
     const host = await open();
     const parameters = await host.getParameters();
     const gain = parameter(parameters, 'gain');
-    expect(gain).toMatchObject({ title: 'Gain', units: 'x', stepCount: 0, plain: 1 });
-    expect(gain.flags).toMatchObject({ canAutomate: true, readOnly: false, bypass: false });
+    expect(gain).toMatchObject({
+      title: 'Gain',
+      units: 'x',
+      stepCount: 0,
+      plain: 1,
+    });
+    expect(gain.flags).toMatchObject({
+      canAutomate: true,
+      readOnly: false,
+      bypass: false,
+    });
     expect(gain.normalized).toBeCloseTo(0.5);
     expect(gain.display).toMatch(/^1(\.0+)?( ?x)?$/);
-    expect(parameter(parameters, 'mode')).toMatchObject({ stepCount: 1, display: 'Clean' });
+    expect(parameter(parameters, 'mode')).toMatchObject({
+      stepCount: 1,
+      display: 'Clean',
+    });
     expect(parameter(parameters, 'mode').flags.list).toBe(true);
-    expect(parameter(parameters, 'steps')).toMatchObject({ stepCount: 8, plain: 0 });
+    expect(parameter(parameters, 'steps')).toMatchObject({
+      stepCount: 8,
+      plain: 0,
+    });
     expect(parameter(parameters, 'bypass').flags.bypass).toBe(true);
-    expect(parameter(parameters, 'peak').flags).toMatchObject({ readOnly: true, canAutomate: false });
+    expect(parameter(parameters, 'peak').flags).toMatchObject({
+      readOnly: true,
+      canAutomate: false,
+    });
     // The factory presets as a program list's selector; MIDI controllers as hidden parameters.
-    expect(parameters.filter((candidate) => candidate.flags.programChange)).toHaveLength(1);
-    expect(parameters.filter((candidate) => candidate.flags.hidden)).toHaveLength(16 * 131);
+    expect(
+      parameters.filter((candidate) => candidate.flags.programChange),
+    ).toHaveLength(1);
+    expect(
+      parameters.filter((candidate) => candidate.flags.hidden),
+    ).toHaveLength(16 * 131);
     // Text the host types, parsed by the parameter's own expression.
     await host.setParameter(parameterVstId('mode'), { plain: 1 });
-    expect((await host.getParameter(parameterVstId('mode'))).display).toBe('Invert');
+    expect((await host.getParameter(parameterVstId('mode'))).display).toBe(
+      'Invert',
+    );
   });
 
   it('processes audio with the parameters the host automates', async () => {
@@ -127,7 +191,9 @@ describe('the VST3 test plugin', () => {
   it('reports the read-only parameter the processing publishes', async () => {
     const host = await open();
     const result = await host.process({ inputs: [constant(0.4)] });
-    const change = result.parameterChanges.find((entry) => entry.id === parameterVstId('peak'));
+    const change = result.parameterChanges.find(
+      (entry) => entry.id === parameterVstId('peak'),
+    );
     expect(change?.value).toBeCloseTo(0.4 / 4);
   });
 
@@ -136,16 +202,50 @@ describe('the VST3 test plugin', () => {
     const result = await host.process({
       inputs: [constant(0)],
       events: [
-        midiInput({ message: { type: 'noteOn', channel: 1, note: 60, velocity: 100 }, sampleOffset: 7 }),
-        midiInput({ message: { type: 'controlChange', channel: 2, controller: 74, value: 64 }, sampleOffset: 9 }),
-        midiInput({ message: { type: 'noteOff', channel: 1, note: 60, velocity: 0 }, sampleOffset: 100 }),
+        midiInput({
+          message: { type: 'noteOn', channel: 1, note: 60, velocity: 100 },
+          sampleOffset: 7,
+        }),
+        midiInput({
+          message: {
+            type: 'controlChange',
+            channel: 2,
+            controller: 74,
+            value: 64,
+          },
+          sampleOffset: 9,
+        }),
+        midiInput({
+          message: { type: 'noteOff', channel: 1, note: 60, velocity: 0 },
+          sampleOffset: 100,
+        }),
       ],
     });
-    const messages = result.events.map(midiOutput).filter((event) => event !== null);
+    const messages = result.events
+      .map(midiOutput)
+      .filter((event) => event !== null);
     expect(messages).toEqual([
-      expect.objectContaining({ message: { type: 'noteOn', channel: 1, note: 72, velocity: 100 }, sampleOffset: 7 }),
-      expect.objectContaining({ message: { type: 'controlChange', channel: 2, controller: 74, value: 64 }, sampleOffset: 9 }),
-      expect.objectContaining({ message: expect.objectContaining({ type: 'noteOff', channel: 1, note: 72 }), sampleOffset: 100 }),
+      expect.objectContaining({
+        message: { type: 'noteOn', channel: 1, note: 72, velocity: 100 },
+        sampleOffset: 7,
+      }),
+      expect.objectContaining({
+        message: {
+          type: 'controlChange',
+          channel: 2,
+          controller: 74,
+          value: 64,
+        },
+        sampleOffset: 9,
+      }),
+      expect.objectContaining({
+        message: expect.objectContaining({
+          type: 'noteOff',
+          channel: 1,
+          note: 72,
+        }),
+        sampleOffset: 100,
+      }),
     ]);
   });
 
@@ -163,7 +263,9 @@ describe('the VST3 test plugin', () => {
     await host.recreate();
     expect(await output(host)).toBeCloseTo(0.5);
     await host.setState(saved);
-    expect((await host.getParameter(parameterVstId('gain'))).plain).toBeCloseTo(1.5);
+    expect((await host.getParameter(parameterVstId('gain'))).plain).toBeCloseTo(
+      1.5,
+    );
     expect(await output(host)).toBeCloseTo(0.75);
     // Persistent state the processor reads: `level` doubled doubles the output.
     const louder = { ...json, state: { ...json.state, level: 0.5 } };
@@ -172,25 +274,36 @@ describe('the VST3 test plugin', () => {
       controller: saved.controller,
     });
     expect(await output(host)).toBeCloseTo(1.5);
-    expect(document((await host.getState()).component).state).toMatchObject({ level: 0.5 });
+    expect(document((await host.getState()).component).state).toMatchObject({
+      level: 0.5,
+    });
   });
 
   it('refuses a state that is not its own', async () => {
     const host = await open();
     await host.setParameter(parameterVstId('gain'), { plain: 0.5 });
     await expect(
-      host.setState({ component: new TextEncoder().encode('{"version":9}'), controller: new Uint8Array() }),
-    ).rejects.toThrow();
+      host.setState({
+        component: new TextEncoder().encode('{"version":9}'),
+        controller: new Uint8Array(),
+      }),
+    ).rejects.toThrow(/rejected the state/);
     expect(await output(host)).toBeCloseTo(0.25);
   });
 
   it("loads a factory preset from the host's program list", async () => {
     const host = await open();
     const parameters = await host.getParameters();
-    const program = parameters.find((candidate) => candidate.flags.programChange)!;
+    const program = parameters.find(
+      (candidate) => candidate.flags.programChange,
+    )!;
     await host.setParameter(program.id, { normalized: 0 });
-    expect((await host.getParameter(parameterVstId('gain'))).plain).toBeCloseTo(2);
-    expect((await host.getParameter(parameterVstId('mode'))).display).toBe('Invert');
+    expect((await host.getParameter(parameterVstId('gain'))).plain).toBeCloseTo(
+      2,
+    );
+    expect((await host.getParameter(parameterVstId('mode'))).display).toBe(
+      'Invert',
+    );
     expect(await output(host)).toBeCloseTo(-1);
   });
 
@@ -202,18 +315,81 @@ describe('the VST3 test plugin', () => {
     expect(await output(second!)).toBeCloseTo(0.25);
   });
 
-  it.runIf(display)('opens, resizes and closes its editor, again and again', async () => {
-    const host = await open(true);
-    for (let round = 0; round < 2; round++) {
-      const opened = await host.openEditor();
-      expect(opened).toMatchObject({ open: true, width: 320, height: 240, resizable: true, platformType: 'X11EmbedWindowID' });
-      // Audio goes on while it is open.
-      expect(await output(host)).toBeCloseTo(0.5);
-      expect(await host.resizeEditor(400, 300)).toMatchObject({ width: 400, height: 300 });
-      // Held to the config's limits.
-      expect(await host.resizeEditor(2000, 2000)).toMatchObject({ width: 640, height: 480 });
-      expect(await host.closeEditor()).toMatchObject({ open: false });
-    }
-    expect(await output(host)).toBeCloseTo(0.5);
+  it('exports only its three VST3 entry points', () => {
+    const result = spawnSync(
+      'nm',
+      [
+        '-D',
+        '--defined-only',
+        `${plugin}/Contents/x86_64-linux/Soundor VST3 Test.so`,
+      ],
+      {
+        encoding: 'utf8',
+      },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    const symbols = result.stdout
+      .trim()
+      .split('\n')
+      .map((line) => line.split(' ').pop());
+    expect(symbols.sort()).toEqual([
+      'GetPluginFactory',
+      'ModuleEntry',
+      'ModuleExit',
+    ]);
   });
+
+  it.runIf(existsSync(instances))(
+    'shares one process with its other instances and another build of itself',
+    () => {
+      // Another binary of the plugin (another version, as the process sees it).
+      const directory = mkdtempSync(join(tmpdir(), 'soundor-vst3-'));
+      try {
+        const copy = join(directory, 'Soundor VST3 Copy.vst3');
+        cpSync(plugin, copy, { recursive: true });
+        renameSync(
+          join(copy, 'Contents/x86_64-linux/Soundor VST3 Test.so'),
+          join(copy, 'Contents/x86_64-linux/Soundor VST3 Copy.so'),
+        );
+        const result = spawnSync(instances, [plugin, copy], {
+          encoding: 'utf8',
+          timeout: 120_000,
+        });
+        expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+        expect(result.stdout).toContain('4 instances of 2 modules: ok');
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.runIf(display)(
+    'opens, resizes and closes its editor, again and again',
+    async () => {
+      const host = await open(true);
+      for (let round = 0; round < 2; round++) {
+        const opened = await host.openEditor();
+        expect(opened).toMatchObject({
+          open: true,
+          width: 320,
+          height: 240,
+          resizable: true,
+          platformType: 'X11EmbedWindowID',
+        });
+        // Audio goes on while it is open.
+        expect(await output(host)).toBeCloseTo(0.5);
+        expect(await host.resizeEditor(400, 300)).toMatchObject({
+          width: 400,
+          height: 300,
+        });
+        // Held to the config's limits.
+        expect(await host.resizeEditor(2000, 2000)).toMatchObject({
+          width: 640,
+          height: 480,
+        });
+        expect(await host.closeEditor()).toMatchObject({ open: false });
+      }
+      expect(await output(host)).toBeCloseTo(0.5);
+    },
+  );
 });

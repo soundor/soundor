@@ -29,3 +29,27 @@ target_compile_definitions(soundor_vst3_tests PRIVATE
   "SOUNDOR_VST3_TEST_DESCRIPTOR=\"${CMAKE_CURRENT_SOURCE_DIR}/generated/descriptor.json\"")
 soundor_configure_target(soundor_vst3_tests)
 add_test(NAME soundor_vst3_tests COMMAND soundor_vst3_tests)
+
+# Plugins in one process (Instances.cpp): a host of the SDK's hosting helpers,
+# run by tests/plugin.test.ts on the built test plugin.
+set(sdk "${SOUNDOR_VST3_SDK_DIR}")
+add_executable(soundor_vst3_instances
+  Instances.cpp
+  "${sdk}/pluginterfaces/base/coreiids.cpp"
+  "${sdk}/pluginterfaces/base/funknown.cpp"
+  "${sdk}/pluginterfaces/base/ustring.cpp"
+  "${sdk}/public.sdk/source/common/commoniids.cpp"
+  "${sdk}/public.sdk/source/common/memorystream.cpp"
+  "${sdk}/public.sdk/source/vst/hosting/hostclasses.cpp"
+  "${sdk}/public.sdk/source/vst/hosting/parameterchanges.cpp"
+  "${sdk}/public.sdk/source/vst/hosting/pluginterfacesupport.cpp"
+  "${sdk}/public.sdk/source/common/commonstringconvert.cpp"
+  "${sdk}/public.sdk/source/vst/utility/stringconvert.cpp"
+  "${sdk}/public.sdk/source/vst/vstinitiids.cpp")
+target_include_directories(soundor_vst3_instances SYSTEM PRIVATE "${sdk}")
+target_compile_definitions(soundor_vst3_instances PRIVATE RELEASE=1)
+target_link_libraries(soundor_vst3_instances PRIVATE ${CMAKE_DL_LIBS})
+set_source_files_properties(Instances.cpp PROPERTIES COMPILE_OPTIONS "-Wno-old-style-cast")
+get_target_property(instances_sources soundor_vst3_instances SOURCES)
+list(FILTER instances_sources INCLUDE REGEX "vst3sdk")
+set_source_files_properties(${instances_sources} PROPERTIES SKIP_LINTING ON COMPILE_OPTIONS "-w")

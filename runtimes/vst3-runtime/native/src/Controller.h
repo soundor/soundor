@@ -68,15 +68,14 @@ namespace soundor::vst3
 
         // IMidiMapping
         tresult PLUGIN_API getMidiControllerAssignment(Steinberg::int32 busIndex, Steinberg::int16 channel,
-                                                       Vst::CtrlNumber midiControllerNumber,
-                                                       Vst::ParamID& id) override;
+                                                       Vst::CtrlNumber midiControllerNumber, Vst::ParamID& id) override;
 
         // ITimerHandler: the run loop's timer, when the host lends one without a view.
         void PLUGIN_API onTimer() override;
 
         // ParameterTarget
         [[nodiscard]] double plain(std::size_t index) const override;
-        void installPlain(std::size_t index, double plain) override;
+        void installPlain(std::size_t index, double value) override;
         void notifyPlain(std::size_t index) override;
         void beginHostEdit(std::size_t index) override;
         void endHostEdit(std::size_t index) override;
@@ -84,7 +83,7 @@ namespace soundor::vst3
         // processor::ControllerServices (the Rust controller's)
         void wake() noexcept override;
         double parameter(std::uint32_t index) override;
-        void setParameter(std::uint32_t index, double plain) override;
+        void setParameter(std::uint32_t index, double value) override;
         std::string state(std::uint32_t index) override;
         void setState(std::uint32_t index, std::string_view json) override;
         bool history(HistoryAction action) override;
@@ -96,7 +95,10 @@ namespace soundor::vst3
         [[nodiscard]] StateStore& store() noexcept { return *stateStore; }
         [[nodiscard]] soundor::history::StateHistory& historyManager() noexcept { return stateHistory; }
         [[nodiscard]] FactoryPresets& presets() noexcept { return *factoryPresets; }
-        [[nodiscard]] std::span<const std::unique_ptr<ParameterEditor>> editors() const noexcept { return parameterEditors; }
+        [[nodiscard]] std::span<const std::unique_ptr<ParameterEditor>> editors() const noexcept
+        {
+            return parameterEditors;
+        }
         [[nodiscard]] const std::shared_ptr<processor::RustController>& rustController();
         [[nodiscard]] const std::shared_ptr<Link>& link() const noexcept { return processorLink; }
         [[nodiscard]] const std::shared_ptr<midi::Host>& midiHost() const noexcept { return midi; }
@@ -110,8 +112,8 @@ namespace soundor::vst3
 
         OBJ_METHODS(Controller, EditControllerEx1)
         DEFINE_INTERFACES
-            DEF_INTERFACE(Vst::IMidiMapping)
-            DEF_INTERFACE(Steinberg::Linux::ITimerHandler)
+        DEF_INTERFACE(Vst::IMidiMapping)
+        DEF_INTERFACE(Steinberg::Linux::ITimerHandler)
         END_DEFINE_INTERFACES(EditControllerEx1)
         REFCOUNT_METHODS(EditControllerEx1)
 

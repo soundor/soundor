@@ -30,8 +30,14 @@ namespace soundor::vst3::json
         return numberText(formatNumber(value));
     }
 
-    Value Value::integer(std::int64_t value) { return numberText(std::to_string(value)); }
-    Value Value::unsignedInteger(std::uint64_t value) { return numberText(std::to_string(value)); }
+    Value Value::integer(std::int64_t value)
+    {
+        return numberText(std::to_string(value));
+    }
+    Value Value::unsignedInteger(std::uint64_t value)
+    {
+        return numberText(std::to_string(value));
+    }
 
     Value Value::string(std::string value)
     {
@@ -63,18 +69,18 @@ namespace soundor::vst3::json
         {
             switch (kind)
             {
-            case Value::Kind::Null:
-                return "null";
-            case Value::Kind::Boolean:
-                return "a boolean";
-            case Value::Kind::Number:
-                return "a number";
-            case Value::Kind::String:
-                return "a string";
-            case Value::Kind::Array:
-                return "an array";
-            case Value::Kind::Object:
-                return "an object";
+                case Value::Kind::Null:
+                    return "null";
+                case Value::Kind::Boolean:
+                    return "a boolean";
+                case Value::Kind::Number:
+                    return "a number";
+                case Value::Kind::String:
+                    return "a string";
+                case Value::Kind::Array:
+                    return "an array";
+                case Value::Kind::Object:
+                    return "an object";
             }
             return "a value";
         }
@@ -104,8 +110,7 @@ namespace soundor::vst3::json
             // A subnormal reads as itself; only overflow is an error.
             if (std::isinf(out) || out == 0)
             {
-                const bool tiny = text.find_first_of("eE") != std::string::npos
-                                  && text.find("e-") != std::string::npos;
+                const bool tiny = text.find_first_of("eE") != std::string::npos && text.find("e-") != std::string::npos;
                 if (! tiny)
                     throw Error("number out of range: " + text);
             }
@@ -205,10 +210,10 @@ namespace soundor::vst3::json
         throw Error("missing member \"" + std::string(name) + "\"");
     }
 
-    std::string Value::stringOr(std::string_view name, std::string fallback) const
+    std::string Value::stringOr(std::string_view name, const std::string& fallback) const
     {
         const auto* value = find(name);
-        return value != nullptr && value->isString() ? value->asString() : std::move(fallback);
+        return value != nullptr && value->isString() ? value->asString() : fallback;
     }
 
     double Value::numberOr(std::string_view name, double fallback) const
@@ -242,18 +247,18 @@ namespace soundor::vst3::json
             return false;
         switch (a.type)
         {
-        case Value::Kind::Null:
-            return true;
-        case Value::Kind::Boolean:
-            return a.flag == b.flag;
-        case Value::Kind::Number:
-            return a.text == b.text || a.asNumber() == b.asNumber();
-        case Value::Kind::String:
-            return a.text == b.text;
-        case Value::Kind::Array:
-            return a.items == b.items;
-        case Value::Kind::Object:
-            return a.members == b.members;
+            case Value::Kind::Null:
+                return true;
+            case Value::Kind::Boolean:
+                return a.flag == b.flag;
+            case Value::Kind::Number:
+                return a.text == b.text || a.asNumber() == b.asNumber();
+            case Value::Kind::String:
+                return a.text == b.text;
+            case Value::Kind::Array:
+                return a.items == b.items;
+            case Value::Kind::Object:
+                return a.members == b.members;
         }
         return false;
     }
@@ -421,50 +426,50 @@ namespace soundor::vst3::json
                         fail("truncated escape");
                     switch (text[position++])
                     {
-                    case '"':
-                        out += '"';
-                        break;
-                    case '\\':
-                        out += '\\';
-                        break;
-                    case '/':
-                        out += '/';
-                        break;
-                    case 'b':
-                        out += '\b';
-                        break;
-                    case 'f':
-                        out += '\f';
-                        break;
-                    case 'n':
-                        out += '\n';
-                        break;
-                    case 'r':
-                        out += '\r';
-                        break;
-                    case 't':
-                        out += '\t';
-                        break;
-                    case 'u':
-                    {
-                        std::uint32_t code = hex4();
-                        if (code >= 0xDC00 && code <= 0xDFFF)
-                            fail("unpaired surrogate");
-                        if (code >= 0xD800 && code <= 0xDBFF)
+                        case '"':
+                            out += '"';
+                            break;
+                        case '\\':
+                            out += '\\';
+                            break;
+                        case '/':
+                            out += '/';
+                            break;
+                        case 'b':
+                            out += '\b';
+                            break;
+                        case 'f':
+                            out += '\f';
+                            break;
+                        case 'n':
+                            out += '\n';
+                            break;
+                        case 'r':
+                            out += '\r';
+                            break;
+                        case 't':
+                            out += '\t';
+                            break;
+                        case 'u':
                         {
-                            if (position + 2 > text.size() || text[position] != '\\' || text[position + 1] != 'u')
+                            std::uint32_t code = hex4();
+                            if (code >= 0xDC00 && code <= 0xDFFF)
                                 fail("unpaired surrogate");
-                            position += 2;
-                            const auto low = hex4();
-                            if (low < 0xDC00 || low > 0xDFFF)
-                                fail("unpaired surrogate");
-                            code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+                            if (code >= 0xD800 && code <= 0xDBFF)
+                            {
+                                if (position + 2 > text.size() || text[position] != '\\' || text[position + 1] != 'u')
+                                    fail("unpaired surrogate");
+                                position += 2;
+                                const auto low = hex4();
+                                if (low < 0xDC00 || low > 0xDFFF)
+                                    fail("unpaired surrogate");
+                                code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+                            }
+                            appendUtf8(out, code);
+                            break;
                         }
-                        appendUtf8(out, code);
-                        break;
-                    }
-                    default:
-                        fail("invalid escape");
+                        default:
+                            fail("invalid escape");
                     }
                 }
             }
@@ -472,7 +477,8 @@ namespace soundor::vst3::json
             Value number()
             {
                 const auto start = position;
-                const auto digit = [&] { return position < text.size() && text[position] >= '0' && text[position] <= '9'; };
+                const auto digit = [&]
+                { return position < text.size() && text[position] >= '0' && text[position] <= '9'; };
                 if (position < text.size() && text[position] == '-')
                     ++position;
                 if (! digit())
@@ -552,7 +558,8 @@ namespace soundor::vst3::json
                         fail("expected ',' or ']'");
                     return Value::array(std::move(items));
                 }
-                for (const auto literal : { std::string_view("true"), std::string_view("false"), std::string_view("null") })
+                for (const auto literal :
+                     { std::string_view("true"), std::string_view("false"), std::string_view("null") })
                     if (text.substr(position, literal.size()) == literal)
                     {
                         position += literal.size();
@@ -571,53 +578,56 @@ namespace soundor::vst3::json
         {
             switch (value.kind())
             {
-            case Value::Kind::Null:
-                out += "null";
-                return;
-            case Value::Kind::Boolean:
-                out += value.asBoolean() ? "true" : "false";
-                return;
-            case Value::Kind::Number:
-                out += value.numberText();
-                return;
-            case Value::Kind::String:
-                out += quote(value.asString());
-                return;
-            case Value::Kind::Array:
-            {
-                out += '[';
-                bool first = true;
-                for (const auto& item : value.asArray())
+                case Value::Kind::Null:
+                    out += "null";
+                    return;
+                case Value::Kind::Boolean:
+                    out += value.asBoolean() ? "true" : "false";
+                    return;
+                case Value::Kind::Number:
+                    out += value.numberText();
+                    return;
+                case Value::Kind::String:
+                    out += quote(value.asString());
+                    return;
+                case Value::Kind::Array:
                 {
-                    if (! first)
-                        out += ',';
-                    first = false;
-                    writeTo(out, item);
+                    out += '[';
+                    bool first = true;
+                    for (const auto& item : value.asArray())
+                    {
+                        if (! first)
+                            out += ',';
+                        first = false;
+                        writeTo(out, item);
+                    }
+                    out += ']';
+                    return;
                 }
-                out += ']';
-                return;
-            }
-            case Value::Kind::Object:
-            {
-                out += '{';
-                bool first = true;
-                for (const auto& [key, member] : value.asObject())
+                case Value::Kind::Object:
                 {
-                    if (! first)
-                        out += ',';
-                    first = false;
-                    out += quote(key);
-                    out += ':';
-                    writeTo(out, member);
+                    out += '{';
+                    bool first = true;
+                    for (const auto& [key, member] : value.asObject())
+                    {
+                        if (! first)
+                            out += ',';
+                        first = false;
+                        out += quote(key);
+                        out += ':';
+                        writeTo(out, member);
+                    }
+                    out += '}';
+                    return;
                 }
-                out += '}';
-                return;
-            }
             }
         }
     } // namespace
 
-    Value parse(std::string_view text, const Limits& limits) { return Parser(text, limits).document(); }
+    Value parse(std::string_view text, const Limits& limits)
+    {
+        return Parser(text, limits).document();
+    }
 
     std::string write(const Value& value)
     {
@@ -635,37 +645,37 @@ namespace soundor::vst3::json
         {
             switch (c)
             {
-            case '"':
-                out += "\\\"";
-                break;
-            case '\\':
-                out += "\\\\";
-                break;
-            case '\b':
-                out += "\\b";
-                break;
-            case '\f':
-                out += "\\f";
-                break;
-            case '\n':
-                out += "\\n";
-                break;
-            case '\r':
-                out += "\\r";
-                break;
-            case '\t':
-                out += "\\t";
-                break;
-            default:
-                if (static_cast<unsigned char>(c) < 0x20)
-                {
-                    constexpr char digits[] = "0123456789abcdef";
-                    out += "\\u00";
-                    out += digits[(c >> 4) & 0xF];
-                    out += digits[c & 0xF];
-                }
-                else
-                    out += c;
+                case '"':
+                    out += "\\\"";
+                    break;
+                case '\\':
+                    out += "\\\\";
+                    break;
+                case '\b':
+                    out += "\\b";
+                    break;
+                case '\f':
+                    out += "\\f";
+                    break;
+                case '\n':
+                    out += "\\n";
+                    break;
+                case '\r':
+                    out += "\\r";
+                    break;
+                case '\t':
+                    out += "\\t";
+                    break;
+                default:
+                    if (static_cast<unsigned char>(c) < 0x20)
+                    {
+                        constexpr char digits[] = "0123456789abcdef";
+                        out += "\\u00";
+                        out += digits[(c >> 4) & 0xF];
+                        out += digits[c & 0xF];
+                    }
+                    else
+                        out += c;
             }
         }
         out += '"';

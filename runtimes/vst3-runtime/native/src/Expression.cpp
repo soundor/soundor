@@ -1,12 +1,13 @@
 // The interpreter: one node class per expression kind, evaluating as the
 // C++ compiler's output does (packages/expression/src/compiler/cpp.ts),
 // operation for operation, through the same helpers.
-#include "generated/ExpressionRuntime.h"
-
 #include "Expression.h"
+
+#include "generated/ExpressionRuntime.h"
 
 #include <array>
 #include <cmath>
+#include <ranges>
 #include <utility>
 
 namespace soundor::vst3::expression
@@ -36,8 +37,14 @@ namespace soundor::vst3::expression
         throw json::Error("unknown expression type \"" + std::string(name) + "\"");
     }
 
-    bool isInteger(Base base) noexcept { return base >= Base::Int8 && base <= Base::Uint64; }
-    bool isFloat(Base base) noexcept { return base == Base::Float32 || base == Base::Float64; }
+    bool isInteger(Base base) noexcept
+    {
+        return base >= Base::Int8 && base <= Base::Uint64;
+    }
+    bool isFloat(Base base) noexcept
+    {
+        return base == Base::Float32 || base == Base::Float64;
+    }
     bool isSigned(Base base) noexcept
     {
         return base == Base::Int8 || base == Base::Int16 || base == Base::Int32 || base == Base::Int64;
@@ -51,22 +58,22 @@ namespace soundor::vst3::expression
         {
             switch (base)
             {
-            case Base::Int8:
-                return f(std::int8_t {});
-            case Base::Uint8:
-                return f(std::uint8_t {});
-            case Base::Int16:
-                return f(std::int16_t {});
-            case Base::Uint16:
-                return f(std::uint16_t {});
-            case Base::Int32:
-                return f(std::int32_t {});
-            case Base::Uint32:
-                return f(std::uint32_t {});
-            case Base::Int64:
-                return f(std::int64_t {});
-            default:
-                return f(std::uint64_t {});
+                case Base::Int8:
+                    return f(std::int8_t {});
+                case Base::Uint8:
+                    return f(std::uint8_t {});
+                case Base::Int16:
+                    return f(std::int16_t {});
+                case Base::Uint16:
+                    return f(std::uint16_t {});
+                case Base::Int32:
+                    return f(std::int32_t {});
+                case Base::Uint32:
+                    return f(std::uint32_t {});
+                case Base::Int64:
+                    return f(std::int64_t {});
+                default:
+                    return f(std::uint64_t {});
             }
         }
 
@@ -83,7 +90,7 @@ namespace soundor::vst3::expression
         void putInt(Value& value, T x)
         {
             if constexpr (std::is_signed_v<T>)
-                value.i = static_cast<std::int64_t>(x);
+                value.i = std::int64_t { x };
             else
                 value.u = static_cast<std::uint64_t>(x);
         }
@@ -133,19 +140,19 @@ namespace soundor::vst3::expression
         Value out;
         switch (base)
         {
-        case Base::Boolean:
-            out.b = static_cast<bool>(plain);
-            break;
-        case Base::Float32:
-            out.f = static_cast<float>(plain);
-            break;
-        case Base::Float64:
-            out.d = plain;
-            break;
-        case Base::String:
-            break;
-        default:
-            withInteger(base, [&](auto tag) { putInt(out, static_cast<decltype(tag)>(plain)); });
+            case Base::Boolean:
+                out.b = static_cast<bool>(plain);
+                break;
+            case Base::Float32:
+                out.f = static_cast<float>(plain);
+                break;
+            case Base::Float64:
+                out.d = plain;
+                break;
+            case Base::String:
+                break;
+            default:
+                withInteger(base, [&](auto tag) { putInt(out, static_cast<decltype(tag)>(plain)); });
         }
         return out;
     }
@@ -154,16 +161,16 @@ namespace soundor::vst3::expression
     {
         switch (base)
         {
-        case Base::Boolean:
-            return b ? 1.0 : 0.0;
-        case Base::Float32:
-            return static_cast<double>(f);
-        case Base::Float64:
-            return d;
-        case Base::String:
-            return 0;
-        default:
-            return withInteger(base, [&](auto tag) { return static_cast<double>(getInt<decltype(tag)>(*this)); });
+            case Base::Boolean:
+                return b ? 1.0 : 0.0;
+            case Base::Float32:
+                return static_cast<double>(f);
+            case Base::Float64:
+                return d;
+            case Base::String:
+                return 0;
+            default:
+                return withInteger(base, [&](auto tag) { return static_cast<double>(getInt<decltype(tag)>(*this)); });
         }
     }
 
@@ -233,12 +240,12 @@ namespace soundor::vst3::expression
         {
             switch (op)
             {
-            case Unary::Floor:
-                return static_cast<F>(std::floor(x));
-            case Unary::Ceil:
-                return static_cast<F>(std::ceil(x));
-            default:
-                return static_cast<F>(std::round(x));
+                case Unary::Floor:
+                    return static_cast<F>(std::floor(x));
+                case Unary::Ceil:
+                    return static_cast<F>(std::ceil(x));
+                default:
+                    return static_cast<F>(std::round(x));
             }
         }
 
@@ -247,18 +254,18 @@ namespace soundor::vst3::expression
         {
             switch (op)
             {
-            case Unary::Neg:
-                return -x;
-            case Unary::Abs:
-                return std::fabs(x);
-            case Unary::Sqrt:
-                return rt::fsqrt<F>(x);
-            case Unary::Exp:
-                return rt::fexp<F>(x);
-            case Unary::Log:
-                return rt::flog<F>(x);
-            default:
-                return roundLike(op, x);
+                case Unary::Neg:
+                    return -x;
+                case Unary::Abs:
+                    return std::fabs(x);
+                case Unary::Sqrt:
+                    return rt::fsqrt<F>(x);
+                case Unary::Exp:
+                    return rt::fexp<F>(x);
+                case Unary::Log:
+                    return rt::flog<F>(x);
+                default:
+                    return roundLike(op, x);
             }
         }
 
@@ -271,14 +278,14 @@ namespace soundor::vst3::expression
                 const Base base = operand->type.base;
                 switch (op)
                 {
-                case Unary::Not:
-                    return makeBool(! a.b);
-                case Unary::Trim:
-                    return makeString(rt::trim(a.s));
-                case Unary::Lower:
-                    return makeString(rt::lower(std::move(a.s)));
-                default:
-                    break;
+                    case Unary::Not:
+                        return makeBool(! a.b);
+                    case Unary::Trim:
+                        return makeString(rt::trim(a.s));
+                    case Unary::Lower:
+                        return makeString(rt::lower(std::move(a.s)));
+                    default:
+                        break;
                 }
                 if (base == Base::Float32)
                 {
@@ -299,16 +306,16 @@ namespace soundor::vst3::expression
                                        const T x = getInt<T>(a);
                                        switch (op)
                                        {
-                                       case Unary::Neg:
-                                           return makeInt<T>(rt::ineg<T>(x));
-                                       case Unary::Abs:
-                                           return makeInt<T>(rt::iabs<T>(x));
-                                       case Unary::Floor:
-                                       case Unary::Ceil:
-                                       case Unary::Round:
-                                           return makeInt<T>(static_cast<T>(roundLike(op, static_cast<double>(x))));
-                                       default:
-                                           throw json::Error("invalid operator for an integer");
+                                           case Unary::Neg:
+                                               return makeInt<T>(rt::ineg<T>(x));
+                                           case Unary::Abs:
+                                               return makeInt<T>(rt::iabs<T>(x));
+                                           case Unary::Floor:
+                                           case Unary::Ceil:
+                                           case Unary::Round:
+                                               return makeInt<T>(static_cast<T>(roundLike(op, static_cast<double>(x))));
+                                           default:
+                                               throw json::Error("invalid operator for an integer");
                                        }
                                    });
             }
@@ -350,28 +357,27 @@ namespace soundor::vst3::expression
             }
             switch (type.base)
             {
-            case Base::Boolean:
-                return compare(a.b, b.b);
-            case Base::String:
-                return compare(a.s, b.s);
-            case Base::Float32:
-                return compare(a.f, b.f);
-            case Base::Float64:
-                return compare(a.d, b.d);
-            default:
-                return withInteger(type.base,
-                                   [&](auto tag)
-                                   {
-                                       using T = decltype(tag);
-                                       return compare(getInt<T>(a), getInt<T>(b));
-                                   });
+                case Base::Boolean:
+                    return compare(a.b, b.b);
+                case Base::String:
+                    return compare(a.s, b.s);
+                case Base::Float32:
+                    return compare(a.f, b.f);
+                case Base::Float64:
+                    return compare(a.d, b.d);
+                default:
+                    return withInteger(type.base,
+                                       [&](auto tag)
+                                       {
+                                           using T = decltype(tag);
+                                           return compare(getInt<T>(a), getInt<T>(b));
+                                       });
             }
         }
 
         struct BinaryNode final : Node
         {
-            BinaryNode(Type t, Binary o, NodePtr l, NodePtr r)
-                : Node(t), op(o), left(std::move(l)), right(std::move(r))
+            BinaryNode(Type t, Binary o, NodePtr l, NodePtr r) : Node(t), op(o), left(std::move(l)), right(std::move(r))
             {
             }
 
@@ -386,24 +392,30 @@ namespace soundor::vst3::expression
                 const Type& operandType = left->type;
                 switch (op)
                 {
-                case Binary::EndsWith:
-                    return makeBool(rt::endsWith(a.s, b.s));
-                case Binary::RemoveSuffix:
-                    return makeString(rt::removeSuffix(a.s, b.s));
-                case Binary::Eq:
-                    return makeBool(compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x == y; }));
-                case Binary::Ne:
-                    return makeBool(compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x != y; }));
-                case Binary::Lt:
-                    return makeBool(compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x < y; }));
-                case Binary::Lte:
-                    return makeBool(compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x <= y; }));
-                case Binary::Gt:
-                    return makeBool(compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x > y; }));
-                case Binary::Gte:
-                    return makeBool(compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x >= y; }));
-                default:
-                    break;
+                    case Binary::EndsWith:
+                        return makeBool(rt::endsWith(a.s, b.s));
+                    case Binary::RemoveSuffix:
+                        return makeString(rt::removeSuffix(a.s, b.s));
+                    case Binary::Eq:
+                        return makeBool(
+                            compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x == y; }));
+                    case Binary::Ne:
+                        return makeBool(
+                            compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x != y; }));
+                    case Binary::Lt:
+                        return makeBool(
+                            compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x < y; }));
+                    case Binary::Lte:
+                        return makeBool(
+                            compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x <= y; }));
+                    case Binary::Gt:
+                        return makeBool(
+                            compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x > y; }));
+                    case Binary::Gte:
+                        return makeBool(
+                            compareValues(operandType, a, b, [](const auto& x, const auto& y) { return x >= y; }));
+                    default:
+                        break;
                 }
                 const Base base = operandType.base;
                 if (base == Base::Float32)
@@ -426,20 +438,20 @@ namespace soundor::vst3::expression
                                        const T y = getInt<T>(b);
                                        switch (op)
                                        {
-                                       case Binary::Add:
-                                           return makeInt<T>(rt::iadd<T>(x, y));
-                                       case Binary::Sub:
-                                           return makeInt<T>(rt::isub<T>(x, y));
-                                       case Binary::Mul:
-                                           return makeInt<T>(rt::imul<T>(x, y));
-                                       case Binary::Div:
-                                           return makeInt<T>(rt::idiv<T>(x, y));
-                                       case Binary::Min:
-                                           return makeInt<T>(rt::imin<T>(x, y));
-                                       case Binary::Max:
-                                           return makeInt<T>(rt::imax<T>(x, y));
-                                       default:
-                                           throw json::Error("invalid operator for an integer");
+                                           case Binary::Add:
+                                               return makeInt<T>(rt::iadd<T>(x, y));
+                                           case Binary::Sub:
+                                               return makeInt<T>(rt::isub<T>(x, y));
+                                           case Binary::Mul:
+                                               return makeInt<T>(rt::imul<T>(x, y));
+                                           case Binary::Div:
+                                               return makeInt<T>(rt::idiv<T>(x, y));
+                                           case Binary::Min:
+                                               return makeInt<T>(rt::imin<T>(x, y));
+                                           case Binary::Max:
+                                               return makeInt<T>(rt::imax<T>(x, y));
+                                           default:
+                                               throw json::Error("invalid operator for an integer");
                                        }
                                    });
             }
@@ -449,22 +461,22 @@ namespace soundor::vst3::expression
             {
                 switch (op)
                 {
-                case Binary::Add:
-                    return static_cast<F>(x + y);
-                case Binary::Sub:
-                    return static_cast<F>(x - y);
-                case Binary::Mul:
-                    return static_cast<F>(x * y);
-                case Binary::Div:
-                    return static_cast<F>(x / y);
-                case Binary::Min:
-                    return rt::fmin<F>(x, y);
-                case Binary::Max:
-                    return rt::fmax<F>(x, y);
-                case Binary::Pow:
-                    return rt::fpow<F>(x, y);
-                default:
-                    throw json::Error("invalid operator for a float");
+                    case Binary::Add:
+                        return static_cast<F>(x + y);
+                    case Binary::Sub:
+                        return static_cast<F>(x - y);
+                    case Binary::Mul:
+                        return static_cast<F>(x * y);
+                    case Binary::Div:
+                        return static_cast<F>(x / y);
+                    case Binary::Min:
+                        return rt::fmin<F>(x, y);
+                    case Binary::Max:
+                        return rt::fmax<F>(x, y);
+                    case Binary::Pow:
+                        return rt::fpow<F>(x, y);
+                    default:
+                        throw json::Error("invalid operator for a float");
                 }
             }
 
@@ -491,7 +503,7 @@ namespace soundor::vst3::expression
             ConvertNode(Type t, NodePtr a) : Node(t), operand(std::move(a)) {}
             [[nodiscard]] Value eval(Environment& env) const override
             {
-                const Value a = operand->eval(env);
+                Value a = operand->eval(env);
                 const Base from = operand->type.base;
                 const Base to = type.base;
                 if (from == to)
@@ -682,9 +694,10 @@ namespace soundor::vst3::expression
                 if (kind == "variable")
                 {
                     const auto& name = node.at("name").asString();
-                    for (auto scope = scopes.rbegin(); scope != scopes.rend(); ++scope)
-                        if (scope->first == name)
-                            return std::make_unique<VariableNode>(type, scope->second);
+                    // The innermost binding of the name.
+                    for (const auto& [bound, slot] : std::ranges::reverse_view(scopes))
+                        if (bound == name)
+                            return std::make_unique<VariableNode>(type, slot);
                     throw json::Error("unknown variable \"" + name + "\"");
                 }
                 if (kind == "unary")
@@ -756,20 +769,20 @@ namespace soundor::vst3::expression
                 }
                 switch (type.base)
                 {
-                case Base::Boolean:
-                    return makeBool(value.asBoolean());
-                case Base::String:
-                    return makeString(value.asString());
-                case Base::Float32:
-                {
-                    Value out;
-                    out.f = rt::f32(value.asNumber());
-                    return out;
-                }
-                case Base::Float64:
-                    return makeFloat(Base::Float64, value.asNumber());
-                default:
-                    break;
+                    case Base::Boolean:
+                        return makeBool(value.asBoolean());
+                    case Base::String:
+                        return makeString(value.asString());
+                    case Base::Float32:
+                    {
+                        Value out;
+                        out.f = rt::f32(value.asNumber());
+                        return out;
+                    }
+                    case Base::Float64:
+                        return makeFloat(Base::Float64, value.asNumber());
+                    default:
+                        break;
                 }
                 // Integers: a number, or a decimal string (64-bit values).
                 const json::Value number = value.isString() ? json::Value::numberText(value.asString()) : value;
@@ -778,23 +791,23 @@ namespace soundor::vst3::expression
                     const auto parsed = number.asInt64();
                     if (! parsed)
                         throw json::Error("invalid integer literal");
-                    return withInteger(type.base,
-                                       [&](auto tag) { return makeInt<decltype(tag)>(static_cast<decltype(tag)>(*parsed)); });
+                    return withInteger(type.base, [&](auto tag)
+                                       { return makeInt<decltype(tag)>(static_cast<decltype(tag)>(*parsed)); });
                 }
                 const auto parsed = number.asUint64();
                 if (! parsed)
                     throw json::Error("invalid integer literal");
-                return withInteger(type.base,
-                                   [&](auto tag) { return makeInt<decltype(tag)>(static_cast<decltype(tag)>(*parsed)); });
+                return withInteger(type.base, [&](auto tag)
+                                   { return makeInt<decltype(tag)>(static_cast<decltype(tag)>(*parsed)); });
             }
 
             static Unary unary(const std::string& name)
             {
                 static constexpr std::pair<std::string_view, Unary> names[] = {
-                    { "neg", Unary::Neg },     { "abs", Unary::Abs },     { "sqrt", Unary::Sqrt },
-                    { "exp", Unary::Exp },     { "log", Unary::Log },     { "floor", Unary::Floor },
-                    { "ceil", Unary::Ceil },   { "round", Unary::Round }, { "not", Unary::Not },
-                    { "trim", Unary::Trim },   { "lower", Unary::Lower },
+                    { "neg", Unary::Neg },   { "abs", Unary::Abs },     { "sqrt", Unary::Sqrt },
+                    { "exp", Unary::Exp },   { "log", Unary::Log },     { "floor", Unary::Floor },
+                    { "ceil", Unary::Ceil }, { "round", Unary::Round }, { "not", Unary::Not },
+                    { "trim", Unary::Trim }, { "lower", Unary::Lower },
                 };
                 for (const auto& [text, op] : names)
                     if (text == name)
@@ -839,7 +852,7 @@ namespace soundor::vst3::expression
     Expression::Expression(Expression&&) noexcept = default;
     Expression& Expression::operator=(Expression&&) noexcept = default;
 
-    Expression Expression::compile(const json::Value& tree, std::vector<Input> inputs)
+    Expression Expression::compile(const json::Value& tree, const std::vector<Input>& inputs)
     {
         Compiler compiler(inputs);
         Expression out;
@@ -849,7 +862,10 @@ namespace soundor::vst3::expression
         return out;
     }
 
-    Type Expression::type() const noexcept { return root ? root->type : Type {}; }
+    Type Expression::type() const noexcept
+    {
+        return root ? root->type : Type {};
+    }
 
     Value Expression::evaluate(const Value* inputs, std::size_t count) const
     {

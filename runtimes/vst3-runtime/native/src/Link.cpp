@@ -52,36 +52,36 @@ namespace soundor::vst3
             void* data = core.back().data;
             switch (core.element)
             {
-            case StreamElement::Int8:
-                store<std::int8_t>(data, value);
-                break;
-            case StreamElement::Uint8:
-                store<std::uint8_t>(data, value);
-                break;
-            case StreamElement::Int16:
-                store<std::int16_t>(data, value);
-                break;
-            case StreamElement::Uint16:
-                store<std::uint16_t>(data, value);
-                break;
-            case StreamElement::Int32:
-                store<std::int32_t>(data, value);
-                break;
-            case StreamElement::Uint32:
-                store<std::uint32_t>(data, value);
-                break;
-            case StreamElement::Int64:
-                store<std::int64_t>(data, value);
-                break;
-            case StreamElement::Uint64:
-                store<std::uint64_t>(data, value);
-                break;
-            case StreamElement::Float32:
-                store<float>(data, value);
-                break;
-            case StreamElement::Float64:
-                store<double>(data, value);
-                break;
+                case StreamElement::Int8:
+                    store<std::int8_t>(data, value);
+                    break;
+                case StreamElement::Uint8:
+                    store<std::uint8_t>(data, value);
+                    break;
+                case StreamElement::Int16:
+                    store<std::int16_t>(data, value);
+                    break;
+                case StreamElement::Uint16:
+                    store<std::uint16_t>(data, value);
+                    break;
+                case StreamElement::Int32:
+                    store<std::int32_t>(data, value);
+                    break;
+                case StreamElement::Uint32:
+                    store<std::uint32_t>(data, value);
+                    break;
+                case StreamElement::Int64:
+                    store<std::int64_t>(data, value);
+                    break;
+                case StreamElement::Uint64:
+                    store<std::uint64_t>(data, value);
+                    break;
+                case StreamElement::Float32:
+                    store<float>(data, value);
+                    break;
+                case StreamElement::Float64:
+                    store<double>(data, value);
+                    break;
             }
             core.commit(1);
         }

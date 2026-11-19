@@ -3,7 +3,6 @@
 #include "Controller.h"
 #include "Log.h"
 #include "Presets.h"
-
 #include "js/Bindings.h"
 #include "js/RustMethods.h"
 #include "modules/history/HistoryBindings.h"
@@ -51,8 +50,12 @@ namespace soundor::vst3::modules
                     const auto c = text[i];
                     if (c == 0 || (c >= 0xdc00 && c <= 0xdfff))
                         bind::throwTypeError(ctx, "invalid Unicode state string");
-                    if (c >= 0xd800 && c <= 0xdbff && (++i >= text.size() || text[i] < 0xdc00 || text[i] > 0xdfff))
-                        bind::throwTypeError(ctx, "invalid Unicode state string");
+                    if (c >= 0xd800 && c <= 0xdbff)
+                    {
+                        ++i;
+                        if (i >= text.size() || text[i] < 0xdc00 || text[i] > 0xdfff)
+                            bind::throwTypeError(ctx, "invalid Unicode state string");
+                    }
                 }
             }
             else if (value.isObject())
@@ -95,7 +98,10 @@ namespace soundor::vst3::modules
             std::map<std::string, char> cacheKeys;     // field → key of the retained value
         };
 
-        StateBinding& stateBinding(ContextState& ctx) { return *bind::contextData<StateBinding>(ctx, &stateKey); }
+        StateBinding& stateBinding(ContextState& ctx)
+        {
+            return *bind::contextData<StateBinding>(ctx, &stateKey);
+        }
 
         // A JavaScript value of a state type as JSON (checked by StateSchema after).
         json::Value toJson(ContextState& ctx, const StateSchema& schema, const json::Value& type,
@@ -111,8 +117,8 @@ namespace soundor::vst3::modules
                 std::vector<json::Value> out;
                 out.reserve(length);
                 for (std::size_t i = 0; i < length; ++i)
-                    out.push_back(toJson(ctx, schema, type.at("element"), array.getValueAtIndex(ctx.rt, i),
-                                         path.element(i)));
+                    out.push_back(
+                        toJson(ctx, schema, type.at("element"), array.getValueAtIndex(ctx.rt, i), path.element(i)));
                 return json::Value::array(std::move(out));
             }
             if (kind == "declared")
@@ -223,14 +229,24 @@ namespace soundor::vst3::modules
             }
             const auto& name = type.at("name").asString();
             if (name == "boolean")
-                return jsi::Value(value.asBoolean());
+                return { value.asBoolean() };
             if (name == "string")
                 return bind::write(ctx, value.asString());
             if (name == "int64")
-                return bind::write(ctx, *json::Value::numberText(value.asString()).asInt64());
+            {
+                const auto integer = json::Value::numberText(value.asString()).asInt64();
+                if (! integer)
+                    throw std::invalid_argument("invalid int64 state");
+                return bind::write(ctx, *integer);
+            }
             if (name == "uint64")
-                return bind::write(ctx, *json::Value::numberText(value.asString()).asUint64());
-            return jsi::Value(value.asNumber());
+            {
+                const auto integer = json::Value::numberText(value.asString()).asUint64();
+                if (! integer)
+                    throw std::invalid_argument("invalid uint64 state");
+                return bind::write(ctx, *integer);
+            }
+            return { value.asNumber() };
         }
 
         jsi::Value stateValue(ContextState& ctx, std::size_t field, const std::string& json)
@@ -246,7 +262,7 @@ namespace soundor::vst3::modules
                 bind::retainValue(ctx, &key, freeze(ctx, std::move(value)));
                 view.cached[name] = json;
             }
-            return jsi::Value(ctx.rt, *bind::retainedValue(ctx, &key));
+            return { ctx.rt, *bind::retainedValue(ctx, &key) };
         }
 
         jsi::Value subscribeState(ContextState& ctx, std::string field, const jsi::Value* args, std::size_t count)
@@ -255,13 +271,14 @@ namespace soundor::vst3::modules
                 bind::throwTypeError(ctx, "subscribe expects a function");
             auto& entry = stateBinding(ctx).listeners.emplace_back(StateListener { std::move(field), true });
             bind::retainValue(ctx, &entry, jsi::Value(ctx.rt, args[0]));
-            return bind::closure(ctx, "unsubscribe", 0,
-                                 [entry = &entry](ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t)
-                                 {
-                                     entry->active = false;
-                                     bind::retainValue(context, entry, jsi::Value::undefined());
-                                     return jsi::Value::undefined();
-                                 });
+            return bind::closure(
+                ctx, "unsubscribe", 0,
+                [entry = &entry](ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t)
+                {
+                    entry->active = false;
+                    bind::retainValue(context, entry, jsi::Value::undefined());
+                    return jsi::Value::undefined();
+                });
         }
 
         jsi::Value stateField(ContextState& ctx, std::size_t field)
@@ -271,13 +288,14 @@ namespace soundor::vst3::modules
             object.set("get", bind::closure(ctx, "get", 0,
                                             [field](ContextState& c, const jsi::Value&, const jsi::Value*, std::size_t)
                                             {
-                                                return bind::invoke(c, "state.get",
-                                                                    [&]
-                                                                    {
-                                                                        auto& view = stateBinding(c);
-                                                                        const auto& n = view.controller.schema().field(field).name;
-                                                                        return stateValue(c, field, view.controller.store().get(n));
-                                                                    });
+                                                return bind::invoke(
+                                                    c, "state.get",
+                                                    [&]
+                                                    {
+                                                        auto& view = stateBinding(c);
+                                                        const auto& n = view.controller.schema().field(field).name;
+                                                        return stateValue(c, field, view.controller.store().get(n));
+                                                    });
                                             }));
             object.set(
                 "set",
@@ -330,56 +348,57 @@ namespace soundor::vst3::modules
                             });
                     }));
             object.set("beginGesture",
-                       bind::closure(ctx, "beginGesture", 0,
-                                     [field](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
-                                     {
-                                         return bind::invoke(c, "state.beginGesture",
-                                                             [&]
-                                                             {
-                                                                 auto& view = stateBinding(c);
-                                                                 auto& store = view.controller.store();
-                                                                 return hist::invoke(
-                                                                     c, store.historyManager(),
-                                                                     [&]() -> jsi::Value
-                                                                     {
-                                                                         if (count > 1)
-                                                                             bind::throwTypeError(
-                                                                                 c, "beginGesture expects optional History options");
-                                                                         store.beginGesture(
-                                                                             view.controller.schema().field(field).name,
-                                                                             view.session, hist::readOptions(c, args, count, 0));
-                                                                         return jsi::Value::undefined();
-                                                                     });
-                                                             });
-                                     }));
+                       bind::closure(
+                           ctx, "beginGesture", 0,
+                           [field](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
+                           {
+                               return bind::invoke(
+                                   c, "state.beginGesture",
+                                   [&]
+                                   {
+                                       auto& view = stateBinding(c);
+                                       auto& store = view.controller.store();
+                                       return hist::invoke(
+                                           c, store.historyManager(),
+                                           [&]() -> jsi::Value
+                                           {
+                                               if (count > 1)
+                                                   bind::throwTypeError(
+                                                       c, "beginGesture expects optional History options");
+                                               store.beginGesture(view.controller.schema().field(field).name,
+                                                                  view.session, hist::readOptions(c, args, count, 0));
+                                               return jsi::Value::undefined();
+                                           });
+                                   });
+                           }));
             object.set("endGesture",
                        bind::closure(ctx, "endGesture", 0,
                                      [field](ContextState& c, const jsi::Value&, const jsi::Value*, std::size_t count)
                                      {
-                                         return bind::invoke(c, "state.endGesture",
-                                                             [&]
-                                                             {
-                                                                 auto& view = stateBinding(c);
-                                                                 auto& store = view.controller.store();
-                                                                 return hist::invoke(
-                                                                     c, store.historyManager(),
-                                                                     [&]() -> jsi::Value
-                                                                     {
-                                                                         bind::expectArgumentCount(c, "endGesture", count, 0);
-                                                                         store.endGesture(
-                                                                             view.controller.schema().field(field).name,
-                                                                             view.session);
-                                                                         return jsi::Value::undefined();
-                                                                     });
-                                                             });
+                                         return bind::invoke(
+                                             c, "state.endGesture",
+                                             [&]
+                                             {
+                                                 auto& view = stateBinding(c);
+                                                 auto& store = view.controller.store();
+                                                 return hist::invoke(
+                                                     c, store.historyManager(),
+                                                     [&]() -> jsi::Value
+                                                     {
+                                                         bind::expectArgumentCount(c, "endGesture", count, 0);
+                                                         store.endGesture(view.controller.schema().field(field).name,
+                                                                          view.session);
+                                                         return jsi::Value::undefined();
+                                                     });
+                                             });
                                      }));
-            object.set("subscribe",
-                       bind::closure(ctx, "subscribe", 1,
-                                     [name](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
-                                     {
-                                         return bind::invoke(c, "state.subscribe",
-                                                             [&] { return subscribeState(c, name, args, count); });
-                                     }));
+            object.set(
+                "subscribe",
+                bind::closure(ctx, "subscribe", 1,
+                              [name](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count) {
+                                  return bind::invoke(c, "state.subscribe",
+                                                      [&] { return subscribeState(c, name, args, count); });
+                              }));
             return freeze(ctx, object.release());
         }
 
@@ -420,7 +439,7 @@ namespace soundor::vst3::modules
                 bind::retainValue(ctx, &view.snapshotKey, freeze(ctx, object.release()));
                 view.cached = next;
             }
-            return jsi::Value(ctx.rt, *bind::retainedValue(ctx, &view.snapshotKey));
+            return { ctx.rt, *bind::retainedValue(ctx, &view.snapshotKey) };
         }
 
         // ── soundor:native ───────────────────────────────────────────────────
@@ -452,13 +471,13 @@ namespace soundor::vst3::modules
                   const auto& schema = view.controller.schema();
                   for (std::size_t i = 0; i < schema.size(); ++i)
                       fields.set(schema.field(i).name.c_str(), stateField(ctx, i));
-                  fields.set("onRestored",
-                             bind::closure(ctx, "onRestored", 1,
-                                           [](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
-                                           {
-                                               return bind::invoke(c, "state.onRestored",
-                                                                   [&] { return subscribeState(c, "", args, count); });
-                                           }));
+                  fields.set(
+                      "onRestored",
+                      bind::closure(ctx, "onRestored", 1,
+                                    [](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count) {
+                                        return bind::invoke(c, "state.onRestored",
+                                                            [&] { return subscribeState(c, "", args, count); });
+                                    }));
                   bind::setProperty(ctx, exports, "state", freeze(ctx, fields.release()));
               },
               {},
@@ -533,7 +552,7 @@ namespace soundor::vst3::modules
                                                     }
                                                     bind::retainValue(c, &view.listKey, freeze(c, std::move(array)));
                                                 }
-                                                return jsi::Value(c.rt, *bind::retainedValue(c, &view.listKey));
+                                                return { c.rt, *bind::retainedValue(c, &view.listKey) };
                                             });
                                     }));
                   factory.set(
@@ -553,7 +572,8 @@ namespace soundor::vst3::modules
                                           {
                                               if (count < 1 || count > 2 || ! args[0].isString())
                                                   bind::throwTypeError(
-                                                      c, "load expects a factory preset id and optional History options");
+                                                      c,
+                                                      "load expects a factory preset id and optional History options");
                                               const auto id = args[0].getString(c.rt).utf8(c.rt);
                                               const auto& all = view.service.factoryPresets();
                                               if (std::none_of(all.begin(), all.end(),
@@ -572,33 +592,35 @@ namespace soundor::vst3::modules
                                             return bind::invoke(c, "presets.getSnapshot",
                                                                 [&]
                                                                 {
-                                                                    bind::expectArgumentCount(c, "getSnapshot", count, 0);
+                                                                    bind::expectArgumentCount(c, "getSnapshot", count,
+                                                                                              0);
                                                                     return presetSnapshot(c);
                                                                 });
                                         }));
-                  api.set("subscribe",
-                          bind::closure(ctx, "subscribe", 1,
-                                        [](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
-                                        {
-                                            return bind::invoke(
-                                                c, "presets.subscribe",
-                                                [&]() -> jsi::Value
-                                                {
-                                                    if (count != 1 || ! bind::isFunction(c, args[0]))
-                                                        bind::throwTypeError(c, "subscribe expects a function");
-                                                    auto& listener = presetsBinding(c).listeners.emplace_back();
-                                                    bind::retainValue(c, &listener, jsi::Value(c.rt, args[0]));
-                                                    return bind::closure(c, "unsubscribe", 0,
-                                                                         [entry = &listener](ContextState& view, const jsi::Value&,
-                                                                                             const jsi::Value*, std::size_t)
-                                                                         {
-                                                                             entry->active = false;
-                                                                             bind::retainValue(view, entry,
-                                                                                               jsi::Value::undefined());
-                                                                             return jsi::Value::undefined();
-                                                                         });
-                                                });
-                                        }));
+                  api.set(
+                      "subscribe",
+                      bind::closure(ctx, "subscribe", 1,
+                                    [](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
+                                    {
+                                        return bind::invoke(
+                                            c, "presets.subscribe",
+                                            [&]() -> jsi::Value
+                                            {
+                                                if (count != 1 || ! bind::isFunction(c, args[0]))
+                                                    bind::throwTypeError(c, "subscribe expects a function");
+                                                auto& listener = presetsBinding(c).listeners.emplace_back();
+                                                bind::retainValue(c, &listener, jsi::Value(c.rt, args[0]));
+                                                return bind::closure(
+                                                    c, "unsubscribe", 0,
+                                                    [entry = &listener](ContextState& view, const jsi::Value&,
+                                                                        const jsi::Value*, std::size_t)
+                                                    {
+                                                        entry->active = false;
+                                                        bind::retainValue(view, entry, jsi::Value::undefined());
+                                                        return jsi::Value::undefined();
+                                                    });
+                                            });
+                                    }));
                   bind::setProperty(ctx, exports, "presets", freeze(ctx, api.release()));
               },
               {},

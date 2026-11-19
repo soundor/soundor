@@ -5,13 +5,13 @@
 // (tests/plugin.test.ts) and pluginval.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include <doctest/doctest.h>
-
 #include "Descriptor.h"
 #include "Expression.h"
 #include "Json.h"
 #include "State.h"
 #include "StateDocument.h"
+
+#include <doctest/doctest.h>
 
 #include <array>
 #include <cmath>
@@ -45,31 +45,31 @@ namespace
         using expression::Base;
         switch (type.base)
         {
-        case Base::Boolean:
-            out.b = value.asBoolean();
-            return out;
-        case Base::String:
-            out.s = value.asString();
-            return out;
-        case Base::Float32:
-        case Base::Float64:
-        {
-            double number = 0;
-            if (value.asString() == "NaN")
-                number = std::numeric_limits<double>::quiet_NaN();
-            else
+            case Base::Boolean:
+                out.b = value.asBoolean();
+                return out;
+            case Base::String:
+                out.s = value.asString();
+                return out;
+            case Base::Float32:
+            case Base::Float64:
             {
-                const auto bits = std::stoull(value.asString().substr(2), nullptr, 16);
-                std::memcpy(&number, &bits, sizeof number);
+                double number = 0;
+                if (value.asString() == "NaN")
+                    number = std::numeric_limits<double>::quiet_NaN();
+                else
+                {
+                    const auto bits = std::stoull(value.asString().substr(2), nullptr, 16);
+                    std::memcpy(&number, &bits, sizeof number);
+                }
+                if (type.base == Base::Float32)
+                    out.f = static_cast<float>(number);
+                else
+                    out.d = number;
+                return out;
             }
-            if (type.base == Base::Float32)
-                out.f = static_cast<float>(number);
-            else
-                out.d = number;
-            return out;
-        }
-        default:
-            break;
+            default:
+                break;
         }
         const auto number = value.isString() ? json::Value::numberText(value.asString()) : value;
         if (expression::isSigned(type.base))
@@ -87,29 +87,29 @@ namespace
             return json::Value::null();
         switch (type.base)
         {
-        case Base::Boolean:
-            return json::Value::boolean(value.b);
-        case Base::String:
-            return json::Value::string(value.s);
-        case Base::Float32:
-        case Base::Float64:
-        {
-            const double number = type.base == Base::Float32 ? static_cast<double>(value.f) : value.d;
-            if (std::isnan(number))
-                return json::Value::string("NaN");
-            std::uint64_t bits = 0;
-            std::memcpy(&bits, &number, sizeof bits);
-            char buffer[32];
-            std::snprintf(buffer, sizeof buffer, "0x%016llx", static_cast<unsigned long long>(bits));
-            return json::Value::string(buffer);
-        }
-        case Base::Int64:
-            return json::Value::string(std::to_string(value.i));
-        case Base::Uint64:
-            return json::Value::string(std::to_string(value.u));
-        default:
-            return expression::isSigned(type.base) ? json::Value::integer(value.i)
-                                                   : json::Value::unsignedInteger(value.u);
+            case Base::Boolean:
+                return json::Value::boolean(value.b);
+            case Base::String:
+                return json::Value::string(value.s);
+            case Base::Float32:
+            case Base::Float64:
+            {
+                const double number = type.base == Base::Float32 ? static_cast<double>(value.f) : value.d;
+                if (std::isnan(number))
+                    return json::Value::string("NaN");
+                std::uint64_t bits = 0;
+                std::memcpy(&bits, &number, sizeof bits);
+                char buffer[32];
+                std::snprintf(buffer, sizeof buffer, "0x%016llx", static_cast<unsigned long long>(bits));
+                return json::Value::string(buffer);
+            }
+            case Base::Int64:
+                return json::Value::string(std::to_string(value.i));
+            case Base::Uint64:
+                return json::Value::string(std::to_string(value.u));
+            default:
+                return expression::isSigned(type.base) ? json::Value::integer(value.i)
+                                                       : json::Value::unsignedInteger(value.u);
         }
     }
 
@@ -220,7 +220,8 @@ TEST_CASE("state: canonical values by type, the audio snapshot, documents")
     CHECK(schema.canonical(band, std::string_view(R"({"shape":"saw","gain":2})")) == R"({"gain":2,"shape":"saw"})");
     CHECK_THROWS_AS(static_cast<void>(schema.canonical(band, std::string_view(R"({"gain":2,"shape":"noise"})"))),
                     std::invalid_argument);
-    CHECK_THROWS_AS(static_cast<void>(schema.canonical(band, std::string_view(R"({"gain":2})"))), std::invalid_argument);
+    CHECK_THROWS_AS(static_cast<void>(schema.canonical(band, std::string_view(R"({"gain":2})"))),
+                    std::invalid_argument);
     CHECK(schema.canonical(steps, std::string_view("[1,2,3,4]")) == "[1,2,3,4]");
     CHECK_THROWS_AS(static_cast<void>(schema.canonical(steps, std::string_view("[1,2,3,4,5]"))), std::invalid_argument);
     CHECK_THROWS_AS(static_cast<void>(schema.canonical(steps, std::string_view("[1.5]"))), std::invalid_argument);

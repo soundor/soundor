@@ -15,18 +15,19 @@ namespace soundor::vst3
             const double plain = parameters[i];
             switch (info.type)
             {
-            case parameters::Type::Boolean:
-                values.set(info.id, json::Value::boolean(plain >= 0.5));
-                break;
-            case parameters::Type::Choice:
-            {
-                const auto index = static_cast<std::size_t>(std::clamp<long long>(
-                    std::llround(plain), 0, static_cast<long long>(info.choices.size()) - 1));
-                values.set(info.id, json::Value::string(info.choices.empty() ? std::string() : info.choices[index].value));
-                break;
-            }
-            default:
-                values.set(info.id, json::Value::number(std::isfinite(plain) ? plain : info.defaultValue));
+                case parameters::Type::Boolean:
+                    values.set(info.id, json::Value::boolean(plain >= 0.5));
+                    break;
+                case parameters::Type::Choice:
+                {
+                    const auto index = static_cast<std::size_t>(
+                        std::clamp<long long>(std::llround(plain), 0, static_cast<long long>(info.choices.size()) - 1));
+                    values.set(info.id,
+                               json::Value::string(info.choices.empty() ? std::string() : info.choices[index].value));
+                    break;
+                }
+                default:
+                    values.set(info.id, json::Value::number(std::isfinite(plain) ? plain : info.defaultValue));
             }
         }
         auto document = json::Value::object();
@@ -79,37 +80,37 @@ namespace soundor::vst3
             const auto where = "parameters." + info.id;
             switch (info.type)
             {
-            case parameters::Type::Boolean:
-                if (! value->isBoolean())
-                    throw std::invalid_argument(where + ": expected boolean");
-                out.parameters[i] = value->asBoolean() ? 1.0 : 0.0;
-                break;
-            case parameters::Type::Choice:
-            {
-                if (! value->isString())
-                    throw std::invalid_argument(where + ": expected choice");
-                bool found = false;
-                for (std::size_t option = 0; option < info.choices.size(); ++option)
-                    if (info.choices[option].value == value->asString())
-                    {
-                        out.parameters[i] = static_cast<double>(option);
-                        found = true;
-                    }
-                if (! found)
-                    throw std::invalid_argument(where + ": invalid choice");
-                break;
-            }
-            default:
-            {
-                if (! value->isNumber())
-                    throw std::invalid_argument(where + ": expected number");
-                const double number = value->asNumber();
-                const bool integral = info.type != parameters::Type::Float32;
-                if (! std::isfinite(number) || number < info.min || number > info.max
-                    || (integral && std::trunc(number) != number))
-                    throw std::invalid_argument(where + ": invalid number");
-                out.parameters[i] = number;
-            }
+                case parameters::Type::Boolean:
+                    if (! value->isBoolean())
+                        throw std::invalid_argument(where + ": expected boolean");
+                    out.parameters[i] = value->asBoolean() ? 1.0 : 0.0;
+                    break;
+                case parameters::Type::Choice:
+                {
+                    if (! value->isString())
+                        throw std::invalid_argument(where + ": expected choice");
+                    bool found = false;
+                    for (std::size_t option = 0; option < info.choices.size(); ++option)
+                        if (info.choices[option].value == value->asString())
+                        {
+                            out.parameters[i] = static_cast<double>(option);
+                            found = true;
+                        }
+                    if (! found)
+                        throw std::invalid_argument(where + ": invalid choice");
+                    break;
+                }
+                default:
+                {
+                    if (! value->isNumber())
+                        throw std::invalid_argument(where + ": expected number");
+                    const double number = value->asNumber();
+                    const bool integral = info.type != parameters::Type::Float32;
+                    if (! std::isfinite(number) || number < info.min || number > info.max
+                        || (integral && std::trunc(number) != number))
+                        throw std::invalid_argument(where + ": invalid number");
+                    out.parameters[i] = number;
+                }
             }
         }
         out.state = schema.read(document.find("state"));

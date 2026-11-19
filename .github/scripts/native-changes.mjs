@@ -16,9 +16,10 @@ const JOBS = {
   benchmark: 'soundor-benchmark',
   host: '@soundor/vst3-host',
   orbit: 'orbit',
+  vst3: '@soundor/vst3-runtime',
 };
 const CI =
-  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|juce|orbit|vst3-host-artifacts)\.yml|actions\/|scripts\/(verified-deps|verified_deps_test|native-artifacts|native-plan|native-changes|engine-prebuilts|verify-results|macos-minimum|linux-plugin-check|windows-plugin-check))/;
+  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|juce|orbit|vst3|vst3-host-artifacts)\.yml|actions\/|scripts\/(verified-deps|verified_deps_test|native-artifacts|native-plan|native-changes|engine-prebuilts|verify-results|macos-minimum|linux-plugin-check|windows-plugin-check))/;
 
 const HOST = 'hosts/vst3-host/';
 

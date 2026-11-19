@@ -236,27 +236,20 @@ async function buildPlugin(
   return paths.bundle;
 }
 
-/** `build`: the release bundle under `.soundor/dist/vst3`, or with --debug a Debug one, for tests. */
+/** `build`: the release bundle, under `.soundor/dist/vst3`. */
 async function vst3Build(
   config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: Vst3PhaseDeps = {},
 ): Promise<void> {
-  const debug = ctx.mode === 'debug';
   const bundle = await buildPlugin(
     config,
     ctx,
-    {
-      variant: debug ? 'debug' : 'release',
-      out: ctx.paths.dist,
-      label: debug ? 'debug-build' : 'release',
-    },
+    { variant: 'release', out: ctx.paths.dist, label: 'release' },
     deps,
   );
   ctx.logger.info(
-    debug
-      ? `Debug VST3 in ${bundle}: for tests, not for release`
-      : `VST3 in ${bundle}. Copy or link it into ~/.vst3 for hosts to find it.`,
+    `VST3 in ${bundle}. Copy or link it into ~/.vst3 for hosts to find it.`,
   );
 }
 

@@ -26,9 +26,12 @@ namespace soundor::vst3
         };
 
         constexpr IntegerRange integerRanges[] = {
-            { "int8", -128.0, 127.0 },        { "uint8", 0.0, 255.0 },
-            { "int16", -32768.0, 32767.0 },   { "uint16", 0.0, 65535.0 },
-            { "int32", -2147483648.0, 2147483647.0 }, { "uint32", 0.0, 4294967295.0 },
+            { "int8", -128.0, 127.0 },
+            { "uint8", 0.0, 255.0 },
+            { "int16", -32768.0, 32767.0 },
+            { "uint16", 0.0, 65535.0 },
+            { "int32", -2147483648.0, 2147483647.0 },
+            { "uint32", 0.0, 4294967295.0 },
         };
 
         float toFloat32(double value)
@@ -58,7 +61,10 @@ namespace soundor::vst3
     // ── StateSchema ──────────────────────────────────────────────────────────
 
     StateSchema::StateSchema(const Plugin& plugin)
-        : fields(plugin.state), declared(plugin.stateTypes), audio(plugin.audioState), snapshotSize(plugin.audioStateSize)
+        : fields(plugin.state),
+          declared(plugin.stateTypes),
+          audio(plugin.audioState),
+          snapshotSize(plugin.audioStateSize)
     {
     }
 
@@ -96,8 +102,8 @@ namespace soundor::vst3
             std::vector<json::Value> out;
             out.reserve(items.size());
             for (std::size_t i = 0; i < items.size(); ++i)
-                out.push_back(canonicalValue(type.at("element"), items[i],
-                                             std::string(path) + "[" + std::to_string(i) + "]"));
+                out.push_back(
+                    canonicalValue(type.at("element"), items[i], std::string(path) + "[" + std::to_string(i) + "]"));
             return json::Value::array(std::move(out));
         }
         if (kind == "declared")
@@ -127,7 +133,8 @@ namespace soundor::vst3
                 const auto* member = value.find(fieldName);
                 if (member == nullptr)
                     invalid(path, "missing state field: " + fieldName);
-                out.emplace_back(fieldName, canonicalValue(field.at("type"), *member, std::string(path) + "." + fieldName));
+                out.emplace_back(fieldName,
+                                 canonicalValue(field.at("type"), *member, std::string(path) + "." + fieldName));
             }
             return json::Value::object(std::move(out));
         }

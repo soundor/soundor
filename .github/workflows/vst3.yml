@@ -1,0 +1,171 @@
+name: VST3 runtime
+
+# @soundor/vst3-runtime: its prebuilt adapter (both variants) built against the
+# engine Verify or Release selected, its native tests and clang-tidy, its test
+# plugin and the controller example built as Linux VST3s, tested in the VST3
+# host (UI and audio) and validated by pluginval. Release keeps the adapter
+# (the artifact the npm package carries); Verify keeps only failure reports.
+on:
+  workflow_call:
+    inputs:
+      cache:
+        description: Cache the pnpm store and downloaded engine archives (disabled by Release)
+        type: boolean
+        default: true
+      build-engine:
+        description: Use CI engine artifacts rather than the released engine
+        type: boolean
+        required: true
+      engine-release:
+        description: Use this published prebuilt release of the checkout's engine (Release, when it reuses one)
+        type: string
+        default: ''
+      engine-run-id:
+        description: Successful main run to reuse (empty for this run)
+        type: string
+        default: ''
+      engine-commit:
+        description: Original source commit of the reused engine
+        type: string
+        default: ''
+      build-host:
+        description: Use CI VST3 host artifacts rather than the released host
+        type: boolean
+        default: false
+      host-run-id:
+        description: Successful main run to reuse (empty for this run)
+        type: string
+        default: ''
+      host-commit:
+        description: Original source commit of the reused host
+        type: string
+        default: ''
+      keep-adapter:
+        description: Upload the staged adapter as vst3-adapter-<sha>-linux-x64 (Release packs it)
+        type: boolean
+        default: false
+
+permissions: {}
+
+env:
+  # pluginval, pinned: Tracktion's release binary, checked by SHA-256. Only
+  # this workflow runs it; it is never part of a package or a plugin build.
+  PLUGINVAL_VERSION: v1.0.4
+  PLUGINVAL_SHA256: c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352
+
+jobs:
+  linux:
+    name: linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CC: clang
+      CXX: clang++
+      LDFLAGS: -fuse-ld=lld-18
+      CMAKE_GENERATOR: Ninja
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.cache }}
+      - name: Setup consumer dependencies
+        uses: ./.github/actions/engine-consumer
+        with:
+          cache: ${{ inputs.cache }}
+      # The adapter's X11 headers (types only: plugins load libX11 at run
+      # time), Xvfb for the editor tests and pluginval's.
+      - name: Platform dependencies
+        run: sudo apt-get install -y --no-install-recommends libx11-dev xvfb clang-tidy-18
+      - name: Download this checkout's engine
+        if: inputs.build-engine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.engine-run-id || github.run_id }}
+          pattern: engine-prebuilt-${{ inputs.engine-commit || github.sha }}-linux-x64*
+          merge-multiple: true
+          path: ${{ runner.temp }}/engine-artifacts
+      - name: Select this checkout's engine artifacts
+        if: inputs.build-engine
+        env:
+          ENGINE_COMMIT: ${{ inputs.engine-commit || github.sha }}
+        run: |
+          node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/engine-artifacts" --commit "$ENGINE_COMMIT" --out "$RUNNER_TEMP/engine-manifest.json"
+          echo "SOUNDOR_ENGINE_MANIFEST=$RUNNER_TEMP/engine-manifest.json" >> "$GITHUB_ENV"
+      - name: Use the reused engine release
+        if: inputs.engine-release != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.engine-release }}
+        run: |
+          node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/engine-manifest.json"
+          echo "SOUNDOR_ENGINE_MANIFEST=$RUNNER_TEMP/engine-manifest.json" >> "$GITHUB_ENV"
+      - name: Download this checkout's VST3 host
+        if: inputs.build-host
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.host-run-id || github.run_id }}
+          name: vst3-host-${{ inputs.host-commit || github.sha }}-linux-x64-gnu
+          path: ${{ runner.temp }}/vst3-host
+      - name: Select this checkout's VST3 host
+        if: inputs.build-host
+        run: echo "SOUNDOR_VST3_HOST_ARTIFACT=$RUNNER_TEMP/vst3-host" >> "$GITHUB_ENV"
+      - name: Select the VST3 host
+        env:
+          HOST_COMMIT: ${{ inputs.host-commit || github.sha }}
+        run: node hosts/vst3-host/src/cli.ts prepare --mode published --commit "$HOST_COMMIT"
+      - name: Build workspace
+        run: pnpm turbo run build --filter=@soundor/vst3-runtime... --filter=controller^...
+      - name: Rust crate
+        run: |
+          cargo fmt --check --manifest-path runtimes/vst3-runtime/rust/Cargo.toml
+          cargo clippy --all-targets --manifest-path runtimes/vst3-runtime/rust/Cargo.toml -- -D warnings
+          cargo test --manifest-path runtimes/vst3-runtime/rust/Cargo.toml
+      - name: Build the adapter
+        run: pnpm --filter @soundor/vst3-runtime build:native
+      - name: Native unit tests
+        run: pnpm --filter @soundor/vst3-runtime test:native
+      - name: Clang-tidy
+        run: pnpm --filter @soundor/vst3-runtime lint:native
+      # The test plugin in the VST3 host: audio, parameters, MIDI, state,
+      # presets, instances in one process, the editor.
+      - name: Plugin tests
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" pnpm --filter @soundor/vst3-runtime test:plugin
+      - name: Build the controller example
+        run: pnpm --filter controller build:vst3
+      - name: Download pluginval
+        run: |
+          mkdir -p "$RUNNER_TEMP/pluginval"
+          curl -fsSL -o "$RUNNER_TEMP/pluginval/pluginval.zip" "https://github.com/Tracktion/pluginval/releases/download/$PLUGINVAL_VERSION/pluginval_Linux.zip"
+          echo "$PLUGINVAL_SHA256  $RUNNER_TEMP/pluginval/pluginval.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/pluginval/pluginval.zip" -d "$RUNNER_TEMP/pluginval"
+      # The strictest level, editor included; a failure fails the job.
+      - name: pluginval
+        run: |
+          set -eo pipefail
+          for plugin in "runtimes/vst3-runtime/tests/plugin/.soundor/dist/vst3/Soundor VST3 Test.vst3" \
+                        "examples/controller/.soundor/dist/vst3/Soundor Controller.vst3"; do
+            xvfb-run -a -s "-screen 0 1280x1024x24" "$RUNNER_TEMP/pluginval/pluginval" \
+              --strictness-level 10 --validate-in-process --output-dir "$RUNNER_TEMP/pluginval-logs" \
+              --validate "$plugin"
+          done
+      - name: Keep the adapter
+        if: inputs.keep-adapter
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vst3-adapter-${{ github.sha }}-linux-x64
+          path: runtimes/vst3-runtime/prebuilt
+          if-no-files-found: error
+      - name: Keep the failure reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vst3-runtime-results
+          path: ${{ runner.temp }}/pluginval-logs
+          if-no-files-found: ignore
+          retention-days: 7

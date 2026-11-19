@@ -91,7 +91,7 @@ namespace soundor::vst3
     struct StateField
     {
         std::string name;
-        json::Value type; // the descriptor's state type node
+        json::Value type;        // the descriptor's state type node
         std::string defaultJson; // canonical
         std::optional<std::size_t> maxLength;
         bool audio = false;
@@ -187,7 +187,7 @@ namespace soundor::vst3
     };
 
     // Parses a descriptor; throws json::Error saying what is wrong.
-    [[nodiscard]] std::unique_ptr<Plugin> parseDescriptor(std::string_view json);
+    [[nodiscard]] std::unique_ptr<Plugin> parseDescriptor(std::string_view text);
 
     // The module's plugin, from soundor_vst3_plugin() on first use; null
     // (and why, in `error`) when it cannot be read.

@@ -7,8 +7,8 @@
 #include "Strings.h"
 
 #include <pluginterfaces/base/ibstream.h>
-#include <pluginterfaces/vst/ivstmessage.h>
 #include <pluginterfaces/vst/ivsteditcontroller.h>
+#include <pluginterfaces/vst/ivstmessage.h>
 
 #include <algorithm>
 #include <cmath>
@@ -17,7 +17,6 @@
 namespace soundor::vst3
 {
     using namespace Steinberg;
-    namespace hist = soundor::history;
 
     namespace
     {
@@ -199,7 +198,8 @@ namespace soundor::vst3
                 {
                     Vst::ParameterInfo info {};
                     info.id = midiParameterId(channel, controllerNumber);
-                    const auto title = "MIDI " + std::to_string(channel + 1) + " CC " + std::to_string(controllerNumber);
+                    const auto title =
+                        "MIDI " + std::to_string(channel + 1) + " CC " + std::to_string(controllerNumber);
                     copyString128(title, info.title);
                     copyString128(title, info.shortTitle);
                     info.flags = Vst::ParameterInfo::kIsHidden | Vst::ParameterInfo::kCanAutomate;
@@ -267,9 +267,9 @@ namespace soundor::vst3
         void* handle = processorLink != nullptr && processorLink->rust != nullptr && processorLink->rust->valid()
                            ? processorLink->rust->nativeHandle()
                            : nullptr;
-        controller = std::make_shared<processor::RustController>(
-            std::span<const std::uint8_t>(definition.controllerDescriptor), processor::linkedRustController(), *this,
-            handle);
+        controller =
+            std::make_shared<processor::RustController>(std::span<const std::uint8_t>(definition.controllerDescriptor),
+                                                        processor::linkedRustController(), *this, handle);
         if (controller->present() && ! controller->active())
             log("Soundor: " + controller->error());
     }
@@ -300,7 +300,8 @@ namespace soundor::vst3
             {
                 const double value = definition.constrain(i, document.parameters[i]);
                 plainValues[i] = value;
-                EditControllerEx1::setParamNormalized(definition.parameters[i].vstId, definition.toNormalized(i, value));
+                EditControllerEx1::setParamNormalized(definition.parameters[i].vstId,
+                                                      definition.toNormalized(i, value));
                 markChanged(i);
             }
             stateStore->resetGestures();
@@ -319,8 +320,14 @@ namespace soundor::vst3
 
     // The controller keeps nothing of its own: the component's state is the
     // plugin's whole state.
-    tresult PLUGIN_API Controller::setState(IBStream*) { return kResultOk; }
-    tresult PLUGIN_API Controller::getState(IBStream*) { return kResultOk; }
+    tresult PLUGIN_API Controller::setState(IBStream*)
+    {
+        return kResultOk;
+    }
+    tresult PLUGIN_API Controller::getState(IBStream*)
+    {
+        return kResultOk;
+    }
 
     tresult PLUGIN_API Controller::setParamNormalized(Vst::ParamID tag, Vst::ParamValue value)
     {
@@ -363,7 +370,10 @@ namespace soundor::vst3
         return editor;
     }
 
-    void Controller::editorClosed(Editor* editor) { openEditors.erase(editor); }
+    void Controller::editorClosed(Editor* editor)
+    {
+        openEditors.erase(editor);
+    }
 
     tresult PLUGIN_API Controller::getMidiControllerAssignment(int32 busIndex, int16 channel,
                                                                Vst::CtrlNumber midiControllerNumber, Vst::ParamID& id)
@@ -375,7 +385,10 @@ namespace soundor::vst3
         return kResultTrue;
     }
 
-    void PLUGIN_API Controller::onTimer() { pump(); }
+    void PLUGIN_API Controller::onTimer()
+    {
+        pump();
+    }
 
     void Controller::pump()
     {
@@ -402,10 +415,19 @@ namespace soundor::vst3
             ui->changes().markChanged(index);
     }
 
-    void Controller::addUi(UiParameters* ui) { uis.insert(ui); }
-    void Controller::removeUi(UiParameters* ui) { uis.erase(ui); }
+    void Controller::addUi(UiParameters* ui)
+    {
+        uis.insert(ui);
+    }
+    void Controller::removeUi(UiParameters* ui)
+    {
+        uis.erase(ui);
+    }
 
-    double Controller::plain(std::size_t index) const { return plainValues[index]; }
+    double Controller::plain(std::size_t index) const
+    {
+        return plainValues[index];
+    }
 
     void Controller::installPlain(std::size_t index, double value)
     {
@@ -421,8 +443,14 @@ namespace soundor::vst3
         markChanged(index);
     }
 
-    void Controller::beginHostEdit(std::size_t index) { beginEdit(definition.parameters[index].vstId); }
-    void Controller::endHostEdit(std::size_t index) { endEdit(definition.parameters[index].vstId); }
+    void Controller::beginHostEdit(std::size_t index)
+    {
+        beginEdit(definition.parameters[index].vstId);
+    }
+    void Controller::endHostEdit(std::size_t index)
+    {
+        endEdit(definition.parameters[index].vstId);
+    }
 
     void Controller::sendState()
     {
@@ -447,13 +475,25 @@ namespace soundor::vst3
 
     // ── The Rust controller's services ───────────────────────────────────────
 
-    void Controller::wake() noexcept { woken.store(true); }
+    void Controller::wake() noexcept
+    {
+        woken.store(true);
+    }
 
-    double Controller::parameter(std::uint32_t index) { return parameterEditors.at(index)->get(); }
+    double Controller::parameter(std::uint32_t index)
+    {
+        return parameterEditors.at(index)->get();
+    }
 
-    void Controller::setParameter(std::uint32_t index, double value) { parameterEditors.at(index)->set(value); }
+    void Controller::setParameter(std::uint32_t index, double value)
+    {
+        parameterEditors.at(index)->set(value);
+    }
 
-    std::string Controller::state(std::uint32_t index) { return stateStore->get(stateSchema.field(index).name); }
+    std::string Controller::state(std::uint32_t index)
+    {
+        return stateStore->get(stateSchema.field(index).name);
+    }
 
     void Controller::setState(std::uint32_t index, std::string_view json)
     {
@@ -464,23 +504,26 @@ namespace soundor::vst3
     {
         switch (action)
         {
-        case HistoryAction::Undo:
-            if (! stateHistory.canUndo())
-                return false;
-            stateHistory.undo();
-            return true;
-        case HistoryAction::Redo:
-            if (! stateHistory.canRedo())
-                return false;
-            stateHistory.redo();
-            return true;
-        case HistoryAction::CanUndo:
-            return stateHistory.canUndo();
-        case HistoryAction::CanRedo:
-            return stateHistory.canRedo();
+            case HistoryAction::Undo:
+                if (! stateHistory.canUndo())
+                    return false;
+                stateHistory.undo();
+                return true;
+            case HistoryAction::Redo:
+                if (! stateHistory.canRedo())
+                    return false;
+                stateHistory.redo();
+                return true;
+            case HistoryAction::CanUndo:
+                return stateHistory.canUndo();
+            case HistoryAction::CanRedo:
+                return stateHistory.canRedo();
         }
         return false;
     }
 
-    void Controller::loadPreset(std::string_view id) { factoryPresets->loadFactory(id); }
+    void Controller::loadPreset(std::string_view id)
+    {
+        factoryPresets->loadFactory(id);
+    }
 } // namespace soundor::vst3

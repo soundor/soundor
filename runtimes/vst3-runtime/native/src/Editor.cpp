@@ -18,7 +18,7 @@
 #include <variant>
 
 #ifndef SOUNDOR_VST3_RUNTIME_VERSION
-#define SOUNDOR_VST3_RUNTIME_VERSION "0.0.0"
+    #define SOUNDOR_VST3_RUNTIME_VERSION "0.0.0"
 #endif
 
 namespace soundor::vst3
@@ -70,8 +70,10 @@ namespace soundor::vst3
         std::filesystem::path dataDirectory(const std::string& pluginId)
         {
             std::filesystem::path base;
+            // NOLINTNEXTLINE(concurrency-mt-unsafe): read on the UI thread; a plugin never sets the environment.
             if (const char* config = std::getenv("XDG_CONFIG_HOME"); config != nullptr && *config != 0)
                 base = config;
+            // NOLINTNEXTLINE(concurrency-mt-unsafe): as above.
             else if (const char* home = std::getenv("HOME"); home != nullptr && *home != 0)
                 base = std::filesystem::path(home) / ".config";
             else
@@ -81,8 +83,8 @@ namespace soundor::vst3
 
         void logToStderr(js::LogLevel level, std::string_view message)
         {
-            static constexpr const char* prefixes[] = { "[soundor] ", "[soundor] ", "[soundor] warning: ",
-                                                        "[soundor] error: " };
+            static constexpr const char* prefixes[] = { "[soundor] ", "[soundor] ",
+                                                        "[soundor] warning: ", "[soundor] error: " };
             log(std::string(prefixes[static_cast<int>(level)]) + std::string(message));
         }
 
@@ -90,24 +92,24 @@ namespace soundor::vst3
         {
             switch (cursor)
             {
-            case ui::Cursor::Pointer:
-                return x11::CursorIcon::Hand;
-            case ui::Cursor::Text:
-                return x11::CursorIcon::Text;
-            case ui::Cursor::Crosshair:
-                return x11::CursorIcon::Crosshair;
-            case ui::Cursor::Move:
-                return x11::CursorIcon::Move;
-            case ui::Cursor::EwResize:
-                return x11::CursorIcon::HorizontalResize;
-            case ui::Cursor::NsResize:
-                return x11::CursorIcon::VerticalResize;
-            case ui::Cursor::NeswResize:
-                return x11::CursorIcon::DiagonalResizeUp;
-            case ui::Cursor::NwseResize:
-                return x11::CursorIcon::DiagonalResizeDown;
-            default:
-                return x11::CursorIcon::Arrow;
+                case ui::Cursor::Pointer:
+                    return x11::CursorIcon::Hand;
+                case ui::Cursor::Text:
+                    return x11::CursorIcon::Text;
+                case ui::Cursor::Crosshair:
+                    return x11::CursorIcon::Crosshair;
+                case ui::Cursor::Move:
+                    return x11::CursorIcon::Move;
+                case ui::Cursor::EwResize:
+                    return x11::CursorIcon::HorizontalResize;
+                case ui::Cursor::NsResize:
+                    return x11::CursorIcon::VerticalResize;
+                case ui::Cursor::NeswResize:
+                    return x11::CursorIcon::DiagonalResizeUp;
+                case ui::Cursor::NwseResize:
+                    return x11::CursorIcon::DiagonalResizeDown;
+                default:
+                    return x11::CursorIcon::Arrow;
             }
         }
     } // namespace
@@ -262,7 +264,8 @@ namespace soundor::vst3
 
     void* Editor::nativeWindow() const noexcept
     {
-        return window != nullptr ? reinterpret_cast<void*>(window->id()) : nullptr;
+        // An X11 window id, which the engine's APIs carry as a pointer.
+        return window != nullptr ? reinterpret_cast<void*>(window->id()) : nullptr; // NOLINT(performance-no-int-to-ptr)
     }
 
     void Editor::createRuntime()
@@ -277,7 +280,7 @@ namespace soundor::vst3
         logSink = logToStderr;
         if (! definition.logFile.empty())
             logSink = [file = platform::fileLogSink(definition.logFile, definition.name)](js::LogLevel level,
-                                                                                         std::string_view message)
+                                                                                          std::string_view message)
             {
                 logToStderr(level, message);
                 file(level, message);
@@ -325,7 +328,10 @@ namespace soundor::vst3
         }
     }
 
-    RuntimeHost& Editor::runtimeHost() { return session != nullptr ? session->host() : *host; }
+    RuntimeHost& Editor::runtimeHost()
+    {
+        return session != nullptr ? session->host() : *host;
+    }
 
     void Editor::close()
     {
@@ -363,8 +369,14 @@ namespace soundor::vst3
         attachedToHost = false;
     }
 
-    float Editor::logicalWidth() const { return static_cast<float>(rect.getWidth()) / contentScale; }
-    float Editor::logicalHeight() const { return static_cast<float>(rect.getHeight()) / contentScale; }
+    float Editor::logicalWidth() const
+    {
+        return static_cast<float>(rect.getWidth()) / contentScale;
+    }
+    float Editor::logicalHeight() const
+    {
+        return static_cast<float>(rect.getHeight()) / contentScale;
+    }
 
     float Editor::zoom() const
     {
@@ -375,8 +387,9 @@ namespace soundor::vst3
         const float sy = logicalHeight() / static_cast<float>(editor.height);
         float zoomed = std::min(sx, sy);
         if (editor.maxWidth > 0 && editor.maxHeight > 0)
-            zoomed = std::min(zoomed, std::min(static_cast<float>(editor.maxWidth) / static_cast<float>(editor.width),
-                                               static_cast<float>(editor.maxHeight) / static_cast<float>(editor.height)));
+            zoomed =
+                std::min(zoomed, std::min(static_cast<float>(editor.maxWidth) / static_cast<float>(editor.width),
+                                          static_cast<float>(editor.maxHeight) / static_cast<float>(editor.height)));
         return std::max(zoomed, 0.05f);
     }
 
@@ -419,8 +432,9 @@ namespace soundor::vst3
             surface.setEditorSizeHold(
                 [this](ui::Size wanted)
                 {
-                    auto requested = constrained(ViewRect(0, 0, static_cast<int32>(std::lround(wanted.width * contentScale)),
-                                                          static_cast<int32>(std::lround(wanted.height * contentScale))));
+                    auto requested =
+                        constrained(ViewRect(0, 0, static_cast<int32>(std::lround(wanted.width * contentScale)),
+                                             static_cast<int32>(std::lround(wanted.height * contentScale))));
                     return ui::Size { static_cast<float>(requested.getWidth()) / contentScale,
                                       static_cast<float>(requested.getHeight()) / contentScale };
                 });
@@ -443,9 +457,7 @@ namespace soundor::vst3
             std::string why = "no GPU";
             if (! gpuLost)
                 if (auto created = render::GpuCompositor::create(
-                        { .view = { nativeWindow() },
-                          .background = definition.editor.background,
-                          .device = gpuDevice },
+                        { .view = { nativeWindow() }, .background = definition.editor.background, .device = gpuDevice },
                         &why))
                 {
                     gpu = created.get();
@@ -466,7 +478,10 @@ namespace soundor::vst3
         }
     }
 
-    void Editor::renderFrame() { compositor->composite(runtimeHost().frame(capabilities)); }
+    void Editor::renderFrame()
+    {
+        compositor->composite(runtimeHost().frame(capabilities));
+    }
 
     void Editor::readWindowEvents()
     {
@@ -575,7 +590,9 @@ namespace soundor::vst3
         const auto area = uiArea();
         const auto [screenX, screenY] = window != nullptr ? window->screenPosition() : std::pair { 0, 0 };
         const float scale = runtimeHost().surface().scale();
-        accessibility->setGeometry({ area.x * contentScale, area.y * contentScale, scale,
+        accessibility->setGeometry({ area.x * contentScale,
+                                     area.y * contentScale,
+                                     scale,
                                      { static_cast<float>(screenX) + area.x * contentScale,
                                        static_cast<float>(screenY) + area.y * contentScale, area.width * contentScale,
                                        area.height * contentScale } });
@@ -591,7 +608,8 @@ namespace soundor::vst3
     ViewRect Editor::constrained(ViewRect wanted) const
     {
         const auto& editor = definition.editor;
-        const auto scaled = [&](int value) { return static_cast<int32>(std::lround(static_cast<float>(value) * contentScale)); };
+        const auto scaled = [&](int value)
+        { return static_cast<int32>(std::lround(static_cast<float>(value) * contentScale)); };
         int32 width = std::max<int32>(1, wanted.getWidth());
         int32 height = std::max<int32>(1, wanted.getHeight());
         if (editor.minWidth > 0)
@@ -607,7 +625,7 @@ namespace soundor::vst3
             const double aspect = static_cast<double>(editor.width) / static_cast<double>(editor.height);
             height = static_cast<int32>(std::lround(static_cast<double>(width) / aspect));
         }
-        return ViewRect(wanted.left, wanted.top, wanted.left + width, wanted.top + height);
+        return { wanted.left, wanted.top, wanted.left + width, wanted.top + height };
     }
 
     void Editor::applySizeRequest()
@@ -653,7 +671,10 @@ namespace soundor::vst3
         }
     }
 
-    void PLUGIN_API Editor::onTimer() { tick(); }
+    void PLUGIN_API Editor::onTimer()
+    {
+        tick();
+    }
 
     void PLUGIN_API Editor::onFDIsSet(Linux::FileDescriptor fd)
     {
@@ -683,7 +704,10 @@ namespace soundor::vst3
         return kResultTrue;
     }
 
-    tresult PLUGIN_API Editor::canResize() { return definition.editor.resizable ? kResultTrue : kResultFalse; }
+    tresult PLUGIN_API Editor::canResize()
+    {
+        return definition.editor.resizable ? kResultTrue : kResultFalse;
+    }
 
     tresult PLUGIN_API Editor::checkSizeConstraint(ViewRect* wanted)
     {
@@ -715,7 +739,7 @@ namespace soundor::vst3
 
     tresult PLUGIN_API Editor::setContentScaleFactor(ScaleFactor factor)
     {
-        if (! (factor > 0.25f && factor < 8.0f))
+        if (factor <= 0.25f || factor >= 8.0f || std::isnan(factor))
             return kResultFalse;
         if (factor == contentScale)
             return kResultTrue;

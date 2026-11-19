@@ -25,9 +25,15 @@ namespace soundor::vst3
         return definition.parameters[index].info.access == parameters::Access::ReadOnly;
     }
 
-    history::Value ParameterEditor::read() const { return target.plain(index); }
+    history::Value ParameterEditor::read() const
+    {
+        return target.plain(index);
+    }
 
-    double ParameterEditor::get() const { return std::get<double>(manager.read(id)); }
+    double ParameterEditor::get() const
+    {
+        return std::get<double>(manager.read(id));
+    }
 
     void ParameterEditor::set(double value, const history::Options& options)
     {
@@ -124,7 +130,8 @@ namespace soundor::vst3
                 {
                     field.target.installPlain(field.index, next);
                 }
-                catch (...) // NOLINT(bugprone-empty-catch): installing never throws in practice; History needs noexcept.
+                catch (
+                    ...) // NOLINT(bugprone-empty-catch): installing never throws in practice; History needs noexcept.
                 {
                 }
             }
@@ -157,20 +164,35 @@ namespace soundor::vst3
     {
     }
 
-    UiParameters::~UiParameters() { disconnectEdits(); }
+    UiParameters::~UiParameters()
+    {
+        disconnectEdits();
+    }
 
     ParameterEditor::Owner UiParameters::owner() const noexcept
     {
         return static_cast<ParameterEditor::Owner>(reinterpret_cast<std::uintptr_t>(this));
     }
 
-    double UiParameters::value(std::size_t index) const { return editors[index]->get(); }
+    double UiParameters::value(std::size_t index) const
+    {
+        return editors[index]->get();
+    }
 
-    void UiParameters::setValue(std::size_t index, double value) { editors[index]->set(value); }
+    void UiParameters::setValue(std::size_t index, double value)
+    {
+        editors[index]->set(value);
+    }
 
-    void UiParameters::beginGesture(std::size_t index) { editors[index]->beginGesture({}, owner()); }
+    void UiParameters::beginGesture(std::size_t index)
+    {
+        editors[index]->beginGesture({}, owner());
+    }
 
-    void UiParameters::endGesture(std::size_t index) { editors[index]->endGesture(owner()); }
+    void UiParameters::endGesture(std::size_t index)
+    {
+        editors[index]->endGesture(owner());
+    }
 
     void UiParameters::edit(std::size_t index, double value, const history::Options& options)
     {
@@ -182,7 +204,10 @@ namespace soundor::vst3
         editors[index]->beginGesture(options, owner());
     }
 
-    void UiParameters::endEdit(std::size_t index) { editors[index]->endGesture(owner()); }
+    void UiParameters::endEdit(std::size_t index)
+    {
+        editors[index]->endGesture(owner());
+    }
 
     void UiParameters::disconnectEdits() noexcept
     {
@@ -190,7 +215,10 @@ namespace soundor::vst3
             editor->disconnect(owner());
     }
 
-    double UiParameters::constrain(std::size_t index, double value) const { return definition.constrain(index, value); }
+    double UiParameters::constrain(std::size_t index, double value) const
+    {
+        return definition.constrain(index, value);
+    }
 
     double UiParameters::toNormalized(std::size_t index, double value) const
     {
@@ -202,7 +230,10 @@ namespace soundor::vst3
         return definition.toValue(index, normalized < 0 ? 0 : normalized > 1 ? 1 : normalized);
     }
 
-    std::string UiParameters::format(std::size_t index, double value) const { return definition.format(index, value); }
+    std::string UiParameters::format(std::size_t index, double value) const
+    {
+        return definition.format(index, value);
+    }
 
     std::optional<double> UiParameters::parse(std::size_t index, std::string_view text) const
     {

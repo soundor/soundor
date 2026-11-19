@@ -49,8 +49,8 @@ namespace soundor::vst3::json
         static Value integer(std::int64_t value);
         static Value unsignedInteger(std::uint64_t value);
         static Value string(std::string value);
-        static Value array(std::vector<Value> items = {});
-        static Value object(std::vector<Member> members = {});
+        static Value array(std::vector<Value> values = {});
+        static Value object(std::vector<Member> values = {});
 
         [[nodiscard]] Kind kind() const noexcept { return type; }
         [[nodiscard]] bool isNull() const noexcept { return type == Kind::Null; }
@@ -80,7 +80,7 @@ namespace soundor::vst3::json
         // An object's member; throws Error naming it when absent.
         [[nodiscard]] const Value& at(std::string_view name) const;
         // Convenience readers of an object's members, with defaults.
-        [[nodiscard]] std::string stringOr(std::string_view name, std::string fallback = {}) const;
+        [[nodiscard]] std::string stringOr(std::string_view name, const std::string& fallback = {}) const;
         [[nodiscard]] double numberOr(std::string_view name, double fallback = 0) const;
         [[nodiscard]] bool booleanOr(std::string_view name, bool fallback = false) const;
         // Appends or replaces an object's member.

@@ -1,1 +1,709 @@
-{"format":1,"plugin":{"id":"dev.soundor.test.native","name":"Test","vendor":"soundor","url":"","email":"","version":"0.1.0","copyright":"","subcategories":"Fx","processorCid":"0102030405060708090A0B0C0D0E0F10","controllerCid":"1112131415161718191A1B1C1D1E1FAB"},"audio":{"inputs":[{"name":"Input","initialChannels":2,"enabledChannels":2}],"outputs":[{"name":"Output","initialChannels":2,"enabledChannels":2}],"layouts":[{"name":"stereo","inputs":[[2]],"outputs":[[2]]},{"name":"mono","inputs":[[1]],"outputs":[[1]]}],"latency":0,"tailSeconds":0},"midi":{"input":true,"output":false},"editor":{"width":800,"height":600,"minWidth":800,"minHeight":600,"maxWidth":800,"maxHeight":600,"resizable":false,"scale":false,"keepAspectRatio":false,"cover":false,"background":4278190080},"runtime":{"timeLimit":5000},"parameters":[{"id":"gain","label":"Gain","type":"float32","access":"automatable","min":0,"max":2,"default":1,"step":0,"unit":"x","choices":[],"group":"","role":"","vstId":3165055,"stepCount":0,"semantics":{"valueType":"float32","toValue":{"kind":"let","type":"float32","value":{"kind":"binary","type":"float64","operator":"max","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"min","left":{"kind":"literal","type":"float64","value":1},"right":{"kind":"input","type":"float64","name":"normalized"}}},"variable":"v0","body":{"kind":"if","type":"float32","condition":{"kind":"binary","type":"boolean","operator":"lte","left":{"kind":"variable","type":"float64","name":"v0"},"right":{"kind":"literal","type":"float64","value":0}},"then":{"kind":"literal","type":"float32","value":0},"else":{"kind":"if","type":"float32","condition":{"kind":"binary","type":"boolean","operator":"gte","left":{"kind":"variable","type":"float64","name":"v0"},"right":{"kind":"literal","type":"float64","value":1}},"then":{"kind":"literal","type":"float32","value":2},"else":{"kind":"let","type":"float32","value":{"kind":"binary","type":"float64","operator":"max","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"min","left":{"kind":"literal","type":"float64","value":2},"right":{"kind":"binary","type":"float64","operator":"add","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"mul","left":{"kind":"variable","type":"float64","name":"v0"},"right":{"kind":"literal","type":"float64","value":2}}}}},"variable":"v1","body":{"kind":"convert","type":"float32","operand":{"kind":"variable","type":"float64","name":"v1"}}}}}},"toNormalized":{"kind":"let","type":"float64","value":{"kind":"binary","type":"float64","operator":"max","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"min","left":{"kind":"literal","type":"float64","value":2},"right":{"kind":"convert","type":"float64","operand":{"kind":"input","type":"float32","name":"value"}}}},"variable":"v0","body":{"kind":"if","type":"float64","condition":{"kind":"binary","type":"boolean","operator":"lte","left":{"kind":"variable","type":"float64","name":"v0"},"right":{"kind":"literal","type":"float64","value":0}},"then":{"kind":"literal","type":"float64","value":0},"else":{"kind":"if","type":"float64","condition":{"kind":"binary","type":"boolean","operator":"gte","left":{"kind":"variable","type":"float64","name":"v0"},"right":{"kind":"literal","type":"float64","value":2}},"then":{"kind":"literal","type":"float64","value":1},"else":{"kind":"binary","type":"float64","operator":"max","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"min","left":{"kind":"literal","type":"float64","value":1},"right":{"kind":"binary","type":"float64","operator":"div","left":{"kind":"binary","type":"float64","operator":"sub","left":{"kind":"variable","type":"float64","name":"v0"},"right":{"kind":"literal","type":"float64","value":0}},"right":{"kind":"literal","type":"float64","value":2}}}}}}},"constrain":{"kind":"let","type":"float32","value":{"kind":"binary","type":"float64","operator":"max","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"min","left":{"kind":"literal","type":"float64","value":2},"right":{"kind":"input","type":"float64","name":"value"}}},"variable":"v0","body":{"kind":"convert","type":"float32","operand":{"kind":"variable","type":"float64","name":"v0"}}},"format":{"kind":"concat","type":"string","operands":[{"kind":"fixed","type":"string","operand":{"kind":"input","type":"float32","name":"value"},"digits":2},{"kind":"literal","type":"string","value":" x"}]},"parse":{"kind":"map","type":"float32?","operand":{"kind":"let","type":"float32?","value":{"kind":"unary","type":"string","operator":"lower","operand":{"kind":"unary","type":"string","operator":"trim","operand":{"kind":"input","type":"string","name":"text"}}},"variable":"v0","body":{"kind":"parse","type":"float32?","operand":{"kind":"binary","type":"string","operator":"removeSuffix","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"x"}}}},"variable":"v0","body":{"kind":"if","type":"float32?","condition":{"kind":"binary","type":"boolean","operator":"and","left":{"kind":"binary","type":"boolean","operator":"gte","left":{"kind":"variable","type":"float32","name":"v0"},"right":{"kind":"literal","type":"float32","value":0}},"right":{"kind":"binary","type":"boolean","operator":"lte","left":{"kind":"variable","type":"float32","name":"v0"},"right":{"kind":"literal","type":"float32","value":2}}},"then":{"kind":"let","type":"float32","value":{"kind":"binary","type":"float64","operator":"max","left":{"kind":"literal","type":"float64","value":0},"right":{"kind":"binary","type":"float64","operator":"min","left":{"kind":"literal","type":"float64","value":2},"right":{"kind":"convert","type":"float64","operand":{"kind":"variable","type":"float32","name":"v0"}}}},"variable":"v1","body":{"kind":"convert","type":"float32","operand":{"kind":"variable","type":"float64","name":"v1"}}},"else":{"kind":"literal","type":"float32?","value":null}}}}},{"id":"on","label":"On","type":"boolean","access":"automatable","min":0,"max":1,"default":1,"step":0,"unit":"","choices":[],"group":"","role":"","vstId":3551,"stepCount":1,"semantics":{"valueType":"uint8","toValue":{"kind":"if","type":"uint8","condition":{"kind":"binary","type":"boolean","operator":"gte","left":{"kind":"input","type":"float64","name":"normalized"},"right":{"kind":"literal","type":"float64","value":0.5}},"then":{"kind":"literal","type":"uint8","value":1},"else":{"kind":"literal","type":"uint8","value":0}},"toNormalized":{"kind":"convert","type":"float64","operand":{"kind":"input","type":"uint8","name":"value"}},"constrain":{"kind":"if","type":"uint8","condition":{"kind":"binary","type":"boolean","operator":"gte","left":{"kind":"input","type":"float64","name":"value"},"right":{"kind":"literal","type":"float64","value":0.5}},"then":{"kind":"literal","type":"uint8","value":1},"else":{"kind":"literal","type":"uint8","value":0}},"format":{"kind":"if","type":"string","condition":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"input","type":"uint8","name":"value"},"right":{"kind":"literal","type":"uint8","value":1}},"then":{"kind":"literal","type":"string","value":"On"},"else":{"kind":"literal","type":"string","value":"Off"}},"parse":{"kind":"let","type":"uint8?","value":{"kind":"unary","type":"string","operator":"lower","operand":{"kind":"unary","type":"string","operator":"trim","operand":{"kind":"input","type":"string","name":"text"}}},"variable":"v0","body":{"kind":"if","type":"uint8?","condition":{"kind":"binary","type":"boolean","operator":"or","left":{"kind":"binary","type":"boolean","operator":"or","left":{"kind":"binary","type":"boolean","operator":"or","left":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"on"}},"right":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"true"}}},"right":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"yes"}}},"right":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"1"}}},"then":{"kind":"literal","type":"uint8","value":1},"else":{"kind":"if","type":"uint8?","condition":{"kind":"binary","type":"boolean","operator":"or","left":{"kind":"binary","type":"boolean","operator":"or","left":{"kind":"binary","type":"boolean","operator":"or","left":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"off"}},"right":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"false"}}},"right":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"no"}}},"right":{"kind":"binary","type":"boolean","operator":"eq","left":{"kind":"variable","type":"string","name":"v0"},"right":{"kind":"literal","type":"string","value":"0"}}},"then":{"kind":"literal","type":"uint8","value":0},"else":{"kind":"literal","type":"uint8?","value":null}}}}}}],"groups":[],"state":{"fields":[{"name":"band","type":{"kind":"declared","name":"Band","declaration":"struct"},"default":"{\"gain\":1,\"shape\":\"sine\"}","maxLength":null,"audio":false},{"name":"label","type":{"kind":"primitive","name":"string"},"default":"\"Init\"","maxLength":null,"audio":false},{"name":"level","type":{"kind":"primitive","name":"float32"},"default":"0.25","maxLength":null,"audio":true},{"name":"seed","type":{"kind":"primitive","name":"uint64"},"default":"\"3\"","maxLength":null,"audio":false},{"name":"steps","type":{"kind":"array","element":{"kind":"primitive","name":"int32"}},"default":"[1]","maxLength":4,"audio":true}],"types":[{"kind":"enum","name":"Shape","values":["sine","saw"]},{"kind":"struct","name":"Band","fields":[{"name":"gain","type":{"kind":"primitive","name":"float32"}},{"name":"shape","type":{"kind":"declared","name":"Shape","declaration":"enum"}}]}],"audio":{"size":24,"fields":[{"name":"level","kind":"value","element":"float32","offset":0},{"name":"steps","kind":"array","element":"int32","offset":4,"dataOffset":8,"maxLength":4}]}},"presets":[{"id":"up","name":"Up","parameters":{"gain":2,"on":1},"state":{"band":"{\"gain\":1,\"shape\":\"sine\"}","label":"\"Init\"","level":"0.25","seed":"\"3\"","steps":"[1]"}}],"streams":[],"events":[],"contract":{"parameters":2,"published":0,"streams":0,"stateSize":24}}
+{
+  "format": 1,
+  "plugin": {
+    "id": "dev.soundor.test.native",
+    "name": "Test",
+    "vendor": "soundor",
+    "url": "",
+    "email": "",
+    "version": "0.1.0",
+    "copyright": "",
+    "subcategories": "Fx",
+    "processorCid": "0102030405060708090A0B0C0D0E0F10",
+    "controllerCid": "1112131415161718191A1B1C1D1E1FAB"
+  },
+  "audio": {
+    "inputs": [{ "name": "Input", "initialChannels": 2, "enabledChannels": 2 }],
+    "outputs": [
+      { "name": "Output", "initialChannels": 2, "enabledChannels": 2 }
+    ],
+    "layouts": [
+      { "name": "stereo", "inputs": [[2]], "outputs": [[2]] },
+      { "name": "mono", "inputs": [[1]], "outputs": [[1]] }
+    ],
+    "latency": 0,
+    "tailSeconds": 0
+  },
+  "midi": { "input": true, "output": false },
+  "editor": {
+    "width": 800,
+    "height": 600,
+    "minWidth": 800,
+    "minHeight": 600,
+    "maxWidth": 800,
+    "maxHeight": 600,
+    "resizable": false,
+    "scale": false,
+    "keepAspectRatio": false,
+    "cover": false,
+    "background": 4278190080
+  },
+  "runtime": { "timeLimit": 5000 },
+  "parameters": [
+    {
+      "id": "gain",
+      "label": "Gain",
+      "type": "float32",
+      "access": "automatable",
+      "min": 0,
+      "max": 2,
+      "default": 1,
+      "step": 0,
+      "unit": "x",
+      "choices": [],
+      "group": "",
+      "role": "",
+      "vstId": 3165055,
+      "stepCount": 0,
+      "semantics": {
+        "valueType": "float32",
+        "toValue": {
+          "kind": "let",
+          "type": "float32",
+          "value": {
+            "kind": "binary",
+            "type": "float64",
+            "operator": "max",
+            "left": { "kind": "literal", "type": "float64", "value": 0 },
+            "right": {
+              "kind": "binary",
+              "type": "float64",
+              "operator": "min",
+              "left": { "kind": "literal", "type": "float64", "value": 1 },
+              "right": {
+                "kind": "input",
+                "type": "float64",
+                "name": "normalized"
+              }
+            }
+          },
+          "variable": "v0",
+          "body": {
+            "kind": "if",
+            "type": "float32",
+            "condition": {
+              "kind": "binary",
+              "type": "boolean",
+              "operator": "lte",
+              "left": { "kind": "variable", "type": "float64", "name": "v0" },
+              "right": { "kind": "literal", "type": "float64", "value": 0 }
+            },
+            "then": { "kind": "literal", "type": "float32", "value": 0 },
+            "else": {
+              "kind": "if",
+              "type": "float32",
+              "condition": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "gte",
+                "left": { "kind": "variable", "type": "float64", "name": "v0" },
+                "right": { "kind": "literal", "type": "float64", "value": 1 }
+              },
+              "then": { "kind": "literal", "type": "float32", "value": 2 },
+              "else": {
+                "kind": "let",
+                "type": "float32",
+                "value": {
+                  "kind": "binary",
+                  "type": "float64",
+                  "operator": "max",
+                  "left": { "kind": "literal", "type": "float64", "value": 0 },
+                  "right": {
+                    "kind": "binary",
+                    "type": "float64",
+                    "operator": "min",
+                    "left": {
+                      "kind": "literal",
+                      "type": "float64",
+                      "value": 2
+                    },
+                    "right": {
+                      "kind": "binary",
+                      "type": "float64",
+                      "operator": "add",
+                      "left": {
+                        "kind": "literal",
+                        "type": "float64",
+                        "value": 0
+                      },
+                      "right": {
+                        "kind": "binary",
+                        "type": "float64",
+                        "operator": "mul",
+                        "left": {
+                          "kind": "variable",
+                          "type": "float64",
+                          "name": "v0"
+                        },
+                        "right": {
+                          "kind": "literal",
+                          "type": "float64",
+                          "value": 2
+                        }
+                      }
+                    }
+                  }
+                },
+                "variable": "v1",
+                "body": {
+                  "kind": "convert",
+                  "type": "float32",
+                  "operand": {
+                    "kind": "variable",
+                    "type": "float64",
+                    "name": "v1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "toNormalized": {
+          "kind": "let",
+          "type": "float64",
+          "value": {
+            "kind": "binary",
+            "type": "float64",
+            "operator": "max",
+            "left": { "kind": "literal", "type": "float64", "value": 0 },
+            "right": {
+              "kind": "binary",
+              "type": "float64",
+              "operator": "min",
+              "left": { "kind": "literal", "type": "float64", "value": 2 },
+              "right": {
+                "kind": "convert",
+                "type": "float64",
+                "operand": {
+                  "kind": "input",
+                  "type": "float32",
+                  "name": "value"
+                }
+              }
+            }
+          },
+          "variable": "v0",
+          "body": {
+            "kind": "if",
+            "type": "float64",
+            "condition": {
+              "kind": "binary",
+              "type": "boolean",
+              "operator": "lte",
+              "left": { "kind": "variable", "type": "float64", "name": "v0" },
+              "right": { "kind": "literal", "type": "float64", "value": 0 }
+            },
+            "then": { "kind": "literal", "type": "float64", "value": 0 },
+            "else": {
+              "kind": "if",
+              "type": "float64",
+              "condition": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "gte",
+                "left": { "kind": "variable", "type": "float64", "name": "v0" },
+                "right": { "kind": "literal", "type": "float64", "value": 2 }
+              },
+              "then": { "kind": "literal", "type": "float64", "value": 1 },
+              "else": {
+                "kind": "binary",
+                "type": "float64",
+                "operator": "max",
+                "left": { "kind": "literal", "type": "float64", "value": 0 },
+                "right": {
+                  "kind": "binary",
+                  "type": "float64",
+                  "operator": "min",
+                  "left": { "kind": "literal", "type": "float64", "value": 1 },
+                  "right": {
+                    "kind": "binary",
+                    "type": "float64",
+                    "operator": "div",
+                    "left": {
+                      "kind": "binary",
+                      "type": "float64",
+                      "operator": "sub",
+                      "left": {
+                        "kind": "variable",
+                        "type": "float64",
+                        "name": "v0"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "type": "float64",
+                        "value": 0
+                      }
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "type": "float64",
+                      "value": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "constrain": {
+          "kind": "let",
+          "type": "float32",
+          "value": {
+            "kind": "binary",
+            "type": "float64",
+            "operator": "max",
+            "left": { "kind": "literal", "type": "float64", "value": 0 },
+            "right": {
+              "kind": "binary",
+              "type": "float64",
+              "operator": "min",
+              "left": { "kind": "literal", "type": "float64", "value": 2 },
+              "right": { "kind": "input", "type": "float64", "name": "value" }
+            }
+          },
+          "variable": "v0",
+          "body": {
+            "kind": "convert",
+            "type": "float32",
+            "operand": { "kind": "variable", "type": "float64", "name": "v0" }
+          }
+        },
+        "format": {
+          "kind": "concat",
+          "type": "string",
+          "operands": [
+            {
+              "kind": "fixed",
+              "type": "string",
+              "operand": {
+                "kind": "input",
+                "type": "float32",
+                "name": "value"
+              },
+              "digits": 2
+            },
+            { "kind": "literal", "type": "string", "value": " x" }
+          ]
+        },
+        "parse": {
+          "kind": "map",
+          "type": "float32?",
+          "operand": {
+            "kind": "let",
+            "type": "float32?",
+            "value": {
+              "kind": "unary",
+              "type": "string",
+              "operator": "lower",
+              "operand": {
+                "kind": "unary",
+                "type": "string",
+                "operator": "trim",
+                "operand": { "kind": "input", "type": "string", "name": "text" }
+              }
+            },
+            "variable": "v0",
+            "body": {
+              "kind": "parse",
+              "type": "float32?",
+              "operand": {
+                "kind": "binary",
+                "type": "string",
+                "operator": "removeSuffix",
+                "left": { "kind": "variable", "type": "string", "name": "v0" },
+                "right": { "kind": "literal", "type": "string", "value": "x" }
+              }
+            }
+          },
+          "variable": "v0",
+          "body": {
+            "kind": "if",
+            "type": "float32?",
+            "condition": {
+              "kind": "binary",
+              "type": "boolean",
+              "operator": "and",
+              "left": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "gte",
+                "left": { "kind": "variable", "type": "float32", "name": "v0" },
+                "right": { "kind": "literal", "type": "float32", "value": 0 }
+              },
+              "right": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "lte",
+                "left": { "kind": "variable", "type": "float32", "name": "v0" },
+                "right": { "kind": "literal", "type": "float32", "value": 2 }
+              }
+            },
+            "then": {
+              "kind": "let",
+              "type": "float32",
+              "value": {
+                "kind": "binary",
+                "type": "float64",
+                "operator": "max",
+                "left": { "kind": "literal", "type": "float64", "value": 0 },
+                "right": {
+                  "kind": "binary",
+                  "type": "float64",
+                  "operator": "min",
+                  "left": { "kind": "literal", "type": "float64", "value": 2 },
+                  "right": {
+                    "kind": "convert",
+                    "type": "float64",
+                    "operand": {
+                      "kind": "variable",
+                      "type": "float32",
+                      "name": "v0"
+                    }
+                  }
+                }
+              },
+              "variable": "v1",
+              "body": {
+                "kind": "convert",
+                "type": "float32",
+                "operand": {
+                  "kind": "variable",
+                  "type": "float64",
+                  "name": "v1"
+                }
+              }
+            },
+            "else": { "kind": "literal", "type": "float32?", "value": null }
+          }
+        }
+      }
+    },
+    {
+      "id": "on",
+      "label": "On",
+      "type": "boolean",
+      "access": "automatable",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 0,
+      "unit": "",
+      "choices": [],
+      "group": "",
+      "role": "",
+      "vstId": 3551,
+      "stepCount": 1,
+      "semantics": {
+        "valueType": "uint8",
+        "toValue": {
+          "kind": "if",
+          "type": "uint8",
+          "condition": {
+            "kind": "binary",
+            "type": "boolean",
+            "operator": "gte",
+            "left": {
+              "kind": "input",
+              "type": "float64",
+              "name": "normalized"
+            },
+            "right": { "kind": "literal", "type": "float64", "value": 0.5 }
+          },
+          "then": { "kind": "literal", "type": "uint8", "value": 1 },
+          "else": { "kind": "literal", "type": "uint8", "value": 0 }
+        },
+        "toNormalized": {
+          "kind": "convert",
+          "type": "float64",
+          "operand": { "kind": "input", "type": "uint8", "name": "value" }
+        },
+        "constrain": {
+          "kind": "if",
+          "type": "uint8",
+          "condition": {
+            "kind": "binary",
+            "type": "boolean",
+            "operator": "gte",
+            "left": { "kind": "input", "type": "float64", "name": "value" },
+            "right": { "kind": "literal", "type": "float64", "value": 0.5 }
+          },
+          "then": { "kind": "literal", "type": "uint8", "value": 1 },
+          "else": { "kind": "literal", "type": "uint8", "value": 0 }
+        },
+        "format": {
+          "kind": "if",
+          "type": "string",
+          "condition": {
+            "kind": "binary",
+            "type": "boolean",
+            "operator": "eq",
+            "left": { "kind": "input", "type": "uint8", "name": "value" },
+            "right": { "kind": "literal", "type": "uint8", "value": 1 }
+          },
+          "then": { "kind": "literal", "type": "string", "value": "On" },
+          "else": { "kind": "literal", "type": "string", "value": "Off" }
+        },
+        "parse": {
+          "kind": "let",
+          "type": "uint8?",
+          "value": {
+            "kind": "unary",
+            "type": "string",
+            "operator": "lower",
+            "operand": {
+              "kind": "unary",
+              "type": "string",
+              "operator": "trim",
+              "operand": { "kind": "input", "type": "string", "name": "text" }
+            }
+          },
+          "variable": "v0",
+          "body": {
+            "kind": "if",
+            "type": "uint8?",
+            "condition": {
+              "kind": "binary",
+              "type": "boolean",
+              "operator": "or",
+              "left": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "or",
+                "left": {
+                  "kind": "binary",
+                  "type": "boolean",
+                  "operator": "or",
+                  "left": {
+                    "kind": "binary",
+                    "type": "boolean",
+                    "operator": "eq",
+                    "left": {
+                      "kind": "variable",
+                      "type": "string",
+                      "name": "v0"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "type": "string",
+                      "value": "on"
+                    }
+                  },
+                  "right": {
+                    "kind": "binary",
+                    "type": "boolean",
+                    "operator": "eq",
+                    "left": {
+                      "kind": "variable",
+                      "type": "string",
+                      "name": "v0"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "type": "string",
+                      "value": "true"
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "binary",
+                  "type": "boolean",
+                  "operator": "eq",
+                  "left": {
+                    "kind": "variable",
+                    "type": "string",
+                    "name": "v0"
+                  },
+                  "right": {
+                    "kind": "literal",
+                    "type": "string",
+                    "value": "yes"
+                  }
+                }
+              },
+              "right": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "eq",
+                "left": { "kind": "variable", "type": "string", "name": "v0" },
+                "right": { "kind": "literal", "type": "string", "value": "1" }
+              }
+            },
+            "then": { "kind": "literal", "type": "uint8", "value": 1 },
+            "else": {
+              "kind": "if",
+              "type": "uint8?",
+              "condition": {
+                "kind": "binary",
+                "type": "boolean",
+                "operator": "or",
+                "left": {
+                  "kind": "binary",
+                  "type": "boolean",
+                  "operator": "or",
+                  "left": {
+                    "kind": "binary",
+                    "type": "boolean",
+                    "operator": "or",
+                    "left": {
+                      "kind": "binary",
+                      "type": "boolean",
+                      "operator": "eq",
+                      "left": {
+                        "kind": "variable",
+                        "type": "string",
+                        "name": "v0"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "type": "string",
+                        "value": "off"
+                      }
+                    },
+                    "right": {
+                      "kind": "binary",
+                      "type": "boolean",
+                      "operator": "eq",
+                      "left": {
+                        "kind": "variable",
+                        "type": "string",
+                        "name": "v0"
+                      },
+                      "right": {
+                        "kind": "literal",
+                        "type": "string",
+                        "value": "false"
+                      }
+                    }
+                  },
+                  "right": {
+                    "kind": "binary",
+                    "type": "boolean",
+                    "operator": "eq",
+                    "left": {
+                      "kind": "variable",
+                      "type": "string",
+                      "name": "v0"
+                    },
+                    "right": {
+                      "kind": "literal",
+                      "type": "string",
+                      "value": "no"
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "binary",
+                  "type": "boolean",
+                  "operator": "eq",
+                  "left": {
+                    "kind": "variable",
+                    "type": "string",
+                    "name": "v0"
+                  },
+                  "right": { "kind": "literal", "type": "string", "value": "0" }
+                }
+              },
+              "then": { "kind": "literal", "type": "uint8", "value": 0 },
+              "else": { "kind": "literal", "type": "uint8?", "value": null }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "groups": [],
+  "state": {
+    "fields": [
+      {
+        "name": "band",
+        "type": { "kind": "declared", "name": "Band", "declaration": "struct" },
+        "default": "{\"gain\":1,\"shape\":\"sine\"}",
+        "maxLength": null,
+        "audio": false
+      },
+      {
+        "name": "label",
+        "type": { "kind": "primitive", "name": "string" },
+        "default": "\"Init\"",
+        "maxLength": null,
+        "audio": false
+      },
+      {
+        "name": "level",
+        "type": { "kind": "primitive", "name": "float32" },
+        "default": "0.25",
+        "maxLength": null,
+        "audio": true
+      },
+      {
+        "name": "seed",
+        "type": { "kind": "primitive", "name": "uint64" },
+        "default": "\"3\"",
+        "maxLength": null,
+        "audio": false
+      },
+      {
+        "name": "steps",
+        "type": {
+          "kind": "array",
+          "element": { "kind": "primitive", "name": "int32" }
+        },
+        "default": "[1]",
+        "maxLength": 4,
+        "audio": true
+      }
+    ],
+    "types": [
+      { "kind": "enum", "name": "Shape", "values": ["sine", "saw"] },
+      {
+        "kind": "struct",
+        "name": "Band",
+        "fields": [
+          {
+            "name": "gain",
+            "type": { "kind": "primitive", "name": "float32" }
+          },
+          {
+            "name": "shape",
+            "type": {
+              "kind": "declared",
+              "name": "Shape",
+              "declaration": "enum"
+            }
+          }
+        ]
+      }
+    ],
+    "audio": {
+      "size": 24,
+      "fields": [
+        { "name": "level", "kind": "value", "element": "float32", "offset": 0 },
+        {
+          "name": "steps",
+          "kind": "array",
+          "element": "int32",
+          "offset": 4,
+          "dataOffset": 8,
+          "maxLength": 4
+        }
+      ]
+    }
+  },
+  "presets": [
+    {
+      "id": "up",
+      "name": "Up",
+      "parameters": { "gain": 2, "on": 1 },
+      "state": {
+        "band": "{\"gain\":1,\"shape\":\"sine\"}",
+        "label": "\"Init\"",
+        "level": "0.25",
+        "seed": "\"3\"",
+        "steps": "[1]"
+      }
+    }
+  ],
+  "streams": [],
+  "events": [],
+  "contract": { "parameters": 2, "published": 0, "streams": 0, "stateSize": 24 }
+}

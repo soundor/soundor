@@ -33,8 +33,8 @@ namespace soundor::vst3
             bool operator==(const Selection&) const = default;
         };
 
-        FactoryPresets(const Plugin& plugin, std::span<const std::unique_ptr<ParameterEditor>> parameters,
-                       StateStore& state, history::StateHistory& history);
+        FactoryPresets(const Plugin& plugin, std::span<const std::unique_ptr<ParameterEditor>> editors,
+                       StateStore& store, history::StateHistory& history);
         ~FactoryPresets();
         FactoryPresets(const FactoryPresets&) = delete;
         FactoryPresets& operator=(const FactoryPresets&) = delete;
@@ -53,7 +53,7 @@ namespace soundor::vst3
 
     private:
         struct SelectionField;
-        [[nodiscard]] bool matches(std::size_t preset) const;
+        [[nodiscard]] bool matches(std::size_t index) const;
 
         const Plugin& definition;
         std::span<const std::unique_ptr<ParameterEditor>> parameters;

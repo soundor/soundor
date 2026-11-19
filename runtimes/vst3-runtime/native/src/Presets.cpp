@@ -34,7 +34,10 @@ namespace soundor::vst3
 
     FactoryPresets::FactoryPresets(const Plugin& plugin, std::span<const std::unique_ptr<ParameterEditor>> editors,
                                    StateStore& store, history::StateHistory& history)
-        : definition(plugin), parameters(editors), state(store), manager(history),
+        : definition(plugin),
+          parameters(editors),
+          state(store),
+          manager(history),
           selection(std::make_unique<SelectionField>())
     {
         manager.registerField(*selection);
@@ -107,5 +110,8 @@ namespace soundor::vst3
         return -1;
     }
 
-    void FactoryPresets::restored() { selection->current.clear(); }
+    void FactoryPresets::restored()
+    {
+        selection->current.clear();
+    }
 } // namespace soundor::vst3

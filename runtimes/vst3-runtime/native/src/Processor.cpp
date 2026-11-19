@@ -35,24 +35,24 @@ namespace soundor::vst3
         {
             switch (channels)
             {
-            case 0:
-                return Vst::SpeakerArr::kEmpty;
-            case 1:
-                return Vst::SpeakerArr::kMono;
-            case 2:
-                return Vst::SpeakerArr::kStereo;
-            case 6:
-                return Vst::SpeakerArr::k51;
-            case 8:
-                return Vst::SpeakerArr::k71Cine;
-            default:
-            {
-                // Some arrangement with that many channels.
-                Vst::SpeakerArrangement out = 0;
-                for (int i = 0; i < channels && i < 64; ++i)
-                    out |= Vst::SpeakerArrangement { 1 } << i;
-                return out;
-            }
+                case 0:
+                    return Vst::SpeakerArr::kEmpty;
+                case 1:
+                    return Vst::SpeakerArr::kMono;
+                case 2:
+                    return Vst::SpeakerArr::kStereo;
+                case 6:
+                    return Vst::SpeakerArr::k51;
+                case 8:
+                    return Vst::SpeakerArr::k71Cine;
+                default:
+                {
+                    // Some arrangement with that many channels.
+                    Vst::SpeakerArrangement out = 0;
+                    for (int i = 0; i < channels && i < 64; ++i)
+                        out |= Vst::SpeakerArrangement { 1 } << i;
+                    return out;
+                }
             }
         }
 
@@ -82,7 +82,9 @@ namespace soundor::vst3
     } // namespace
 
     Processor::Processor(const Plugin& plugin)
-        : definition(plugin), schema(plugin), values(new std::atomic<double>[plugin.parameters.size()]),
+        : definition(plugin),
+          schema(plugin),
+          values(new std::atomic<double>[plugin.parameters.size()]),
           audioState(std::max<std::size_t>(plugin.audioStateSize, 1))
     {
         setControllerClass(FUID::fromTUID(reinterpret_cast<const char*>(plugin.controllerCid.data())));
@@ -182,7 +184,10 @@ namespace soundor::vst3
         return result;
     }
 
-    tresult PLUGIN_API Processor::disconnect(Vst::IConnectionPoint* other) { return AudioEffect::disconnect(other); }
+    tresult PLUGIN_API Processor::disconnect(Vst::IConnectionPoint* other)
+    {
+        return AudioEffect::disconnect(other);
+    }
 
     tresult PLUGIN_API Processor::notify(Vst::IMessage* message)
     {
@@ -302,7 +307,8 @@ namespace soundor::vst3
         for (std::size_t i = 0; i < definition.inputs.size(); ++i)
         {
             auto* bus = FCast<Vst::AudioBus>(audioInputs.at(i));
-            const int count = bus != nullptr && inputActive[i] ? Vst::SpeakerArr::getChannelCount(bus->getArrangement()) : 0;
+            const int count =
+                bus != nullptr && inputActive[i] ? Vst::SpeakerArr::getChannelCount(bus->getArrangement()) : 0;
             inputChannels[i] = count;
             layout.inputs.emplace_back();
             for (int c = 0; c < count; ++c)
@@ -313,7 +319,8 @@ namespace soundor::vst3
         for (std::size_t i = 0; i < definition.outputs.size(); ++i)
         {
             auto* bus = FCast<Vst::AudioBus>(audioOutputs.at(i));
-            const int count = bus != nullptr && outputActive[i] ? Vst::SpeakerArr::getChannelCount(bus->getArrangement()) : 0;
+            const int count =
+                bus != nullptr && outputActive[i] ? Vst::SpeakerArr::getChannelCount(bus->getArrangement()) : 0;
             outputChannels[i] = count;
             layout.outputs.emplace_back();
             for (int c = 0; c < count; ++c)
@@ -357,7 +364,10 @@ namespace soundor::vst3
         return kResultOk;
     }
 
-    uint32 PLUGIN_API Processor::getLatencySamples() { return definition.latency; }
+    uint32 PLUGIN_API Processor::getLatencySamples()
+    {
+        return definition.latency;
+    }
 
     uint32 PLUGIN_API Processor::getTailSamples()
     {
@@ -453,53 +463,53 @@ namespace soundor::vst3
             out.source = 1;
             switch (event.type)
             {
-            case Vst::Event::kNoteOnEvent:
-                out.bytes[0] = static_cast<std::uint8_t>(0x90 | (event.noteOn.channel & 0x0F));
-                out.bytes[1] = static_cast<std::uint8_t>(event.noteOn.pitch & 0x7F);
-                out.bytes[2] = sevenBits(event.noteOn.velocity);
-                break;
-            case Vst::Event::kNoteOffEvent:
-                out.bytes[0] = static_cast<std::uint8_t>(0x80 | (event.noteOff.channel & 0x0F));
-                out.bytes[1] = static_cast<std::uint8_t>(event.noteOff.pitch & 0x7F);
-                out.bytes[2] = sevenBits(event.noteOff.velocity);
-                break;
-            case Vst::Event::kPolyPressureEvent:
-                out.bytes[0] = static_cast<std::uint8_t>(0xA0 | (event.polyPressure.channel & 0x0F));
-                out.bytes[1] = static_cast<std::uint8_t>(event.polyPressure.pitch & 0x7F);
-                out.bytes[2] = sevenBits(event.polyPressure.pressure);
-                break;
-            case Vst::Event::kLegacyMIDICCOutEvent:
-            {
-                const auto& cc = event.midiCCOut;
-                const auto channel = static_cast<std::uint8_t>(cc.channel & 0x0F);
-                if (cc.controlNumber < 128)
+                case Vst::Event::kNoteOnEvent:
+                    out.bytes[0] = static_cast<std::uint8_t>(0x90 | (event.noteOn.channel & 0x0F));
+                    out.bytes[1] = static_cast<std::uint8_t>(event.noteOn.pitch & 0x7F);
+                    out.bytes[2] = sevenBits(event.noteOn.velocity);
+                    break;
+                case Vst::Event::kNoteOffEvent:
+                    out.bytes[0] = static_cast<std::uint8_t>(0x80 | (event.noteOff.channel & 0x0F));
+                    out.bytes[1] = static_cast<std::uint8_t>(event.noteOff.pitch & 0x7F);
+                    out.bytes[2] = sevenBits(event.noteOff.velocity);
+                    break;
+                case Vst::Event::kPolyPressureEvent:
+                    out.bytes[0] = static_cast<std::uint8_t>(0xA0 | (event.polyPressure.channel & 0x0F));
+                    out.bytes[1] = static_cast<std::uint8_t>(event.polyPressure.pitch & 0x7F);
+                    out.bytes[2] = sevenBits(event.polyPressure.pressure);
+                    break;
+                case Vst::Event::kLegacyMIDICCOutEvent:
                 {
-                    out.bytes[0] = static_cast<std::uint8_t>(0xB0 | channel);
-                    out.bytes[1] = cc.controlNumber;
-                    out.bytes[2] = static_cast<std::uint8_t>(cc.value & 0x7F);
+                    const auto& cc = event.midiCCOut;
+                    const auto channel = static_cast<std::uint8_t>(cc.channel & 0x0F);
+                    if (cc.controlNumber < 128)
+                    {
+                        out.bytes[0] = static_cast<std::uint8_t>(0xB0 | channel);
+                        out.bytes[1] = cc.controlNumber;
+                        out.bytes[2] = static_cast<std::uint8_t>(cc.value & 0x7F);
+                    }
+                    else if (cc.controlNumber == Vst::kAfterTouch)
+                    {
+                        out.bytes[0] = static_cast<std::uint8_t>(0xD0 | channel);
+                        out.bytes[1] = static_cast<std::uint8_t>(cc.value & 0x7F);
+                    }
+                    else if (cc.controlNumber == Vst::kPitchBend)
+                    {
+                        out.bytes[0] = static_cast<std::uint8_t>(0xE0 | channel);
+                        out.bytes[1] = static_cast<std::uint8_t>(cc.value & 0x7F);
+                        out.bytes[2] = static_cast<std::uint8_t>(cc.value2 & 0x7F);
+                    }
+                    else if (cc.controlNumber == Vst::kCtrlProgramChange)
+                    {
+                        out.bytes[0] = static_cast<std::uint8_t>(0xC0 | channel);
+                        out.bytes[1] = static_cast<std::uint8_t>(cc.value & 0x7F);
+                    }
+                    else
+                        continue;
+                    break;
                 }
-                else if (cc.controlNumber == Vst::kAfterTouch)
-                {
-                    out.bytes[0] = static_cast<std::uint8_t>(0xD0 | channel);
-                    out.bytes[1] = static_cast<std::uint8_t>(cc.value & 0x7F);
-                }
-                else if (cc.controlNumber == Vst::kPitchBend)
-                {
-                    out.bytes[0] = static_cast<std::uint8_t>(0xE0 | channel);
-                    out.bytes[1] = static_cast<std::uint8_t>(cc.value & 0x7F);
-                    out.bytes[2] = static_cast<std::uint8_t>(cc.value2 & 0x7F);
-                }
-                else if (cc.controlNumber == Vst::kCtrlProgramChange)
-                {
-                    out.bytes[0] = static_cast<std::uint8_t>(0xC0 | channel);
-                    out.bytes[1] = static_cast<std::uint8_t>(cc.value & 0x7F);
-                }
-                else
+                default:
                     continue;
-                break;
-            }
-            default:
-                continue;
             }
             midiIn[midiInCount++] = out;
         }
@@ -721,47 +731,48 @@ namespace soundor::vst3
                 const auto channel = static_cast<int16>(midiEvent.bytes[0] & 0x0F);
                 switch (kind)
                 {
-                case 0x9:
-                    event.type = Vst::Event::kNoteOnEvent;
-                    event.noteOn = { channel, static_cast<int16>(midiEvent.bytes[1]), 0.0f,
-                                     static_cast<float>(midiEvent.bytes[2]) / 127.0f, 0, -1 };
-                    break;
-                case 0x8:
-                    event.type = Vst::Event::kNoteOffEvent;
-                    event.noteOff = { channel, static_cast<int16>(midiEvent.bytes[1]),
-                                      static_cast<float>(midiEvent.bytes[2]) / 127.0f, -1, 0.0f };
-                    break;
-                case 0xA:
-                    event.type = Vst::Event::kPolyPressureEvent;
-                    event.polyPressure = { channel, static_cast<int16>(midiEvent.bytes[1]),
-                                           static_cast<float>(midiEvent.bytes[2]) / 127.0f, -1 };
-                    break;
-                default:
-                    event.type = Vst::Event::kLegacyMIDICCOutEvent;
-                    event.midiCCOut.channel = static_cast<int8>(channel);
-                    if (kind == 0xB)
-                    {
-                        event.midiCCOut.controlNumber = midiEvent.bytes[1];
-                        event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[2]);
-                    }
-                    else if (kind == 0xD)
-                    {
-                        event.midiCCOut.controlNumber = Vst::kAfterTouch;
-                        event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[1]);
-                    }
-                    else if (kind == 0xE)
-                    {
-                        event.midiCCOut.controlNumber = Vst::kPitchBend;
-                        event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[1]);
-                        event.midiCCOut.value2 = static_cast<int8>(midiEvent.bytes[2]);
-                    }
-                    else if (kind == 0xC)
-                    {
-                        event.midiCCOut.controlNumber = Vst::kCtrlProgramChange;
-                        event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[1]);
-                    }
-                    else
-                        continue;
+                    case 0x9:
+                        event.type = Vst::Event::kNoteOnEvent;
+                        event.noteOn = { channel, static_cast<int16>(midiEvent.bytes[1]),
+                                         0.0f,    static_cast<float>(midiEvent.bytes[2]) / 127.0f,
+                                         0,       -1 };
+                        break;
+                    case 0x8:
+                        event.type = Vst::Event::kNoteOffEvent;
+                        event.noteOff = { channel, static_cast<int16>(midiEvent.bytes[1]),
+                                          static_cast<float>(midiEvent.bytes[2]) / 127.0f, -1, 0.0f };
+                        break;
+                    case 0xA:
+                        event.type = Vst::Event::kPolyPressureEvent;
+                        event.polyPressure = { channel, static_cast<int16>(midiEvent.bytes[1]),
+                                               static_cast<float>(midiEvent.bytes[2]) / 127.0f, -1 };
+                        break;
+                    default:
+                        event.type = Vst::Event::kLegacyMIDICCOutEvent;
+                        event.midiCCOut.channel = static_cast<int8>(channel);
+                        if (kind == 0xB)
+                        {
+                            event.midiCCOut.controlNumber = midiEvent.bytes[1];
+                            event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[2]);
+                        }
+                        else if (kind == 0xD)
+                        {
+                            event.midiCCOut.controlNumber = Vst::kAfterTouch;
+                            event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[1]);
+                        }
+                        else if (kind == 0xE)
+                        {
+                            event.midiCCOut.controlNumber = Vst::kPitchBend;
+                            event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[1]);
+                            event.midiCCOut.value2 = static_cast<int8>(midiEvent.bytes[2]);
+                        }
+                        else if (kind == 0xC)
+                        {
+                            event.midiCCOut.controlNumber = Vst::kCtrlProgramChange;
+                            event.midiCCOut.value = static_cast<int8>(midiEvent.bytes[1]);
+                        }
+                        else
+                            continue;
                 }
                 data.outputEvents->addEvent(event);
             }

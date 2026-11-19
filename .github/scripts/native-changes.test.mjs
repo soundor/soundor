@@ -58,14 +58,15 @@ const relock = (name) => (root) => {
   );
 };
 
-// [change, native, juce, benchmark, host, orbit]: the jobs testing
-// @soundor/engine, @soundor/juce-runtime, soundor-benchmark, @soundor/vst3-host
-// and the Orbit example, from the packages they depend on.
+// [change, native, juce, benchmark, host, orbit, vst3]: the jobs testing
+// @soundor/engine, @soundor/juce-runtime, soundor-benchmark, @soundor/vst3-host,
+// the Orbit example and @soundor/vst3-runtime, from the packages they depend on.
 const cases = [
   // None of them depends on these.
   [
     'a docs page',
     create('apps/website/content/docs/(docs)/guide.md'),
+    false,
     false,
     false,
     false,
@@ -80,6 +81,7 @@ const cases = [
     false,
     false,
     false,
+    false,
   ],
   [
     'oxfmt.config.ts',
@@ -89,10 +91,12 @@ const cases = [
     false,
     false,
     false,
+    false,
   ],
   [
     'lockfile comment',
     append('pnpm-lock.yaml', '#'),
+    false,
     false,
     false,
     false,
@@ -109,6 +113,7 @@ const cases = [
     true,
     false,
     true,
+    false,
   ],
   [
     'packages/react source',
@@ -118,6 +123,7 @@ const cases = [
     true,
     false,
     true,
+    false,
   ],
   // What both build plugins with: the CLI, and the codegen in core.
   [
@@ -128,6 +134,7 @@ const cases = [
     true,
     false,
     true,
+    true,
   ],
   [
     'Fastify (the CLI’s DevTools)',
@@ -137,11 +144,13 @@ const cases = [
     true,
     false,
     true,
+    true,
   ],
   [
     'packages/core source',
     append('packages/core/src/index.ts'),
     false,
+    true,
     true,
     true,
     true,
@@ -159,6 +168,7 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'JUCE adapter',
@@ -168,6 +178,7 @@ const cases = [
     true,
     false,
     true,
+    false,
   ],
   [
     'the test plugin',
@@ -177,6 +188,7 @@ const cases = [
     true,
     false,
     true,
+    false,
   ],
   [
     'the benchmark',
@@ -184,6 +196,7 @@ const cases = [
     false,
     false,
     true,
+    false,
     false,
     false,
   ],
@@ -196,6 +209,7 @@ const cases = [
     true,
     false,
     true,
+    true,
   ],
   [
     'engine lowering',
@@ -204,6 +218,7 @@ const cases = [
     true,
     true,
     false,
+    true,
     true,
   ],
   // Orbit's own tests, and what runs them.
@@ -215,6 +230,7 @@ const cases = [
     false,
     false,
     true,
+    false,
   ],
   [
     'the e2e package',
@@ -224,11 +240,13 @@ const cases = [
     false,
     false,
     true,
+    false,
   ],
   // The host also consumes the shared MIDI codec in core.
   [
     'a changeset alone',
     create('.changeset/native-input-fixture.md'),
+    false,
     false,
     false,
     false,
@@ -246,6 +264,7 @@ const cases = [
     false,
     true,
     true,
+    false,
   ],
   [
     'host source and changeset configuration',
@@ -261,6 +280,7 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'host native source',
@@ -270,6 +290,7 @@ const cases = [
     false,
     true,
     true,
+    false,
   ],
   [
     'host client',
@@ -279,6 +300,7 @@ const cases = [
     false,
     true,
     true,
+    false,
   ],
   // Its own change alone is its job's and Orbit's; with another package, the graph decides.
   [
@@ -293,10 +315,12 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'host workflow',
     append('.github/workflows/vst3-host-artifacts.yml'),
+    true,
     true,
     true,
     true,
@@ -311,6 +335,7 @@ const cases = [
     true,
     false,
     true,
+    true,
   ],
   [
     'Babel (the lowering)',
@@ -319,6 +344,7 @@ const cases = [
     true,
     true,
     false,
+    true,
     true,
   ],
   [
@@ -329,12 +355,14 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   // turbo's global dependencies and CI itself.
-  ['.clang-tidy', append('.clang-tidy'), true, true, true, true, true],
+  ['.clang-tidy', append('.clang-tidy'), true, true, true, true, true, true],
   [
     'verified dependencies',
     append('.github/scripts/verified-deps.mjs'),
+    true,
     true,
     true,
     true,
@@ -349,6 +377,7 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'native artifact planning',
@@ -358,11 +387,13 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
-  ['.nvmrc', append('.nvmrc'), true, true, true, true, true],
+  ['.nvmrc', append('.nvmrc'), true, true, true, true, true, true],
   [
     'verify workflow',
     append('.github/workflows/verify.yml'),
+    true,
     true,
     true,
     true,
@@ -377,10 +408,12 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'engine workflow',
     append('.github/workflows/engine.yml'),
+    true,
     true,
     true,
     true,
@@ -395,6 +428,7 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'orbit workflow',
@@ -404,10 +438,12 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'release workflow',
     append('.github/workflows/release.yml'),
+    true,
     true,
     true,
     true,
@@ -458,7 +494,16 @@ test('native jobs follow the affected packages they test', () => {
       '--no-verify',
     );
     const base = git('rev-parse', 'HEAD');
-    for (const [name, change, native, juce, benchmark, host, orbit] of cases) {
+    for (const [
+      name,
+      change,
+      native,
+      juce,
+      benchmark,
+      host,
+      orbit,
+      vst3,
+    ] of cases) {
       git('reset', '-q', '--hard', base);
       git('clean', '-qfd');
       change(root);
@@ -487,7 +532,7 @@ test('native jobs follow the affected packages they test', () => {
       });
       assert.equal(
         readFileSync(output, 'utf8'),
-        `native=${native}\njuce=${juce}\nbenchmark=${benchmark}\nhost=${host}\norbit=${orbit}\n`,
+        `native=${native}\njuce=${juce}\nbenchmark=${benchmark}\nhost=${host}\norbit=${orbit}\nvst3=${vst3}\n`,
         name,
       );
       rmSync(output);
@@ -507,7 +552,7 @@ test('an unknown base runs every native job', () => {
     });
     assert.equal(
       readFileSync(output, 'utf8'),
-      'native=true\njuce=true\nbenchmark=true\nhost=true\norbit=true\n',
+      'native=true\njuce=true\nbenchmark=true\nhost=true\norbit=true\nvst3=true\n',
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -46,7 +46,11 @@ namespace soundor::vst3
     class WindowTarget final : public render::RasterTarget
     {
     public:
-        void attach(x11::Window* window) { target = window; imageWidth = imageHeight = 0; }
+        void attach(x11::Window* window)
+        {
+            target = window;
+            imageWidth = imageHeight = 0;
+        }
         Pixels acquire(int width, int height) override;
         void present(const render::Region& damage) override;
         // Where the frame goes in the window (physical pixels), and the
@@ -86,7 +90,7 @@ namespace soundor::vst3
         Steinberg::tresult PLUGIN_API removed() override;
         Steinberg::tresult PLUGIN_API onSize(Steinberg::ViewRect* newSize) override;
         Steinberg::tresult PLUGIN_API canResize() override;
-        Steinberg::tresult PLUGIN_API checkSizeConstraint(Steinberg::ViewRect* rect) override;
+        Steinberg::tresult PLUGIN_API checkSizeConstraint(Steinberg::ViewRect* wanted) override;
         Steinberg::tresult PLUGIN_API getSize(Steinberg::ViewRect* size) override;
         Steinberg::tresult PLUGIN_API onFocus(Steinberg::TBool state) override;
         // IPlugViewContentScaleSupport
@@ -100,9 +104,9 @@ namespace soundor::vst3
 
         OBJ_METHODS(Editor, CPluginView)
         DEFINE_INTERFACES
-            DEF_INTERFACE(Steinberg::IPlugViewContentScaleSupport)
-            DEF_INTERFACE(Steinberg::Linux::ITimerHandler)
-            DEF_INTERFACE(Steinberg::Linux::IEventHandler)
+        DEF_INTERFACE(Steinberg::IPlugViewContentScaleSupport)
+        DEF_INTERFACE(Steinberg::Linux::ITimerHandler)
+        DEF_INTERFACE(Steinberg::Linux::IEventHandler)
         END_DEFINE_INTERFACES(CPluginView)
         REFCOUNT_METHODS(CPluginView)
 
@@ -138,7 +142,7 @@ namespace soundor::vst3
         void updateCursor();
         void applySizeRequest();
         void tick();
-        [[nodiscard]] Steinberg::ViewRect constrained(Steinberg::ViewRect rect) const;
+        [[nodiscard]] Steinberg::ViewRect constrained(Steinberg::ViewRect wanted) const;
 
         Controller* controller;
         const Plugin& definition;

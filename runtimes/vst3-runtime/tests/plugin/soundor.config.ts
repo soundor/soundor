@@ -58,7 +58,12 @@ export default defineSoundorConfig({
       default: 'clean',
     },
     steps: { type: 'int8', label: 'Steps', min: -4, max: 4, default: 0 },
-    bypass: { type: 'boolean', label: 'Bypass', default: false, role: 'bypass' },
+    bypass: {
+      type: 'boolean',
+      label: 'Bypass',
+      default: false,
+      role: 'bypass',
+    },
     peak: {
       type: 'float32',
       label: 'Peak',

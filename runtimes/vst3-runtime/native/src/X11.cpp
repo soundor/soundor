@@ -74,9 +74,15 @@ namespace soundor::vst3::x11
 
         // Xlib's default handler exits the process: a host window gone
         // before the editor must not take the host with it.
-        int ignoreErrors(Display*, XErrorEvent*) { return 0; }
+        int ignoreErrors(Display*, XErrorEvent*)
+        {
+            return 0;
+        }
 
-        Display* asDisplay(void* display) { return static_cast<Display*>(display); }
+        Display* asDisplay(void* display)
+        {
+            return static_cast<Display*>(display);
+        }
     } // namespace
 
     std::unique_ptr<Window> Window::create(std::uintptr_t parent, int width, int height, std::uint32_t background,
@@ -132,13 +138,17 @@ namespace soundor::vst3::x11
         lib->XCloseDisplay(asDisplay(display));
     }
 
-    int Window::fileDescriptor() const noexcept { return xlib()->XConnectionNumber(asDisplay(display)); }
+    int Window::fileDescriptor() const noexcept
+    {
+        return xlib()->XConnectionNumber(asDisplay(display));
+    }
 
     void Window::resize(int width, int height)
     {
         const auto* lib = xlib();
         lib->XMoveResizeWindow(asDisplay(display), static_cast<::Window>(window), 0, 0,
-                               static_cast<unsigned int>(std::max(1, width)), static_cast<unsigned int>(std::max(1, height)));
+                               static_cast<unsigned int>(std::max(1, width)),
+                               static_cast<unsigned int>(std::max(1, height)));
         lib->XFlush(asDisplay(display));
     }
 
@@ -162,32 +172,32 @@ namespace soundor::vst3::x11
         unsigned int font = XC_left_ptr;
         switch (shape)
         {
-        case CursorIcon::Hand:
-            font = XC_hand2;
-            break;
-        case CursorIcon::Text:
-            font = XC_xterm;
-            break;
-        case CursorIcon::Crosshair:
-            font = XC_crosshair;
-            break;
-        case CursorIcon::Move:
-            font = XC_fleur;
-            break;
-        case CursorIcon::HorizontalResize:
-            font = XC_sb_h_double_arrow;
-            break;
-        case CursorIcon::VerticalResize:
-            font = XC_sb_v_double_arrow;
-            break;
-        case CursorIcon::DiagonalResizeUp:
-            font = XC_top_right_corner;
-            break;
-        case CursorIcon::DiagonalResizeDown:
-            font = XC_bottom_right_corner;
-            break;
-        case CursorIcon::Arrow:
-            break;
+            case CursorIcon::Hand:
+                font = XC_hand2;
+                break;
+            case CursorIcon::Text:
+                font = XC_xterm;
+                break;
+            case CursorIcon::Crosshair:
+                font = XC_crosshair;
+                break;
+            case CursorIcon::Move:
+                font = XC_fleur;
+                break;
+            case CursorIcon::HorizontalResize:
+                font = XC_sb_h_double_arrow;
+                break;
+            case CursorIcon::VerticalResize:
+                font = XC_sb_v_double_arrow;
+                break;
+            case CursorIcon::DiagonalResizeUp:
+                font = XC_top_right_corner;
+                break;
+            case CursorIcon::DiagonalResizeDown:
+                font = XC_bottom_right_corner;
+                break;
+            case CursorIcon::Arrow:
+                break;
         }
         if (cursor != 0)
             lib->XFreeCursor(asDisplay(display), cursor);
@@ -203,8 +213,8 @@ namespace soundor::vst3::x11
         int x = 0;
         int y = 0;
         lib->XTranslateCoordinates(asDisplay(display), static_cast<::Window>(window),
-                                   lib->XRootWindow(asDisplay(display), lib->XDefaultScreen(asDisplay(display))), 0, 0, &x,
-                                   &y, &child);
+                                   lib->XRootWindow(asDisplay(display), lib->XDefaultScreen(asDisplay(display))), 0, 0,
+                                   &x, &y, &child);
         return { x, y };
     }
 
@@ -249,5 +259,8 @@ namespace soundor::vst3::x11
                             static_cast<unsigned int>(width), static_cast<unsigned int>(height));
     }
 
-    void Window::flush() { xlib()->XFlush(asDisplay(display)); }
+    void Window::flush()
+    {
+        xlib()->XFlush(asDisplay(display));
+    }
 } // namespace soundor::vst3::x11

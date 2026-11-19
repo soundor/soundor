@@ -191,10 +191,11 @@ namespace soundor::vst3
         out->controllerCid = parseClassId(identity.at("controllerCid").asString());
 
         const auto& audio = root.at("audio");
-        for (const auto& [direction, list] : { std::pair { "inputs", &out->inputs }, std::pair { "outputs", &out->outputs } })
+        for (const auto& [direction, list] :
+             { std::pair { "inputs", &out->inputs }, std::pair { "outputs", &out->outputs } })
             for (const auto& bus : audio.at(direction).asArray())
-                list->push_back({ bus.at("name").asString(), integer(bus, "initialChannels"),
-                                  integer(bus, "enabledChannels") });
+                list->push_back(
+                    { bus.at("name").asString(), integer(bus, "initialChannels"), integer(bus, "enabledChannels") });
         for (const auto& layout : audio.at("layouts").asArray())
         {
             Layout parsed { layout.stringOr("name"), {}, {} };
@@ -386,30 +387,29 @@ namespace soundor::vst3
                            }
                            if (abi.abiVersion != SOUNDOR_VST3_ABI_VERSION)
                            {
-                               problem = "the plugin was built for VST3 runtime ABI "
-                                         + std::to_string(abi.abiVersion) + ", this adapter speaks "
-                                         + std::to_string(SOUNDOR_VST3_ABI_VERSION);
+                               problem = "the plugin was built for VST3 runtime ABI " + std::to_string(abi.abiVersion)
+                                         + ", this adapter speaks " + std::to_string(SOUNDOR_VST3_ABI_VERSION);
                                log("Soundor: " + problem);
                                return;
                            }
                            try
                            {
-                               loaded = parseDescriptor(std::string_view(
-                                   reinterpret_cast<const char*>(abi.descriptor), abi.descriptorSize));
+                               loaded = parseDescriptor(
+                                   std::string_view(reinterpret_cast<const char*>(abi.descriptor), abi.descriptorSize));
                                loaded->controllerDescriptor.assign(
                                    abi.controllerDescriptor, abi.controllerDescriptor + abi.controllerDescriptorSize);
                                for (std::size_t i = 0; i < abi.fileCount; ++i)
                                {
                                    const auto& file = abi.files[i];
-                                   loaded->files.push_back(
-                                       { std::string_view(file.path, file.pathLength),
-                                         std::span<const std::uint8_t>(file.data, file.size) });
+                                   loaded->files.push_back({ std::string_view(file.path, file.pathLength),
+                                                             std::span<const std::uint8_t>(file.data, file.size) });
                                }
                                // State values in the adapter's canonical form (float32
                                // values as they round, 64-bit integers as strings).
                                const StateSchema schema(*loaded);
                                for (std::size_t i = 0; i < loaded->state.size(); ++i)
-                                   loaded->state[i].defaultJson = schema.canonical(i, std::string_view(loaded->state[i].defaultJson));
+                                   loaded->state[i].defaultJson =
+                                       schema.canonical(i, std::string_view(loaded->state[i].defaultJson));
                                for (auto& preset : loaded->presets)
                                    for (auto& [field, json] : preset.state)
                                        if (const auto index = schema.indexOf(field))
@@ -417,8 +417,8 @@ namespace soundor::vst3
                                if (abi.logFileLength > 0)
                                    loaded->logFile = std::filesystem::path(std::string(abi.logFile, abi.logFileLength));
                                if (abi.uiDirectoryLength > 0)
-                                   loaded->uiDirectory = std::filesystem::path(
-                                       std::string(abi.uiDirectory, abi.uiDirectoryLength));
+                                   loaded->uiDirectory =
+                                       std::filesystem::path(std::string(abi.uiDirectory, abi.uiDirectoryLength));
                            }
                            catch (const std::exception& failure)
                            {

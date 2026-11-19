@@ -84,7 +84,7 @@ namespace soundor::vst3::expression
 
         // Throws json::Error when the tree is malformed or its types do not
         // check (an input it does not declare, an operand of another type).
-        static Expression compile(const json::Value& tree, std::vector<Input> inputs);
+        static Expression compile(const json::Value& tree, const std::vector<Input>& inputs);
 
         Expression();
         ~Expression();
