@@ -2,9 +2,8 @@
 // applications and services (HTTP/2, and HTTP/3 from Windows 11), with the
 // system's proxy settings and certificate store.
 //
-// Each request runs synchronously on a thread of its own; a cancelled one
-// has its handles closed from the watcher thread, which WinHTTP documents as
-// the way to stop a call in progress.
+// Each request has a worker that waits for asynchronous WinHTTP operations
+// and closes its own request handle on cancellation.
 
 #include "platform/Http.h"
 
@@ -102,7 +101,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             }
         }
 
-        // A WinHTTP handle, closed once (by its owner, or by a cancellation).
+        // Owns a connection for the lifetime of its request.
         struct Handle
         {
             HINTERNET value = nullptr;
@@ -119,20 +118,127 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             }
         };
 
+        class PendingRequest
+        {
+        public:
+            explicit PendingRequest(HINTERNET request) : handle(request) {}
+            ~PendingRequest() { close(); }
+            PendingRequest(const PendingRequest&) = delete;
+            PendingRequest& operator=(const PendingRequest&) = delete;
+            PendingRequest(PendingRequest&&) = delete;
+            PendingRequest& operator=(PendingRequest&&) = delete;
+
+            [[nodiscard]] DWORD_PTR context() const { return reinterpret_cast<DWORD_PTR>(this); }
+
+            bool observe()
+            {
+                auto value = context();
+                if (! WinHttpSetOption(handle, WINHTTP_OPTION_CONTEXT_VALUE, &value, sizeof value))
+                    return false;
+                observing = WinHttpSetStatusCallback(
+                                handle, &callback,
+                                WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
+                                    | WINHTTP_CALLBACK_FLAG_READ_COMPLETE | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
+                                    | WINHTTP_CALLBACK_FLAG_HANDLES,
+                                0)
+                            != WINHTTP_INVALID_STATUS_CALLBACK;
+                return observing;
+            }
+
+            template <typename Start, typename Cancelled>
+            DWORD run(Start start, Cancelled cancelled, std::chrono::steady_clock::time_point deadline)
+            {
+                if (cancelled())
+                    return ERROR_WINHTTP_OPERATION_CANCELLED;
+                if (std::chrono::steady_clock::now() >= deadline)
+                    return ERROR_WINHTTP_TIMEOUT;
+                {
+                    std::lock_guard lock(mutex);
+                    completed = false;
+                }
+                // WinHTTP may invoke the callback before the call returns.
+                if (! start())
+                    return GetLastError();
+                std::unique_lock lock(mutex);
+                while (! completed && ! cancelled() && std::chrono::steady_clock::now() < deadline)
+                    wake.wait_until(
+                        lock, std::min(deadline, std::chrono::steady_clock::now() + std::chrono::milliseconds(50)));
+                if (completed)
+                    return error;
+                const DWORD failure = cancelled() ? ERROR_WINHTTP_OPERATION_CANCELLED : ERROR_WINHTTP_TIMEOUT;
+                lock.unlock();
+                // Wait until WinHTTP has finished using the operation's buffers.
+                close();
+                return failure;
+            }
+
+            DWORD bytesRead = 0;
+
+        private:
+            static void CALLBACK callback(HINTERNET, DWORD_PTR context, DWORD status, void* info, DWORD length)
+            {
+                if (context == 0)
+                    return;
+                auto& request = *reinterpret_cast<PendingRequest*>(context);
+                std::lock_guard lock(request.mutex);
+                switch (status)
+                {
+                    case WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING:
+                        request.closed = true;
+                        break;
+                    case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
+                        request.error = static_cast<const WINHTTP_ASYNC_RESULT*>(info)->dwError;
+                        request.completed = true;
+                        break;
+                    case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
+                    case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+                    case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
+                        request.bytesRead = length;
+                        request.error = ERROR_SUCCESS;
+                        request.completed = true;
+                        break;
+                    default:
+                        return;
+                }
+                request.wake.notify_all();
+            }
+
+            void close()
+            {
+                if (handle == nullptr)
+                    return;
+                WinHttpCloseHandle(std::exchange(handle, nullptr));
+                if (observing)
+                {
+                    // HANDLE_CLOSING is the last callback that can access this request.
+                    std::unique_lock lock(mutex);
+                    wake.wait(lock, [&] { return closed; });
+                }
+            }
+
+            HINTERNET handle;
+            std::mutex mutex;
+            std::condition_variable wake;
+            DWORD error = ERROR_SUCCESS;
+            bool observing = false;
+            bool completed = false;
+            bool closed = false;
+        };
+
         HINTERNET openSession(bool proxy)
         {
             HINTERNET session = nullptr;
             if (proxy)
             {
                 session = WinHttpOpen(L"Soundor", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
-                                      WINHTTP_NO_PROXY_BYPASS, 0);
+                                      WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
                 if (session == nullptr) // before Windows 8.1
                     session = WinHttpOpen(L"Soundor", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
-                                          WINHTTP_NO_PROXY_BYPASS, 0);
+                                          WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
             }
             else
                 session = WinHttpOpen(L"Soundor", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME,
-                                      WINHTTP_NO_PROXY_BYPASS, 0);
+                                      WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
             if (session == nullptr)
                 return nullptr;
             // HTTP/3 where Windows has it (11 and later), else HTTP/2.
@@ -150,18 +256,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         class WinHttpClient final : public HttpClient
         {
         public:
-            WinHttpClient() : watcher([this] { watch(); }) {}
+            WinHttpClient() = default;
 
             ~WinHttpClient() override
             {
-                {
-                    std::lock_guard lock(mutex);
-                    stopping = true;
-                    for (auto& job : jobs)
-                        closeRequest(job);
-                }
-                wake.notify_all();
-                watcher.join();
+                stopping.store(true);
                 for (auto& job : jobs)
                     if (job.thread.joinable())
                         job.thread.join();
@@ -209,13 +308,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                     [this, &job, session = sessions[index], request = std::move(request),
                      complete = std::move(complete)]() mutable
                     {
-                        auto result = perform(job, session, request);
-                        if (job.cancellation && job.cancellation->isCancelled())
+                        const auto cancelled = [&]
+                        { return stopping.load() || (job.cancellation && job.cancellation->isCancelled()); };
+                        auto result = perform(session, request, cancelled);
+                        if (cancelled())
                             result = std::string("aborted");
-                        {
-                            std::lock_guard guard(mutex);
-                            closeRequest(job);
-                        }
                         complete(std::move(result));
                         job.finished.store(true);
                     });
@@ -225,22 +322,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             struct Job
             {
                 std::shared_ptr<const CancellationToken> cancellation;
-                HINTERNET request = nullptr; // closed under the mutex
-                HINTERNET connection = nullptr;
                 std::thread thread;
                 std::atomic<bool> finished { false };
             };
 
-            static void closeRequest(Job& job)
+            template <typename Cancelled>
+            static Result perform(HINTERNET session, const HttpRequest& request, Cancelled cancelled)
             {
-                if (job.request != nullptr)
-                    WinHttpCloseHandle(std::exchange(job.request, nullptr));
-                if (job.connection != nullptr)
-                    WinHttpCloseHandle(std::exchange(job.connection, nullptr));
-            }
-
-            Result perform(Job& job, HINTERNET session, const HttpRequest& request)
-            {
+                if (cancelled())
+                    return std::string("aborted");
+                const auto deadline = request.timeoutMs == 0 ? std::chrono::steady_clock::time_point::max()
+                                                             : std::chrono::steady_clock::now()
+                                                                   + std::chrono::milliseconds(request.timeoutMs);
                 const std::wstring url = wide(request.url);
                 URL_COMPONENTS parts {};
                 parts.dwStructSize = sizeof parts;
@@ -257,21 +350,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                 if (path.empty())
                     path = L"/";
 
-                HINTERNET connection = WinHttpConnect(session, host.c_str(), parts.nPort, 0);
-                if (connection == nullptr)
+                const Handle connection(WinHttpConnect(session, host.c_str(), parts.nPort, 0));
+                if (connection.value == nullptr)
                     return describe(GetLastError());
-                HINTERNET handle = WinHttpOpenRequest(connection, wide(request.method).c_str(), path.c_str(), nullptr,
-                                                      WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                HINTERNET handle = WinHttpOpenRequest(connection.value, wide(request.method).c_str(), path.c_str(),
+                                                      nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                                       parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
-                {
-                    std::lock_guard lock(mutex);
-                    job.connection = connection;
-                    job.request = handle;
-                    if (handle == nullptr)
-                        return describe(GetLastError());
-                    if (stopping)
-                        return std::string("aborted");
-                }
+                if (handle == nullptr)
+                    return describe(GetLastError());
+                PendingRequest pending(handle);
+                if (! pending.observe())
+                    return describe(GetLastError());
 
                 // 0: no limit, as WinHTTP reads it.
                 const int connect = static_cast<int>(request.connectTimeoutMs);
@@ -293,10 +382,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                 auto* body = request.body.empty() ? WINHTTP_NO_REQUEST_DATA
                                                   : const_cast<std::uint8_t*>(request.body.data()); // NOLINT
                 const auto size = static_cast<DWORD>(request.body.size());
-                if (! WinHttpSendRequest(handle, headers.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headers.c_str(),
-                                         headers.empty() ? 0 : static_cast<DWORD>(-1L), body, size, size, 0)
-                    || ! WinHttpReceiveResponse(handle, nullptr))
-                    return describe(GetLastError());
+                const auto sendError = pending.run(
+                    [&]
+                    {
+                        return WinHttpSendRequest(
+                            handle, headers.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headers.c_str(),
+                            headers.empty() ? 0 : static_cast<DWORD>(-1L), body, size, size, pending.context());
+                    },
+                    cancelled, deadline);
+                if (sendError != ERROR_SUCCESS)
+                    return describe(sendError);
+                const auto receiveError =
+                    pending.run([&] { return WinHttpReceiveResponse(handle, nullptr); }, cancelled, deadline);
+                if (receiveError != ERROR_SUCCESS)
+                    return describe(receiveError);
 
                 HttpResponse response;
                 DWORD status = 0;
@@ -348,42 +447,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                 if (response.url.empty())
                     response.url = request.url;
 
+                std::array<std::uint8_t, 16384> buffer;
                 for (;;)
                 {
-                    DWORD available = 0;
-                    if (! WinHttpQueryDataAvailable(handle, &available))
-                        return describe(GetLastError());
-                    if (available == 0)
+                    const auto readError = pending.run(
+                        [&]
+                        { return WinHttpReadData(handle, buffer.data(), static_cast<DWORD>(buffer.size()), nullptr); },
+                        cancelled, deadline);
+                    if (readError != ERROR_SUCCESS)
+                        return describe(readError);
+                    if (pending.bytesRead == 0)
                         break;
-                    const auto offset = response.body.size();
-                    response.body.resize(offset + available);
-                    DWORD read = 0;
-                    if (! WinHttpReadData(handle, response.body.data() + offset, available, &read))
-                        return describe(GetLastError());
-                    response.body.resize(offset + read);
+                    response.body.insert(response.body.end(), buffer.data(), buffer.data() + pending.bytesRead);
                 }
                 return response;
             }
 
-            // Closes the handles of cancelled requests, within 50 ms.
-            void watch()
-            {
-                std::unique_lock lock(mutex);
-                while (! stopping)
-                {
-                    wake.wait_for(lock, std::chrono::milliseconds(50));
-                    for (auto& job : jobs)
-                        if (job.cancellation && job.cancellation->isCancelled() && ! job.finished.load())
-                            closeRequest(job);
-                }
-            }
-
             std::mutex mutex;
-            std::condition_variable wake;
             std::list<Job> jobs; // stable addresses, for the threads
             std::array<HINTERNET, 2> sessions {};
-            bool stopping = false;
-            std::thread watcher;
+            std::atomic<bool> stopping { false };
         };
     } // namespace
 

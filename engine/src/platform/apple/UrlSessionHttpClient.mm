@@ -115,7 +115,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                     for (const auto& [name, value] : request.headers)
                         [native addValue:string(value) forHTTPHeaderField:string(name)];
                     if (! request.body.empty())
+                    {
+                        // NSURLSession otherwise labels a POST body as form data.
+                        if (! http::hasHeader(request.headers, "Content-Type"))
+                            [native setValue:@"application/octet-stream" forHTTPHeaderField:@"Content-Type"];
                         native.HTTPBody = [NSData dataWithBytes:request.body.data() length:request.body.size()];
+                    }
 
                     std::unique_lock lock(mutex);
                     if (stopping)
@@ -178,12 +183,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                     for (auto it = active.begin(); it != active.end(); ++it)
                         if (it->key == key)
                         {
-                            cancelled = it->cancellation && it->cancellation->isCancelled();
+                            cancelled = stopping || (it->cancellation && it->cancellation->isCancelled());
                             active.erase(it);
                             break;
                         }
+                    done.notify_all();
                 }
-                done.notify_all();
                 if (cancelled || (error != nil && error.code == NSURLErrorCancelled))
                 {
                     complete(std::string("aborted"));
@@ -210,7 +215,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
                     if ([value isKindOfClass:[NSString class]])
                         out.headers.push_back({ utf8(name), utf8((NSString*)value) });
                 }
-                if (data != nil)
+                if (data.length != 0)
                 {
                     const auto* bytes = static_cast<const std::uint8_t*>(data.bytes);
                     out.body.assign(bytes, bytes + data.length);

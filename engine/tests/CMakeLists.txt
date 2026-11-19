@@ -427,7 +427,7 @@ if(NOT WIN32)
       -DAPPLE=${APPLE}
       -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckPrefixed.cmake)
   set_tests_properties(soundor_skia_prefixes_bundled_libraries_detects_unprefixed PROPERTIES
-    PASS_REGULAR_EXPRESSION "lack the soundor_ prefix(.|\n)*png_prefix_probe ")
+    PASS_REGULAR_EXPRESSION "lack[ \n]+the[ \n]+soundor_[ \n]+prefix(.|\n)*png_prefix_probe ")
 endif()
 
 # Coexistence: two plugin-shaped libraries link the same engine archive and

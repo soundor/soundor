@@ -30,6 +30,7 @@ constexpr Socket noSocket = -1;
 #include <functional>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
@@ -79,7 +80,11 @@ namespace
             address.sin_port = 0;
             REQUIRE(bind(listener, reinterpret_cast<sockaddr*>(&address), sizeof address) == 0);
             REQUIRE(listen(listener, 8) == 0);
+#if defined(_WIN32)
+            int length = sizeof address;
+#else
             socklen_t length = sizeof address;
+#endif
             REQUIRE(getsockname(listener, reinterpret_cast<sockaddr*>(&address), &length) == 0);
             port = ntohs(address.sin_port);
             thread = std::thread([this] { serve(); });
@@ -110,7 +115,11 @@ namespace
             return "http://127.0.0.1:" + std::to_string(port) + path;
         }
 
-        std::vector<std::string> requests;
+        [[nodiscard]] std::vector<std::string> receivedRequests() const
+        {
+            std::lock_guard lock(requestsMutex);
+            return requests;
+        }
 
     private:
         void serve()
@@ -144,7 +153,10 @@ namespace
                     if (request.size() >= expected)
                         break;
                 }
-                requests.push_back(request);
+                {
+                    std::lock_guard lock(requestsMutex);
+                    requests.push_back(request);
+                }
                 const std::string response = reply(request);
                 if (! response.empty())
                     sendAll(client, response);
@@ -161,6 +173,8 @@ namespace
         Socket listener = noSocket;
         unsigned short port = 0;
         std::atomic<bool> stopping { false };
+        mutable std::mutex requestsMutex;
+        std::vector<std::string> requests;
         std::thread thread;
     };
 
@@ -215,17 +229,23 @@ TEST_CASE("systemHttpClient: a request and its response, as the server sent them
     if (response == nullptr)
         FAIL(std::get<std::string>(result));
     CHECK(response->status == 201);
+#if defined(__APPLE__)
+    // NSURLSession exposes the status code, so the client supplies the standard phrase.
+    CHECK(response->statusText == "Created");
+#else
     CHECK(response->statusText == "Made It");
+#endif
     CHECK(response->url == request.url);
     CHECK(header(*response, "X-Reply") == "yes");
     CHECK(std::string(response->body.begin(), response->body.end()) == "{\"ok\":true}");
-    REQUIRE(server.requests.size() == 1);
-    const auto& received = server.requests.front();
+    const auto requests = server.receivedRequests();
+    REQUIRE(requests.size() == 1);
+    const auto& received = requests.front();
     INFO(received);
     CHECK(received.starts_with("POST /presets?x=1 HTTP/1.1\r\n"));
     CHECK(lowercase(received).find("x-token: abc\r\n") != std::string::npos);
     CHECK(received.ends_with("\r\n\r\npayload"));
-    // No form content type the client chose, and no 100-continue wait.
+    // Raw bytes must not be labelled as form data.
     CHECK(lowercase(received).find("x-www-form-urlencoded") == std::string::npos);
 }
 

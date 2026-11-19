@@ -12,6 +12,7 @@
     #include <fstream>
     #include <future>
     #include <iterator>
+    #include <memory>
     #include <mutex>
     #include <thread>
 
@@ -340,8 +341,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
     std::string Bridge::sessionFromEnvironment()
     {
         // Read once, while the editor is made, on the UI thread.
+    #if defined(_MSC_VER)
+        char* value = nullptr;
+        std::size_t size = 0;
+        const auto error = _dupenv_s(&value, &size, "SOUNDOR_DEVTOOLS_SESSION");
+        const std::unique_ptr<char, decltype(&std::free)> owned(value, &std::free);
+        return error == 0 && owned ? std::string(owned.get()) : std::string();
+    #else
         const char* value = std::getenv("SOUNDOR_DEVTOOLS_SESSION"); // NOLINT(concurrency-mt-unsafe)
         return value != nullptr ? std::string(value) : std::string();
+    #endif
     }
 
     Bridge::Bridge(Options options)
