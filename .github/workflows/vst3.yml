@@ -295,8 +295,15 @@ jobs:
             archive=pluginval_Windows.zip; sha="$PLUGINVAL_WINDOWS_SHA256"
           fi
           curl -fsSL -o "$RUNNER_TEMP/pluginval/pluginval.zip" "https://github.com/Tracktion/pluginval/releases/download/$PLUGINVAL_VERSION/$archive"
-          echo "$sha  $RUNNER_TEMP/pluginval/pluginval.zip" | shasum -a 256 --check
-          unzip -q "$RUNNER_TEMP/pluginval/pluginval.zip" -d "$RUNNER_TEMP/pluginval"
+          # macOS has shasum; Git Bash on Windows has sha256sum, and 7-Zip
+          # is on the runner image.
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            echo "$sha  $RUNNER_TEMP/pluginval/pluginval.zip" | shasum -a 256 --check
+            unzip -q "$RUNNER_TEMP/pluginval/pluginval.zip" -d "$RUNNER_TEMP/pluginval"
+          else
+            echo "$sha  $RUNNER_TEMP/pluginval/pluginval.zip" | sha256sum --check
+            7z x -y -bd "-o$RUNNER_TEMP/pluginval" "$RUNNER_TEMP/pluginval/pluginval.zip" > /dev/null
+          fi
       # The strictest level, editor included; a failure fails the job.
       - name: pluginval
         run: |
