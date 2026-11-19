@@ -120,8 +120,8 @@ pub use error::Error;
 pub use executor::{Unblock, unblock};
 pub use midi::{MidiError, MidiEvent, MidiMessage, MidiSource};
 pub use plugin::{
-    NativeMethods, ParameterAccess, Parameters, Publish, ResourcePublishers, Resources, STATE_SIZE,
-    StateAccess, StateSnapshot, Streams, choices, types,
+    EventPublishers, NativeMethods, ParameterAccess, Parameters, Publish, ResourcePublishers,
+    Resources, STATE_SIZE, StateAccess, StateSnapshot, Streams, choices, events, types,
 };
 pub use processor::Processor;
 pub use resources::{Resource, ResourceElement, ResourcePublisher};
@@ -144,7 +144,7 @@ pub mod prelude {
         ActiveLayout, AsyncTaskContext, Audio, Controller, Error, MidiError, MidiEvent,
         MidiMessage, MidiSource, NativeMethods, Parameters, PrepareContext, ProcessContext,
         Processor, Publish, ResourcePublishers, Resources, ScheduleError, StateArray,
-        StateSnapshot, Streams, TaskContext, Transport, choices, types,
+        StateSnapshot, Streams, TaskContext, Transport, choices, events, types,
     };
 }
 

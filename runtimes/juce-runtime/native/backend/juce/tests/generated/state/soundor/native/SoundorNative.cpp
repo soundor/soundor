@@ -89,52 +89,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                 });
         }
 
-        // Identifies this context's event dispatcher among its retained values.
-        const char eventsKey = 0;
-        // By event number: what each publisher of Events sends.
-        constexpr std::array<const char*, 1> eventNames { "bandChanged" };
-
-        jsi::Value write(bind::ContextState& ctx, events::BandChanged value)
-        {
-            bind::ObjectBuilder object(ctx);
-            object.set("band", write(ctx, std::move(value.band)));
-            object.set("index", write(ctx, value.index));
-            return object.release();
-        }
-
-        void deliverEvent(bind::ContextState& ctx, std::uint32_t event, const void* value)
-        {
-            switch (event)
-            {
-            case 0:
-            {
-                // Shared by every context it is delivered to: converted from a copy.
-                auto copy = *static_cast<const events::BandChanged*>(value);
-                bind::dispatchEvent(ctx, &eventsKey, 0, write(ctx, std::move(copy)));
-                return;
-            }
-            default:
-                return;
-            }
-        }
-
         // Identifies this context's stream update function among its retained values.
         const char streamsKey = 0;
         // By stream number: the order install() connects them in.
         constexpr std::array<const char*, 1> streamNames { "meter" };
     } // namespace
 
-    bool Events::bandChanged(events::BandChanged event) const
-    {
-        return publish(0, std::make_shared<const events::BandChanged>(std::move(event)));
-    }
-
-    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Streams& streams)
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Streams& streams, std::shared_ptr<processor::RustController> controller)
     {
         if (api == nullptr)
             throw std::invalid_argument("soundor:native needs a NativeApi implementation");
         bind::setContextData(context, &apiKey, std::move(api));
-        bind::connectEvents(context, events, deliverEvent);
+        bind::connectRustEvents(context, controller);
         bind::connectStreams(context, { streams.meter.core() }, &streamsKey);
         js::registerNativeModule(context, "soundor:native",
                                  {
@@ -142,7 +108,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                      {
                                          bind::setProperty(ctx, exports, "loadGroup", bind::function(ctx, "loadGroup", 1, call_loadGroup));
                                          bind::setProperty(ctx, exports, "setBand", bind::function(ctx, "setBand", 1, call_setBand));
-                                         bind::installEvents(ctx, exports, eventNames, &eventsKey);
+                                         bind::installRustEvents(ctx, exports);
                                          bind::installStreams(ctx, exports, streamNames, &streamsKey);
                                      },
                                      {},
@@ -150,19 +116,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                  });
     }
 
-    void installController(js::Context& context, std::shared_ptr<processor::RustController> controller, const Events& events, const Streams& streams)
+    void installController(js::Context& context, std::shared_ptr<processor::RustController> controller, const Streams& streams)
     {
         if (controller == nullptr)
             throw std::invalid_argument("soundor:native needs a Rust controller");
-        bind::setRustController(context, &controllerKey, std::move(controller));
-        bind::connectEvents(context, events, deliverEvent);
+        bind::connectRustEvents(context, controller);
         bind::connectStreams(context, { streams.meter.core() }, &streamsKey);
+        bind::setRustController(context, &controllerKey, std::move(controller));
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](bind::ContextState& ctx, jsi::Object& exports)
                                      {
                                          bind::installRustMethods(ctx, exports, &controllerKey);
-                                         bind::installEvents(ctx, exports, eventNames, &eventsKey);
+                                         bind::installRustEvents(ctx, exports);
                                          bind::installStreams(ctx, exports, streamNames, &streamsKey);
                                      },
                                      {},

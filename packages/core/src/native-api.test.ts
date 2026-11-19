@@ -369,19 +369,16 @@ describe('native events', () => {
       "native.events.class: event name 'class' is reserved in JavaScript, C++ or generated code",
       "native.events.done.value: 'void' is only valid as a return type",
       "native.events.moved.to: unknown type 'Point'; use boolean, string, int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64, a type declared in native.types, 'T[]', 'buffer<T>' or 'T?'",
-      "native.events.publish: event name 'publish' is taken by the generated C++ publisher",
     ]);
     expect(issuesOf({ events: [] as never })).toEqual([
       'native.events: expected an object mapping event names to their fields',
     ]);
     expect(
-      issuesOf({
+      describeNativeApi({
         types: { PresetLoaded: { struct: { path: 'string' } } },
         events: { presetLoaded: { preset: 'PresetLoaded' } },
-      }),
-    ).toEqual([
-      "native.events.presetLoaded: event 'presetLoaded' collides with the type 'PresetLoaded' (its value is the C++ struct events::PresetLoaded); rename one of them",
-    ]);
+      }).ok,
+    ).toBe(true);
     expect(issuesOf({ types: { NativeEvent: { enum: ['a'] } } })).toEqual([
       "native.types.NativeEvent: type name 'NativeEvent' collides with a built-in type",
     ]);

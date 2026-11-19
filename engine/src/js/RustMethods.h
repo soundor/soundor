@@ -28,6 +28,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     // initializer runs (in install()).
     void setRustController(Context& context, const void* key, std::shared_ptr<processor::RustController> controller);
 
+    // Connects the controller's event source before evaluating the UI bundle.
+    void connectRustEvents(Context& context, std::shared_ptr<processor::RustController> controller);
+
+    // In the module's initializer: the event subscriptions for that source.
+    void installRustEvents(detail::ContextState& context, jsi::Object& exports);
+
     // In the module's initializer: one function per method of the
     // controller's contract on `exports`.
     void installRustMethods(detail::ContextState& context, jsi::Object& exports, const void* key);

@@ -57,6 +57,9 @@ unsafe extern "C" fn preset_load(
 ) -> i32 {
     text_service(5, 0, unsafe { std::slice::from_raw_parts(data, len) }, out)
 }
+unsafe extern "C" fn publish_event(_: *mut c_void, index: u32, data: *const u8, len: usize) -> i32 {
+    unsafe { service(6, index, data, len) as i32 }
+}
 fn host() -> Host {
     Host::new(SoundorControllerHost {
         size: std::mem::size_of::<SoundorControllerHost>() as u32,
@@ -69,6 +72,7 @@ fn host() -> Host {
         state_set: Some(state_set),
         history: Some(history),
         preset_load: Some(preset_load),
+        publish_event: Some(publish_event),
     })
     .expect("browser host")
 }

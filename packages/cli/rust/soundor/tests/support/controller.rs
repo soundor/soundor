@@ -24,7 +24,14 @@ impl Controller for PluginController {
     type Shared = std::sync::atomic::AtomicU32;
 }
 impl NativeMethods for PluginController {
-    fn analyze(_: &mut TaskContext<Self>, samples: Vec<f32>) -> Analysis {
+    fn analyze(ctx: &mut TaskContext<Self>, samples: Vec<f32>) -> Analysis {
+        ctx.events
+            .analysis_ready(soundor::events::AnalysisReadyEvent {
+                label: Some("analysis".into()),
+                curve: Curve::EaseIn,
+                samples: samples.clone(),
+            });
+        ctx.events.ready();
         Analysis {
             peak: samples.iter().fold(0.0f32, |a, b| a.max(b.abs())),
             points: Vec::new(),

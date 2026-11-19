@@ -116,6 +116,7 @@ function fieldType(parameter: ResolvedParameter): string {
 
 /** How the Rust generators name and check what the config declares. */
 export const RUST_NAMES: RustNames = {
+  type: rustType,
   field: rustField,
   string: rustString,
   numbers: RUST_NUMBERS,

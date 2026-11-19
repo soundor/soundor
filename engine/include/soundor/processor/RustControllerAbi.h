@@ -25,7 +25,7 @@
 #include <cstdint>
 
 // The version every controller structure carries, as the SDK's host.rs has it.
-inline constexpr std::uint32_t SOUNDOR_CONTROLLER_ABI_VERSION = 1;
+inline constexpr std::uint32_t SOUNDOR_CONTROLLER_ABI_VERSION = 2;
 
 extern "C"
 {
@@ -94,6 +94,8 @@ extern "C"
         std::int32_t (*history)(void* user, std::uint32_t action);
         // Loads the factory preset `id` (UTF-8): 0, or nonzero with the reason.
         std::int32_t (*presetLoad)(void* user, const std::uint8_t* id, std::size_t length, SoundorWriter error);
+        // Queues the event's wire-encoded fields. Nonzero if an editor took it.
+        std::int32_t (*publishEvent)(void* user, std::uint32_t index, const std::uint8_t* data, std::size_t length);
     };
 
     struct SoundorControllerInfo

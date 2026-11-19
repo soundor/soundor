@@ -24,7 +24,6 @@ namespace
         using AudioProcessor::bypassParameter;
         using AudioProcessor::gainParameter;
         using AudioProcessor::history;
-        using AudioProcessor::nativeEvents;
         using AudioProcessor::nativeStreams;
         using AudioProcessor::state;
         int restored = 0;
@@ -723,7 +722,7 @@ TEST_CASE("native control-thread History events are queued safely for JavaScript
     REQUIRE(result.ok());
 }
 
-TEST_CASE("the processor's native events reach an editor runtime from another thread")
+TEST_CASE("the processor's native event subscriptions are installed from the controller contract")
 {
     juce::ScopedJuceInitialiser_GUI init;
     Processor processor;
@@ -731,22 +730,15 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     js::Context context(runtime);
     // The methods are the Rust controller's (inactive here: another contract); the
     // events and streams are connected all the same.
-    native::installController(context, processor.rustController(), processor.nativeEvents, processor.nativeStreams);
+    native::installController(context, processor.rustController(), processor.nativeStreams);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { events } = require('soundor:native');"
                                 "globalThis.seen = [];"
                                 "events.bandChanged.subscribe((e) => seen.push(e.index + ':' + e.band.frequency)); })",
                                 "/ui.js")
                 .ok());
-    std::thread worker(
-        [&processor]
-        {
-            processor.nativeEvents.bandChanged(
-                { .band = { .frequency = 440, .gain = 0, .label = std::nullopt }, .index = 2 });
-        });
-    worker.join();
-    CHECK(js::deliverEvents(context) == 1);
-    CHECK(context.evaluateScript("seen.join()").value().asString() == "2:440");
+    CHECK(js::deliverEvents(context) == 0);
+    CHECK(context.evaluateScript("seen.length").value().asNumber() == 0);
 }
 
 TEST_CASE("the processor's native streams carry the audio thread's latest value to the UI")
@@ -757,7 +749,7 @@ TEST_CASE("the processor's native streams carry the audio thread's latest value 
     js::Context context(runtime);
     // The methods are the Rust controller's (inactive here: another contract); the
     // events and streams are connected all the same.
-    native::installController(context, processor.rustController(), processor.nativeEvents, processor.nativeStreams);
+    native::installController(context, processor.rustController(), processor.nativeStreams);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { streams } = require('soundor:native');"
                                 "globalThis.seen = [];"

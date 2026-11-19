@@ -445,14 +445,13 @@ namespace soundor::vst3::modules
         // ── soundor:native ───────────────────────────────────────────────────
 
         const char controllerKey = 0;
-        const char eventsKey = 0;
         const char streamsKey = 0;
         const char nativeKey = 0;
 
         struct NativeBinding
         {
             // The descriptor's names, which outlive the context.
-            std::vector<const char*> events, streams;
+            std::vector<const char*> streams;
             bool methods = false;
             // Streams nothing feeds, when the processor is out of reach.
             std::unique_ptr<Streams> idle;
@@ -663,8 +662,7 @@ namespace soundor::vst3::modules
             return;
         auto binding = std::make_shared<NativeBinding>();
         binding->methods = methods;
-        for (const auto& name : plugin.events)
-            binding->events.push_back(name.c_str());
+        bind::connectRustEvents(context, rust);
         for (const auto& stream : plugin.streams)
             binding->streams.push_back(stream.name.c_str());
         if (methods)
@@ -687,8 +685,7 @@ namespace soundor::vst3::modules
                                        auto& view = *bind::contextData<NativeBinding>(ctx, &nativeKey);
                                        if (view.methods)
                                            bind::installRustMethods(ctx, exports, &controllerKey);
-                                       if (! view.events.empty())
-                                           bind::installEvents(ctx, exports, view.events, &eventsKey);
+                                       bind::installRustEvents(ctx, exports);
                                        if (! view.streams.empty())
                                            bind::installStreams(ctx, exports, view.streams, &streamsKey);
                                    },

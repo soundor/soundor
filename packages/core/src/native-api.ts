@@ -352,7 +352,6 @@ const MODULE_EXPORTS = new Set(['events', 'streams']);
  * What an event cannot be called: the publisher class's own members in the
  * generated C++ (js::EventSource), and its namespace of values.
  */
-const EVENT_RESERVED = new Set(['events', 'publish', 'statistics', 'hub']);
 
 // Names a declared type cannot take: they would shadow what the generated
 // TypeScript refers to.
@@ -475,19 +474,6 @@ export function describeNativeApi(
     : []) {
     const path = `${basePath}.events.${name}`;
     checkMemberName(name, path, 'event', issues);
-    if (EVENT_RESERVED.has(name))
-      issues.push({
-        path,
-        message: `event name '${name}' is taken by the generated C++ publisher`,
-      });
-    // Its value is the C++ struct events::<Name>, which would hide the type.
-    const structName =
-      name.length > 0 ? name[0]!.toUpperCase() + name.slice(1) : name;
-    if (declaredKinds.has(structName))
-      issues.push({
-        path,
-        message: `event '${name}' collides with the type '${structName}' (its value is the C++ struct events::${structName}); rename one of them`,
-      });
     const fields = checkMembers(decl, path, 'field', issues).map(
       ([fieldName, ref]) => ({
         name: fieldName,

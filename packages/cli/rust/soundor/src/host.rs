@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use crate::error::Error;
 
 /// The version of the controller's ABI, which every structure carries.
-pub const CONTROLLER_ABI_VERSION: u32 = 1;
+pub const CONTROLLER_ABI_VERSION: u32 = 2;
 
 /// Receives bytes one side writes for the other: the reader copies them
 /// before the call returns, so neither side frees the other's memory.
@@ -63,6 +63,10 @@ pub struct SoundorControllerHost {
             length: usize,
             error: SoundorWriter,
         ) -> i32,
+    >,
+    /// Queues the event's wire-encoded fields. Nonzero if an editor took it.
+    pub publish_event: Option<
+        unsafe extern "C" fn(user: *mut c_void, index: u32, data: *const u8, length: usize) -> i32,
     >,
 }
 
@@ -123,6 +127,15 @@ impl Host {
         (table.abi_version == CONTROLLER_ABI_VERSION
             && table.size as usize >= std::mem::size_of::<SoundorControllerHost>())
         .then_some(Self { table })
+    }
+
+    // A plugin with no events generates no calls to this method.
+    #[allow(dead_code)]
+    pub fn publish_event(&self, index: u32, bytes: &[u8]) -> bool {
+        self.table.publish_event.is_some_and(|publish| {
+            // SAFETY: the runtime's callback on the control thread; bytes live through the call.
+            unsafe { publish(self.table.user, index, bytes.as_ptr(), bytes.len()) != 0 }
+        })
     }
 
     pub fn parameter(&self, index: u32) -> f64 {

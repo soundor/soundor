@@ -22,7 +22,6 @@
 import type {
   NativeApiModel,
   NativeStreamModel,
-  NativeEventModel,
   NativeField,
   NativeMethodModel,
   NativeType,
@@ -88,7 +87,6 @@ function controllerParameters(model: NativeApiModel): string {
   return [
     'js::Context& context',
     'std::shared_ptr<processor::RustController> controller',
-    ...(model.events.length > 0 ? ['const Events& events'] : []),
     ...(model.streams.length > 0 ? ['const Streams& streams'] : []),
   ].join(', ');
 }
@@ -107,7 +105,7 @@ function renderControllerDeclaration(
 ${byteLiterals(descriptor, '        ')}
     };
 
-    // As install(), with the methods backed by the plugin's Rust controller
+    // Installs the native events and the methods backed by the plugin's Rust controller
     // (one per plugin instance, shared by its editors) rather than a NativeApi:
     // the engine converts arguments and results as these bindings do, runs
     // async methods on the controller's worker, and settles their promises
@@ -123,27 +121,21 @@ function renderHeader(model: NativeApiModel, descriptor: Uint8Array): string {
     (method) => `        virtual ${methodSignature(method)} = 0;`,
   );
   const apiBody = methods.length > 0 ? `\n${methods.join('\n')}` : '';
-  const hasEvents = model.events.length > 0;
   const hasStreams = model.streams.length > 0;
-  const feeds = [
-    ...(hasEvents ? ['`events`'] : []),
-    ...(hasStreams ? ['`streams`'] : []),
-  ].join(' and ');
   const install =
-    feeds.length > 0
+    hasStreams || model.events.length > 0
       ? `    // Makes \`soundor:native\` importable in \`context\`, backed by \`api\`${model.methods.length === 0 ? '\n    // (nullptr: the config declares no methods)' : ''}, and
-    // connects ${feeds} to it. Call before evaluating code that imports
+    // installs the configured feeds. Call before evaluating code that imports
     // it; the context keeps \`api\` alive, and disconnects when it goes.
-    void install(${installParameters(model)});`
+    void install(${installParameters(model, true)});`
       : `    // Makes \`soundor:native\` importable in \`context\`, backed by \`api\`. Call
     // before evaluating code that imports it; the context keeps \`api\` alive.
-    void install(${installParameters(model)});`;
+    void install(${installParameters(model, true)});`;
   return `${HEADER}#pragma once
 
 ${[
   '#include <soundor/js/Context.h>',
   ...(hasStreams ? ['#include <soundor/js/Streams.h>'] : []),
-  ...(hasEvents ? ['#include <soundor/js/Events.h>'] : []),
 ].join('\n')}
 #include <soundor/js/Promise.h>
 #include <soundor/processor/RustController.h>
@@ -171,24 +163,23 @@ ${types.map((type) => `${type}\n\n`).join('')}    // The plugin's native API, de
     public:
         virtual ~NativeApi() = default;${apiBody}
     };
-${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}${hasStreams ? `\n${renderStreamsDeclaration(model.streams)}\n` : ''}
+${hasStreams ? `\n${renderStreamsDeclaration(model.streams)}\n` : ''}
 ${install}
 ${renderControllerDeclaration(model, descriptor)}} // namespace ${NAMESPACE}
 `;
 }
 
-/** The C++ struct of an event's value: \`presetLoaded\` → \`events::PresetLoaded\`. */
-export function eventStructName(event: NativeEventModel): string {
-  return event.name[0]!.toUpperCase() + event.name.slice(1);
-}
-
 /** install()'s parameters: the context, the API, then each feed it has. */
-function installParameters(model: NativeApiModel): string {
+function installParameters(model: NativeApiModel, declaration = false): string {
   return [
     'js::Context& context',
     'std::shared_ptr<NativeApi> api',
-    ...(model.events.length > 0 ? ['const Events& events'] : []),
     ...(model.streams.length > 0 ? ['const Streams& streams'] : []),
+    ...(model.events.length > 0
+      ? [
+          `std::shared_ptr<processor::RustController> controller${declaration ? ' = {}' : ''}`,
+        ]
+      : []),
   ].join(', ');
 }
 
@@ -221,42 +212,6 @@ function renderStreamsDeclaration(
     struct Streams
     {
 ${members.join('\n')}
-    };`;
-}
-
-function renderEventsDeclaration(events: readonly NativeEventModel[]): string {
-  const structs = events.map(
-    (event) => `        struct ${eventStructName(event)}
-        {
-${event.fields.map((field) => `            ${valueType(field.type)} ${field.name} {};\n`).join('')}        };`,
-  );
-  const publishers = events.map(
-    (event) =>
-      `        bool ${event.name}(events::${eventStructName(event)} event${event.fields.length === 0 ? ' = {}' : ''}) const;`,
-  );
-  return `    // The values of the events declared under \`native.events\`.
-    namespace events
-    {
-${structs.join('\n\n')}
-    } // namespace events
-
-    // The plugin's native events, declared under \`native.events\` in
-    // soundor.config: the plugin publishes them, the UI subscribes to them
-    // (\`events\` of \`soundor:native\`). Keep one per plugin instance and
-    // install() it into each JavaScript context.
-    //
-    // Publish from any thread but the audio callback: a publisher copies the
-    // value, takes a short lock and returns; it never waits for the UI. Each
-    // open UI receives every event published while it is open, on its UI
-    // thread at its next tick, in the order they were published. A UI holds
-    // at most \`capacity\` undelivered events and drops newer ones; with no UI
-    // open, events are dropped. A publisher returns whether a UI took it.
-    class Events : public js::EventSource
-    {
-    public:
-        using js::EventSource::EventSource;
-
-${publishers.join('\n')}
     };`;
 }
 
@@ -356,27 +311,25 @@ function renderSource(model: NativeApiModel): string {
         ? [renderResolver(method), renderBinding(method)]
         : [renderBinding(method)],
     ),
-    ...(model.events.length > 0 ? [renderEventDelivery(model.events)] : []),
     ...(model.streams.length > 0 ? [renderStreamNames(model.streams)] : []),
   ];
 
-  const hasEvents = model.events.length > 0;
   const hasStreams = model.streams.length > 0;
   const exportSetters = [
     ...model.methods.map(
       (method) =>
         `bind::setProperty(ctx, exports, ${JSON.stringify(method.name)}, bind::function(ctx, ${JSON.stringify(method.name)}, ${method.args.length}, ${bindingName(method)}));`,
     ),
-    ...(hasEvents
-      ? ['bind::installEvents(ctx, exports, eventNames, &eventsKey);']
+    ...(model.events.length > 0
+      ? ['bind::installRustEvents(ctx, exports);']
       : []),
     ...(hasStreams
       ? ['bind::installStreams(ctx, exports, streamNames, &streamsKey);']
       : []),
   ];
   const connections = [
-    ...(hasEvents
-      ? ['        bind::connectEvents(context, events, deliverEvent);']
+    ...(model.events.length > 0
+      ? ['        bind::connectRustEvents(context, controller);']
       : []),
     ...(hasStreams
       ? [
@@ -397,8 +350,8 @@ function renderSource(model: NativeApiModel): string {
     void installController(${controllerParameters(model)})
     {
         if (controller == nullptr)
-            throw std::invalid_argument("soundor:native needs a Rust controller");
-        bind::setRustController(context, &controllerKey, std::move(controller));${connections.map((line) => `\n${line}`).join('')}
+            throw std::invalid_argument("soundor:native needs a Rust controller");${connections.map((line) => `\n${line}`).join('')}
+        bind::setRustController(context, &controllerKey, std::move(controller));
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](bind::ContextState& ctx, jsi::Object& exports)
@@ -431,7 +384,7 @@ namespace ${NAMESPACE}
 ${sections.join('\n\n')}
     } // namespace
 
-${hasEvents ? `${model.events.map(renderPublisher).join('\n\n')}\n\n` : ''}    void install(${installParameters(model)})
+    void install(${installParameters(model)})
     {
 ${
   connections.length > 0 && model.methods.length === 0
@@ -481,8 +434,6 @@ function conversionUsage(model: NativeApiModel): {
     for (const arg of method.args) mark(arg.type, reads);
     mark(method.returns, writes);
   }
-  for (const event of model.events)
-    for (const field of event.fields) mark(field.type, writes);
   return { reads, writes };
 }
 
@@ -491,6 +442,7 @@ export function renderEnumConversions(
   readable: boolean,
   writable: boolean,
 ): string {
+  if (!readable && !writable) return '';
   const values = `k${type.name}Values`;
   const parts = [
     `        constexpr std::array<std::string_view, ${type.values.length}> ${values} { ${type.values.map((value) => JSON.stringify(value)).join(', ')} };`,
@@ -545,66 +497,12 @@ ${writes.join('\n')}
   return parts.join('\n\n');
 }
 
-/**
- * The events' JavaScript side: their names, each value's conversion, and the
- * function js::deliverEvents() calls with each one published.
- */
-function renderEventDelivery(events: readonly NativeEventModel[]): string {
-  const writes = events.map((event) => {
-    const type = `events::${eventStructName(event)}`;
-    if (event.fields.length === 0)
-      return `        jsi::Value write(bind::ContextState& ctx, ${type})
-        {
-            return bind::ObjectBuilder(ctx).release();
-        }`;
-    return `        jsi::Value write(bind::ContextState& ctx, ${type} value)
-        {
-            bind::ObjectBuilder object(ctx);
-${event.fields.map((field) => `            object.set(${JSON.stringify(field.name)}, ${writeExpression(field.type, 'ctx', `value.${field.name}`)});`).join('\n')}
-            return object.release();
-        }`;
-  });
-  const cases = events.map(
-    (event, index) => `            case ${index}:
-            {
-                // Shared by every context it is delivered to: converted from a copy.
-                auto copy = *static_cast<const events::${eventStructName(event)}*>(value);
-                bind::dispatchEvent(ctx, &eventsKey, ${index}, write(ctx, std::move(copy)));
-                return;
-            }`,
-  );
-  return `        // Identifies this context's event dispatcher among its retained values.
-        const char eventsKey = 0;
-        // By event number: what each publisher of Events sends.
-        constexpr std::array<const char*, ${events.length}> eventNames { ${events.map((event) => JSON.stringify(event.name)).join(', ')} };
-
-${writes.join('\n\n')}
-
-        void deliverEvent(bind::ContextState& ctx, std::uint32_t event, const void* value)
-        {
-            switch (event)
-            {
-${cases.join('\n')}
-            default:
-                return;
-            }
-        }`;
-}
-
 /** The streams' names, by number, as install() connects them. */
 function renderStreamNames(streams: readonly NativeStreamModel[]): string {
   return `        // Identifies this context's stream update function among its retained values.
         const char streamsKey = 0;
         // By stream number: the order install() connects them in.
         constexpr std::array<const char*, ${streams.length}> streamNames { ${streams.map((stream) => JSON.stringify(stream.name)).join(', ')} };`;
-}
-
-function renderPublisher(event: NativeEventModel, index: number): string {
-  const type = `events::${eventStructName(event)}`;
-  return `    bool Events::${event.name}(${type} event) const
-    {
-        return publish(${index}, std::make_shared<const ${type}>(std::move(event)));
-    }`;
 }
 
 function renderResolver(method: NativeMethodModel): string {

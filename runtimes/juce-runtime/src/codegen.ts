@@ -205,11 +205,9 @@ ${cases('buffer', (name) => `streams.${name}.commit(length); break;`)}
 /** The editor's install() of soundor:native into each new context. */
 function renderNativeInstall(native: NativeApiModel): string {
   const fallback = renderNativeApiInstall(native);
-  if (native.methods.length === 0) return fallback;
-  const feeds = [
-    ...(native.events.length > 0 ? ['owner.nativeEvents'] : []),
-    ...(native.streams.length > 0 ? ['owner.nativeStreams'] : []),
-  ];
+  if (native.methods.length === 0 && native.events.length === 0)
+    return fallback;
+  const feeds = [...(native.streams.length > 0 ? ['owner.nativeStreams'] : [])];
   // The Rust controller backs the methods when the crate exports one;
   // otherwise the C++ NativeApi, as before.
   return `            if (const auto& controller = owner.rustController(); controller != nullptr && controller->present())
@@ -222,8 +220,8 @@ ${fallback.replace(/^/gm, '    ')}
 
 function renderNativeApiInstall(native: NativeApiModel): string {
   const feeds = [
-    ...(native.events.length > 0 ? ['owner.nativeEvents'] : []),
     ...(native.streams.length > 0 ? ['owner.nativeStreams'] : []),
+    ...(native.events.length > 0 ? ['owner.rustController()'] : []),
   ];
   if (feeds.length === 0)
     return `            if (auto api = owner.createNativeApi())
@@ -532,7 +530,6 @@ function renderProcessorHeader(
   native: NativeApiModel,
   config: SoundorConfig,
 ): string {
-  const hasEvents = native.events.length > 0;
   const hasStreams = native.streams.length > 0;
   const enums = choiceEnums(parameters);
   const handles = parameters
@@ -651,24 +648,15 @@ ${audioDeclaration(config)}
         const std::shared_ptr<midi::Host>& midiHost() const noexcept { return midiBridge; }
 
 ${
-  hasEvents
+  hasStreams
     ? `
-        // The config's native events (\`events\` of soundor:native): publish
-        // them from any thread but the audio callback, and every open editor
-        // receives them on its UI thread.
-        native::Events nativeEvents;
-`
-    : ''
-}${
-    hasStreams
-      ? `
         // The config's native streams (\`streams\` of soundor:native): the
         // Rust processing publishes their latest values (\`ctx.streams\`),
         // and every open editor reads the newest.
         native::Streams nativeStreams;
 `
-      : ''
-  }
+    : ''
+}
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}

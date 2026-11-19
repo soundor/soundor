@@ -140,6 +140,7 @@ impl TestHost {
             state_set: Some(state_set),
             history: Some(history),
             preset_load: Some(preset_load),
+            publish_event: None,
         }
     }
 

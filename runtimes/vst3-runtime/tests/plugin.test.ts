@@ -376,6 +376,12 @@ describe('the VST3 test plugin', () => {
           resizable: true,
           platformType: 'X11EmbedWindowID',
         });
+        await expect
+          .poll(
+            async () =>
+              document((await host.getState()).component).state['label'],
+          )
+          .toBe('Doubled 42');
         // Audio goes on while it is open.
         expect(await output(host)).toBeCloseTo(0.5);
         expect(await host.resizeEditor(400, 300)).toMatchObject({

@@ -33,7 +33,8 @@ use crate::executor::{Executor, Task, TaskFuture};
 use crate::host::{HistoryAction, Host, Wake};
 use crate::json::StateValue;
 use crate::plugin::{
-    self, NativeMethods, ParameterAccess, ResourcePublishers, ResourceSlots, StateAccess,
+    self, EventPublishers, NativeMethods, ParameterAccess, ResourcePublishers, ResourceSlots,
+    StateAccess,
 };
 use crate::schedule::{ControlItem, ControlQueue, Schedule, ScheduleError};
 
@@ -166,6 +167,8 @@ pub struct TaskContext<'a, C: Controller> {
     /// UI uses: a change reaches the UI, History and the processor's
     /// snapshot as the UI's own do.
     pub state: StateAccess<'a>,
+    /// Publishes typed native events to open editors on their next delivery.
+    pub events: EventPublishers<'a>,
     /// The plugin's History: undo and redo.
     pub history: HistoryAccess<'a>,
     /// The config's factory presets.
@@ -621,6 +624,7 @@ impl<C: NativeMethods> Instance<C> {
             },
             params: ParameterAccess::new(&self.host),
             state: StateAccess::new(&self.host),
+            events: plugin::event_publishers(&self.host),
             history: HistoryAccess { host: &self.host },
             presets: PresetsAccess { host: &self.host },
             processor: &self.core.processor,

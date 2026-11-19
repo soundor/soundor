@@ -1,5 +1,9 @@
 /** The Rust SDK's schema-driven, little-endian controller value encoding. */
-import type { WebNativeType, WebNativeTypeDeclaration } from './manifest';
+import type {
+  WebNativeField,
+  WebNativeType,
+  WebNativeTypeDeclaration,
+} from './manifest';
 
 type Types = readonly WebNativeTypeDeclaration[];
 
@@ -76,6 +80,24 @@ export function decodeNative(
   type: WebNativeType,
   declarations: Types,
 ): unknown {
+  return decode(bytes, declarations, (read) => read(type));
+}
+
+export function decodeNativeEvent(
+  bytes: Uint8Array,
+  fields: readonly WebNativeField[],
+  declarations: Types,
+): Record<string, unknown> {
+  return decode(bytes, declarations, (read) =>
+    Object.fromEntries(fields.map(({ name, type }) => [name, read(type)])),
+  );
+}
+
+function decode<T>(
+  bytes: Uint8Array,
+  declarations: Types,
+  readValue: (read: (type: WebNativeType) => unknown) => T,
+): T {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let offset = 0;
   const take = (size: number): number => {
@@ -158,7 +180,7 @@ export function decodeNative(
       }
     }
   };
-  const value = read(type);
+  const value = readValue(read);
   if (offset !== bytes.length)
     throw new Error('Trailing Rust controller bytes');
   return value;

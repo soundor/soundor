@@ -89,9 +89,13 @@ namespace
                   linkedDescriptor(), processor::linkedRustController(), services, processorHandle))
         {
             bind::setRustController(*context, &controllerKey, controller);
+            bind::connectRustEvents(*context, controller);
             js::registerNativeModule(*context, "soundor:native",
                                      { [](bind::ContextState& ctx, soundor::jsi::Object& exports)
-                                       { bind::installRustMethods(ctx, exports, &controllerKey); },
+                                       {
+                                           bind::installRustMethods(ctx, exports, &controllerKey);
+                                           bind::installRustEvents(ctx, exports);
+                                       },
                                        {},
                                        {} });
         }
@@ -150,6 +154,25 @@ namespace
         }
     };
 } // namespace
+
+TEST_CASE("Rust event publishers queue typed payloads for each open editor")
+{
+    Fixture f;
+    CHECK(f.value(R"(
+        globalThis.eventsSeen = [];
+        n.events.analysisReady.subscribe((event) => {
+            eventsSeen.push(event.label, event.curve, event.samples.constructor.name, ...event.samples);
+        });
+        n.events.ready.subscribe((event) => eventsSeen.push(Object.keys(event).length));
+        n.analyze(new Float32Array([0.5, -0.75]));
+        globalThis.result = eventsSeen.length;
+    )")
+              .asNumber()
+          == 0);
+    CHECK(js::deliverEvents(*f.context) == 2);
+    CHECK(f.context->evaluateScript("eventsSeen.join(':')").value().asString()
+          == "analysis:ease-in:Float32Array:0.5:-0.75:0");
+}
 
 TEST_CASE("the linked crate exports a controller of the same contract, which runs")
 {

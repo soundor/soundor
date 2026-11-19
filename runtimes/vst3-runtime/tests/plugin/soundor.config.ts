@@ -89,6 +89,7 @@ export default defineSoundorConfig({
   ],
   native: {
     methods: { twice: { args: { value: 'int32' }, returns: 'int32' } },
+    events: { doubled: { value: 'int32' } },
     streams: { level: { type: 'float32' } },
   },
 });

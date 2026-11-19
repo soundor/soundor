@@ -14,6 +14,7 @@ import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { validateInputs, type WebInput } from './input';
 import { WebMidiHost } from './midi';
+import { enqueueNativeEvent } from './native-events';
 import { nativeStreamPublishers } from './native-streams';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
@@ -86,6 +87,7 @@ export async function startSoundorWebHost(
   const controller = new WasmController(
     await WebAssembly.compile(wasm),
     context,
+    enqueueNativeEvent,
   );
   context.controller = controller;
   const audio = new WebAudioHost(context.host, {

@@ -16,9 +16,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         struct EventHub;
     } // namespace detail
 
-    // Discrete notifications from native code to the UI: what a plugin's
-    // generated `native::Events` (soundor.config `native.events`) publishes,
-    // and the `events` of `soundor:native` deliver.
+    // Discrete notifications from a plugin's Rust controller to the UI
+    // subscriptions of `soundor:native`.
     //
     // - publish() may be called from any thread but a realtime one (the audio
     //   callback): it takes a short lock, and its caller allocated the value.

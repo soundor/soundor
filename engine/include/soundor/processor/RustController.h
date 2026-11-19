@@ -8,6 +8,7 @@
 // in each editor's JavaScript context (the generated installController()).
 
 #include <soundor/Abi.h>
+#include <soundor/js/Events.h>
 #include <soundor/processor/RustControllerAbi.h>
 
 #include <chrono>
@@ -108,10 +109,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
             std::uint32_t returns = 0;
         };
 
+        struct Event
+        {
+            std::string name;
+            std::vector<Field> fields;
+        };
+
         std::uint32_t parameterCount = 0;
         std::vector<Declared> types;
         std::vector<Field> state;
         std::vector<Method> methods;
+        std::vector<Event> events;
         std::vector<Type> nodes;
 
         // The contract `descriptor` describes, or nothing when it is not a
@@ -190,6 +198,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         // The runtime's descriptor, parsed (empty when it was malformed).
         [[nodiscard]] const ControllerContract& contract() const noexcept { return described; }
 
+        [[nodiscard]] const js::EventSource& eventSource() const noexcept { return events; }
+
         // A synchronous method, inside the caller's JavaScript call.
         Outcome call(std::uint32_t method, std::span<const std::uint8_t> args);
 
@@ -217,6 +227,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
 
     private:
         RustControllerFunctions abi;
+        struct Events : js::EventSource
+        {
+            using js::EventSource::publish;
+        };
+        Events events;
         ControllerServices& services;
         SoundorControllerHost host {};
         void* handle = nullptr;

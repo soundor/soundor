@@ -124,11 +124,16 @@ function publish(
     value,
     nativeTypes(hostContext().manifest.native.types),
   );
+  return enqueueNativeEvent(index, checked);
+}
+
+/** Queues a value already decoded from the Rust event contract. */
+export function enqueueNativeEvent(index: number, value: unknown): boolean {
   if (queue.length >= EVENT_CAPACITY) {
     ++dropped;
     return false;
   }
-  queue.push({ index, value: checked });
+  queue.push({ index, value });
   if (!scheduled) {
     scheduled = true;
     setTimeout(deliver, 0);

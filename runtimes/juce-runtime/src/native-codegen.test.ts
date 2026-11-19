@@ -169,31 +169,11 @@ describe('generateNativeModuleSources', () => {
     expect(generateNativeModuleSources(modelOf(reversed))).toEqual(files);
   });
 
-  it('declares a publisher for each event and connects them on install', () => {
+  it('connects the controller events through the shared bindings', () => {
     const [header, source] = files.map((file) => file.contents);
-    expect(header).toContain(
-      '        struct PresetLoaded\n        {\n            std::string path {};\n            std::optional<Preset> preset {};\n        };',
-    );
-    expect(header).toContain('        struct Ready\n        {\n        };');
-    expect(header).toContain('    class Events : public js::EventSource');
-    expect(header).toContain(
-      '        bool presetLoaded(events::PresetLoaded event) const;',
-    );
-    expect(header).toContain(
-      '        bool ready(events::Ready event = {}) const;',
-    );
-    expect(header).toContain(
-      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Streams& streams);',
-    );
-    expect(source).toContain(
-      'constexpr std::array<const char*, 3> eventNames { "levels", "presetLoaded", "ready" };',
-    );
-    expect(source).toContain(
-      'bind::connectEvents(context, events, deliverEvent);',
-    );
-    expect(source).toContain(
-      'bind::installEvents(ctx, exports, eventNames, &eventsKey);',
-    );
+    expect(header).not.toContain('class Events');
+    expect(source).toContain('bind::connectRustEvents(context, controller);');
+    expect(source).toContain('bind::installRustEvents(ctx, exports);');
   });
 
   it('installs events without a NativeApi when there are no methods', () => {
@@ -201,9 +181,6 @@ describe('generateNativeModuleSources', () => {
       modelOf({ events: { tick: { count: 'uint32' } } }),
     ).map((file) => file.contents);
     expect(header).toContain('(nullptr: the config declares no methods)');
-    expect(header).toContain(
-      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events);',
-    );
     expect(source).not.toContain('needs a NativeApi implementation');
   });
 
@@ -288,7 +265,7 @@ describe('generateNativeModuleSources', () => {
       'void installController(js::Context& context, std::shared_ptr<processor::RustController> controller',
     );
     expect(header).toContain(
-      'inline constexpr std::uint8_t controllerDescriptor[] = {\n        83, 78, 68, 67, 1, 0, 0, 0,',
+      'inline constexpr std::uint8_t controllerDescriptor[] = {\n        83, 78, 68, 67, 2, 0, 0, 0,',
     );
   });
 

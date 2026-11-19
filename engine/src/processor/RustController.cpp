@@ -11,7 +11,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
 {
     namespace
     {
-        constexpr std::uint32_t descriptorVersion = 1;
+        constexpr std::uint32_t descriptorVersion = 2;
 
         // Reads a descriptor; any malformation fails the whole parse.
         class DescriptorReader
@@ -333,6 +333,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
                 return std::nullopt;
             method.async = async == 1;
         }
+        std::uint32_t eventCount = 0;
+        if (! reader.count(eventCount, 8))
+            return std::nullopt;
+        contract.events.resize(eventCount);
+        for (auto& event : contract.events)
+            if (! reader.string(event.name) || ! readFields(reader, contract, event.fields))
+                return std::nullopt;
         if (! reader.done() || ! resolved(contract))
             return std::nullopt;
         // Every vector is final: views of its strings stay valid.
@@ -374,21 +381,43 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         if (info.descriptor == nullptr
             || ! std::ranges::equal(std::span(info.descriptor, info.descriptorSize), descriptor))
         {
-            problem = "The plugin's Rust controller was built from another soundor.config (its native methods, "
+            problem = "The plugin's Rust controller was built from another soundor.config (its native methods, events, "
                       "types, parameters or state differ): rebuild it with soundor build.";
             return;
         }
         host = SoundorControllerHost {
             static_cast<std::uint32_t>(sizeof(SoundorControllerHost)),
             SOUNDOR_CONTROLLER_ABI_VERSION,
-            &services,
-            &hostWake,
-            &hostParameterGet,
-            &hostParameterSet,
-            &hostStateGet,
-            &hostStateSet,
-            &hostHistory,
-            &hostPresetLoad,
+            this,
+            [](void* user) { hostWake(&static_cast<RustController*>(user)->services); },
+            [](void* user, std::uint32_t index)
+            { return hostParameterGet(&static_cast<RustController*>(user)->services, index); },
+            [](void* user, std::uint32_t index, double plain)
+            { return hostParameterSet(&static_cast<RustController*>(user)->services, index, plain); },
+            [](void* user, std::uint32_t index, SoundorWriter out)
+            { return hostStateGet(&static_cast<RustController*>(user)->services, index, out); },
+            [](void* user, std::uint32_t index, const std::uint8_t* json, std::size_t size, SoundorWriter error)
+            { return hostStateSet(&static_cast<RustController*>(user)->services, index, json, size, error); },
+            [](void* user, std::uint32_t action)
+            { return hostHistory(&static_cast<RustController*>(user)->services, action); },
+            [](void* user, const std::uint8_t* id, std::size_t size, SoundorWriter error)
+            { return hostPresetLoad(&static_cast<RustController*>(user)->services, id, size, error); },
+            [](void* user, std::uint32_t index, const std::uint8_t* data, std::size_t size) -> std::int32_t
+            {
+                auto& controller = *static_cast<RustController*>(user);
+                if (index >= controller.described.events.size() || (size != 0 && data == nullptr))
+                    return 0;
+                try
+                {
+                    auto bytes = size == 0 ? std::make_shared<const std::vector<std::uint8_t>>()
+                                           : std::make_shared<const std::vector<std::uint8_t>>(data, data + size);
+                    return controller.events.publish(index, bytes) ? 1 : 0;
+                }
+                catch (...)
+                {
+                    return 0;
+                }
+            },
         };
         handle = abi.create(&host, processor);
         if (handle == nullptr)
