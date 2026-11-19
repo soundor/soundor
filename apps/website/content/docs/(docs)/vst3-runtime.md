@@ -28,8 +28,9 @@ export default defineSoundorConfig({
 
 ```sh
 pnpm add -D @soundor/vst3-runtime
-soundor build vst3   # .soundor/dist/vst3/Acme Reverb.vst3
-soundor dev vst3     # a Debug build whose UI reloads on every change
+soundor build vst3           # .soundor/dist/vst3/Acme Reverb.vst3
+soundor build vst3 --debug   # a Debug build with DevTools
+soundor dev vst3             # a Debug build whose UI reloads on every change
 ```
 
 A project can list it beside the JUCE and web runtimes;
@@ -48,10 +49,11 @@ does (`pnpm --filter controller build:vst3`).
   `LDFLAGS` is passed on (`-fuse-ld=lld`, say).
 - At run time, what every Soundor plugin on Linux uses: glibc, fontconfig,
   FreeType and GIO, which desktop systems have; X11 and the GPU's libraries
-  are loaded when the editor opens.
+  are loaded when the editor opens, and libcurl (`libcurl.so.4`) when the UI
+  first calls `fetch()`: the system's HTTP stack, never one in the plugin.
 
 `soundor doctor` checks the platform, Rust, the compiler driver, the static
-C++ runtime and the prebuilt adapter.
+C++ runtime, libcurl and the prebuilt adapter.
 
 ## Options
 
@@ -158,6 +160,18 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   otherwise, Soundor's own X11 input (XInput 2) and AT-SPI accessibility. It
   resizes within the config's limits (`editor`), and follows the host's
   content scale.
+- **`fetch()`** goes through the system's libcurl, loaded when first used
+  (`libcurl.so.4`, else `libcurl-gnutls.so.4`), with the system's
+  certificates and proxies, and HTTP/3 where that libcurl has it. Fedora and
+  Ubuntu desktops install it; where there is none, `fetch()` rejects, saying
+  so.
+- **Pointer lock** (`requestPointerLock()`) hides the pointer and keeps it in
+  the view as in the JUCE runtime. Under Wayland (XWayland), moving the
+  pointer back is the compositor's to allow.
+- **DevTools.** A Debug build (`soundor build vst3 --debug`, `soundor dev
+  vst3`) connects to the DevTools session the environment variable
+  `SOUNDOR_DEVTOOLS_SESSION` names, which `soundor dev` prints: start the host
+  with it set.
 - **Instances.** Every instance is independent. When the component and the
   controller share a process, the controller also reaches the processor's
   memory: the Rust controller's audio resources, `soundor:midi` from the UI
@@ -166,14 +180,11 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
 ## Limitations
 
 - Linux x86_64 only; no AU, CLAP or standalone.
-- No DevTools inspection, and so no `soundor build vst3 --debug`: debug builds
-  come from `soundor dev vst3`, which builds the plugin and keeps its UI
-  current, but opens no host; open the bundle in yours.
-- No `fetch()` (it rejects): the JUCE runtime's HTTP client is JUCE's.
+- `soundor dev vst3` builds the plugin and keeps its UI current, but opens no
+  host: open the bundle in yours.
 - `soundor:native` events, which only C++ publishes, never arrive.
 - The Rust controller's scheduled work runs while an editor is open, or with
   a host that lends its run loop to the controller.
-- Pointer lock is not supported.
 - Dynamic latency and tail (`mode: 'dynamic'`) are reported as none.
 
 ## Validating a plugin

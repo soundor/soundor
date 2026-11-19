@@ -49,9 +49,18 @@ roots, relevant normalized style/presentation data, layout, text, visibility,
 focus and the existing semantic tree. Semantic inspection preserves pending
 platform accessibility updates.
 
-Runtime bridges hand the Inspector their commands as JSON text:
-`debug::Value::parse` (RFC 8259, at most 64 levels) and `debug::Command::parse`
-decode them in the engine, so a bridge only moves bytes. `UI.hitTest` and the
+The bridge is the engine's too: `debug::Bridge` (`include/soundor/debug/Bridge.h`)
+connects a plugin to the server `soundor dev` runs. It reads the session file
+`SOUNDOR_DEVTOOLS_SESSION` names (an endpoint on `127.0.0.1` only, a token,
+the project), registers the plugin under its runtime's name, long-polls
+`/runtime/poll` for commands and posts answers and captures, on two worker
+threads, through the system's HTTP stack (`platform::systemHttpClient()`,
+proxies off, redirects refused, no timeout for the poll). Nothing in the
+plugin listens. Every runtime's editor makes one in Debug builds and calls
+`tick()`, `pointer()`, `key()` and `renderFrame()` as the JUCE editor does.
+Commands arrive as JSON text: `debug::Value::parse` (the engine's
+`soundor::json`, at most 64 levels) and `debug::Command::parse` decode them
+in the engine, so a bridge only moves bytes. `UI.hitTest` and the
 `Input.*` commands (`src/debug/Input.cpp`) dispatch synthetic input through
 `Surface::pointer`, `wheel`, `key` and `text`, the same entry points a
 platform's input uses, then run pending jobs as the JUCE editor does after
@@ -137,6 +146,33 @@ mapped logs. It does not replace manual native-window overlay validation.
 `SOUNDOR_DEVTOOLS_SCREENSHOT=/tmp/inspector.png` optionally saves the browser view.
 The normal test workflow has no browser dependency and downloads no browser.
 
+## The system's HTTP stack
+
+`platform::systemHttpClient()` (`include/soundor/platform/Platform.h`) is the
+`HttpClient` both native runtimes give `fetch()` and the DevTools bridge. It
+is always the system's own stack, never one Soundor carries, so HTTPS, its
+certificates and its fixes are what the operating system keeps up to date:
+
+| Platform   | Stack                                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS, iOS | `NSURLSession`, ephemeral sessions (no cookies, cache or credentials kept); a delegate made at run time refuses redirects when asked             |
+| Windows    | WinHTTP, the system's proxies (automatic from Windows 8.1); HTTP/2, and HTTP/3 where Windows has it (11 and later)                               |
+| Linux      | the system's libcurl, `dlopen`ed when first used (`libcurl.so.4`, else `libcurl-gnutls.so.4`), never linked: no curl headers are needed to build |
+
+On Linux the few functions and constants used are declared by hand
+(`src/platform/linux/CurlHttpClient.cpp`): libcurl's ABI has not changed
+since 2006. HTTP/3 is asked for only where the library has it and falls back
+from it (7.88 and later); otherwise curl's default (HTTP/2 over TLS). Without
+libcurl, every request fails with "HTTPS needs libcurl (libcurl.so.4), which
+this system lacks", and the VST3 runtime's `soundor doctor` warns. The
+library is never unloaded (hosts may use it too) and `curl_global_init` runs
+once. `HttpRequest` says whether proxies apply (`proxy`), whether redirects
+are followed (`followRedirects`) and its timeouts (`connectTimeoutMs`,
+`timeoutMs`, 0 for none). A cancelled request stops within about 50 ms and
+completes with `"aborted"`; destroying a client completes what is left the
+same way. `tests/platform/HttpClientTests.cpp` runs each against a real
+server on localhost.
+
 ## Layout
 
 ```text
@@ -146,7 +182,9 @@ engine/
     a11y/                 accessibility semantics and the semantic tree
     js/                   Runtime, Context, Value, Error, ModuleLoader, Promise
     parameters/           the parameter Host interface backends implement
-    platform/             HttpClient and HostInfo, the services backends provide
+    json/                 soundor::json: strict JSON, numbers as written, member order
+    platform/             HttpClient and HostInfo, the services backends provide;
+                          systemHttpClient(), the system's HTTP stack
     render/               frames, layers, damage regions and the Compositor
                           interface (no Skia or GPU types)
     runtime/              RuntimeHost: one plugin view's JavaScript world
@@ -595,7 +633,7 @@ browser or Node. There is no `window`, `document`, `process` or `require`.
 | `atob`, `btoa`, `DOMException`                                         | `src/web/js/base64.js`, `src/web/js/dom-exception.js`.                                                                                                                                                        |
 | `structuredClone`                                                      | Including `transfer`. Functions, symbols and similar values throw `DataCloneError`.                                                                                                                           |
 | `crypto.getRandomValues()`, `crypto.randomUUID()`                      | From the OS CSPRNG. `crypto.subtle` is not provided.                                                                                                                                                          |
-| `fetch`, `Headers`, `Request`, `Response`, `Blob`, `File`, `FormData`  | Through the backend's `HttpClient`. Bodies are buffered (no Web Streams yet). `data:` URLs resolve locally; redirects are always followed.                                                                    |
+| `fetch`, `Headers`, `Request`, `Response`, `Blob`, `File`, `FormData`  | Through the backend's `HttpClient` (`platform::systemHttpClient()` in both native runtimes). Bodies are buffered (no Web Streams yet). `data:` URLs resolve locally; redirects are always followed.           |
 
 Not provided: the DOM (canvas contexts come with `soundor:ui`'s canvas
 nodes), Workers, IndexedDB/`localStorage`,
@@ -705,9 +743,11 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     press to the node asking (it or a node in it must be pressed). Until the
     release, a cancel, `exitPointerLock()` or the node leaving the tree, its
     events carry the position the lock began with, only `movement` changing.
-    The backend reads `Surface::pointerLock()` after input and every tick: the
-    JUCE adapter's `PointerLock` (moving JUCE's mouse, or on Linux the native
-    input's pointer) keeps the locked pointer in the view, where
+    The backend reads `Surface::pointerLock()` after input and every tick:
+    `input::PointerLock` (`include/soundor/input/PointerLock.h`, moving the
+    native input's pointer through `input::pointerSource()`, or in the JUCE
+    runtime JUCE's mouse where its input is JUCE's) keeps the locked pointer
+    in the view, where
     the editor shows no cursor: when it strays from where the lock began it is
     moved back, and drags carry on past the view's edges as if nothing stopped
     them (a cursor is a window's on Linux, so a pointer that left the view
