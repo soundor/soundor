@@ -232,12 +232,18 @@ namespace soundor::vst3
                 runLoop->registerTimer(this, 16);
             }
         }
+#if ! SMTG_OS_LINUX
+        // macOS and Windows hosts lend none: the UI thread's run loop, always.
+        if (! runLoop)
+            timer = Timer::create(16, [this]() { pump(); });
+#endif
         return kResultOk;
     }
 
     tresult PLUGIN_API Controller::terminate()
     {
         shutDown = true;
+        timer.reset();
         if (runLoop)
             runLoop->unregisterTimer(this);
         runLoop = nullptr;

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { importsOf, runtimeImports } from './windows-plugin-check.mjs';
+import {
+  exportsOf,
+  importsOf,
+  runtimeImports,
+} from './windows-plugin-check.mjs';
 
 /** A 64-bit PE image with one section, whose imports are these DLLs. */
 function peImporting(dlls) {
@@ -65,5 +69,62 @@ describe('a plugin with the static C runtime', () => {
 
   test('refuses what is not a 64-bit PE file', () => {
     assert.throws(() => importsOf(Buffer.from('not a binary')), /Not a PE/);
+  });
+});
+
+/** A 64-bit PE image with one section, whose exports are these names. */
+function peExporting(exported) {
+  const pe = 0x80;
+  const optional = pe + 24;
+  const optionalSize = 240;
+  const section = optional + optionalSize;
+  const raw = 0x400;
+  const rva = 0x1000;
+  const directory = 40;
+  const table = directory;
+  const names = Buffer.from(
+    exported.map((name) => `${name}\0`).join(''),
+    'latin1',
+  );
+  const size = directory + exported.length * 4 + names.length;
+  const file = Buffer.alloc(raw + size);
+  file.write('MZ', 0, 'latin1');
+  file.writeUInt32LE(pe, 0x3c);
+  file.write('PE\0\0', pe, 'latin1');
+  file.writeUInt16LE(1, pe + 6);
+  file.writeUInt16LE(optionalSize, pe + 20);
+  file.writeUInt16LE(0x20b, optional);
+  file.writeUInt32LE(rva, optional + 112);
+  file.writeUInt32LE(size, section + 8);
+  file.writeUInt32LE(rva, section + 12);
+  file.writeUInt32LE(size, section + 16);
+  file.writeUInt32LE(raw, section + 20);
+  file.writeUInt32LE(exported.length, raw + 24);
+  file.writeUInt32LE(rva + table, raw + 32);
+  let name = table + exported.length * 4;
+  exported.forEach((entry, index) => {
+    file.writeUInt32LE(rva + name, raw + table + index * 4);
+    name += entry.length + 1;
+  });
+  names.copy(file, raw + table + exported.length * 4);
+  return file;
+}
+
+describe("a VST3 plugin's exports", () => {
+  test('are read from the export directory', () => {
+    const file = peExporting(['ExitDll', 'GetPluginFactory', 'InitDll']);
+    assert.deepEqual(exportsOf(file), [
+      'ExitDll',
+      'GetPluginFactory',
+      'InitDll',
+    ]);
+    assert.deepEqual(importsOf(file), []);
+  });
+
+  test('are none without an export directory', () => {
+    assert.deepEqual(
+      exportsOf(peExporting([]).fill(0, 0x80 + 24 + 112, 0x80 + 24 + 116)),
+      [],
+    );
   });
 });

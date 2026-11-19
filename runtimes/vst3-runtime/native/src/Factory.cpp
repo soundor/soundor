@@ -2,8 +2,9 @@
 // component (Processor) and its controller, described from the plugin's
 // descriptor. The component is not distributable: it and its controller
 // share memory when they share a process (Link.h), so hosts are not invited
-// to run them apart. ModuleEntry and ModuleExit are the SDK's (linuxmain.cpp,
-// moduleinit.cpp); with this, they are the only symbols a plugin exports.
+// to run them apart. The other entry points are the SDK's (linuxmain.cpp,
+// macmain.cpp or dllmain.cpp, and moduleinit.cpp); with this, they are the
+// only symbols a plugin exports.
 
 #include "Controller.h"
 #include "Descriptor.h"

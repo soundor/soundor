@@ -388,6 +388,8 @@ jobs:
       actions: read
     uses: ./.github/workflows/vst3.yml
     with:
+      # The Windows adapter as Release builds it: plugins link it with this MSVC or newer.
+      msvc-toolset: v143,version=14.44
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
       engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
       engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}

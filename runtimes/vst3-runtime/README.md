@@ -1,6 +1,6 @@
 # @soundor/vst3-runtime
 
-Soundor plugins as Linux VST3 plugins, without JUCE: your React UI (`src/`)
+Soundor plugins as VST3 plugins for Linux, macOS and Windows, without JUCE: your React UI (`src/`)
 and Rust processor and controller (`lib/`), linked with a prebuilt, generic
 VST3 adapter (Steinberg's VST3 SDK) and the prebuilt Soundor engine. No C++ is
 compiled when you build a plugin.
@@ -21,8 +21,11 @@ soundor build vst3   # .soundor/dist/vst3/Acme Reverb.vst3
 soundor dev vst3     # opens the Debug build in the VST3 host
 ```
 
-Linux x86_64 only. Building needs Node, Rust and a C++ compiler driver (g++
-or clang++) to link. `@soundor/vst3-host` is a required peer dependency.
+Linux x86_64, macOS (Apple silicon or Intel) and Windows x64, each building
+for itself. Building needs Node, Rust and the platform's linker: a C++
+compiler driver (g++ or clang++) on Linux, Apple's Command Line Tools on
+macOS, Visual Studio 2022 or later (or its Build Tools) on Windows.
+`@soundor/vst3-host` is a required peer dependency.
 
 - [Guide and reference](https://soundor.dev/docs/vst3-runtime)
 - [Documentation](https://soundor.dev/docs)

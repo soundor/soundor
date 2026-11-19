@@ -1,8 +1,16 @@
 /**
  * Linking a plugin: the prebuilt adapter, the plugin's Rust library and the
- * prebuilt engine, into one shared object, by the system's C++ compiler
- * driver (`c++`: g++ or clang++; Rust links with the C one on Linux too).
- * Nothing is compiled here.
+ * prebuilt engine, into one shared object. Nothing is compiled here.
+ *
+ * - Linux: the system's C++ compiler driver (`c++`: g++ or clang++; Rust
+ *   links with the C one there too), below.
+ * - macOS: `c++` too (Apple's clang++, from the Command Line Tools Rust
+ *   needs), `-bundle`, exporting VST3's three entry points alone
+ *   (`-exported_symbols_list`); see {@link macLinkArguments}.
+ * - Windows: MSVC's `link.exe` (Visual Studio or its Build Tools, which Rust
+ *   needs too), found with vswhere; see {@link windowsLinkArguments}.
+ *
+ * On Linux:
  *
  * - The adapter is linked whole (--whole-archive): it is the plugin's
  *   classes and entry points, which nothing in the link references.
@@ -20,11 +28,14 @@
  *   JUCE runtime's plugins do; X11 and the GPU's are loaded at run time.
  */
 
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { EnvError } from '@soundor/runtime-sdk';
+
+import { adapterArchiveName, type Variant, type Vst3Target } from './targets';
 
 /** What a plugin binary exports: VST3's entry points, nothing else. */
 export const VERSION_SCRIPT = `{
@@ -122,17 +133,244 @@ export function environmentLinkFlags(
   return (env['LDFLAGS'] ?? '').split(/\s+/).filter((flag) => flag.length > 0);
 }
 
+// ── macOS ──────────────────────────────────────────────────────────────────
+
+/** What a macOS plugin exports (macexport.exp, the SDK's): nothing else. */
+export const MAC_EXPORTS = '_GetPluginFactory\n_bundleEntry\n_bundleExit\n';
+
+/** What the adapter needs on macOS beside the engine's frameworks. */
+export const MAC_FRAMEWORKS = [
+  '-framework',
+  'CoreFoundation',
+  '-framework',
+  'Foundation',
+  '-framework',
+  'AppKit',
+  '-framework',
+  'QuartzCore',
+  '-framework',
+  'CoreGraphics',
+];
+
+/** What Rust's standard library needs on macOS (rustc --print native-static-libs). */
+export const MAC_RUST_LIBRARIES = ['-liconv', '-lSystem', '-lc', '-lm'];
+
+export interface MacLinkInputs extends Omit<LinkInputs, 'versionScript'> {
+  /** The exported symbols list ({@link MAC_EXPORTS}). */
+  readonly exportsList: string;
+  /** `arm64` or `x86_64`: the machine's. */
+  readonly architecture: 'arm64' | 'x86_64';
+  /** The engine's minimum macOS version (its `target.minimumOsVersion`). */
+  readonly minimumOs: string;
+}
+
+/**
+ * clang++'s arguments for a macOS plugin: a bundle (a Mach-O loadable
+ * module), the adapter loaded whole (-force_load), only VST3's entry points
+ * exported, so plugins of any versions share a host (two-level namespaces
+ * and hosts' RTLD_LOCAL keep the rest apart).
+ */
+export function macLinkArguments(inputs: MacLinkInputs): string[] {
+  return [
+    '-bundle',
+    '-o',
+    inputs.output,
+    '-arch',
+    inputs.architecture,
+    `-mmacosx-version-min=${inputs.minimumOs}`,
+    ...(inputs.extra ?? []),
+    `-Wl,-exported_symbols_list,${inputs.exportsList}`,
+    ...(inputs.release ? ['-Wl,-dead_strip', '-Wl,-S'] : []),
+    `-Wl,-force_load,${inputs.adapter}`,
+    inputs.rust,
+    ...inputs.engineLibraries,
+    ...inputs.engineFlags,
+    ...MAC_FRAMEWORKS,
+    ...MAC_RUST_LIBRARIES,
+  ];
+}
+
+// ── Windows ────────────────────────────────────────────────────────────────
+
+/** What the adapter needs on Windows beside the engine's libraries. */
+export const WINDOWS_LIBRARIES = [
+  'kernel32.lib',
+  'user32.lib',
+  'gdi32.lib',
+  'comctl32.lib',
+  'ole32.lib',
+  'shell32.lib',
+];
+
+/** What Rust's standard library needs on Windows (rustc --print native-static-libs). */
+export const WINDOWS_RUST_LIBRARIES = [
+  'advapi32.lib',
+  'ntdll.lib',
+  'userenv.lib',
+  'ws2_32.lib',
+  'dbghelp.lib',
+];
+
+export interface WindowsLinkInputs extends Omit<LinkInputs, 'versionScript'> {
+  /** The system's library directories (LIB, from vcvars64.bat). */
+  readonly libraryPaths: readonly string[];
+  /** Debug builds: where the PDB goes. */
+  readonly pdb?: string;
+}
+
+/**
+ * link.exe's arguments for a Windows plugin: a DLL with the adapter linked
+ * whole (/WHOLEARCHIVE), whose dllexport'ed entry points (GetPluginFactory,
+ * InitDll, ExitDll: SMTG_EXPORT_SYMBOL) are the only exports. Everything is
+ * compiled for the static C runtime; a Debug build's objects (/MTd) and
+ * Rust's standard library (libcmt) name two of them, and the debug one wins.
+ */
+export function windowsLinkArguments(inputs: WindowsLinkInputs): string[] {
+  return [
+    '/NOLOGO',
+    '/DLL',
+    '/MACHINE:X64',
+    '/INCREMENTAL:NO',
+    `/OUT:${inputs.output}`,
+    ...inputs.libraryPaths.map((path) => `/LIBPATH:${path}`),
+    ...(inputs.release
+      ? ['/OPT:REF', '/OPT:ICF']
+      : [
+          '/DEBUG:FULL',
+          ...(inputs.pdb !== undefined ? [`/PDB:${inputs.pdb}`] : []),
+          '/NODEFAULTLIB:libcmt.lib',
+          '/NODEFAULTLIB:libvcruntime.lib',
+          '/NODEFAULTLIB:libucrt.lib',
+          '/NODEFAULTLIB:libcpmt.lib',
+        ]),
+    ...(inputs.extra ?? []),
+    `/WHOLEARCHIVE:${inputs.adapter}`,
+    inputs.adapter,
+    inputs.rust,
+    ...inputs.engineLibraries,
+    ...inputs.engineFlags,
+    ...WINDOWS_LIBRARIES,
+    ...WINDOWS_RUST_LIBRARIES,
+  ];
+}
+
+/** A response file's contents: one argument a line, quoted. */
+export function responseFile(args: readonly string[]): string {
+  return `${args.map((arg) => `"${arg.replaceAll('"', '\\"')}"`).join('\r\n')}\r\n`;
+}
+
+/** MSVC's linker and the system's library directories. */
+export interface MsvcLinker {
+  readonly linker: string;
+  readonly libraryPaths: readonly string[];
+  /** Where it came from, for logs and `soundor doctor`. */
+  readonly source: string;
+}
+
+/** vswhere's path: the Visual Studio Installer's, at a fixed place. */
+function vswherePath(env: NodeJS.ProcessEnv): string {
+  const programs =
+    env['ProgramFiles(x86)'] ??
+    env['ProgramFiles'] ??
+    'C:\\Program Files (x86)';
+  return join(programs, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+}
+
+function linkerOf(toolsDir: string): string {
+  return join(toolsDir, 'bin', 'Hostx64', 'x64', 'link.exe');
+}
+
+function libraryPathsOf(lib: string | undefined): string[] {
+  return (lib ?? '').split(';').filter((path) => path.length > 0);
+}
+
+/**
+ * Finds link.exe: the developer prompt's (VCToolsInstallDir and LIB set),
+ * else the newest Visual Studio or Build Tools with the C++ x64 tools
+ * (vswhere), whose vcvars64.bat says where the libraries are.
+ */
+export function findMsvcLinker(
+  env: NodeJS.ProcessEnv = process.env,
+): MsvcLinker {
+  const tools = env['VCToolsInstallDir'];
+  if (tools !== undefined && tools !== '' && env['LIB'] !== undefined)
+    return {
+      linker: linkerOf(tools),
+      libraryPaths: libraryPathsOf(env['LIB']),
+      source: `the developer environment (${tools})`,
+    };
+  const vswhere = vswherePath(env);
+  if (!existsSync(vswhere))
+    throw new EnvError(
+      'Visual Studio was not found (no vswhere.exe). Install Visual Studio 2022 or later, or its Build Tools, with "Desktop development with C++": it links the plugin, and Rust needs it too.',
+    );
+  const found = spawnSync(
+    vswhere,
+    [
+      '-latest',
+      '-products',
+      '*',
+      '-requires',
+      'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+      '-property',
+      'installationPath',
+    ],
+    { encoding: 'utf8' },
+  );
+  const installation = (found.stdout ?? '').trim().split(/\r?\n/)[0] ?? '';
+  if (found.status !== 0 || installation === '')
+    throw new EnvError(
+      'No Visual Studio with the C++ x64 build tools was found. Add "Desktop development with C++" to Visual Studio or its Build Tools.',
+    );
+  const vcvars = join(installation, 'VC', 'Auxiliary', 'Build', 'vcvars64.bat');
+  const shown = spawnSync(
+    env['ComSpec'] ?? 'cmd.exe',
+    ['/d', '/s', '/c', `""${vcvars}" >nul && set"`],
+    { encoding: 'utf8', windowsVerbatimArguments: true },
+  );
+  const variables = new Map<string, string>();
+  for (const line of (shown.stdout ?? '').split(/\r?\n/)) {
+    const equals = line.indexOf('=');
+    if (equals > 0)
+      variables.set(
+        line.slice(0, equals).toUpperCase(),
+        line.slice(equals + 1),
+      );
+  }
+  const vcTools = variables.get('VCTOOLSINSTALLDIR');
+  if (shown.status !== 0 || vcTools === undefined)
+    throw new EnvError(
+      `${vcvars} did not set up the C++ build tools: repair the Visual Studio installation.`,
+    );
+  return {
+    linker: linkerOf(vcTools),
+    libraryPaths: libraryPathsOf(variables.get('LIB')),
+    source: installation,
+  };
+}
+
+// ── Prebuilt adapters ──────────────────────────────────────────────────────
+
 /** What `adapter.json` says of a prebuilt adapter. */
 export interface AdapterMetadata {
   readonly format: number;
   readonly runtimeVersion: string;
   readonly target: string;
-  readonly variant: 'debug' | 'release';
+  readonly variant: Variant;
   readonly engine: {
     readonly version: string;
     readonly sourceFingerprint?: string;
     readonly abiNamespace?: string;
   };
+}
+
+/** A prebuilt adapter's directory: `prebuilt/<target>-<variant>`. */
+export function adapterDirectory(
+  packageRoot: string,
+  target: Vst3Target,
+  variant: Variant,
+): string {
+  return join(packageRoot, 'prebuilt', `${target}-${variant}`);
 }
 
 /**
@@ -142,14 +380,15 @@ export interface AdapterMetadata {
  */
 export async function findAdapter(
   packageRoot: string,
-  variant: 'debug' | 'release',
+  target: Vst3Target,
+  variant: Variant,
   engine: {
     readonly version: string;
     readonly sourceFingerprint: string | undefined;
   },
 ): Promise<string> {
-  const directory = join(packageRoot, 'prebuilt', `linux-x64-${variant}`);
-  const archive = join(directory, 'lib', 'libsoundor_vst3.a');
+  const directory = adapterDirectory(packageRoot, target, variant);
+  const archive = join(directory, 'lib', adapterArchiveName(target));
   const metadataFile = join(directory, 'adapter.json');
   if (!existsSync(archive) || !existsSync(metadataFile))
     throw new EnvError(
@@ -160,11 +399,11 @@ export async function findAdapter(
   ) as AdapterMetadata;
   if (
     metadata.format !== 1 ||
-    metadata.target !== 'linux-x64' ||
+    metadata.target !== target ||
     metadata.variant !== variant
   )
     throw new EnvError(
-      `${metadataFile} is not a linux-x64 ${variant} adapter this runtime reads.`,
+      `${metadataFile} is not a ${target} ${variant} adapter this runtime reads.`,
     );
   if (
     metadata.engine.version !== engine.version ||

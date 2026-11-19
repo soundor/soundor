@@ -42,11 +42,28 @@ namespace soundor::vst3
             const Controller& controller;
         };
 
-        // <XDG config home>/Soundor/<plugin id>: where the JUCE runtime's
-        // Linux plugins keep soundor:storage and soundor:fs too.
+        // <user application data>/Soundor/<plugin id>, where the JUCE
+        // runtime's plugins keep soundor:storage and soundor:fs too (JUCE's
+        // userApplicationDataDirectory): the XDG config home on Linux,
+        // ~/Library on macOS, the roaming AppData on Windows.
         std::filesystem::path dataDirectory(const std::string& pluginId)
         {
             std::filesystem::path base;
+#if SMTG_OS_WINDOWS
+            wchar_t* appData = nullptr;
+            std::size_t length = 0;
+            if (_wdupenv_s(&appData, &length, L"APPDATA") == 0 && appData != nullptr && *appData != 0)
+                base = appData;
+            std::free(appData); // NOLINT(cppcoreguidelines-no-malloc): _wdupenv_s allocates it
+            if (base.empty())
+                return {};
+#elif SMTG_OS_MACOS
+            // NOLINTNEXTLINE(concurrency-mt-unsafe): read on the UI thread; a plugin never sets the environment.
+            if (const char* home = std::getenv("HOME"); home != nullptr && *home != 0)
+                base = std::filesystem::path(home) / "Library";
+            else
+                return {};
+#else
             // NOLINTNEXTLINE(concurrency-mt-unsafe): read on the UI thread; a plugin never sets the environment.
             if (const char* config = std::getenv("XDG_CONFIG_HOME"); config != nullptr && *config != 0)
                 base = config;
@@ -55,8 +72,29 @@ namespace soundor::vst3
                 base = std::filesystem::path(home) / ".config";
             else
                 return {};
+#endif
             return base / "Soundor" / pluginId;
         }
+
+        // The view's platform type, which the window is made for.
+#if SMTG_OS_WINDOWS
+        const FIDString platformType = kPlatformTypeHWND;
+        constexpr const char* platformName = "windows";
+        constexpr const char* inputName = "input: native (Win32)";
+#elif SMTG_OS_MACOS
+        const FIDString platformType = kPlatformTypeNSView;
+        constexpr const char* platformName = "macos";
+        constexpr const char* inputName = "input: native (AppKit)";
+#else
+        const FIDString platformType = kPlatformTypeX11EmbedWindowID;
+        constexpr const char* platformName = "linux";
+        constexpr const char* inputName = "input: native (X11, XInput 2)";
+#endif
+#if defined(__aarch64__) || defined(_M_ARM64)
+        constexpr const char* architecture = "arm64";
+#else
+        constexpr const char* architecture = "x64";
+#endif
 
         void logToStderr(js::LogLevel level, std::string_view message)
         {
@@ -64,91 +102,7 @@ namespace soundor::vst3
                                                         "[soundor] warning: ", "[soundor] error: " };
             log(std::string(prefixes[static_cast<int>(level)]) + std::string(message));
         }
-
-        x11::CursorIcon cursorIcon(ui::Cursor cursor)
-        {
-            switch (cursor)
-            {
-                case ui::Cursor::Pointer:
-                    return x11::CursorIcon::Hand;
-                case ui::Cursor::Text:
-                    return x11::CursorIcon::Text;
-                case ui::Cursor::Crosshair:
-                    return x11::CursorIcon::Crosshair;
-                case ui::Cursor::Move:
-                    return x11::CursorIcon::Move;
-                case ui::Cursor::EwResize:
-                    return x11::CursorIcon::HorizontalResize;
-                case ui::Cursor::NsResize:
-                    return x11::CursorIcon::VerticalResize;
-                case ui::Cursor::NeswResize:
-                    return x11::CursorIcon::DiagonalResizeUp;
-                case ui::Cursor::NwseResize:
-                    return x11::CursorIcon::DiagonalResizeDown;
-                case ui::Cursor::None:
-                    return x11::CursorIcon::Hidden;
-                default:
-                    return x11::CursorIcon::Arrow;
-            }
-        }
     } // namespace
-
-    // ── WindowTarget ─────────────────────────────────────────────────────────
-
-    render::RasterTarget::Pixels WindowTarget::acquire(int width, int height)
-    {
-        width = std::max(1, width);
-        height = std::max(1, height);
-        bool preserved = true;
-        if (width != imageWidth || height != imageHeight)
-        {
-            preserved = false;
-            pixels.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
-            imageWidth = width;
-            imageHeight = height;
-            if (target != nullptr)
-                target->setImage(pixels.data(), width, height);
-        }
-        return { { pixels.data(), width, height, static_cast<std::size_t>(width) * 4 }, preserved };
-    }
-
-    void WindowTarget::put(int x, int y, int width, int height)
-    {
-        if (target == nullptr)
-            return;
-        x = std::clamp(x, 0, imageWidth);
-        y = std::clamp(y, 0, imageHeight);
-        target->putImage(x, y, std::min(width, imageWidth - x), std::min(height, imageHeight - y), left, top);
-    }
-
-    void WindowTarget::present(const render::Region& damage)
-    {
-        for (const auto& rect : damage.rects())
-            put(rect.x, rect.y, rect.width, rect.height);
-        if (target != nullptr)
-            target->flush();
-    }
-
-    void WindowTarget::setPlacement(int x, int y, std::uint32_t background)
-    {
-        left = x;
-        top = y;
-        fill = background;
-    }
-
-    void WindowTarget::repaint()
-    {
-        if (target == nullptr)
-            return;
-        // The bands around the frame, then the frame.
-        constexpr int far = 32767;
-        target->fill(0, 0, left, far, fill);
-        target->fill(0, 0, far, top, fill);
-        target->fill(left + imageWidth, 0, far, far, fill);
-        target->fill(0, top + imageHeight, far, far, fill);
-        put(0, 0, imageWidth, imageHeight);
-        target->flush();
-    }
 
     // ── Editor ───────────────────────────────────────────────────────────────
 
@@ -182,7 +136,7 @@ namespace soundor::vst3
 
     tresult PLUGIN_API Editor::isPlatformTypeSupported(FIDString type)
     {
-        return type != nullptr && std::strcmp(type, kPlatformTypeX11EmbedWindowID) == 0 ? kResultTrue : kResultFalse;
+        return type != nullptr && std::strcmp(type, platformType) == 0 ? kResultTrue : kResultFalse;
     }
 
     tresult PLUGIN_API Editor::attached(void* parent, FIDString type)
@@ -192,6 +146,7 @@ namespace soundor::vst3
         const auto result = CPluginView::attached(parent, type);
         if (result != kResultOk)
             return result;
+#if SMTG_OS_LINUX
         // The host's run loop (VST3 on Linux): through the frame it gave.
         if (plugFrame)
         {
@@ -206,6 +161,7 @@ namespace soundor::vst3
             CPluginView::removed();
             return kResultFalse;
         }
+#endif
         try
         {
             open();
@@ -229,26 +185,33 @@ namespace soundor::vst3
     void Editor::open()
     {
         std::string why;
-        window = x11::Window::create(reinterpret_cast<std::uintptr_t>(systemWindow), rect.getWidth(), rect.getHeight(),
-                                     definition.editor.background, why);
+        window =
+            NativeWindow::create(systemWindow, rect.getWidth(), rect.getHeight(), definition.editor.background, why);
         if (window == nullptr)
             throw std::runtime_error(why);
-        image.attach(window.get());
         auto& owner = *controller;
         uiParameters = std::make_shared<UiParameters>(definition, owner.editors(), owner.historyManager());
         owner.addUi(uiParameters.get());
         attachedToHost = true;
         editor::Platform& platform = *this;
         engineEditor = std::make_unique<editor::Editor>(platform, editorOptions());
+#if SMTG_OS_LINUX
         runLoop->registerTimer(this, 16);
         runLoop->registerEventHandler(this, window->fileDescriptor());
+#else
+        timer = Timer::create(16, [this]() { tick(); });
+#endif
         tick();
     }
 
-    void* Editor::nativeWindow() const noexcept
+    float Editor::nativeScale() const noexcept
     {
-        // An X11 window id, which the engine's APIs carry as a pointer.
-        return window != nullptr ? reinterpret_cast<void*>(window->id()) : nullptr; // NOLINT(performance-no-int-to-ptr)
+#if SMTG_OS_MACOS
+        // macOS sizes views in points, whatever the screen's density.
+        return 1.0f;
+#else
+        return contentScale;
+#endif
     }
 
     editor::Editor::Options Editor::editorOptions()
@@ -270,7 +233,7 @@ namespace soundor::vst3
             editor.resizable
             && (static_cast<float>(editor.minWidth) < maxWidth || static_cast<float>(editor.minHeight) < maxHeight);
         result.background = editor.background;
-        result.raster = &image;
+        result.raster = &window->raster();
         result.name = definition.name;
         result.runtimeName = "VST3";
 
@@ -290,9 +253,9 @@ namespace soundor::vst3
         options.pluginId = definition.id;
         options.pluginName = definition.name;
         options.pluginVersion = definition.version;
-        options.environment = { "vst3", SOUNDOR_VST3_RUNTIME_VERSION, "linux", "x64", "vst3" };
+        options.environment = { "vst3", SOUNDOR_VST3_RUNTIME_VERSION, platformName, architecture, "vst3" };
         options.hostInfo = std::make_shared<HostInfo>(owner);
-        // fetch(): the system's HTTP stack (its libcurl).
+        // fetch(): the system's HTTP stack.
         options.http = platform::systemHttpClient();
         options.dataDirectory = dataDirectory(definition.id);
         options.parameters = uiParameters;
@@ -326,6 +289,7 @@ namespace soundor::vst3
 
     void Editor::close()
     {
+        timer.reset();
         if (runLoop)
         {
             runLoop->unregisterTimer(this);
@@ -343,7 +307,6 @@ namespace soundor::vst3
                 controller->removeUi(uiParameters.get());
             uiParameters.reset();
         }
-        image.attach(nullptr);
         window.reset();
         runLoop = nullptr;
         attachedToHost = false;
@@ -351,14 +314,14 @@ namespace soundor::vst3
 
     ui::Size Editor::logicalSize() const
     {
-        return { static_cast<float>(rect.getWidth()) / contentScale,
-                 static_cast<float>(rect.getHeight()) / contentScale };
+        return { static_cast<float>(rect.getWidth()) / nativeScale(),
+                 static_cast<float>(rect.getHeight()) / nativeScale() };
     }
 
     void Editor::readWindowEvents()
     {
         if (window != nullptr && window->pump() && (engineEditor == nullptr || ! engineEditor->gpu()))
-            image.repaint();
+            window->repaint();
     }
 
     // ── editor::Platform ───────────────────────────────────────────────────────
@@ -366,15 +329,16 @@ namespace soundor::vst3
     editor::Platform::State Editor::state()
     {
         State now;
-        now.nativeView = nativeWindow();
         now.size = logicalSize();
-        // The window is the editor: at its top-left, in physical pixels.
-        now.nativeScale = contentScale;
+        // The window is the editor: at its top-left, in its native units
+        // (physical pixels; macOS: points).
+        now.nativeScale = nativeScale();
         now.pixelScale = contentScale;
         if (window != nullptr)
         {
-            const auto [x, y] = window->screenPosition();
-            now.screenOrigin = ui::Point { static_cast<float>(x), static_cast<float>(y) };
+            now.nativeView = window->view();
+            now.pixelScale = nativeScale() * window->backingScale();
+            now.screenOrigin = window->screenOrigin();
         }
         now.visible = attachedToHost;
         now.focused = focusedByHost;
@@ -384,20 +348,20 @@ namespace soundor::vst3
     void Editor::setCursor(ui::Cursor shape)
     {
         if (window != nullptr)
-            window->setCursor(cursorIcon(shape));
+            window->setCursor(shape);
     }
 
     ViewRect Editor::physical(ui::Size logical) const
     {
-        return { 0, 0, static_cast<int32>(std::lround(logical.width * contentScale)),
-                 static_cast<int32>(std::lround(logical.height * contentScale)) };
+        return { 0, 0, static_cast<int32>(std::lround(logical.width * nativeScale())),
+                 static_cast<int32>(std::lround(logical.height * nativeScale())) };
     }
 
     ui::Size Editor::holdSize(ui::Size wanted)
     {
         const auto held = constrained(physical(wanted));
-        return { static_cast<float>(held.getWidth()) / contentScale,
-                 static_cast<float>(held.getHeight()) / contentScale };
+        return { static_cast<float>(held.getWidth()) / nativeScale(),
+                 static_cast<float>(held.getHeight()) / nativeScale() };
     }
 
     void Editor::requestSize(ui::Size wanted)
@@ -413,9 +377,17 @@ namespace soundor::vst3
 
     void Editor::placed(const editor::Placement& placement)
     {
-        image.setPlacement(static_cast<int>(std::lround(placement.area.x * contentScale)),
-                           static_cast<int>(std::lround(placement.area.y * contentScale)),
-                           definition.editor.background);
+        if (window != nullptr)
+            window->placeFrame(placement.area.x * nativeScale(), placement.area.y * nativeScale(),
+                               definition.editor.background);
+    }
+
+    void Editor::pressed()
+    {
+        // A press takes the keyboard, as it does in the JUCE runtime's editor.
+        if (auto* native = engineEditor != nullptr ? engineEditor->nativeInput() : nullptr;
+            native != nullptr && ! native->focused())
+            native->requestFocus();
     }
 
     void Editor::inputStarted(input::PlatformInput& input)
@@ -424,12 +396,12 @@ namespace soundor::vst3
         // handlers close() unregisters (all of this editor's at once).
         if (const int descriptor = input.fileDescriptor(); descriptor >= 0 && runLoop)
             runLoop->registerEventHandler(this, descriptor);
-        logSink(js::LogLevel::Info, "input: native (X11, XInput 2)");
+        logSink(js::LogLevel::Info, inputName);
     }
 
     void Editor::inputFailed(const std::string& why)
     {
-        // No XInput 2: the editor shows, and takes no input.
+        // No XInput 2 (Linux): the editor shows, and takes no input.
         logSink(js::LogLevel::Warn, "native input could not start (" + why + ")");
     }
 
@@ -437,7 +409,7 @@ namespace soundor::vst3
     {
         const auto& editor = definition.editor;
         const auto scaled = [&](int value)
-        { return static_cast<int32>(std::lround(static_cast<float>(value) * contentScale)); };
+        { return static_cast<int32>(std::lround(static_cast<float>(value) * nativeScale())); };
         int32 width = std::max<int32>(1, wanted.getWidth());
         int32 height = std::max<int32>(1, wanted.getHeight());
         if (editor.minWidth > 0)
@@ -463,6 +435,7 @@ namespace soundor::vst3
         try
         {
             readWindowEvents();
+            window->tick();
             engineEditor->frame();
             if (controller != nullptr)
                 controller->pump();
@@ -498,7 +471,7 @@ namespace soundor::vst3
             {
                 engineEditor->resized();
                 if (! engineEditor->gpu())
-                    image.repaint();
+                    window->repaint();
             }
         }
         return kResultTrue;
@@ -539,6 +512,11 @@ namespace soundor::vst3
 
     tresult PLUGIN_API Editor::setContentScaleFactor(ScaleFactor factor)
     {
+#if SMTG_OS_MACOS
+        // macOS hosts never call it: views are in points there.
+        (void)factor;
+        return kResultFalse;
+#else
         if (factor <= 0.25f || factor >= 8.0f || std::isnan(factor))
             return kResultFalse;
         if (factor == contentScale)
@@ -554,5 +532,6 @@ namespace soundor::vst3
             plugFrame->resizeView(this, &wanted);
         }
         return kResultTrue;
+#endif
     }
 } // namespace soundor::vst3

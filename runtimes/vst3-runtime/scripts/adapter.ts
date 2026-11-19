@@ -1,17 +1,22 @@
-// Builds the VST3 runtime's prebuilt adapter, libsoundor_vst3.a, against the
-// engine this package depends on (its engine() archive for the variant), and
-// stages it where `soundor build vst3` looks for it:
+// Builds the VST3 runtime's prebuilt adapter for this machine's target
+// (linux-x64, macos-universal, windows-x64) against the engine this package
+// depends on (its engine() archive for the variant; Windows: the static C
+// runtime's), and stages it where `soundor build vst3` looks for it:
 //
-//   prebuilt/linux-x64-<variant>/lib/libsoundor_vst3.a
-//   prebuilt/linux-x64-<variant>/adapter.json      (what it was built against)
-//   prebuilt/linux-x64-<variant>/licenses/vst3sdk/LICENSE.txt
+//   prebuilt/<target>-<variant>/lib/libsoundor_vst3.a   (Windows: soundor_vst3.lib)
+//   prebuilt/<target>-<variant>/adapter.json      (what it was built against)
+//   prebuilt/<target>-<variant>/licenses/vst3sdk/LICENSE.txt
 //
 //   node scripts/adapter.ts build [debug|release]   both variants by default
 //   node scripts/adapter.ts test                    the native unit tests
 //   node scripts/adapter.ts tidy                    clang-tidy
 //
-// The published package carries prebuilt/ (CI builds it on the Linux
-// baseline before publishing); a workspace builds it with this.
+// The published package carries prebuilt/ for every target (CI builds each on
+// its runner before publishing); a workspace builds its own with this.
+//
+// Generators: Ninja on Linux and macOS; on Windows, CMake's default (Visual
+// Studio's, which finds MSVC itself), or CMAKE_GENERATOR and
+// CMAKE_GENERATOR_TOOLSET from the environment, as CI pins the toolset.
 
 import { spawnSync } from 'node:child_process';
 import {
@@ -27,6 +32,23 @@ import { fileURLToPath } from 'node:url';
 import { engine } from '@soundor/engine';
 
 type Variant = 'debug' | 'release';
+
+type Target = 'linux-x64' | 'macos-universal' | 'windows-x64';
+
+function hostTarget(): Target {
+  if (process.platform === 'linux' && process.arch === 'x64')
+    return 'linux-x64';
+  if (process.platform === 'darwin') return 'macos-universal';
+  if (process.platform === 'win32' && process.arch === 'x64')
+    return 'windows-x64';
+  throw new Error(
+    `The VST3 runtime's adapter builds on Linux x86_64, macOS and Windows x64, not ${process.platform} ${process.arch}.`,
+  );
+}
+
+const target = hostTarget();
+const windows = target === 'windows-x64';
+const archive = windows ? 'soundor_vst3.lib' : 'libsoundor_vst3.a';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const native = join(root, 'native');
@@ -46,19 +68,39 @@ function run(cmd: string, args: string[], cwd = native): void {
 async function configure(
   variant: Variant,
   preset: 'adapter' | 'tests' | 'tidy',
-): Promise<{ build: string; artifact: Awaited<ReturnType<typeof engine>> }> {
-  if (process.platform !== 'linux' || process.arch !== 'x64')
-    throw new Error('The VST3 runtime adapter builds on Linux x86_64 only.');
-  const artifact = await engine({ target: 'linux-x64', variant });
+): Promise<{
+  build: string;
+  artifact: Awaited<ReturnType<typeof engine>>;
+  config: string;
+}> {
+  const artifact = await engine({
+    target,
+    variant: windows ? `${variant}-static` : variant,
+  });
+  // macOS: the engine's minimum version, which plugins link for too.
+  const minimumOs = (
+    JSON.parse(
+      readFileSync(join(artifact.directory, 'soundor-engine.json'), 'utf8'),
+    ) as { target?: { minimumOsVersion?: string } }
+  ).target?.minimumOsVersion;
   const build = join(native, 'build', preset === 'adapter' ? variant : preset);
+  const config = variant === 'debug' ? 'Debug' : 'Release';
   const args = [
     '-S',
     native,
     '-B',
     build,
-    '-G',
-    'Ninja',
-    `-DCMAKE_BUILD_TYPE=${variant === 'debug' ? 'Debug' : 'Release'}`,
+    ...(windows ? [] : ['-G', 'Ninja']),
+    `-DCMAKE_BUILD_TYPE=${config}`,
+    ...(windows
+      ? [
+          // The static C runtime, as the engine's -static archives.
+          `-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded${variant === 'debug' ? 'Debug' : ''}`,
+        ]
+      : []),
+    ...(target === 'macos-universal' && minimumOs !== undefined
+      ? [`-DCMAKE_OSX_DEPLOYMENT_TARGET=${minimumOs}`]
+      : []),
     `-DSOUNDOR_ENGINE_PREBUILT_${variant.toUpperCase()}_DIR=${artifact.directory}`,
     `-DSOUNDOR_VST3_RUNTIME_VERSION=${pkg.version}`,
     '-DSOUNDOR_WARNINGS_AS_ERRORS=ON',
@@ -67,19 +109,27 @@ async function configure(
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
   ];
   run('cmake', args);
-  return { build, artifact };
+  return { build, artifact, config };
 }
 
 async function build(variant: Variant): Promise<void> {
-  const { build: directory, artifact } = await configure(variant, 'adapter');
-  run('cmake', ['--build', directory, '--target', 'soundor_vst3']);
-  const stage = join(root, 'prebuilt', `linux-x64-${variant}`);
+  const {
+    build: directory,
+    artifact,
+    config,
+  } = await configure(variant, 'adapter');
+  run('cmake', [
+    '--build',
+    directory,
+    '--config',
+    config,
+    '--target',
+    'soundor_vst3',
+  ]);
+  const stage = join(root, 'prebuilt', `${target}-${variant}`);
   rmSync(stage, { recursive: true, force: true });
   mkdirSync(join(stage, 'lib'), { recursive: true });
-  cpSync(
-    join(directory, 'lib', 'libsoundor_vst3.a'),
-    join(stage, 'lib', 'libsoundor_vst3.a'),
-  );
+  cpSync(join(directory, 'lib', archive), join(stage, 'lib', archive));
   cpSync(join(directory, 'licenses'), join(stage, 'licenses'), {
     recursive: true,
   });
@@ -94,7 +144,7 @@ async function build(variant: Variant): Promise<void> {
       {
         format: 1,
         runtimeVersion: pkg.version,
-        target: 'linux-x64',
+        target,
         variant,
         vst3sdk: '3.8.1',
         engine: {
@@ -120,12 +170,25 @@ if (command === 'build') {
     await build(variant);
   }
 } else if (command === 'test') {
-  const { build: directory } = await configure('debug', 'tests');
-  run('cmake', ['--build', directory]);
-  run('ctest', ['--test-dir', directory, '--output-on-failure']);
+  const { build: directory, config } = await configure('debug', 'tests');
+  run('cmake', ['--build', directory, '--config', config]);
+  run('ctest', [
+    '--test-dir',
+    directory,
+    '--build-config',
+    config,
+    '--output-on-failure',
+  ]);
 } else if (command === 'tidy') {
-  const { build: directory } = await configure('debug', 'tidy');
-  run('cmake', ['--build', directory, '--target', 'soundor_vst3']);
+  const { build: directory, config } = await configure('debug', 'tidy');
+  run('cmake', [
+    '--build',
+    directory,
+    '--config',
+    config,
+    '--target',
+    'soundor_vst3',
+  ]);
 } else {
   throw new Error(`Unknown command ${command}: build, test or tidy`);
 }

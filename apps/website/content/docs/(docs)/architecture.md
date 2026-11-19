@@ -25,7 +25,7 @@ flowchart TD
 ```
 
 The [VST3 runtime](/docs/vst3-runtime) runs the same engine and Rust crate as
-a Linux VST3 without JUCE, from a prebuilt adapter.
+a VST3 without JUCE (Linux, macOS, Windows), from a prebuilt adapter.
 
 The CLI bundles npm dependencies into the UI and leaves `soundor:*` imports for
 the runtime, in one ES module. The web runtime loads it as it is. The JUCE

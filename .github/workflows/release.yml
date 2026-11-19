@@ -18,8 +18,9 @@ name: Release
 #   host-artifacts  when @soundor/vst3-host is to be published: its executables
 #             for this commit, built and tested (vst3-host-artifacts.yml)
 #   vst3      when @soundor/vst3-runtime is to be published: its prebuilt
-#             adapter, built against the engine it pins, its test plugin in
-#             the VST3 host and pluginval (vst3.yml); pack puts it in the package
+#             adapters (Linux, macOS, Windows), built against the engine it
+#             pins, its test plugin in the VST3 host and pluginval (vst3.yml);
+#             pack puts them in the package
 #
 # Test what uses them:
 #
@@ -280,6 +281,8 @@ jobs:
       engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
       build-host: ${{ needs.select.outputs.host == 'true' }}
       keep-adapter: true
+      # An author on Visual Studio 2022 links the Windows adapter (as the JUCE 8 group's).
+      msvc-toolset: v143,version=14.44
 
   # ── Publish ────────────────────────────────────────────────────────────
   # Every job above, for what this release publishes, has passed.
@@ -383,13 +386,14 @@ jobs:
           path: ${{ runner.temp }}/vst3-host-tarballs
           if-no-files-found: error
 
-      # The adapter the VST3 job built and tested, into the package (prebuilt/,
-      # never committed).
-      - name: Download the VST3 runtime's adapter
+      # The adapters the VST3 jobs built and tested, one per target, into the
+      # package (prebuilt/<target>-<variant>/, never committed).
+      - name: Download the VST3 runtime's adapters
         if: needs.select.outputs.vst3 == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: vst3-adapter-${{ github.sha }}-linux-x64
+          pattern: vst3-adapter-${{ github.sha }}-*
+          merge-multiple: true
           path: runtimes/vst3-runtime/prebuilt
 
       - name: Pack
@@ -415,9 +419,11 @@ jobs:
           set -eo pipefail
           tarball=$(find "$RUNNER_TEMP/packed" -name 'soundor-vst3-runtime-*.tgz' | head -1)
           [ -n "$tarball" ] || { echo "::error::No packed @soundor/vst3-runtime"; exit 1; }
-          for variant in debug release; do
-            tar -tzf "$tarball" | grep -qx "package/prebuilt/linux-x64-$variant/lib/libsoundor_vst3.a" ||
-              { echo "::error::$tarball has no $variant adapter"; exit 1; }
+          for adapter in linux-x64-{debug,release}/lib/libsoundor_vst3.a \
+                         macos-universal-{debug,release}/lib/libsoundor_vst3.a \
+                         windows-x64-{debug,release}/lib/soundor_vst3.lib; do
+            tar -tzf "$tarball" | grep -qx "package/prebuilt/$adapter" ||
+              { echo "::error::$tarball has no prebuilt/$adapter"; exit 1; }
           done
 
       - name: The packed VST3 host pins its platform packages

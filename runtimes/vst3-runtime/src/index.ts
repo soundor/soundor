@@ -1,6 +1,6 @@
 /**
- * `@soundor/vst3-runtime`: Soundor plugins as Linux VST3 plugins, without
- * JUCE.
+ * `@soundor/vst3-runtime`: Soundor plugins as VST3 plugins for Linux, macOS
+ * and Windows, without JUCE.
  *
  * A plugin is linked from parts built once, never compiled per plugin: the
  * prebuilt VST3 adapter (`libsoundor_vst3.a`: Steinberg's SDK and a generic
@@ -41,13 +41,30 @@ import { bundlePaths, writeBundleResources } from './bundle';
 import { buildCrate, writeCrate } from './crate';
 import { describePlugin, descriptorJson } from './descriptor';
 import {
+  adapterDirectory,
   compilerDriver,
   environmentLinkFlags,
   findAdapter,
+  findMsvcLinker,
   linkArguments,
+  MAC_EXPORTS,
+  macLinkArguments,
+  responseFile,
   VERSION_SCRIPT,
+  windowsLinkArguments,
+  type MsvcLinker,
 } from './link';
 import { resolveVst3Options, type Vst3Options } from './options';
+import {
+  adapterArchiveName,
+  engineVariant,
+  hostTarget,
+  installHint,
+  requireTarget,
+  rustTarget,
+  type Variant,
+  type Vst3Target,
+} from './targets';
 import { embeddedFiles, watchNativeUi, writeNativeUi } from './ui';
 
 export type { Vst3Options, ResolvedVst3Options } from './options';
@@ -57,8 +74,14 @@ export {
   descriptorJson,
   parameterVstId,
 } from './descriptor';
-export { linkArguments, VERSION_SCRIPT } from './link';
-export { moduleInfo } from './bundle';
+export {
+  linkArguments,
+  macLinkArguments,
+  windowsLinkArguments,
+  VERSION_SCRIPT,
+} from './link';
+export { infoPlist, moduleInfo } from './bundle';
+export { hostTarget, type Vst3Target } from './targets';
 
 /** The runtime id: `soundor build vst3`. */
 export const RUNTIME_ID = 'vst3';
@@ -67,7 +90,6 @@ export const RUNTIME_ID = 'vst3';
 export const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 type Ctx = LifecycleContext<Vst3Options>;
-type Variant = 'debug' | 'release';
 
 /** Injectable for tests. */
 export interface Vst3PhaseDeps {
@@ -78,6 +100,8 @@ export interface Vst3PhaseDeps {
   readonly engine?: (variant: Variant) => Promise<NativeEngineArtifact>;
   /** Whether a file exists (doctor's system library checks). */
   readonly exists?: (path: string) => boolean;
+  /** Windows: finds MSVC's linker. */
+  readonly msvc?: () => MsvcLinker;
 }
 
 /** Where Linux distributions keep x86_64 libraries. */
@@ -89,13 +113,14 @@ const LIBRARY_DIRECTORIES = [
   '/usr/lib',
 ];
 
-function requireLinux(deps: Vst3PhaseDeps): void {
+function machine(deps: Vst3PhaseDeps): {
+  readonly platform: NodeJS.Platform;
+  readonly arch: string;
+  readonly target: Vst3Target;
+} {
   const platform = deps.platform ?? process.platform;
   const arch = deps.arch ?? process.arch;
-  if (platform !== 'linux' || arch !== 'x64')
-    throw new EnvError(
-      `The VST3 runtime builds Linux x86_64 plugins, on Linux x86_64 (this is ${platform} ${arch}). Use the JUCE runtime elsewhere.`,
-    );
+  return { platform, arch, target: requireTarget(platform, arch) };
 }
 
 /** `gen`: the descriptor, for inspection and `gen --check`; builds make it again. */
@@ -118,19 +143,26 @@ interface BuildOptions {
   readonly live?: { readonly uiDirectory: string; readonly logFile: string };
 }
 
-/** The Hermes revision of an engine archive, which bytecode names. */
-async function hermesRevision(artifact: NativeEngineArtifact): Promise<string> {
+/** What an engine archive's soundor-engine.json says that a plugin build reads. */
+async function engineMetadata(artifact: NativeEngineArtifact): Promise<{
+  readonly hermesRevision: string;
+  readonly minimumOs: string | undefined;
+}> {
   const metadata = JSON.parse(
     await readFile(join(artifact.directory, 'soundor-engine.json'), 'utf8'),
   ) as {
     hermes?: { revision?: string };
+    target?: { minimumOsVersion?: string };
   };
   const revision = metadata.hermes?.revision;
   if (revision === undefined)
     throw new EnvError(
       `${artifact.directory} does not name its Hermes revision.`,
     );
-  return revision;
+  return {
+    hermesRevision: revision,
+    minimumOs: metadata.target?.minimumOsVersion,
+  };
 }
 
 async function buildPlugin(
@@ -139,7 +171,7 @@ async function buildPlugin(
   build: BuildOptions,
   deps: Vst3PhaseDeps,
 ): Promise<string> {
-  requireLinux(deps);
+  const { arch, target } = machine(deps);
   if (ctx.lib === undefined)
     throw new EnvError(
       "The project has no Rust library (lib/Cargo.toml), which holds the plugin's processor and controller. Run `soundor gen` to create missing Rust starter files.",
@@ -149,12 +181,19 @@ async function buildPlugin(
   const cache = join(ctx.paths.cache, build.label);
   const artifact = await (
     deps.engine ??
-    ((variant: Variant) => engine({ target: 'linux-x64', variant }))
+    ((variant: Variant) =>
+      engine({ target, variant: engineVariant(target, variant) }))
   )(build.variant);
   ctx.logger.info(
-    `Engine: ${artifact.version} ${build.variant} (${artifact.mode}: ${artifact.reason})`,
+    `Engine: ${artifact.version} ${artifact.variant} for ${target} (${artifact.mode}: ${artifact.reason})`,
   );
-  const adapter = await findAdapter(PACKAGE_ROOT, build.variant, artifact);
+  const adapter = await findAdapter(
+    PACKAGE_ROOT,
+    target,
+    build.variant,
+    artifact,
+  );
+  const metadata = await engineMetadata(artifact);
 
   // The UI, in the engine's form; embedded unless a live build reads it.
   const uiDir = join(cache, 'ui');
@@ -168,7 +207,7 @@ async function buildPlugin(
         build.variant === 'release'
           ? {
               hermesc: artifact.hermesc,
-              revision: await hermesRevision(artifact),
+              revision: metadata.hermesRevision,
             }
           : undefined,
       );
@@ -206,44 +245,45 @@ async function buildPlugin(
     projectRoot: ctx.paths.root,
     targetDir: join(ctx.paths.cache, 'target'),
     profile: build.variant,
+    target: rustTarget(target, arch),
     logger: ctx.logger,
     signal: ctx.signal,
   });
 
   await build.beforeReplace?.();
   ctx.signal.throwIfAborted();
-  const paths = bundlePaths(build.out, config.plugin.name);
+  const paths = bundlePaths(build.out, config.plugin.name, target);
   await rm(paths.bundle, { recursive: true, force: true });
   await mkdir(paths.binaryDir, { recursive: true });
-  const versionScript = join(cache, 'exports.map');
-  await writeFile(versionScript, VERSION_SCRIPT);
   ctx.logger.info('Linking the plugin');
-  await run({
-    cmd: compilerDriver(),
-    args: linkArguments({
+  const minimumOs = metadata.minimumOs ?? '12.0';
+  await linkPlugin({
+    target,
+    arch,
+    cache,
+    ctx,
+    run,
+    deps,
+    inputs: {
       output: paths.binary,
-      versionScript,
       adapter,
       rust,
       engineLibraries: artifact.libraries,
       engineFlags: artifact.linkFlags,
       release: build.variant === 'release',
       extra: environmentLinkFlags(),
-    }),
-    cwd: ctx.paths.root,
-    logger: ctx.logger,
-    signal: ctx.signal,
+    },
+    minimumOs,
   });
   await writeBundleResources({
     paths,
     description,
+    ...(target === 'macos-universal' ? { macos: { minimumOs } } : {}),
     licenses: [
       {
         name: 'vst3sdk',
         directory: join(
-          PACKAGE_ROOT,
-          'prebuilt',
-          `linux-x64-${build.variant}`,
+          adapterDirectory(PACKAGE_ROOT, target, build.variant),
           'licenses',
           'vst3sdk',
         ),
@@ -254,7 +294,113 @@ async function buildPlugin(
       },
     ],
   });
+  // macOS: signed last, as nothing may write into a bundle after it.
+  if (target === 'macos-universal') {
+    const { identity, keychain } = ctx.signing.macos;
+    ctx.logger.info(
+      `Signing the bundle (${identity === '-' ? 'ad-hoc' : identity})`,
+    );
+    await run({
+      cmd: 'codesign',
+      args: [
+        '--force',
+        '--sign',
+        identity,
+        ...(keychain !== undefined ? ['--keychain', keychain] : []),
+        // Notarization requires the hardened runtime and a secure timestamp.
+        ...(identity !== '-' ? ['--options', 'runtime', '--timestamp'] : []),
+        paths.bundle,
+      ],
+      cwd: ctx.paths.root,
+      logger: ctx.logger,
+      signal: ctx.signal,
+    });
+    await run({
+      cmd: 'codesign',
+      args: ['--verify', '--deep', '--strict', paths.bundle],
+      cwd: ctx.paths.root,
+      logger: ctx.logger,
+      signal: ctx.signal,
+    });
+  }
   return paths.bundle;
+}
+
+/** Links the plugin's binary, with the platform's linker (link.ts). */
+async function linkPlugin(options: {
+  readonly target: Vst3Target;
+  readonly arch: string;
+  readonly cache: string;
+  readonly ctx: Ctx;
+  readonly run: CommandRunner;
+  readonly deps: Vst3PhaseDeps;
+  readonly inputs: {
+    readonly output: string;
+    readonly adapter: string;
+    readonly rust: string;
+    readonly engineLibraries: readonly string[];
+    readonly engineFlags: readonly string[];
+    readonly release: boolean;
+    readonly extra: readonly string[];
+  };
+  readonly minimumOs: string;
+}): Promise<void> {
+  const { ctx, run, cache, inputs } = options;
+  const command = {
+    cwd: ctx.paths.root,
+    logger: ctx.logger,
+    signal: ctx.signal,
+  };
+  await mkdir(cache, { recursive: true });
+  switch (options.target) {
+    case 'linux-x64': {
+      const versionScript = join(cache, 'exports.map');
+      await writeFile(versionScript, VERSION_SCRIPT);
+      await run({
+        cmd: compilerDriver(),
+        args: linkArguments({ ...inputs, versionScript }),
+        ...command,
+      });
+      return;
+    }
+    case 'macos-universal': {
+      const exportsList = join(cache, 'exports.txt');
+      await writeFile(exportsList, MAC_EXPORTS);
+      await run({
+        cmd: compilerDriver(),
+        args: macLinkArguments({
+          ...inputs,
+          exportsList,
+          architecture: options.arch === 'arm64' ? 'arm64' : 'x86_64',
+          minimumOs: options.minimumOs,
+        }),
+        ...command,
+      });
+      return;
+    }
+    case 'windows-x64': {
+      const msvc = (options.deps.msvc ?? findMsvcLinker)();
+      ctx.logger.info(`MSVC: ${msvc.source}`);
+      // LDFLAGS are the GNU drivers'; link.exe reads its own LINK variable.
+      const args = windowsLinkArguments({
+        ...inputs,
+        extra: [],
+        libraryPaths: msvc.libraryPaths,
+        ...(inputs.release ? {} : { pdb: join(cache, 'plugin.pdb') }),
+      });
+      // A response file, read in the cache: the command line stays short
+      // and needs no quoting by the shell.
+      await writeFile(join(cache, 'link.rsp'), responseFile(args));
+      await run({
+        cmd: `"${msvc.linker}"`,
+        args: ['@link.rsp'],
+        cwd: cache,
+        logger: ctx.logger,
+        signal: ctx.signal,
+      });
+      return;
+    }
+  }
 }
 
 /**
@@ -276,7 +422,7 @@ async function vst3Build(
     deps,
   );
   ctx.logger.info(
-    `${debug ? 'Debug VST3 (with DevTools)' : 'VST3'} in ${bundle}. Copy or link it into ~/.vst3 for hosts to find it.`,
+    `${debug ? 'Debug VST3 (with DevTools)' : 'VST3'} in ${bundle}. ${installHint(machine(deps).target)}`,
   );
 }
 
@@ -300,7 +446,7 @@ async function vst3Dev(
   ctx: Ctx,
   deps: Vst3PhaseDeps = {},
 ): Promise<void> {
-  requireLinux(deps);
+  const { target } = machine(deps);
   const uiDirectory = join(ctx.paths.cache, 'dev', 'ui');
   const live = ctx.ui?.live;
   const watcher =
@@ -350,7 +496,7 @@ async function vst3Dev(
     const openHost = async (): Promise<void> => {
       if (host !== undefined || ctx.signal.aborted) return;
       try {
-        if (!process.env['DISPLAY'])
+        if (target === 'linux-x64' && !process.env['DISPLAY'])
           throw new Error('Set DISPLAY to an X11 or XWayland display.');
         let executable: string;
         try {
@@ -442,7 +588,7 @@ async function vst3Dev(
   }
 }
 
-/** `doctor`: the platform, Rust, a linker, the C++ runtime, the prebuilt adapter. */
+/** `doctor`: the platform, Rust, a linker (and on Linux the C++ runtime and libcurl), the prebuilt adapter. */
 export async function vst3Doctor(
   _config: ResolvedSoundorConfig,
   _ctx: Ctx,
@@ -452,17 +598,21 @@ export async function vst3Doctor(
   const platform = deps.platform ?? process.platform;
   const arch = deps.arch ?? process.arch;
   const checks: DoctorReport['checks'] = [];
-  const linux = platform === 'linux' && arch === 'x64';
-  checks.push({
-    label: 'Platform',
-    status: linux ? 'ok' : 'fail',
-    detail: linux
-      ? 'Linux x86_64'
-      : `${platform} ${arch}: the VST3 runtime builds on Linux x86_64 only`,
-    ...(linux
-      ? {}
-      : { suggestion: 'Build on Linux x86_64, or use the JUCE runtime here.' }),
-  });
+  const target = hostTarget(platform, arch);
+  checks.push(
+    target !== undefined
+      ? {
+          label: 'Platform',
+          status: 'ok',
+          detail: `${platform} ${arch}: ${target}`,
+        }
+      : {
+          label: 'Platform',
+          status: 'fail',
+          detail: `${platform} ${arch}: the VST3 runtime builds on Linux x86_64, macOS and Windows x64`,
+          suggestion: 'Use the JUCE runtime here.',
+        },
+  );
   for (const [label, cmd, suggestion] of [
     ['Cargo', 'cargo', 'Install Rust: https://rustup.rs'],
     ['rustc', 'rustc', 'Install Rust: https://rustup.rs'],
@@ -474,83 +624,105 @@ export async function vst3Doctor(
         : { label, status: 'fail', detail: result.error, suggestion },
     );
   }
-  const driver = compilerDriver();
-  const cc = probe(driver, ['--version']);
-  checks.push(
-    cc.ok
-      ? {
-          label: 'Linker (C++ compiler driver)',
-          status: 'ok',
-          detail: `${driver}: ${(cc.version ?? '').split('\n')[0]}`,
-        }
-      : {
-          label: 'Linker (C++ compiler driver)',
-          status: 'fail',
-          detail: `${driver}: ${cc.error}`,
-          suggestion:
-            'Install g++ or clang++ (Debian, Ubuntu: sudo apt install build-essential; Fedora: sudo dnf install gcc-c++): it links the plugin, and Rust needs a C compiler to link on Linux too.',
-        },
-  );
-  if (cc.ok) {
-    const libstdcxx = probe(driver, ['-print-file-name=libstdc++.a']);
-    const found = libstdcxx.ok && (libstdcxx.version ?? '').startsWith('/');
+  if (target === 'windows-x64') {
+    try {
+      const msvc = (deps.msvc ?? findMsvcLinker)();
+      checks.push({
+        label: 'Linker (MSVC link.exe)',
+        status: 'ok',
+        detail: `${msvc.linker} (${msvc.source})`,
+      });
+    } catch (error) {
+      checks.push({
+        label: 'Linker (MSVC link.exe)',
+        status: 'fail',
+        detail: error instanceof Error ? error.message : String(error),
+        suggestion:
+          'Install Visual Studio 2022 or later, or its Build Tools, with "Desktop development with C++".',
+      });
+    }
+  } else if (target !== undefined) {
+    const driver = compilerDriver();
+    const cc = probe(driver, ['--version']);
     checks.push(
-      found
+      cc.ok
         ? {
-            label: 'Static C++ runtime',
+            label: 'Linker (C++ compiler driver)',
             status: 'ok',
-            detail: libstdcxx.version ?? '',
+            detail: `${driver}: ${(cc.version ?? '').split('\n')[0]}`,
           }
         : {
-            label: 'Static C++ runtime',
+            label: 'Linker (C++ compiler driver)',
             status: 'fail',
-            detail:
-              'libstdc++.a was not found: plugins carry their C++ runtime',
+            detail: `${driver}: ${cc.error}`,
             suggestion:
-              'Fedora, RHEL: sudo dnf install libstdc++-static. Debian, Ubuntu: it comes with g++.',
+              target === 'macos-universal'
+                ? "Install Apple's Command Line Tools (xcode-select --install): they link the plugin, and Rust needs them too."
+                : 'Install g++ or clang++ (Debian, Ubuntu: sudo apt install build-essential; Fedora: sudo dnf install gcc-c++): it links the plugin, and Rust needs a C compiler to link on Linux too.',
           },
     );
+    if (cc.ok && target === 'linux-x64') {
+      const libstdcxx = probe(driver, ['-print-file-name=libstdc++.a']);
+      const found = libstdcxx.ok && (libstdcxx.version ?? '').startsWith('/');
+      checks.push(
+        found
+          ? {
+              label: 'Static C++ runtime',
+              status: 'ok',
+              detail: libstdcxx.version ?? '',
+            }
+          : {
+              label: 'Static C++ runtime',
+              status: 'fail',
+              detail:
+                'libstdc++.a was not found: plugins carry their C++ runtime',
+              suggestion:
+                'Fedora, RHEL: sudo dnf install libstdc++-static. Debian, Ubuntu: it comes with g++.',
+            },
+      );
+    }
   }
   const exists = deps.exists ?? existsSync;
-  const curl = ['libcurl.so.4', 'libcurl-gnutls.so.4']
-    .flatMap((name) => LIBRARY_DIRECTORIES.map((dir) => join(dir, name)))
-    .find((path) => exists(path));
-  checks.push(
-    curl !== undefined
-      ? { label: 'libcurl (fetch)', status: 'ok', detail: curl }
-      : {
-          label: 'libcurl (fetch)',
-          status: 'warn',
-          detail:
-            "no libcurl.so.4: plugins' fetch() fails on this machine (the system's libcurl is their HTTP stack)",
-          suggestion:
-            'Debian, Ubuntu: sudo apt install libcurl4t64 (before 24.04: libcurl4). Fedora: sudo dnf install libcurl.',
-        },
-  );
-  for (const variant of ['release', 'debug'] as const) {
-    const archive = join(
-      PACKAGE_ROOT,
-      'prebuilt',
-      `linux-x64-${variant}`,
-      'lib',
-      'libsoundor_vst3.a',
-    );
+  if (target === 'linux-x64') {
+    const curl = ['libcurl.so.4', 'libcurl-gnutls.so.4']
+      .flatMap((name) => LIBRARY_DIRECTORIES.map((dir) => join(dir, name)))
+      .find((path) => exists(path));
     checks.push(
-      existsSync(archive)
-        ? {
-            label: `Prebuilt adapter (${variant})`,
-            status: 'ok',
-            detail: archive,
-          }
+      curl !== undefined
+        ? { label: 'libcurl (fetch)', status: 'ok', detail: curl }
         : {
-            label: `Prebuilt adapter (${variant})`,
-            status: 'fail',
-            detail: `${archive} is missing`,
+            label: 'libcurl (fetch)',
+            status: 'warn',
+            detail:
+              "no libcurl.so.4: plugins' fetch() fails on this machine (the system's libcurl is their HTTP stack)",
             suggestion:
-              "In Soundor's workspace: pnpm --filter @soundor/vst3-runtime build:native. Installed: reinstall @soundor/vst3-runtime.",
+              'Debian, Ubuntu: sudo apt install libcurl4t64 (before 24.04: libcurl4). Fedora: sudo dnf install libcurl.',
           },
     );
   }
+  if (target !== undefined)
+    for (const variant of ['release', 'debug'] as const) {
+      const archive = join(
+        adapterDirectory(PACKAGE_ROOT, target, variant),
+        'lib',
+        adapterArchiveName(target),
+      );
+      checks.push(
+        exists(archive)
+          ? {
+              label: `Prebuilt adapter (${variant})`,
+              status: 'ok',
+              detail: archive,
+            }
+          : {
+              label: `Prebuilt adapter (${variant})`,
+              status: 'fail',
+              detail: `${archive} is missing`,
+              suggestion:
+                "In Soundor's workspace: pnpm --filter @soundor/vst3-runtime build:native. Installed: reinstall @soundor/vst3-runtime.",
+            },
+      );
+    }
   return { checks };
 }
 

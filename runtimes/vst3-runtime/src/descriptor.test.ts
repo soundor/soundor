@@ -1,15 +1,25 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { resolveConfig } from '@soundor/config';
 import { describe, expect, it } from 'vitest';
 
-import { moduleInfo } from './bundle';
-import { cratePackageName, renderCrate } from './crate';
+import { bundlePaths, infoPlist, moduleInfo } from './bundle';
+import { crateBuildArguments, cratePackageName, renderCrate } from './crate';
 import { classIds, describePlugin, parameterVstId } from './descriptor';
 import { renderExpressionRuntime } from './expression-runtime';
-import { findAdapter, linkArguments, VERSION_SCRIPT } from './link';
+import {
+  findAdapter,
+  linkArguments,
+  MAC_EXPORTS,
+  macLinkArguments,
+  responseFile,
+  VERSION_SCRIPT,
+  windowsLinkArguments,
+} from './link';
 import { resolveVst3Options } from './options';
+import { engineVariant, hostTarget, rustTarget } from './targets';
 
 function config(source: Record<string, unknown>) {
   return resolveConfig({ runtimes: [], ...source });
@@ -328,11 +338,125 @@ describe('link', () => {
 
   it('refuses an adapter built against another engine', async () => {
     await expect(
-      findAdapter('/nowhere', 'release', {
+      findAdapter('/nowhere', 'linux-x64', 'release', {
         version: '1.0.0',
         sourceFingerprint: 'x',
       }),
     ).rejects.toThrow(/prebuilt release adapter is missing/);
+  });
+});
+
+describe('macOS and Windows', () => {
+  const inputs = {
+    output: '/b/P',
+    adapter: '/a/libsoundor_vst3.a',
+    rust: '/t/libplugin.a',
+    engineLibraries: ['/e/libsoundor_runtime.a'],
+    engineFlags: ['-framework', 'Metal'],
+    release: true,
+  };
+
+  it('links a macOS bundle for the machine, exporting only the entry points', () => {
+    const args = macLinkArguments({
+      ...inputs,
+      exportsList: '/c/exports.txt',
+      architecture: 'arm64',
+      minimumOs: '12.0',
+    });
+    expect(args.slice(0, 6)).toEqual([
+      '-bundle',
+      '-o',
+      '/b/P',
+      '-arch',
+      'arm64',
+      '-mmacosx-version-min=12.0',
+    ]);
+    expect(args).toContain('-Wl,-exported_symbols_list,/c/exports.txt');
+    expect(args).toContain('-Wl,-force_load,/a/libsoundor_vst3.a');
+    expect(args.indexOf('/e/libsoundor_runtime.a')).toBeGreaterThan(
+      args.indexOf('/t/libplugin.a'),
+    );
+    expect(args).toContain('-Wl,-dead_strip');
+    expect(MAC_EXPORTS.trim().split('\n')).toEqual([
+      '_GetPluginFactory',
+      '_bundleEntry',
+      '_bundleExit',
+    ]);
+  });
+
+  it('links a Windows DLL with the adapter whole, and one C runtime in Debug', () => {
+    const release = windowsLinkArguments({
+      ...inputs,
+      adapter: 'C:/a/soundor_vst3.lib',
+      engineFlags: ['user32.lib'],
+      libraryPaths: ['C:/kits/lib'],
+    });
+    expect(release).toContain('/DLL');
+    expect(release).toContain('/WHOLEARCHIVE:C:/a/soundor_vst3.lib');
+    expect(release).toContain('/LIBPATH:C:/kits/lib');
+    expect(release).toContain('/OPT:REF');
+    expect(release.some((arg) => arg.startsWith('/NODEFAULTLIB'))).toBe(false);
+    const debug = windowsLinkArguments({
+      ...inputs,
+      release: false,
+      libraryPaths: [],
+      pdb: 'C:/c/plugin.pdb',
+    });
+    expect(debug).toContain('/NODEFAULTLIB:libcmt.lib');
+    expect(debug).toContain('/PDB:C:/c/plugin.pdb');
+    expect(responseFile(['/OUT:C:/a b/P.vst3', '/DLL'])).toBe(
+      '"/OUT:C:/a b/P.vst3"\r\n"/DLL"\r\n',
+    );
+  });
+
+  it("lays out each platform's bundle", () => {
+    expect(bundlePaths('/d', 'A/B', 'linux-x64').binary).toBe(
+      join('/d', 'A_B.vst3', 'Contents', 'x86_64-linux', 'A_B.so'),
+    );
+    expect(bundlePaths('/d', 'Reverb', 'macos-universal').binary).toBe(
+      join('/d', 'Reverb.vst3', 'Contents', 'MacOS', 'Reverb'),
+    );
+    expect(bundlePaths('/d', 'Reverb', 'windows-x64').binary).toBe(
+      join('/d', 'Reverb.vst3', 'Contents', 'x86_64-win', 'Reverb.vst3'),
+    );
+    const plist = infoPlist(
+      describePlugin(
+        config({ plugin: { id: 'com.acme.rb', name: 'R&B' } }),
+        resolveVst3Options(undefined),
+      ),
+      'R&B',
+      '12.0',
+    );
+    expect(plist).toContain(
+      '<key>CFBundleExecutable</key>\n\t<string>R&amp;B</string>',
+    );
+    expect(plist).toContain('<string>com.acme.rb</string>');
+    expect(plist).toContain('<string>BNDL</string>');
+    expect(plist).toContain(
+      '<key>LSMinimumSystemVersion</key>\n\t<string>12.0</string>',
+    );
+  });
+
+  it('builds each platform for itself', () => {
+    expect(hostTarget('linux', 'x64')).toBe('linux-x64');
+    expect(hostTarget('linux', 'arm64')).toBeUndefined();
+    expect(hostTarget('darwin', 'arm64')).toBe('macos-universal');
+    expect(hostTarget('darwin', 'x64')).toBe('macos-universal');
+    expect(hostTarget('win32', 'x64')).toBe('windows-x64');
+    expect(hostTarget('win32', 'arm64')).toBeUndefined();
+    expect(rustTarget('macos-universal', 'arm64')).toBe('aarch64-apple-darwin');
+    expect(rustTarget('macos-universal', 'x64')).toBe('x86_64-apple-darwin');
+    expect(engineVariant('windows-x64', 'debug')).toBe('debug-static');
+    expect(engineVariant('macos-universal', 'debug')).toBe('debug');
+    expect(
+      crateBuildArguments('/c/Cargo.toml', {
+        targetDir: '/t',
+        profile: 'release',
+        target: 'x86_64-pc-windows-msvc',
+      }),
+    ).toContain(
+      'target.x86_64-pc-windows-msvc.rustflags=["-C", "target-feature=+crt-static"]',
+    );
   });
 });
 

@@ -1,12 +1,12 @@
 ---
 title: 'VST3 runtime'
-description: 'Linux VST3 plugins without JUCE: a prebuilt VST3 adapter, the Soundor engine and your Rust crate, linked by Cargo and the system linker.'
+description: 'VST3 plugins for Linux, macOS and Windows without JUCE: a prebuilt VST3 adapter, the Soundor engine and your Rust crate, linked by Cargo and the system linker.'
 ---
 
 Source: [`runtimes/vst3-runtime/`](https://github.com/soundor/soundor/tree/main/runtimes/vst3-runtime).
 
-`@soundor/vst3-runtime` builds a project as a **Linux x86_64 VST3 plugin
-without JUCE**. The same project as the [JUCE runtime](/docs/juce-runtime)'s,
+`@soundor/vst3-runtime` builds a project as a **VST3 plugin for Linux,
+macOS or Windows, without JUCE**. The same project as the [JUCE runtime](/docs/juce-runtime)'s,
 unchanged: the UI in `src/`, the [Rust processor](/docs/rust-processor) and
 [controller](/docs/rust-controller) in `lib/`, the contract in
 `soundor.config.ts`. No C++ is compiled when a plugin is built: the plugin is
@@ -28,7 +28,7 @@ export default defineSoundorConfig({
 
 ```sh
 pnpm add -D @soundor/vst3-runtime @soundor/vst3-host
-soundor build vst3           # .soundor/dist/vst3/Acme Reverb.vst3
+soundor build vst3           # .soundor/dist/vst3/Acme Reverb.vst3 (for this machine)
 soundor build vst3 --debug   # a Debug build with DevTools
 soundor dev vst3             # opens the Debug build in the VST3 host
 ```
@@ -39,11 +39,23 @@ does (`pnpm --filter controller build:vst3`).
 
 ## Requirements
 
-- **Linux x86_64**, to build and to run. Windows, macOS, other architectures
-  and cross-compilation are not supported; use the JUCE runtime there.
+Each platform builds its own plugins: there is no cross-compilation. On
+other platforms and architectures (Linux on ARM, Windows on ARM), use the
+JUCE runtime.
+
+| Platform                      | Builds                                         | Plugins run on              |
+| ----------------------------- | ---------------------------------------------- | --------------------------- |
+| Linux x86_64                  | `Contents/x86_64-linux/<Name>.so`              | Linux x86_64 with glibc     |
+| macOS, Apple silicon or Intel | `Contents/MacOS/<Name>`, for the machine's CPU | macOS 12 or later, that CPU |
+| Windows x64                   | `Contents/x86_64-win/<Name>.vst3`              | Windows x64                 |
+
+Everywhere:
+
 - **Node** and **Rust** (stable, with Cargo).
-- **`@soundor/vst3-host`**, a required peer dependency. Opening the editor
-  during development needs an X11 or XWayland display.
+- **`@soundor/vst3-host`**, a required peer dependency.
+
+On **Linux**:
+
 - **A C++ compiler driver**, `c++` (g++ or clang++), or the one `CXX` names:
   it links the plugin, with its C++ runtime linked statically. Rust needs a C
   compiler to link on Linux anyway. Debian and Ubuntu: `sudo apt install
@@ -58,10 +70,29 @@ does (`pnpm --filter controller build:vst3`).
   Linux host, and an X server with XInput 2 (X.Org 1.7 or later, and
   XWayland). There is no fallback: without the run loop the editor does not
   open, and without XInput 2 it shows the UI but takes no input (the log says
-  why). Audio, parameters and state work either way.
+  why). Audio, parameters and state work either way. Opening the editor
+  during development needs an X11 or XWayland display.
 
-`soundor doctor` checks the platform, Rust, the compiler driver, the static
-C++ runtime, libcurl and the prebuilt adapter.
+On **macOS**:
+
+- **Apple's Command Line Tools** (`xcode-select --install`), which Rust
+  needs too: `c++` (or `CXX`) links the plugin as a bundle, and `codesign`
+  signs it, with [the project's identity](/docs/cli/config#signing) or
+  ad hoc. `LDFLAGS` is passed on.
+- The plugin is built for the machine's architecture (arm64 on Apple
+  silicon), for macOS 12 or later: the engine's minimum.
+
+On **Windows**:
+
+- **Visual Studio 2022 (17.14) or later, or its Build Tools**, with
+  "Desktop development with C++", which Rust needs too: its `link.exe` links
+  the plugin, found with `vswhere` (or the developer prompt's). Rust's
+  `x86_64-pc-windows-msvc` toolchain, the default there.
+- Plugins link the static C runtime: users need no Visual C++
+  Redistributable.
+
+`soundor doctor` checks the platform, Rust, the linker (and on Linux the
+static C++ runtime and libcurl) and the prebuilt adapters.
 
 ## Options
 
@@ -91,12 +122,13 @@ to the descriptor path printed by `soundor dev`.
 soundor.config.ts ── descriptor (JSON) ─┐
 src/ ── UI bundle ── bytecode ──────────┤ generated crate ── Cargo ──> libplugin.a ─┐
 lib/ (your crate) ──────────────────────┘ (+ soundor-vst3)                          │
-                                                                                     ├─ c++ -shared ─> Name.vst3
-@soundor/vst3-runtime: prebuilt/linux-x64-<variant>/lib/libsoundor_vst3.a ─────────┤
+                                                                                     ├─ the linker ──> Name.vst3
+@soundor/vst3-runtime: prebuilt/<target>-<variant>/lib/libsoundor_vst3.a ──────────┤
 @soundor/engine: the prebuilt engine archive (engine()) ────────────────────────────┘
 ```
 
-- **The VST3 adapter** (`libsoundor_vst3.a`, in the package): Steinberg's
+- **The VST3 adapter** (`libsoundor_vst3.a`, `soundor_vst3.lib` on Windows,
+  in the package for each platform): Steinberg's
   [VST3 SDK](https://github.com/steinbergmedia/vst3sdk) 3.8.1 and a generic
   component (`IComponent`, `IAudioProcessor`), edit controller
   (`IEditController`, `IUnitInfo`, `IMidiMapping`) and view (`IPlugView`). It
@@ -117,23 +149,29 @@ lib/ (your crate) ────────────────────�
   Soundor's cache and verified (see [Soundor Engine](/docs/engine)).
 - **The CLI** bundles the UI, lowers it with the engine's own lowering,
   compiles it to Hermes bytecode with the engine's `hermesc` (release builds),
-  generates the crate, runs Cargo, links and lays out the bundle.
+  generates the crate, runs Cargo, links (`c++` on Linux and macOS,
+  `link.exe` on Windows), lays out the bundle and, on macOS, signs it.
 
 ## The bundle
 
 ```text
 Acme Reverb.vst3/
   Contents/
-    x86_64-linux/Acme Reverb.so
+    x86_64-linux/Acme Reverb.so      Linux
+    MacOS/Acme Reverb                macOS, with Info.plist and PkgInfo
+    x86_64-win/Acme Reverb.vst3      Windows
     Resources/
       moduleinfo.json
       licenses/           the notices of everything inside: VST3 SDK, engine, Skia, Hermes...
 ```
 
 The binary needs nothing beside it: the UI is embedded. It exports only
-`GetPluginFactory`, `ModuleEntry` and `ModuleExit`; everything else (the SDK,
-the engine, Rust's standard library, the C++ runtime) is hidden, so any
-number of Soundor plugins, of any versions, share a host.
+VST3's three entry points (`GetPluginFactory`, and `ModuleEntry` and
+`ModuleExit` on Linux, `bundleEntry` and `bundleExit` on macOS, `InitDll`
+and `ExitDll` on Windows); everything else (the SDK, the engine, Rust's
+standard library, the C++ runtime) is hidden, so any number of Soundor
+plugins, of any versions, share a host. A macOS bundle is signed as the last
+step of the build, as the JUCE runtime's are; notarizing it is yours.
 
 **Identity.** Hosts know a plugin by its class ids, not by its file name: they
 are derived from `plugin.id` (a hash), so they stay the same across versions
@@ -142,8 +180,14 @@ makes another plugin. A parameter's VST3 id is a hash of its id in the config
 (as the JUCE runtime's), so renaming a parameter's key breaks automation that
 hosts recorded for it.
 
-**Installing.** Copy or link the bundle into `~/.vst3` (one user) or
-`/usr/lib/vst3` (everyone), then rescan in the host:
+**Installing.** Copy or link the bundle where hosts look, then rescan in the
+host:
+
+| Platform | One user                        | Everyone                             |
+| -------- | ------------------------------- | ------------------------------------ |
+| Linux    | `~/.vst3`                       | `/usr/lib/vst3`                      |
+| macOS    | `~/Library/Audio/Plug-Ins/VST3` | `/Library/Audio/Plug-Ins/VST3`       |
+| Windows  | —                               | `C:\Program Files\Common Files\VST3` |
 
 ```sh
 mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
@@ -182,17 +226,27 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   name and any channel metadata the host supplies to the controller. With a
   processor in the same process, the editor also sees the processing mode and
   transport, including loop bounds and SMPTE timecode when reported.
-- **Clipboard.** Text fields and `soundor:ui` share the Linux desktop clipboard with other applications under X11 and XWayland.
-- **The editor.** An X11 child window of the host's, in which the engine runs
-  your UI as in the JUCE runtime: GPU composition where there is a GPU, CPU
-  otherwise, Soundor's own X11 input (XInput 2) and AT-SPI accessibility. It
+- **Clipboard.** Text fields and `soundor:ui` share the system clipboard
+  with other applications (on Linux, under X11 and XWayland).
+- **The editor.** A child of the host's view (an X11 window on Linux, an
+  NSView on macOS, an HWND on Windows), in which the engine runs your UI as
+  in the JUCE runtime: GPU composition where there is a GPU (through
+  ANGLE: Vulkan, Metal, Direct3D 11), CPU otherwise, Soundor's own input (XInput 2,
+  AppKit, Win32) and accessibility (AT-SPI, VoiceOver, UI Automation). It
   resizes within the config's limits (`editor`), and follows the host's
-  content scale.
-- **`fetch()`** goes through the system's libcurl, loaded when first used
+  content scale (Linux, Windows) or the screen's (macOS). On macOS and
+  Windows it runs on a timer of the host's UI thread, as the Rust
+  controller's scheduled work does, editor closed or not.
+- **`fetch()`** goes through the system's HTTP stack: `NSURLSession` on
+  macOS, WinHTTP on Windows, and on Linux libcurl, loaded when first used
   (`libcurl.so.4`, else `libcurl-gnutls.so.4`), with the system's
   certificates and proxies, and HTTP/3 where that libcurl has it. Fedora and
   Ubuntu desktops install it; where there is none, `fetch()` rejects, saying
   so.
+- **Storage.** `soundor:storage` and `soundor:fs` keep their files where the
+  JUCE runtime's do, so both builds of a plugin share them:
+  `<data>/Soundor/<plugin id>`, `<data>` being `$XDG_CONFIG_HOME` (or
+  `~/.config`), `~/Library` or `%APPDATA%`.
 - **Pointer lock** (`requestPointerLock()`) hides the pointer and keeps it in
   the view as in the JUCE runtime. Under Wayland (XWayland), moving the
   pointer back is the compositor's to allow.
@@ -208,9 +262,11 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
 
 ## Limitations
 
-- Linux x86_64 only; no AU, CLAP or standalone.
-- The Rust controller's scheduled work runs while an editor is open, or with
-  a host that lends its run loop to the controller.
+- Linux x86_64, macOS and Windows x64, each building for itself; no AU,
+  CLAP or standalone. macOS plugins are for the building machine's CPU, not
+  universal.
+- On Linux, the Rust controller's scheduled work runs while an editor is
+  open, or with a host that lends its run loop to the controller.
 - Dynamic latency (`mode: 'dynamic'`) is reported as zero. Dynamic tail
   reports come from the [Rust processor](/docs/rust-processor#reporting-the-effect-tail-in-vst3).
 
@@ -226,6 +282,8 @@ unzip pluginval_Linux.zip
 ./pluginval --strictness-level 10 --validate-in-process --validate ".soundor/dist/vst3/Acme Reverb.vst3"
 ```
 
-Without a display, run it under `xvfb-run -a` for its editor tests.
+On macOS and Windows, take `pluginval_macOS.zip` (`pluginval.app/Contents/MacOS/pluginval`)
+or `pluginval_Windows.zip` (`pluginval.exe`). On Linux without a display,
+run it under `xvfb-run -a` for its editor tests.
 
 Internals: [the VST3 runtime's architecture](/docs/contribute/vst3-runtime).

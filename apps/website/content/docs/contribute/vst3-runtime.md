@@ -8,9 +8,9 @@ User guide: [VST3 runtime](/docs/vst3-runtime).
 
 ## Purpose
 
-A JUCE-free Linux VST3 runtime in which nothing is compiled per plugin: a
-generic C++ adapter is prebuilt once per engine variant and shipped in the
-npm package, and each plugin is its Rust crate and that adapter, linked with
+A JUCE-free VST3 runtime for Linux, macOS and Windows in which nothing is
+compiled per plugin: a generic C++ adapter is prebuilt once per platform and
+engine variant and shipped in the npm package, and each plugin is its Rust crate and that adapter, linked with
 the prebuilt engine. What makes a plugin itself is data, read at run time.
 
 ## Where the code is
@@ -21,7 +21,8 @@ the prebuilt engine. What makes a plugin itself is data, read at run time.
 | `native/src/Factory.cpp`                                           | `GetPluginFactory`: the two classes, described from the descriptor                                                                            |
 | `native/src/Processor.*`                                           | The component (`AudioEffect`): buses, processing, MIDI, state                                                                                 |
 | `native/src/Controller.*`                                          | The edit controller (`EditControllerEx1`, `IMidiMapping`): parameters, state store, History, presets, the Rust controller                     |
-| `native/src/Editor.*`, `X11.*`                                     | The view (`IPlugView`, X11EmbedWindowID): its window and run loop, the engine's `editor::Editor`                                              |
+| `native/src/Editor.*`                                              | The view (`IPlugView`): its window and run loop, the engine's `editor::Editor`                                                                |
+| `native/src/NativeWindow*`, `X11.*`, `Timer*`                      | The view's window per platform (X11, NSView, HWND) with its CPU frames, and the UI thread's timer on macOS and Windows                        |
 | `native/src/Descriptor.*`                                          | The descriptor, parsed once per module (with the engine's `soundor::json`)                                                                    |
 | `native/src/Expression.*`                                          | The expression interpreter; `generated/ExpressionRuntime.h` is the C++ compiler's helpers (`pnpm gen:expression`)                             |
 | `native/src/State*.*`, `Presets.*`, `ParameterHost.*`, `Modules.*` | Persistent state, documents, presets, History-aware parameter edits, the generic `soundor:state`, `soundor:presets`, `soundor:native` modules |
@@ -90,8 +91,11 @@ build's UI directory and log file.
   lock-free slots.
 - **Controller and editor**: the host's UI thread, which is the Rust
   controller's control thread; only its `wake()` comes from other threads (an
-  atomic flag). It is pumped by the editor's 60 Hz timer, and by a timer on
-  the host's `IRunLoop` when the host context offers one.
+  atomic flag). It is pumped by the editor's 60 Hz timer, and by one of its
+  own: on Linux on the host's `IRunLoop` when the host context offers one;
+  on macOS and Windows, where hosts lend none, always (`Timer`: a
+  `CFRunLoopTimer` in the main run loop's common modes, a message-only
+  window's `WM_TIMER`).
 - **Component and controller never assume they share a process.** The
   component's state is the whole state; the controller learns it through
   `setComponentState`, and sends every state change back (message
@@ -107,24 +111,38 @@ build's UI directory and log file.
   `restartComponent(kParamValuesChanged)`; a selected factory preset moves the
   program list's parameter (`beginEdit`, `performEdit`, `endEdit`), unless
   the host chose it.
-- **The editor** owns an X11 window (its own connection) and the engine's
+- **The editor** owns a native window (`NativeWindow`) and the engine's
   `editor::Editor`, as the JUCE runtime's editor does: the runtime
   (`DevSession` in development), placing the UI, the compositor, native
   input, the pointer lock, the cursor, accessibility and, in Debug builds,
   DevTools. The editor is its `editor::Platform`: the window's size, content
   scale and screen position, the host's focus, the cursor, sizes held to the
   config's limits and asked of the host (`resizeView()`), and the run loop
-  (the engine's Editor's 60 Hz frame and the input's descriptor). It gives the runtime
-  `platform::systemHttpClient()` for `fetch()`. Xlib is loaded with
-  `dlopen`, as the engine does, and its headers stay in `X11.cpp`.
-  Both are requirements, with no fallback: `attached()` refuses a frame
+  (the engine's Editor's 60 Hz frame and, on Linux, the input's
+  descriptor). It gives the runtime `platform::systemHttpClient()` for
+  `fetch()`. The window per platform:
+  - **Linux** (`X11EmbedWindowID`): an X11 child window on a connection of
+    its own; CPU frames with `XPutImage`. Xlib is loaded with `dlopen`, as
+    the engine does, and its headers stay in `X11.cpp`.
+  - **macOS** (`NSView`): a plain layer-backed NSView in the host's (no
+    Objective-C class is added); CPU frames are a sublayer's contents (a
+    `CGImage` of the bitmap). Sizes are in points: the pixel density is the
+    window's backing scale, and `setContentScaleFactor()` is refused. The
+    cursor is set while the pointer is over the view, every frame.
+  - **Windows** (`HWND`): a child window of the system's `STATIC` class,
+    subclassed (nothing registered, as the engine's own child windows):
+    `WM_NCHITTEST` makes it take the pointer, `WM_PAINT` paints the CPU
+    frames (`SetDIBitsToDevice`), `WM_SETCURSOR` the cursor.
+
+  On Linux the run loop and XInput 2 are requirements, with no fallback:
+  `attached()` refuses a frame
   without `IRunLoop` (a thread of our own, as JUCE has, would race the host's
   calls), and without XInput 2 the editor takes no input (`inputFailed()`
   logs it; core X events would only serve X servers older than 2009).
 
 ### Linking
 
-`src/link.ts`, by `c++`:
+`src/link.ts`. On Linux, by `c++`:
 
 ```text
 c++ -shared -static-libstdc++ -static-libgcc -Wl,--no-undefined -Wl,--as-needed
@@ -143,14 +161,36 @@ archive is excluded, and the version script exports exactly
 `GetPluginFactory`, `ModuleEntry` and `ModuleExit`. System libraries are named
 by soname, so linking needs no development packages.
 
+On **macOS**, by `c++` too: `-bundle -arch <the machine's>
+-mmacosx-version-min=<the engine's minimum>`, the adapter with `-force_load`,
+`-exported_symbols_list` naming `_GetPluginFactory`, `_bundleEntry` and
+`_bundleExit` (the SDK's `macexport.exp`), the engine's frameworks and the
+adapter's (AppKit, QuartzCore, CoreFoundation). Two-level namespaces and
+hosts' `RTLD_LOCAL` keep everything else apart; the build signs the bundle
+last (`codesign`, `ctx.signing`). The Rust library is built for the
+machine's target (`aarch64-apple-darwin` or `x86_64-apple-darwin`); the
+adapter and the engine are universal.
+
+On **Windows**, by MSVC's `link.exe`, found with `vswhere` and its
+`vcvars64.bat` (or the developer prompt's `VCToolsInstallDir` and `LIB`),
+from a response file: `/DLL`, `/WHOLEARCHIVE:` the adapter, whose
+`SMTG_EXPORT_SYMBOL`s (`__declspec(dllexport)`) are the only exports.
+Everything links the static C runtime: the adapter and the engine's `-static`
+archives (`/MT`, `/MTd`), Rust with `+crt-static`; Rust's standard library
+names the release runtime in Debug builds too, so they drop it
+(`/NODEFAULTLIB`). CI compiles the adapter with the MSVC toolset Release pins
+(`v143`, 14.44), so authors' later `link.exe` read it.
+
 ### The adapter and the engine
 
 The adapter is compiled against an engine archive
-(`SOUNDOR_ENGINE_PREBUILT_<VARIANT>_DIR`, as `engine({ target: 'linux-x64',
-variant })` gives it) and the engine's internal binding headers
+(`SOUNDOR_ENGINE_PREBUILT_<VARIANT>_DIR`, as `engine({ target, variant })`
+gives it) and the engine's internal binding headers
 (`soundor::runtime_internal`). Debug and release engines differ (DevTools,
-Hermes's compiler), so there is one adapter per variant:
-`prebuilt/linux-x64-<variant>/`, with `adapter.json` naming the engine
+Hermes's compiler), so there is one adapter per target and variant:
+`prebuilt/<target>-<variant>/` (`linux-x64`; `macos-universal`, arm64 and
+x86_64 for the engine's minimum macOS; `windows-x64`, against the `-static`
+engines), with `adapter.json` naming the engine
 version and source fingerprint it was built against. A build refuses an
 adapter of another engine. The package depends on the exact engine version.
 
@@ -169,15 +209,18 @@ adapter of another engine. The package depends on the exact engine version.
   their text, audio and automation, the published parameter, MIDI in and
   out, state round trips in a new instance (and the restart after one), refused
   state, presets from the program list, the class flags, the project marked
-  modified and the program selector following the UI (with a display), independent instances, the three exported symbols, the editor
-  (open, resize within limits, close, twice; needs a display), and
-  `Instances.cpp`: four instances of two builds of the plugin in one process.
+  modified and the program selector following the UI (with a display), independent instances, the three exported symbols (Linux, macOS), the editor
+  (open, resize within limits, close, twice; on Linux it needs a display),
+  and on Linux `Instances.cpp`: four instances of two builds of the plugin in
+  one process.
 - CI (`.github/workflows/vst3.yml`) builds both adapters against the engine
-  Verify selected, runs the native tests, clang-tidy, the Rust crate's checks,
-  the plugin tests under Xvfb, builds the controller example, and runs
-  pinned pluginval (checked by SHA-256) at strictness 10 on both plugins.
-  Release builds the adapter in the same workflow, against the engine to be
-  published, and packs it into the package.
+  Verify selected, on Linux, macOS and Windows, runs the native tests and the
+  plugin tests (on Linux under Xvfb, with clang-tidy and the Rust crate's
+  checks), builds the controller example, and runs pinned pluginval (checked
+  by SHA-256) at strictness 10 on both plugins. macOS checks the plugin's
+  minimum macOS, Windows its imports (no C runtime DLL) and exports. Release
+  builds the adapters in the same workflow, against the engine to be
+  published, and packs all six into the package.
 
 ## How to change it
 
