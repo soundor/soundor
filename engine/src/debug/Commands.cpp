@@ -2,294 +2,46 @@
 
 #if SOUNDOR_DEVTOOLS
 
+    #include <soundor/json/Json.h>
+
     #include <charconv>
-    #include <cstdint>
-    #include <locale>
-    #include <sstream>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
 {
     namespace
     {
-        constexpr int maxDepth = 64;
-
-        // A recursive-descent reader of RFC 8259 JSON. Anything else, or
-        // anything nested deeper than maxDepth, fails the whole document.
-        class Reader
+        // The protocol's form of a JSON value: numbers as doubles, objects by
+        // name (the engine's JSON rejects duplicate members).
+        Value convert(const json::Value& value)
         {
-        public:
-            explicit Reader(std::string_view json) : text(json) {}
-
-            std::optional<Value> document()
+            switch (value.kind())
             {
-                auto value = read(0);
-                space();
-                if (! value || at != text.size())
+                case json::Value::Kind::Null:
                     return {};
-                return value;
-            }
-
-        private:
-            std::string_view text;
-            std::size_t at = 0;
-
-            void space()
-            {
-                while (at < text.size()
-                       && (text[at] == ' ' || text[at] == '\t' || text[at] == '\n' || text[at] == '\r'))
-                    ++at;
-            }
-            bool literal(std::string_view word)
-            {
-                if (text.substr(at, word.size()) != word)
-                    return false;
-                at += word.size();
-                return true;
-            }
-            std::optional<Value> read(int depth)
-            {
-                if (depth >= maxDepth)
-                    return {};
-                space();
-                if (at >= text.size())
-                    return {};
-                switch (text[at])
+                case json::Value::Kind::Boolean:
+                    return value.asBoolean();
+                case json::Value::Kind::Number:
+                    return value.asNumber();
+                case json::Value::Kind::String:
+                    return value.asString();
+                case json::Value::Kind::Array:
                 {
-                    case '{':
-                        return object(depth);
-                    case '[':
-                        return array(depth);
-                    case '"':
-                    {
-                        auto value = string();
-                        if (! value)
-                            return {};
-                        return Value(std::move(*value));
-                    }
-                    case 't':
-                        return literal("true") ? std::optional<Value>(Value(true)) : std::nullopt;
-                    case 'f':
-                        return literal("false") ? std::optional<Value>(Value(false)) : std::nullopt;
-                    case 'n':
-                        return literal("null") ? std::optional<Value>(Value()) : std::nullopt;
-                    default:
-                        return number();
+                    Value::Array out;
+                    out.reserve(value.asArray().size());
+                    for (const auto& item : value.asArray())
+                        out.push_back(convert(item));
+                    return out;
+                }
+                case json::Value::Kind::Object:
+                {
+                    Value::Object out;
+                    for (const auto& [name, member] : value.asObject())
+                        out.insert_or_assign(name, convert(member));
+                    return out;
                 }
             }
-            std::optional<Value> object(int depth)
-            {
-                ++at;
-                Value::Object out;
-                space();
-                if (at < text.size() && text[at] == '}')
-                {
-                    ++at;
-                    return Value(std::move(out));
-                }
-                for (;;)
-                {
-                    space();
-                    if (at >= text.size() || text[at] != '"')
-                        return {};
-                    auto key = string();
-                    space();
-                    if (! key || at >= text.size() || text[at] != ':')
-                        return {};
-                    ++at;
-                    auto value = read(depth + 1);
-                    if (! value)
-                        return {};
-                    out.insert_or_assign(std::move(*key), std::move(*value));
-                    space();
-                    if (at < text.size() && text[at] == ',')
-                    {
-                        ++at;
-                        continue;
-                    }
-                    if (at < text.size() && text[at] == '}')
-                    {
-                        ++at;
-                        return Value(std::move(out));
-                    }
-                    return {};
-                }
-            }
-            std::optional<Value> array(int depth)
-            {
-                ++at;
-                Value::Array out;
-                space();
-                if (at < text.size() && text[at] == ']')
-                {
-                    ++at;
-                    return Value(std::move(out));
-                }
-                for (;;)
-                {
-                    auto value = read(depth + 1);
-                    if (! value)
-                        return {};
-                    out.push_back(std::move(*value));
-                    space();
-                    if (at < text.size() && text[at] == ',')
-                    {
-                        ++at;
-                        continue;
-                    }
-                    if (at < text.size() && text[at] == ']')
-                    {
-                        ++at;
-                        return Value(std::move(out));
-                    }
-                    return {};
-                }
-            }
-            std::optional<unsigned> hex4()
-            {
-                if (at + 4 > text.size())
-                    return {};
-                unsigned out = 0;
-                const auto result = std::from_chars(text.data() + at, text.data() + at + 4, out, 16);
-                if (result.ec != std::errc() || result.ptr != text.data() + at + 4)
-                    return {};
-                at += 4;
-                return out;
-            }
-            static void utf8(std::string& out, std::uint32_t code)
-            {
-                if (code < 0x80)
-                    out += static_cast<char>(code);
-                else if (code < 0x800)
-                {
-                    out += static_cast<char>(0xc0 | (code >> 6));
-                    out += static_cast<char>(0x80 | (code & 0x3f));
-                }
-                else if (code < 0x10000)
-                {
-                    out += static_cast<char>(0xe0 | (code >> 12));
-                    out += static_cast<char>(0x80 | ((code >> 6) & 0x3f));
-                    out += static_cast<char>(0x80 | (code & 0x3f));
-                }
-                else
-                {
-                    out += static_cast<char>(0xf0 | (code >> 18));
-                    out += static_cast<char>(0x80 | ((code >> 12) & 0x3f));
-                    out += static_cast<char>(0x80 | ((code >> 6) & 0x3f));
-                    out += static_cast<char>(0x80 | (code & 0x3f));
-                }
-            }
-            std::optional<std::string> string()
-            {
-                ++at;
-                std::string out;
-                while (at < text.size())
-                {
-                    const char character = text[at++];
-                    if (character == '"')
-                        return out;
-                    if (static_cast<unsigned char>(character) < 0x20)
-                        return {};
-                    if (character != '\\')
-                    {
-                        out += character;
-                        continue;
-                    }
-                    if (at >= text.size())
-                        return {};
-                    switch (text[at++])
-                    {
-                        case '"':
-                            out += '"';
-                            break;
-                        case '\\':
-                            out += '\\';
-                            break;
-                        case '/':
-                            out += '/';
-                            break;
-                        case 'b':
-                            out += '\b';
-                            break;
-                        case 'f':
-                            out += '\f';
-                            break;
-                        case 'n':
-                            out += '\n';
-                            break;
-                        case 'r':
-                            out += '\r';
-                            break;
-                        case 't':
-                            out += '\t';
-                            break;
-                        case 'u':
-                        {
-                            auto code = hex4();
-                            if (! code)
-                                return {};
-                            std::uint32_t point = *code;
-                            if (point >= 0xd800 && point < 0xdc00)
-                            {
-                                // A high surrogate needs its low one.
-                                if (! literal("\\u"))
-                                    return {};
-                                auto low = hex4();
-                                if (! low || *low < 0xdc00 || *low >= 0xe000)
-                                    return {};
-                                point = 0x10000 + ((point - 0xd800) << 10) + (*low - 0xdc00);
-                            }
-                            else if (point >= 0xdc00 && point < 0xe000)
-                                return {};
-                            utf8(out, point);
-                            break;
-                        }
-                        default:
-                            return {};
-                    }
-                }
-                return {};
-            }
-            std::optional<Value> number()
-            {
-                const std::size_t start = at;
-                const auto digits = [&]
-                {
-                    const std::size_t from = at;
-                    while (at < text.size() && text[at] >= '0' && text[at] <= '9')
-                        ++at;
-                    return at > from;
-                };
-                if (at < text.size() && text[at] == '-')
-                    ++at;
-                if (at < text.size() && text[at] == '0')
-                    ++at;
-                else if (! digits())
-                    return {};
-                if (at < text.size() && text[at] == '.')
-                {
-                    ++at;
-                    if (! digits())
-                        return {};
-                }
-                if (at < text.size() && (text[at] == 'e' || text[at] == 'E'))
-                {
-                    ++at;
-                    if (at < text.size() && (text[at] == '+' || text[at] == '-'))
-                        ++at;
-                    if (! digits())
-                        return {};
-                }
-                // In the classic locale whatever the host set; not
-                // std::from_chars, which the macOS 12 library lacks for doubles.
-                std::istringstream in(std::string(text.substr(start, at - start)));
-                in.imbue(std::locale::classic());
-                double value = 0;
-                in >> value;
-                if (in.fail())
-                    return {};
-                return Value(value);
-            }
-        };
+            return {};
+        }
 
         const std::string* stringField(const Value::Object& object, const char* name)
         {
@@ -316,7 +68,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
 
     std::optional<Value> Value::parse(std::string_view json)
     {
-        return Reader(json).document();
+        try
+        {
+            return convert(soundor::json::parse(json));
+        }
+        catch (const soundor::json::Error&)
+        {
+            return {};
+        }
     }
 
     std::optional<Command> Command::parse(const Value& value)

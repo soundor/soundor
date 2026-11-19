@@ -11,9 +11,9 @@
 //   notifications: the JUCE backend's StateStore (JuceState.h), without JUCE.
 
 #include "Descriptor.h"
-#include "Json.h"
 
 #include <soundor/history/StateHistory.h>
+#include <soundor/json/Json.h>
 
 #include <cstddef>
 #include <cstdint>

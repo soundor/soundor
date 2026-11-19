@@ -1,12 +1,47 @@
-#include "Json.h"
+#include <soundor/json/Json.h>
 
+#include <algorithm>
 #include <charconv>
+#include <clocale>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <system_error>
 
-namespace soundor::vst3::json
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::json
 {
+    namespace
+    {
+        // Doubles go through strtod and snprintf, with JSON's '.' turned into
+        // the decimal point of whatever locale the host set and back: the
+        // macOS 12 C++ library has no floating std::from_chars or to_chars.
+        char decimalPoint()
+        {
+            // The C locale's, which strtod and snprintf read too: they race a
+            // host's setlocale() no less than this does.
+            const auto* conventions = std::localeconv(); // NOLINT(concurrency-mt-unsafe)
+            return conventions != nullptr && conventions->decimal_point != nullptr
+                           && conventions->decimal_point[0] != '\0'
+                       ? conventions->decimal_point[0]
+                       : '.';
+        }
+
+        // `text` (a JSON number) as a double, or nothing when it is not one.
+        std::optional<double> readDouble(std::string text)
+        {
+            if (text.empty())
+                return std::nullopt;
+            if (const char point = decimalPoint(); point != '.')
+                std::replace(text.begin(), text.end(), '.', point);
+            char* end = nullptr;
+            const double value = std::strtod(text.c_str(), &end);
+            if (end != text.c_str() + text.size())
+                return std::nullopt;
+            return value;
+        }
+    } // namespace
+
     Value Value::boolean(bool value)
     {
         Value out;
@@ -102,22 +137,14 @@ namespace soundor::vst3::json
     {
         if (type != Kind::Number)
             wrongKind(Kind::Number, type);
-        double out = 0;
-        const auto* end = text.data() + text.size();
-        const auto result = std::from_chars(text.data(), end, out);
-        if (result.ec == std::errc::result_out_of_range)
-        {
-            // A subnormal reads as itself; only overflow is an error.
-            if (std::isinf(out) || out == 0)
-            {
-                const bool tiny = text.find_first_of("eE") != std::string::npos && text.find("e-") != std::string::npos;
-                if (! tiny)
-                    throw Error("number out of range: " + text);
-            }
-        }
-        else if (result.ec != std::errc {} || result.ptr != end)
+        const auto read = readDouble(text);
+        if (! read)
             throw Error("invalid number: " + text);
-        return out;
+        // A subnormal, or a number too small for a double (0), reads as
+        // itself; only overflow is an error.
+        if (std::isinf(*read))
+            throw Error("number out of range: " + text);
+        return *read;
     }
 
     const std::string& Value::numberText() const
@@ -514,7 +541,7 @@ namespace soundor::vst3::json
             Value value(std::size_t depth)
             {
                 whitespace();
-                if (depth > limit.depth)
+                if (depth >= limit.depth)
                     fail("nested too deeply");
                 if (budget == 0)
                     fail("too many values");
@@ -690,19 +717,30 @@ namespace soundor::vst3::json
             return "0";
         // The shortest digits that read back as `value`, and their exponent.
         char buffer[64];
-        const auto result = std::to_chars(buffer, buffer + sizeof buffer, value, std::chars_format::scientific);
-        std::string_view scientific(buffer, static_cast<std::size_t>(result.ptr - buffer));
+        const char point = decimalPoint();
+        std::string scientific;
+        for (int precision = 0; precision <= 16; ++precision)
+        {
+            std::snprintf(buffer, sizeof buffer, "%.*e", precision, value);
+            scientific = buffer;
+            std::replace(scientific.begin(), scientific.end(), point, '.');
+            if (readDouble(scientific) == value)
+                break;
+        }
         const bool negative = scientific.front() == '-';
         if (negative)
-            scientific.remove_prefix(1);
+            scientific.erase(0, 1);
         const auto e = scientific.find('e');
         std::string digits;
         for (const char c : scientific.substr(0, e))
             if (c != '.')
                 digits += c;
+        while (digits.size() > 1 && digits.back() == '0')
+            digits.pop_back();
         int exponent = 0;
         // from_chars takes a '-', never a '+'.
-        auto exponentText = scientific.substr(e + 1);
+        std::string_view exponentText(scientific);
+        exponentText.remove_prefix(e + 1);
         if (! exponentText.empty() && exponentText.front() == '+')
             exponentText.remove_prefix(1);
         std::from_chars(exponentText.data(), exponentText.data() + exponentText.size(), exponent);
@@ -741,4 +779,4 @@ namespace soundor::vst3::json
         }
         return out;
     }
-} // namespace soundor::vst3::json
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::json

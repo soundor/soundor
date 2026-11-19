@@ -1,6 +1,6 @@
 #include "support/Modules.h"
 
-#include <soundor/backend/JuceDebugBridge.h>
+#include <soundor/debug/Bridge.h>
 #include <soundor/render/Compositor.h>
 
 #include <juce_core/juce_core.h>
@@ -91,9 +91,11 @@ try
     auto host = makeHost();
     RasterOutput output;
     render::RasterCompositor compositor(output);
-    auto bridge = std::make_unique<backend::JuceDebugBridge>(
-        juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {}).toStdString(), "Native Bridge Test",
-        [](js::LogLevel, std::string_view message) { std::cerr << message << '\n'; });
+    auto bridge = std::make_unique<debug::Bridge>(
+        debug::Bridge::Options { .descriptor = debug::Bridge::sessionFromEnvironment(),
+                                 .name = "Native Bridge Test",
+                                 .runtime = "JUCE",
+                                 .log = [](js::LogLevel, std::string_view message) { std::cerr << message << '\n'; } });
     std::cout << "READY native target" << '\n';
     unsigned generation = 1;
     std::vector<ui::NodeId> lastHighlights;

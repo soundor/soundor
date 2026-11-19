@@ -108,6 +108,8 @@ namespace soundor::vst3
                     return x11::CursorIcon::DiagonalResizeUp;
                 case ui::Cursor::NwseResize:
                     return x11::CursorIcon::DiagonalResizeDown;
+                case ui::Cursor::None:
+                    return x11::CursorIcon::Hidden;
                 default:
                     return x11::CursorIcon::Arrow;
             }
@@ -293,6 +295,8 @@ namespace soundor::vst3
         options.environment = { "vst3", SOUNDOR_VST3_RUNTIME_VERSION, "linux", "x64", "vst3" };
         const auto& link = owner.link();
         options.hostInfo = std::make_shared<HostInfo>(link != nullptr ? link->host : nullptr);
+        // fetch(): the system's HTTP stack (its libcurl).
+        options.http = platform::systemHttpClient();
         options.dataDirectory = dataDirectory(definition.id);
         options.parameters = uiParameters;
         Controller* target = &owner;
@@ -326,6 +330,20 @@ namespace soundor::vst3
             }
             host = std::make_unique<RuntimeHost>(std::move(options));
         }
+#if SOUNDOR_DEVTOOLS
+        if (auto descriptor = debug::Bridge::sessionFromEnvironment(); ! descriptor.empty())
+        {
+            try
+            {
+                bridge = std::make_unique<debug::Bridge>(debug::Bridge::Options {
+                    .descriptor = std::move(descriptor), .name = definition.name, .runtime = "VST3", .log = logSink });
+            }
+            catch (const std::exception&)
+            {
+                logSink(js::LogLevel::Warn, "DevTools could not connect; native UI continues normally.");
+            }
+        }
+#endif
     }
 
     RuntimeHost& Editor::runtimeHost()
@@ -340,6 +358,11 @@ namespace soundor::vst3
             runLoop->unregisterTimer(this);
             runLoop->unregisterEventHandler(this);
         }
+#if SOUNDOR_DEVTOOLS
+        bridge.reset();
+#endif
+        // While the input whose pointer it moves is there.
+        pointerLock.release();
         if (nativeInput != nullptr)
         {
             std::vector<input::Event> ended;
@@ -480,6 +503,13 @@ namespace soundor::vst3
 
     void Editor::renderFrame()
     {
+#if SOUNDOR_DEVTOOLS
+        if (bridge != nullptr && bridge->recording())
+        {
+            bridge->renderFrame(runtimeHost(), *compositor, capabilities);
+            return;
+        }
+#endif
         compositor->composite(runtimeHost().frame(capabilities));
     }
 
@@ -543,19 +573,36 @@ namespace soundor::vst3
         { return ui::Point { (point.x - area.x) / viewZoom, (point.y - area.y) / viewZoom }; };
         if (auto* pointer = std::get_if<ui::PointerInput>(&event))
         {
+            // A locked pointer goes on past the view's edges.
+            if (pointer->phase == ui::PointerInput::Phase::Move && pointer->buttons != 0)
+                pointer->position =
+                    pointerLock.follow(pointer->pointerId, pointer->position, { logicalWidth(), logicalHeight() });
             pointer->position = toLayout(pointer->position);
+#if SOUNDOR_DEVTOOLS
+            if (bridge != nullptr && bridge->pointer(runtime, *pointer))
+                return;
+#endif
             runtime.surface().pointer(*pointer);
             runtime.runtime().runPendingJobs();
+            updatePointerLock();
             updateCursor();
         }
         else if (auto* wheel = std::get_if<ui::WheelInput>(&event))
         {
+#if SOUNDOR_DEVTOOLS
+            if (bridge != nullptr && bridge->picking())
+                return;
+#endif
             wheel->position = toLayout(wheel->position);
             runtime.surface().wheel(*wheel);
             runtime.runtime().runPendingJobs();
         }
         else if (auto* key = std::get_if<input::KeyEvent>(&event))
         {
+#if SOUNDOR_DEVTOOLS
+            if (bridge != nullptr && bridge->key(runtime, key->key))
+                return;
+#endif
             runtime.surface().key(key->key, key->typed);
             runtime.runtime().runPendingJobs();
         }
@@ -568,11 +615,23 @@ namespace soundor::vst3
             runtime.surface().setFocused(focus->focused);
     }
 
+    void Editor::updatePointerLock()
+    {
+        const auto lock = runtimeHost().surface().pointerLock();
+        const float viewZoom = zoom();
+        const auto area = uiArea();
+        pointerLock.update(
+            lock ? std::optional<int>(lock->pointerId) : std::nullopt,
+            lock ? ui::Point { lock->position.x * viewZoom + area.x, lock->position.y * viewZoom + area.y }
+                 : ui::Point {});
+    }
+
     void Editor::updateCursor()
     {
         if (window == nullptr)
             return;
-        const auto wanted = runtimeHost().surface().cursor();
+        // None while the pointer is locked: it stays in this view for that.
+        const auto wanted = pointerLock.active() ? ui::Cursor::None : runtimeHost().surface().cursor();
         if (wanted == cursor)
             return;
         cursor = wanted;
@@ -658,7 +717,14 @@ namespace soundor::vst3
                 host->tick();
             applySizeRequest();
             updateAccessibility();
+            // A lock ends with a reloaded runtime or a drag the platform
+            // ended, and styles also change outside input.
+            updatePointerLock();
             updateCursor();
+#if SOUNDOR_DEVTOOLS
+            if (bridge != nullptr)
+                bridge->tick(runtimeHost(), session != nullptr ? session->reloadCount() + 1 : 1);
+#endif
             updateCompositor();
             if (runtimeHost().needsRender())
                 renderFrame();

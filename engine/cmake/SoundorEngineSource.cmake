@@ -41,6 +41,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/js/RustMethods.cpp
   src/js/Value.cpp
   src/js/ValueConversion.cpp
+  src/json/Json.cpp
   src/modules/midi/Midi.cpp
   src/modules/history/HistoryModule.cpp
   src/modules/parameters/ParametersModule.cpp
@@ -48,6 +49,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/modules/ui/UiModule.cpp
   src/modules/ui/SvgScene.cpp
   src/platform/FileLog.cpp
+  src/platform/Http.cpp
   src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
   src/processor/RustController.cpp
@@ -76,7 +78,8 @@ list(APPEND SOUNDOR_RUNTIME_SOURCES ${SOUNDOR_CORE_SOURCES})
 # Apple runtime classes, accessibility and macOS input (Objective-C++, ARC).
 if(APPLE)
   enable_language(OBJCXX)
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/AppleShared.mm src/platform/apple/RuntimeClass.mm)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/AppleShared.mm src/platform/apple/RuntimeClass.mm
+       src/platform/apple/UrlSessionHttpClient.mm)
   if(IOS)
     list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/IosPlatform.mm)
   else()
@@ -84,14 +87,15 @@ if(APPLE)
   endif()
 endif()
 if(WIN32)
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp src/input/windows/WindowsInput.cpp src/input/windows/Translation.cpp)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp src/input/windows/WindowsInput.cpp src/input/windows/Translation.cpp
+       src/platform/windows/WinHttpClient.cpp)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
 endif()
 # Native input: Windows (Win32), macOS (AppKit), Linux (X11 and XInput 2), and the
 # plugin framework's elsewhere (see src/input/Platform.cpp).
-list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp)
+list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp src/input/PointerLock.cpp)
 if(APPLE AND NOT IOS)
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/apple/Translation.cpp)
 endif()
@@ -102,7 +106,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   if(NOT X11_FOUND OR NOT X11_Xi_INCLUDE_PATH OR NOT X11_Xkb_INCLUDE_PATH)
     message(FATAL_ERROR "Soundor's Linux input needs the X11 and XInput 2 headers (libx11-dev and libxi-dev on Debian and Ubuntu, libX11-devel and libXi-devel on Fedora).")
   endif()
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/linux/Keys.cpp src/input/linux/Scroll.cpp src/input/linux/X11Input.cpp)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/linux/Keys.cpp src/input/linux/Scroll.cpp src/input/linux/X11Input.cpp
+       src/platform/linux/CurlHttpClient.cpp)
 endif()
 # The GPU: ANGLE's devices and contexts, the GPU compositor and where it
 # presents (see SoundorAngle.cmake).
@@ -130,6 +135,7 @@ list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 if(SOUNDOR_ENABLE_DEVTOOLS)
   list(APPEND SOUNDOR_RUNTIME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Inspector.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Commands.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Input.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Bridge.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Capture.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Png.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Diagnostics.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/render/DebugOverlay.cpp)
 endif()

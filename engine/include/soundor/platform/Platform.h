@@ -32,6 +32,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         std::string url;
         std::vector<HttpHeader> headers;
         std::vector<std::uint8_t> body;
+        // Whether the system's proxy settings apply. DevTools' requests to
+        // the local server go direct, whatever proxy the system names.
+        bool proxy = true;
+        // Whether redirects are followed (as fetch() does, up to the
+        // platform's limit) or come back as responses.
+        bool followRedirects = true;
+        // Milliseconds to connect, and for the whole request; 0: no limit
+        // (a long poll waits for as long as it takes).
+        std::uint32_t connectTimeoutMs = 30000;
+        std::uint32_t timeoutMs = 0;
     };
 
     struct HttpResponse
@@ -70,6 +80,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         virtual void send(HttpRequest request, std::shared_ptr<const CancellationToken> cancellation,
                           Completion complete) = 0;
     };
+
+    // The system's own HTTP stack, never one of Soundor's: NSURLSession on
+    // macOS and iOS, WinHTTP on Windows, and on Linux the system's libcurl,
+    // loaded when first used (libcurl.so.4, else libcurl-gnutls.so.4), so
+    // HTTPS and its certificates are what the system keeps up to date, and
+    // HTTP/3 is used where the system's stack has it. Where Linux has no
+    // libcurl, every request fails, saying so. Requests run on the client's
+    // own threads; a cancelled one stops within about 50 ms and completes
+    // with "aborted". Destroying the client completes what is left that way.
+    [[nodiscard]] std::shared_ptr<HttpClient> systemHttpClient();
 
     // ── Host information (backs soundor:host) ────────────────────────────────
 

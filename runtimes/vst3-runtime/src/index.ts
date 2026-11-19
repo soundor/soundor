@@ -70,7 +70,18 @@ export interface Vst3PhaseDeps {
   readonly platform?: NodeJS.Platform;
   readonly arch?: string;
   readonly engine?: (variant: Variant) => Promise<NativeEngineArtifact>;
+  /** Whether a file exists (doctor's system library checks). */
+  readonly exists?: (path: string) => boolean;
 }
+
+/** Where Linux distributions keep x86_64 libraries. */
+const LIBRARY_DIRECTORIES = [
+  '/usr/lib/x86_64-linux-gnu',
+  '/lib/x86_64-linux-gnu',
+  '/usr/lib64',
+  '/lib64',
+  '/usr/lib',
+];
 
 function requireLinux(deps: Vst3PhaseDeps): void {
   const platform = deps.platform ?? process.platform;
@@ -236,21 +247,34 @@ async function buildPlugin(
   return paths.bundle;
 }
 
-/** `build`: the release bundle, under `.soundor/dist/vst3`. */
+/**
+ * `build`: the release bundle, under `.soundor/dist/vst3`; with `--debug`, a
+ * Debug build with DevTools and its UI embedded.
+ */
 async function vst3Build(
   config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: Vst3PhaseDeps = {},
 ): Promise<void> {
+  const debug = ctx.mode === 'debug';
   const bundle = await buildPlugin(
     config,
     ctx,
-    { variant: 'release', out: ctx.paths.dist, label: 'release' },
+    debug
+      ? { variant: 'debug', out: ctx.paths.dist, label: 'debug' }
+      : { variant: 'release', out: ctx.paths.dist, label: 'release' },
     deps,
   );
   ctx.logger.info(
-    `VST3 in ${bundle}. Copy or link it into ~/.vst3 for hosts to find it.`,
+    `${debug ? 'Debug VST3 (with DevTools)' : 'VST3'} in ${bundle}. Copy or link it into ~/.vst3 for hosts to find it.`,
   );
+}
+
+/** `value` for a POSIX shell. */
+function shellQuote(value: string): string {
+  return /^[\w@%+=:,./-]+$/.test(value)
+    ? value
+    : `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function waitForAbort(signal: AbortSignal): Promise<void> {
@@ -317,6 +341,11 @@ async function vst3Dev(
     ctx.logger.info(
       `Debug VST3 ready in ${bundle}. Open it in a VST3 host (link it into ~/.vst3); its UI reloads on every change and its console appears here.`,
     );
+    const session = ctx.devtools?.descriptorPath;
+    if (session !== undefined)
+      ctx.logger.info(
+        `DevTools: start the host with SOUNDOR_DEVTOOLS_SESSION=${shellQuote(session)} in its environment for the plugin to connect.`,
+      );
     ctx.session?.ready(rows);
     await waitForAbort(ctx.signal);
   } finally {
@@ -394,6 +423,22 @@ export async function vst3Doctor(
           },
     );
   }
+  const exists = deps.exists ?? existsSync;
+  const curl = ['libcurl.so.4', 'libcurl-gnutls.so.4']
+    .flatMap((name) => LIBRARY_DIRECTORIES.map((dir) => join(dir, name)))
+    .find((path) => exists(path));
+  checks.push(
+    curl !== undefined
+      ? { label: 'libcurl (fetch)', status: 'ok', detail: curl }
+      : {
+          label: 'libcurl (fetch)',
+          status: 'warn',
+          detail:
+            "no libcurl.so.4: plugins' fetch() fails on this machine (the system's libcurl is their HTTP stack)",
+          suggestion:
+            'Debian, Ubuntu: sudo apt install libcurl4t64 (before 24.04: libcurl4). Fedora: sudo dnf install libcurl.',
+        },
+  );
   for (const variant of ['release', 'debug'] as const) {
     const archive = join(
       PACKAGE_ROOT,
@@ -423,6 +468,17 @@ export async function vst3Doctor(
 
 export const vst3Runtime = defineRuntime<Vst3Options>({
   id: RUNTIME_ID,
+  // What the engine's DevTools bridge offers, in Debug builds.
+  capabilities: {
+    devtools: {
+      inspector: true,
+      accessibility: true,
+      animations: true,
+      performance: true,
+      input: true,
+      capture: true,
+    },
+  },
   gen: vst3Gen,
   dev: (config, ctx) => vst3Dev(config, ctx),
   build: (config, ctx) => vst3Build(config, ctx),

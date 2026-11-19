@@ -1,17 +1,17 @@
-#include <soundor/backend/JuceDebugBridge.h>
+#include <soundor/debug/Bridge.h>
+#include <soundor/runtime/RuntimeHost.h>
 
 #include <doctest/doctest.h>
-#include <juce_core/juce_core.h>
 
 #include <chrono>
 
 using namespace soundor;
 
-TEST_CASE("debug worker teardown does not wait for descriptor polling")
+TEST_CASE("DevTools bridge: teardown does not wait for descriptor polling")
 {
     std::chrono::steady_clock::time_point began;
     {
-        backend::JuceDebugBridge bridge("/missing/soundor-session.json", "Test");
+        debug::Bridge bridge({ .descriptor = "/missing/soundor-session.json", .name = "Test", .runtime = "Test" });
         RuntimeHost host({});
         host.surface().setSize({ 100, 100 });
         bridge.tick(host, 1);

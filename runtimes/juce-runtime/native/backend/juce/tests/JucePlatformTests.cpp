@@ -1,11 +1,10 @@
-// JUCE platform adapters: transport capture, host info, and HTTP through a
-// real socket.
+// JUCE platform adapters: transport capture, host info, and fetch() through
+// the system's HTTP stack and a real socket.
 
 #define DOCTEST_CONFIG_IMPLEMENT
 
 #include "support/Modules.h"
 
-#include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceTransport.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -104,7 +103,7 @@ namespace
         static RuntimeHost::Options makeOptions()
         {
             RuntimeHost::Options options;
-            options.http = std::make_shared<backend::JuceHttpClient>();
+            options.http = platform::systemHttpClient();
             return options;
         }
 
@@ -247,7 +246,7 @@ TEST_CASE("Track metadata uses RGBA and can be withdrawn")
         FAIL("missing track metadata");
 }
 
-TEST_CASE("fetch() through JuceHttpClient talks to a real server")
+TEST_CASE("fetch() through the system HTTP client talks to a real server")
 {
     FetchFixture f;
     OneShotServer server("HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nX-Reply: yes\r\n"
