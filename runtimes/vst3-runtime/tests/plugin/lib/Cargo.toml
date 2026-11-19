@@ -1,0 +1,14 @@
+# The test plugin's processor and controller.
+[package]
+name = "soundor-vst3-test-plugin"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+soundor = { path = "../.soundor/generated/rust/soundor" }
+
+[profile.dev]
+opt-level = 1
+
+[workspace]

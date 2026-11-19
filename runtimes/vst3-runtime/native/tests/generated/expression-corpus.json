@@ -1,0 +1,3171 @@
+{
+ "generatedBy": "UPDATE_GOLDEN=1 vitest run src/expression-corpus.test.ts",
+ "cases": [
+  {
+   "name": "int8 add wraps",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int8"
+    },
+    {
+     "name": "b",
+     "type": "int8"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "int8",
+    "operator": "add",
+    "left": {
+     "kind": "input",
+     "type": "int8",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "int8",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      100,
+      27
+     ],
+     "result": 127
+    },
+    {
+     "values": [
+      100,
+      28
+     ],
+     "result": -128
+    },
+    {
+     "values": [
+      -128,
+      -1
+     ],
+     "result": 127
+    }
+   ]
+  },
+  {
+   "name": "uint8 sub wraps",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "uint8"
+    },
+    {
+     "name": "b",
+     "type": "uint8"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "uint8",
+    "operator": "sub",
+    "left": {
+     "kind": "input",
+     "type": "uint8",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "uint8",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      0,
+      1
+     ],
+     "result": 255
+    },
+    {
+     "values": [
+      200,
+      100
+     ],
+     "result": 100
+    }
+   ]
+  },
+  {
+   "name": "uint16 mul wraps",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "uint16"
+    },
+    {
+     "name": "b",
+     "type": "uint16"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "uint16",
+    "operator": "mul",
+    "left": {
+     "kind": "input",
+     "type": "uint16",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "uint16",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      65535,
+      65535
+     ],
+     "result": 1
+    },
+    {
+     "values": [
+      256,
+      256
+     ],
+     "result": 0
+    }
+   ]
+  },
+  {
+   "name": "int32 mul wraps",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int32"
+    },
+    {
+     "name": "b",
+     "type": "int32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "int32",
+    "operator": "mul",
+    "left": {
+     "kind": "input",
+     "type": "int32",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "int32",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      65536,
+      65536
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      2147483647,
+      2
+     ],
+     "result": -2
+    },
+    {
+     "values": [
+      -7,
+      3
+     ],
+     "result": -21
+    }
+   ]
+  },
+  {
+   "name": "uint32 add wraps",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "uint32"
+    },
+    {
+     "name": "b",
+     "type": "uint32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "uint32",
+    "operator": "add",
+    "left": {
+     "kind": "input",
+     "type": "uint32",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "uint32",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      4294967295,
+      1
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      4294967295,
+      4294967295
+     ],
+     "result": 4294967294
+    }
+   ]
+  },
+  {
+   "name": "int32 div truncates",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int32"
+    },
+    {
+     "name": "b",
+     "type": "int32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "int32",
+    "operator": "div",
+    "left": {
+     "kind": "input",
+     "type": "int32",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "int32",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      7,
+      2
+     ],
+     "result": 3
+    },
+    {
+     "values": [
+      -7,
+      2
+     ],
+     "result": -3
+    },
+    {
+     "values": [
+      7,
+      0
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      -2147483648,
+      -1
+     ],
+     "result": -2147483648
+    }
+   ]
+  },
+  {
+   "name": "int32 neg and abs wrap",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "int32",
+    "operator": "add",
+    "left": {
+     "kind": "unary",
+     "type": "int32",
+     "operator": "neg",
+     "operand": {
+      "kind": "input",
+      "type": "int32",
+      "name": "a"
+     }
+    },
+    "right": {
+     "kind": "unary",
+     "type": "int32",
+     "operator": "abs",
+     "operand": {
+      "kind": "input",
+      "type": "int32",
+      "name": "a"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      -2147483648
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      -5
+     ],
+     "result": 10
+    },
+    {
+     "values": [
+      5
+     ],
+     "result": 0
+    }
+   ]
+  },
+  {
+   "name": "int16 min max",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int16"
+    },
+    {
+     "name": "b",
+     "type": "int16"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "int16",
+    "operator": "sub",
+    "left": {
+     "kind": "binary",
+     "type": "int16",
+     "operator": "max",
+     "left": {
+      "kind": "input",
+      "type": "int16",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "int16",
+      "name": "b"
+     }
+    },
+    "right": {
+     "kind": "binary",
+     "type": "int16",
+     "operator": "min",
+     "left": {
+      "kind": "input",
+      "type": "int16",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "int16",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      -3,
+      9
+     ],
+     "result": 12
+    },
+    {
+     "values": [
+      9,
+      -3
+     ],
+     "result": 12
+    }
+   ]
+  },
+  {
+   "name": "int64 arithmetic",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int64"
+    },
+    {
+     "name": "b",
+     "type": "int64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "int64",
+    "operator": "add",
+    "left": {
+     "kind": "binary",
+     "type": "int64",
+     "operator": "mul",
+     "left": {
+      "kind": "input",
+      "type": "int64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "int64",
+      "name": "b"
+     }
+    },
+    "right": {
+     "kind": "binary",
+     "type": "int64",
+     "operator": "div",
+     "left": {
+      "kind": "input",
+      "type": "int64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "int64",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "9223372036854775807",
+      "2"
+     ],
+     "result": "4611686018427387901"
+    },
+    {
+     "values": [
+      "-9223372036854775808",
+      "-1"
+     ],
+     "result": "0"
+    },
+    {
+     "values": [
+      "10",
+      "0"
+     ],
+     "result": "0"
+    }
+   ]
+  },
+  {
+   "name": "uint64 sub wraps",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "uint64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "uint64",
+    "operator": "sub",
+    "left": {
+     "kind": "input",
+     "type": "uint64",
+     "name": "a"
+    },
+    "right": {
+     "kind": "literal",
+     "type": "uint64",
+     "value": "1"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0"
+     ],
+     "result": "18446744073709551615"
+    },
+    {
+     "values": [
+      "5"
+     ],
+     "result": "4"
+    }
+   ]
+  },
+  {
+   "name": "int64 min abs",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int64"
+    },
+    {
+     "name": "b",
+     "type": "int64"
+    }
+   ],
+   "expression": {
+    "kind": "unary",
+    "type": "int64",
+    "operator": "abs",
+    "operand": {
+     "kind": "binary",
+     "type": "int64",
+     "operator": "min",
+     "left": {
+      "kind": "input",
+      "type": "int64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "int64",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "-9223372036854775808",
+      "0"
+     ],
+     "result": "-9223372036854775808"
+    },
+    {
+     "values": [
+      "-4",
+      "3"
+     ],
+     "result": "4"
+    }
+   ]
+  },
+  {
+   "name": "float32 rounds every operation",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    },
+    {
+     "name": "b",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float32",
+    "operator": "add",
+    "left": {
+     "kind": "binary",
+     "type": "float32",
+     "operator": "mul",
+     "left": {
+      "kind": "input",
+      "type": "float32",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "float32",
+      "name": "b"
+     }
+    },
+    "right": {
+     "kind": "input",
+     "type": "float32",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3fb99999a0000000",
+      "0x3fc99999a0000000"
+     ],
+     "result": "0x3fbeb85200000000"
+    },
+    {
+     "values": [
+      "0x4170000000000000",
+      "0x3ff0000000000000"
+     ],
+     "result": "0x4180000000000000"
+    },
+    {
+     "values": [
+      "0x3ff0000020000000",
+      "0x3ff0000020000000"
+     ],
+     "result": "0x4000000040000000"
+    },
+    {
+     "values": [
+      "0x400a666660000000",
+      "0x401eccccc0000000"
+     ],
+     "result": "0x403cb5c280000000"
+    }
+   ]
+  },
+  {
+   "name": "float64 fused-looking expression",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    },
+    {
+     "name": "b",
+     "type": "float64"
+    },
+    {
+     "name": "c",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "add",
+    "left": {
+     "kind": "binary",
+     "type": "float64",
+     "operator": "mul",
+     "left": {
+      "kind": "input",
+      "type": "float64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "float64",
+      "name": "b"
+     }
+    },
+    "right": {
+     "kind": "input",
+     "type": "float64",
+     "name": "c"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3fb999999999999a",
+      "0x4024000000000000",
+      "0xbff0000000000000"
+     ],
+     "result": "0x0000000000000000"
+    },
+    {
+     "values": [
+      "0x3ff0000000000001",
+      "0x3fefffffffffffff",
+      "0xbff0000000000000"
+     ],
+     "result": "0x0000000000000000"
+    }
+   ]
+  },
+  {
+   "name": "float32 overflow",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float32",
+    "operator": "mul",
+    "left": {
+     "kind": "input",
+     "type": "float32",
+     "name": "a"
+    },
+    "right": {
+     "kind": "literal",
+     "type": "float32",
+     "value": 2
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x47efffffe0000000"
+     ],
+     "result": "0x7ff0000000000000"
+    },
+    {
+     "values": [
+      "0xc7efffffe0000000"
+     ],
+     "result": "0xfff0000000000000"
+    }
+   ]
+  },
+  {
+   "name": "float division by zero",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "div",
+    "left": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    },
+    "right": {
+     "kind": "literal",
+     "type": "float64",
+     "value": 0
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3ff0000000000000"
+     ],
+     "result": "0x7ff0000000000000"
+    },
+    {
+     "values": [
+      "0xbff0000000000000"
+     ],
+     "result": "0xfff0000000000000"
+    },
+    {
+     "values": [
+      "0x0000000000000000"
+     ],
+     "result": "NaN"
+    }
+   ]
+  },
+  {
+   "name": "float min max",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    },
+    {
+     "name": "b",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "add",
+    "left": {
+     "kind": "binary",
+     "type": "float64",
+     "operator": "min",
+     "left": {
+      "kind": "input",
+      "type": "float64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "float64",
+      "name": "b"
+     }
+    },
+    "right": {
+     "kind": "binary",
+     "type": "float64",
+     "operator": "max",
+     "left": {
+      "kind": "input",
+      "type": "float64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "float64",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3ff0000000000000",
+      "0x4000000000000000"
+     ],
+     "result": "0x4008000000000000"
+    },
+    {
+     "values": [
+      "NaN",
+      "0x4000000000000000"
+     ],
+     "result": "NaN"
+    },
+    {
+     "values": [
+      "0x4000000000000000",
+      "NaN"
+     ],
+     "result": "NaN"
+    }
+   ]
+  },
+  {
+   "name": "signed zero min",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    },
+    {
+     "name": "b",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "div",
+    "left": {
+     "kind": "literal",
+     "type": "float64",
+     "value": 1
+    },
+    "right": {
+     "kind": "binary",
+     "type": "float64",
+     "operator": "min",
+     "left": {
+      "kind": "input",
+      "type": "float64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "float64",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x0000000000000000",
+      "0x8000000000000000"
+     ],
+     "result": "0xfff0000000000000"
+    },
+    {
+     "values": [
+      "0x8000000000000000",
+      "0x0000000000000000"
+     ],
+     "result": "0xfff0000000000000"
+    }
+   ]
+  },
+  {
+   "name": "signed zero max",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    },
+    {
+     "name": "b",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "div",
+    "left": {
+     "kind": "literal",
+     "type": "float64",
+     "value": 1
+    },
+    "right": {
+     "kind": "binary",
+     "type": "float64",
+     "operator": "max",
+     "left": {
+      "kind": "input",
+      "type": "float64",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "float64",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x0000000000000000",
+      "0x8000000000000000"
+     ],
+     "result": "0x7ff0000000000000"
+    },
+    {
+     "values": [
+      "0x8000000000000000",
+      "0x0000000000000000"
+     ],
+     "result": "0x7ff0000000000000"
+    }
+   ]
+  },
+  {
+   "name": "round halves away from zero",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "unary",
+    "type": "float64",
+    "operator": "round",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x4004000000000000"
+     ],
+     "result": "0x4008000000000000"
+    },
+    {
+     "values": [
+      "0xc004000000000000"
+     ],
+     "result": "0xc008000000000000"
+    },
+    {
+     "values": [
+      "0x3fdfffffffffffff"
+     ],
+     "result": "0x0000000000000000"
+    },
+    {
+     "values": [
+      "0xbfd3333333333333"
+     ],
+     "result": "0x8000000000000000"
+    },
+    {
+     "values": [
+      "0x3ff8000000000000"
+     ],
+     "result": "0x4000000000000000"
+    },
+    {
+     "values": [
+      "NaN"
+     ],
+     "result": "NaN"
+    }
+   ]
+  },
+  {
+   "name": "float32 floor ceil",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float32",
+    "operator": "add",
+    "left": {
+     "kind": "unary",
+     "type": "float32",
+     "operator": "floor",
+     "operand": {
+      "kind": "input",
+      "type": "float32",
+      "name": "a"
+     }
+    },
+    "right": {
+     "kind": "unary",
+     "type": "float32",
+     "operator": "ceil",
+     "operand": {
+      "kind": "input",
+      "type": "float32",
+      "name": "a"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3ff8000000000000"
+     ],
+     "result": "0x4008000000000000"
+    },
+    {
+     "values": [
+      "0xbff8000000000000"
+     ],
+     "result": "0xc008000000000000"
+    }
+   ]
+  },
+  {
+   "name": "float32 transcendental",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float32",
+    "operator": "add",
+    "left": {
+     "kind": "unary",
+     "type": "float32",
+     "operator": "sqrt",
+     "operand": {
+      "kind": "input",
+      "type": "float32",
+      "name": "a"
+     }
+    },
+    "right": {
+     "kind": "unary",
+     "type": "float32",
+     "operator": "log",
+     "operand": {
+      "kind": "unary",
+      "type": "float32",
+      "operator": "exp",
+      "operand": {
+       "kind": "input",
+       "type": "float32",
+       "name": "a"
+      }
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x4000000000000000"
+     ],
+     "result": "0x400b504f40000000"
+    },
+    {
+     "values": [
+      "0x3fd0000000000000"
+     ],
+     "result": "0x3fe8000000000000"
+    },
+    {
+     "values": [
+      "0x4059000000000000"
+     ],
+     "result": "0x7ff0000000000000"
+    }
+   ]
+  },
+  {
+   "name": "float64 pow special cases",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    },
+    {
+     "name": "b",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "pow",
+    "left": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "float64",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3ff0000000000000",
+      "NaN"
+     ],
+     "result": "NaN"
+    },
+    {
+     "values": [
+      "0xbff0000000000000",
+      "0x7ff0000000000000"
+     ],
+     "result": "NaN"
+    },
+    {
+     "values": [
+      "NaN",
+      "0x0000000000000000"
+     ],
+     "result": "0x3ff0000000000000"
+    },
+    {
+     "values": [
+      "0x4000000000000000",
+      "0x4024000000000000"
+     ],
+     "result": "0x4090000000000000"
+    },
+    {
+     "values": [
+      "0x408f400000000000",
+      "0x3fe0000000000000"
+     ],
+     "result": "0x403f9f6e4990f227"
+    },
+    {
+     "values": [
+      "0xc020000000000000",
+      "0x3fd5555555555555"
+     ],
+     "result": "NaN"
+    }
+   ]
+  },
+  {
+   "name": "float32 pow",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    },
+    {
+     "name": "b",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float32",
+    "operator": "pow",
+    "left": {
+     "kind": "input",
+     "type": "float32",
+     "name": "a"
+    },
+    "right": {
+     "kind": "input",
+     "type": "float32",
+     "name": "b"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x4034000000000000",
+      "0x3fd7ae1480000000"
+     ],
+     "result": "0x40083c8fa0000000"
+    },
+    {
+     "values": [
+      "0x408f400000000000",
+      "0x3fe0000000000000"
+     ],
+     "result": "0x403f9f6e40000000"
+    }
+   ]
+  },
+  {
+   "name": "float to int saturates",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "int8",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x408f400000000000"
+     ],
+     "result": 127
+    },
+    {
+     "values": [
+      "0xc08f400000000000"
+     ],
+     "result": -128
+    },
+    {
+     "values": [
+      "NaN"
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      "0xbffe666666666666"
+     ],
+     "result": -1
+    },
+    {
+     "values": [
+      "0x405ff9999999999a"
+     ],
+     "result": 127
+    }
+   ]
+  },
+  {
+   "name": "float to uint32",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "uint32",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0xbfe0000000000000"
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      "0x41effffffff00000"
+     ],
+     "result": 4294967295
+    },
+    {
+     "values": [
+      "0x41f0000000000000"
+     ],
+     "result": 4294967295
+    },
+    {
+     "values": [
+      "0x7e37e43c8800759c"
+     ],
+     "result": 4294967295
+    }
+   ]
+  },
+  {
+   "name": "float to int64",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "int64",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x43e02207973f6440"
+     ],
+     "result": "9223372036854775807"
+    },
+    {
+     "values": [
+      "0xc3e02207973f6440"
+     ],
+     "result": "-9223372036854775808"
+    },
+    {
+     "values": [
+      "0xc3e0000000000000"
+     ],
+     "result": "-9223372036854775808"
+    },
+    {
+     "values": [
+      "0x423cbe991a14e666"
+     ],
+     "result": "123456789012"
+    },
+    {
+     "values": [
+      "NaN"
+     ],
+     "result": "0"
+    }
+   ]
+  },
+  {
+   "name": "float to uint64",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "uint64",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x43f158e460913d00"
+     ],
+     "result": "18446744073709551615"
+    },
+    {
+     "values": [
+      "0xbff0000000000000"
+     ],
+     "result": "0"
+    },
+    {
+     "values": [
+      "0x43e158e460913d00"
+     ],
+     "result": "10000000000000000000"
+    }
+   ]
+  },
+  {
+   "name": "int wraps to narrower",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int32"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "uint8",
+    "operand": {
+     "kind": "input",
+     "type": "int32",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      300
+     ],
+     "result": 44
+    },
+    {
+     "values": [
+      -1
+     ],
+     "result": 255
+    }
+   ]
+  },
+  {
+   "name": "int64 to int16",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "int16",
+    "operand": {
+     "kind": "input",
+     "type": "int64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "65537"
+     ],
+     "result": 1
+    },
+    {
+     "values": [
+      "-32769"
+     ],
+     "result": 32767
+    }
+   ]
+  },
+  {
+   "name": "int32 to int64",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int32"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "int64",
+    "operand": {
+     "kind": "input",
+     "type": "int32",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      -5
+     ],
+     "result": "-5"
+    }
+   ]
+  },
+  {
+   "name": "uint32 to uint64",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "uint32"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "uint64",
+    "operand": {
+     "kind": "input",
+     "type": "uint32",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      4294967295
+     ],
+     "result": "4294967295"
+    }
+   ]
+  },
+  {
+   "name": "int64 to float32",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "float32",
+    "operand": {
+     "kind": "input",
+     "type": "int64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "9007199254740993"
+     ],
+     "result": "0x4340000000000000"
+    },
+    {
+     "values": [
+      "16777217"
+     ],
+     "result": "0x4170000000000000"
+    }
+   ]
+  },
+  {
+   "name": "float64 to float32",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "convert",
+    "type": "float32",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3fb999999999999a"
+     ],
+     "result": "0x3fb99999a0000000"
+    },
+    {
+     "values": [
+      "0x47effffff0000000"
+     ],
+     "result": "0x7ff0000000000000"
+    },
+    {
+     "values": [
+      "0x47efffffefffffff"
+     ],
+     "result": "0x47efffffe0000000"
+    }
+   ]
+  },
+  {
+   "name": "comparisons",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    },
+    {
+     "name": "b",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "if",
+    "type": "string",
+    "condition": {
+     "kind": "binary",
+     "type": "boolean",
+     "operator": "and",
+     "left": {
+      "kind": "binary",
+      "type": "boolean",
+      "operator": "lte",
+      "left": {
+       "kind": "input",
+       "type": "float32",
+       "name": "a"
+      },
+      "right": {
+       "kind": "input",
+       "type": "float32",
+       "name": "b"
+      }
+     },
+     "right": {
+      "kind": "binary",
+      "type": "boolean",
+      "operator": "ne",
+      "left": {
+       "kind": "input",
+       "type": "float32",
+       "name": "a"
+      },
+      "right": {
+       "kind": "input",
+       "type": "float32",
+       "name": "b"
+      }
+     }
+    },
+    "then": {
+     "kind": "literal",
+     "type": "string",
+     "value": "less"
+    },
+    "else": {
+     "kind": "if",
+     "type": "string",
+     "condition": {
+      "kind": "binary",
+      "type": "boolean",
+      "operator": "eq",
+      "left": {
+       "kind": "input",
+       "type": "float32",
+       "name": "a"
+      },
+      "right": {
+       "kind": "input",
+       "type": "float32",
+       "name": "b"
+      }
+     },
+     "then": {
+      "kind": "literal",
+      "type": "string",
+      "value": "equal"
+     },
+     "else": {
+      "kind": "literal",
+      "type": "string",
+      "value": "more"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3ff0000000000000",
+      "0x4000000000000000"
+     ],
+     "result": "less"
+    },
+    {
+     "values": [
+      "0x4000000000000000",
+      "0x4000000000000000"
+     ],
+     "result": "equal"
+    },
+    {
+     "values": [
+      "0x0000000000000000",
+      "0x8000000000000000"
+     ],
+     "result": "equal"
+    },
+    {
+     "values": [
+      "0x4008000000000000",
+      "0x4000000000000000"
+     ],
+     "result": "more"
+    },
+    {
+     "values": [
+      "NaN",
+      "0x3ff0000000000000"
+     ],
+     "result": "more"
+    }
+   ]
+  },
+  {
+   "name": "boolean logic",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "boolean"
+    },
+    {
+     "name": "b",
+     "type": "boolean"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "boolean",
+    "operator": "or",
+    "left": {
+     "kind": "unary",
+     "type": "boolean",
+     "operator": "not",
+     "operand": {
+      "kind": "input",
+      "type": "boolean",
+      "name": "a"
+     }
+    },
+    "right": {
+     "kind": "binary",
+     "type": "boolean",
+     "operator": "and",
+     "left": {
+      "kind": "input",
+      "type": "boolean",
+      "name": "a"
+     },
+     "right": {
+      "kind": "input",
+      "type": "boolean",
+      "name": "b"
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      true,
+      false
+     ],
+     "result": false
+    },
+    {
+     "values": [
+      false,
+      false
+     ],
+     "result": true
+    },
+    {
+     "values": [
+      true,
+      true
+     ],
+     "result": true
+    }
+   ]
+  },
+  {
+   "name": "string equality",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "boolean",
+    "operator": "eq",
+    "left": {
+     "kind": "unary",
+     "type": "string",
+     "operator": "lower",
+     "operand": {
+      "kind": "unary",
+      "type": "string",
+      "operator": "trim",
+      "operand": {
+       "kind": "input",
+       "type": "string",
+       "name": "s"
+      }
+     }
+    },
+    "right": {
+     "kind": "literal",
+     "type": "string",
+     "value": "low pass"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "  Low Pass\t"
+     ],
+     "result": true
+    },
+    {
+     "values": [
+      "lowpass"
+     ],
+     "result": false
+    }
+   ]
+  },
+  {
+   "name": "fixed",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float64"
+    }
+   ],
+   "expression": {
+    "kind": "fixed",
+    "type": "string",
+    "operand": {
+     "kind": "input",
+     "type": "float64",
+     "name": "a"
+    },
+    "digits": 2
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3ff0147ae147ae14"
+     ],
+     "result": "1.00"
+    },
+    {
+     "values": [
+      "0x3fc0000000000000"
+     ],
+     "result": "0.13"
+    },
+    {
+     "values": [
+      "0xbfc0000000000000"
+     ],
+     "result": "-0.13"
+    },
+    {
+     "values": [
+      "0xbf50624dd2f1a9fc"
+     ],
+     "result": "0.00"
+    },
+    {
+     "values": [
+      "0x8000000000000000"
+     ],
+     "result": "0.00"
+    },
+    {
+     "values": [
+      "0x40934a456d5cfaad"
+     ],
+     "result": "1234.57"
+    },
+    {
+     "values": [
+      "0x3fe0000000000000"
+     ],
+     "result": "0.50"
+    },
+    {
+     "values": [
+      "0x4415af1d78b58c40"
+     ],
+     "result": "100000000000000000000.00"
+    },
+    {
+     "values": [
+      "0x7e37e43c8800759c"
+     ],
+     "result": "1000000000000000076297030790848949253473468551506568117016017342062113802881257944841421889646917840766397475771385487613722103878447999382918156113505198307501676498564889816265363680954146073142351510583734589868908251556590636177158632052826223905092841834398586171030837356738498992045704981575106.56"
+    },
+    {
+     "values": [
+      "NaN"
+     ],
+     "result": "NaN"
+    },
+    {
+     "values": [
+      "0xfff0000000000000"
+     ],
+     "result": "-Infinity"
+    }
+   ]
+  },
+  {
+   "name": "fixed float32 no decimals",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "fixed",
+    "type": "string",
+    "operand": {
+     "kind": "input",
+     "type": "float32",
+     "name": "a"
+    },
+    "digits": 0
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3fe0000000000000"
+     ],
+     "result": "1"
+    },
+    {
+     "values": [
+      "0xbfe0000000000000"
+     ],
+     "result": "-1"
+    },
+    {
+     "values": [
+      "0x4003ffffe0000000"
+     ],
+     "result": "2"
+    },
+    {
+     "values": [
+      "0x4170000000000000"
+     ],
+     "result": "16777216"
+    }
+   ]
+  },
+  {
+   "name": "fixed integers",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "int16"
+    },
+    {
+     "name": "b",
+     "type": "uint64"
+    }
+   ],
+   "expression": {
+    "kind": "concat",
+    "type": "string",
+    "operands": [
+     {
+      "kind": "fixed",
+      "type": "string",
+      "operand": {
+       "kind": "input",
+       "type": "int16",
+       "name": "a"
+      },
+      "digits": 1
+     },
+     {
+      "kind": "literal",
+      "type": "string",
+      "value": " "
+     },
+     {
+      "kind": "fixed",
+      "type": "string",
+      "operand": {
+       "kind": "input",
+       "type": "uint64",
+       "name": "b"
+      },
+      "digits": 0
+     }
+    ]
+   },
+   "samples": [
+    {
+     "values": [
+      -12,
+      "18446744073709551615"
+     ],
+     "result": "-12.0 18446744073709551615"
+    }
+   ]
+  },
+  {
+   "name": "concat removeSuffix endsWith",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "if",
+    "type": "string",
+    "condition": {
+     "kind": "binary",
+     "type": "boolean",
+     "operator": "endsWith",
+     "left": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     },
+     "right": {
+      "kind": "literal",
+      "type": "string",
+      "value": "Hz"
+     }
+    },
+    "then": {
+     "kind": "concat",
+     "type": "string",
+     "operands": [
+      {
+       "kind": "literal",
+       "type": "string",
+       "value": "["
+      },
+      {
+       "kind": "binary",
+       "type": "string",
+       "operator": "removeSuffix",
+       "left": {
+        "kind": "input",
+        "type": "string",
+        "name": "s"
+       },
+       "right": {
+        "kind": "literal",
+        "type": "string",
+        "value": "Hz"
+       }
+      },
+      {
+       "kind": "literal",
+       "type": "string",
+       "value": "]"
+      }
+     ]
+    },
+    "else": {
+     "kind": "concat",
+     "type": "string",
+     "operands": [
+      {
+       "kind": "literal",
+       "type": "string",
+       "value": "<"
+      },
+      {
+       "kind": "input",
+       "type": "string",
+       "name": "s"
+      },
+      {
+       "kind": "literal",
+       "type": "string",
+       "value": ">"
+      }
+     ]
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "500 Hz"
+     ],
+     "result": "[500 ]"
+    },
+    {
+     "values": [
+      "Hz"
+     ],
+     "result": "[]"
+    },
+    {
+     "values": [
+      "500"
+     ],
+     "result": "<500>"
+    },
+    {
+     "values": [
+      "élan “quoted” \\ ?"
+     ],
+     "result": "<élan “quoted” \\ ?>"
+    }
+   ]
+  },
+  {
+   "name": "parse float64",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "coalesce",
+    "type": "float64",
+    "operand": {
+     "kind": "parse",
+     "type": "float64?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     }
+    },
+    "fallback": {
+     "kind": "literal",
+     "type": "float64",
+     "value": -999
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "1.25"
+     ],
+     "result": "0x3ff4000000000000"
+    },
+    {
+     "values": [
+      "  -3.50 "
+     ],
+     "result": "0xc00c000000000000"
+    },
+    {
+     "values": [
+      "+.5"
+     ],
+     "result": "0x3fe0000000000000"
+    },
+    {
+     "values": [
+      "5."
+     ],
+     "result": "0x4014000000000000"
+    },
+    {
+     "values": [
+      "1e3"
+     ],
+     "result": "0x408f400000000000"
+    },
+    {
+     "values": [
+      "1E-3"
+     ],
+     "result": "0x3f50624dd2f1a9fc"
+    },
+    {
+     "values": [
+      "0.1"
+     ],
+     "result": "0x3fb999999999999a"
+    },
+    {
+     "values": [
+      "123456789012345678901234567890"
+     ],
+     "result": "0x45f8ee90ff6c373e"
+    },
+    {
+     "values": [
+      "0.000000000000000000000000000001"
+     ],
+     "result": "0x39b4484bfeebc2a0"
+    },
+    {
+     "values": [
+      "1e400"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "1e-400"
+     ],
+     "result": "0x0000000000000000"
+    },
+    {
+     "values": [
+      "."
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "1.2.3"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "0x10"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "Infinity"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "NaN"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      ""
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "1e"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "1,5"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "1e00000000000000000000003"
+     ],
+     "result": "0x408f400000000000"
+    },
+    {
+     "values": [
+      "00012.5000"
+     ],
+     "result": "0x4029000000000000"
+    },
+    {
+     "values": [
+      "1.7976931348623157e308"
+     ],
+     "result": "0x7feffffffffffffc"
+    }
+   ]
+  },
+  {
+   "name": "parse negative zero",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "binary",
+    "type": "float64",
+    "operator": "div",
+    "left": {
+     "kind": "literal",
+     "type": "float64",
+     "value": 1
+    },
+    "right": {
+     "kind": "coalesce",
+     "type": "float64",
+     "operand": {
+      "kind": "parse",
+      "type": "float64?",
+      "operand": {
+       "kind": "input",
+       "type": "string",
+       "name": "s"
+      }
+     },
+     "fallback": {
+      "kind": "literal",
+      "type": "float64",
+      "value": 1
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "-0"
+     ],
+     "result": "0xfff0000000000000"
+    },
+    {
+     "values": [
+      "0"
+     ],
+     "result": "0x7ff0000000000000"
+    }
+   ]
+  },
+  {
+   "name": "parse float32",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "coalesce",
+    "type": "float32",
+    "operand": {
+     "kind": "parse",
+     "type": "float32?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     }
+    },
+    "fallback": {
+     "kind": "literal",
+     "type": "float32",
+     "value": -999
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0.1"
+     ],
+     "result": "0x3fb99999a0000000"
+    },
+    {
+     "values": [
+      "3.4028235e38"
+     ],
+     "result": "0x47efffffe0000000"
+    },
+    {
+     "values": [
+      "3.5e38"
+     ],
+     "result": "0xc08f380000000000"
+    },
+    {
+     "values": [
+      "16777217"
+     ],
+     "result": "0x4170000000000000"
+    }
+   ]
+  },
+  {
+   "name": "parse int8",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "coalesce",
+    "type": "int8",
+    "operand": {
+     "kind": "parse",
+     "type": "int8?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     }
+    },
+    "fallback": {
+     "kind": "literal",
+     "type": "int8",
+     "value": -1
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "127"
+     ],
+     "result": 127
+    },
+    {
+     "values": [
+      "-128"
+     ],
+     "result": -128
+    },
+    {
+     "values": [
+      "128"
+     ],
+     "result": -1
+    },
+    {
+     "values": [
+      "1.5"
+     ],
+     "result": -1
+    },
+    {
+     "values": [
+      " +7 "
+     ],
+     "result": 7
+    },
+    {
+     "values": [
+      "-0"
+     ],
+     "result": 0
+    }
+   ]
+  },
+  {
+   "name": "parse uint32",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "coalesce",
+    "type": "uint32",
+    "operand": {
+     "kind": "parse",
+     "type": "uint32?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     }
+    },
+    "fallback": {
+     "kind": "literal",
+     "type": "uint32",
+     "value": 7
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "4294967295"
+     ],
+     "result": 4294967295
+    },
+    {
+     "values": [
+      "4294967296"
+     ],
+     "result": 7
+    },
+    {
+     "values": [
+      "-1"
+     ],
+     "result": 7
+    },
+    {
+     "values": [
+      "-0"
+     ],
+     "result": 0
+    },
+    {
+     "values": [
+      "99999999999999999999999"
+     ],
+     "result": 7
+    }
+   ]
+  },
+  {
+   "name": "parse int64",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "coalesce",
+    "type": "int64",
+    "operand": {
+     "kind": "parse",
+     "type": "int64?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     }
+    },
+    "fallback": {
+     "kind": "literal",
+     "type": "int64",
+     "value": "1"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "-9223372036854775808"
+     ],
+     "result": "-9223372036854775808"
+    },
+    {
+     "values": [
+      "9223372036854775808"
+     ],
+     "result": "1"
+    }
+   ]
+  },
+  {
+   "name": "parse uint64",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "coalesce",
+    "type": "uint64",
+    "operand": {
+     "kind": "parse",
+     "type": "uint64?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "s"
+     }
+    },
+    "fallback": {
+     "kind": "literal",
+     "type": "uint64",
+     "value": "1"
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "18446744073709551615"
+     ],
+     "result": "18446744073709551615"
+    },
+    {
+     "values": [
+      "18446744073709551616"
+     ],
+     "result": "1"
+    }
+   ]
+  },
+  {
+   "name": "isNull and map",
+   "inputs": [
+    {
+     "name": "s",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "if",
+    "type": "float32",
+    "condition": {
+     "kind": "isNull",
+     "type": "boolean",
+     "operand": {
+      "kind": "parse",
+      "type": "float32?",
+      "operand": {
+       "kind": "input",
+       "type": "string",
+       "name": "s"
+      }
+     }
+    },
+    "then": {
+     "kind": "literal",
+     "type": "float32",
+     "value": -1
+    },
+    "else": {
+     "kind": "coalesce",
+     "type": "float32",
+     "operand": {
+      "kind": "map",
+      "type": "float32?",
+      "operand": {
+       "kind": "parse",
+       "type": "float32?",
+       "operand": {
+        "kind": "input",
+        "type": "string",
+        "name": "s"
+       }
+      },
+      "variable": "v0",
+      "body": {
+       "kind": "binary",
+       "type": "float32",
+       "operator": "mul",
+       "left": {
+        "kind": "variable",
+        "type": "float32",
+        "name": "v0"
+       },
+       "right": {
+        "kind": "literal",
+        "type": "float32",
+        "value": 2
+       }
+      }
+     },
+     "fallback": {
+      "kind": "literal",
+      "type": "float32",
+      "value": 0
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "2.5"
+     ],
+     "result": "0x4014000000000000"
+    },
+    {
+     "values": [
+      "x"
+     ],
+     "result": "0xbff0000000000000"
+    }
+   ]
+  },
+  {
+   "name": "nested map",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "string"
+    },
+    {
+     "name": "b",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "map",
+    "type": "int32?",
+    "operand": {
+     "kind": "parse",
+     "type": "int32?",
+     "operand": {
+      "kind": "input",
+      "type": "string",
+      "name": "a"
+     }
+    },
+    "variable": "v0",
+    "body": {
+     "kind": "map",
+     "type": "int32?",
+     "operand": {
+      "kind": "parse",
+      "type": "int32?",
+      "operand": {
+       "kind": "input",
+       "type": "string",
+       "name": "b"
+      }
+     },
+     "variable": "v1",
+     "body": {
+      "kind": "binary",
+      "type": "int32",
+      "operator": "add",
+      "left": {
+       "kind": "variable",
+       "type": "int32",
+       "name": "v0"
+      },
+      "right": {
+       "kind": "variable",
+       "type": "int32",
+       "name": "v1"
+      }
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "2",
+      "3"
+     ],
+     "result": 5
+    },
+    {
+     "values": [
+      "2",
+      "x"
+     ],
+     "result": null
+    },
+    {
+     "values": [
+      "x",
+      "3"
+     ],
+     "result": null
+    }
+   ]
+  },
+  {
+   "name": "if joins nullable",
+   "inputs": [
+    {
+     "name": "a",
+     "type": "boolean"
+    }
+   ],
+   "expression": {
+    "kind": "if",
+    "type": "float64?",
+    "condition": {
+     "kind": "input",
+     "type": "boolean",
+     "name": "a"
+    },
+    "then": {
+     "kind": "literal",
+     "type": "float64",
+     "value": 1
+    },
+    "else": {
+     "kind": "literal",
+     "type": "float64?",
+     "value": null
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      true
+     ],
+     "result": "0x3ff0000000000000"
+    },
+    {
+     "values": [
+      false
+     ],
+     "result": null
+    }
+   ]
+  },
+  {
+   "name": "frequency format",
+   "inputs": [
+    {
+     "name": "value",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "if",
+    "type": "string",
+    "condition": {
+     "kind": "binary",
+     "type": "boolean",
+     "operator": "gte",
+     "left": {
+      "kind": "input",
+      "type": "float32",
+      "name": "value"
+     },
+     "right": {
+      "kind": "literal",
+      "type": "float32",
+      "value": 1000
+     }
+    },
+    "then": {
+     "kind": "concat",
+     "type": "string",
+     "operands": [
+      {
+       "kind": "fixed",
+       "type": "string",
+       "operand": {
+        "kind": "binary",
+        "type": "float32",
+        "operator": "div",
+        "left": {
+         "kind": "input",
+         "type": "float32",
+         "name": "value"
+        },
+        "right": {
+         "kind": "literal",
+         "type": "float32",
+         "value": 1000
+        }
+       },
+       "digits": 2
+      },
+      {
+       "kind": "literal",
+       "type": "string",
+       "value": " kHz"
+      }
+     ]
+    },
+    "else": {
+     "kind": "concat",
+     "type": "string",
+     "operands": [
+      {
+       "kind": "fixed",
+       "type": "string",
+       "operand": {
+        "kind": "input",
+        "type": "float32",
+        "name": "value"
+       },
+       "digits": 0
+      },
+      {
+       "kind": "literal",
+       "type": "string",
+       "value": " Hz"
+      }
+     ]
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "0x4093880000000000"
+     ],
+     "result": "1.25 kHz"
+    },
+    {
+     "values": [
+      "0x408f3b3340000000"
+     ],
+     "result": "999 Hz"
+    },
+    {
+     "values": [
+      "0x40d3880000000000"
+     ],
+     "result": "20.00 kHz"
+    },
+    {
+     "values": [
+      "0x4034000000000000"
+     ],
+     "result": "20 Hz"
+    }
+   ]
+  },
+  {
+   "name": "frequency parse",
+   "inputs": [
+    {
+     "name": "text",
+     "type": "string"
+    }
+   ],
+   "expression": {
+    "kind": "if",
+    "type": "float32?",
+    "condition": {
+     "kind": "binary",
+     "type": "boolean",
+     "operator": "endsWith",
+     "left": {
+      "kind": "unary",
+      "type": "string",
+      "operator": "lower",
+      "operand": {
+       "kind": "unary",
+       "type": "string",
+       "operator": "trim",
+       "operand": {
+        "kind": "input",
+        "type": "string",
+        "name": "text"
+       }
+      }
+     },
+     "right": {
+      "kind": "literal",
+      "type": "string",
+      "value": "khz"
+     }
+    },
+    "then": {
+     "kind": "map",
+     "type": "float32?",
+     "operand": {
+      "kind": "parse",
+      "type": "float32?",
+      "operand": {
+       "kind": "binary",
+       "type": "string",
+       "operator": "removeSuffix",
+       "left": {
+        "kind": "unary",
+        "type": "string",
+        "operator": "lower",
+        "operand": {
+         "kind": "unary",
+         "type": "string",
+         "operator": "trim",
+         "operand": {
+          "kind": "input",
+          "type": "string",
+          "name": "text"
+         }
+        }
+       },
+       "right": {
+        "kind": "literal",
+        "type": "string",
+        "value": "khz"
+       }
+      }
+     },
+     "variable": "v0",
+     "body": {
+      "kind": "binary",
+      "type": "float32",
+      "operator": "mul",
+      "left": {
+       "kind": "variable",
+       "type": "float32",
+       "name": "v0"
+      },
+      "right": {
+       "kind": "literal",
+       "type": "float32",
+       "value": 1000
+      }
+     }
+    },
+    "else": {
+     "kind": "parse",
+     "type": "float32?",
+     "operand": {
+      "kind": "binary",
+      "type": "string",
+      "operator": "removeSuffix",
+      "left": {
+       "kind": "unary",
+       "type": "string",
+       "operator": "lower",
+       "operand": {
+        "kind": "unary",
+        "type": "string",
+        "operator": "trim",
+        "operand": {
+         "kind": "input",
+         "type": "string",
+         "name": "text"
+        }
+       }
+      },
+      "right": {
+       "kind": "literal",
+       "type": "string",
+       "value": "hz"
+      }
+     }
+    }
+   },
+   "samples": [
+    {
+     "values": [
+      "1.25 kHz"
+     ],
+     "result": "0x4093880000000000"
+    },
+    {
+     "values": [
+      "500 Hz"
+     ],
+     "result": "0x407f400000000000"
+    },
+    {
+     "values": [
+      "500"
+     ],
+     "result": "0x407f400000000000"
+    },
+    {
+     "values": [
+      "20KHZ"
+     ],
+     "result": "0x40d3880000000000"
+    },
+    {
+     "values": [
+      "kHz"
+     ],
+     "result": null
+    },
+    {
+     "values": [
+      "invalid"
+     ],
+     "result": null
+    }
+   ]
+  },
+  {
+   "name": "decibels format",
+   "inputs": [
+    {
+     "name": "value",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "concat",
+    "type": "string",
+    "operands": [
+     {
+      "kind": "fixed",
+      "type": "string",
+      "operand": {
+       "kind": "input",
+       "type": "float32",
+       "name": "value"
+      },
+      "digits": 2
+     },
+     {
+      "kind": "literal",
+      "type": "string",
+      "value": " dB"
+     }
+    ]
+   },
+   "samples": [
+    {
+     "values": [
+      "0xc00c000000000000"
+     ],
+     "result": "-3.50 dB"
+    },
+    {
+     "values": [
+      "0x0000000000000000"
+     ],
+     "result": "0.00 dB"
+    },
+    {
+     "values": [
+      "0xbf70624de0000000"
+     ],
+     "result": "0.00 dB"
+    }
+   ]
+  },
+  {
+   "name": "percent",
+   "inputs": [
+    {
+     "name": "value",
+     "type": "float32"
+    }
+   ],
+   "expression": {
+    "kind": "concat",
+    "type": "string",
+    "operands": [
+     {
+      "kind": "fixed",
+      "type": "string",
+      "operand": {
+       "kind": "binary",
+       "type": "float32",
+       "operator": "mul",
+       "left": {
+        "kind": "input",
+        "type": "float32",
+        "name": "value"
+       },
+       "right": {
+        "kind": "literal",
+        "type": "float32",
+        "value": 100
+       }
+      },
+      "digits": 0
+     },
+     {
+      "kind": "literal",
+      "type": "string",
+      "value": "%"
+     }
+    ]
+   },
+   "samples": [
+    {
+     "values": [
+      "0x3fe8000000000000"
+     ],
+     "result": "75%"
+    }
+   ]
+  }
+ ]
+}

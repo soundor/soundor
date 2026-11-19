@@ -1,0 +1,62 @@
+{
+  "name": "@soundor/vst3-runtime",
+  "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "runtimes/vst3-runtime"
+  },
+  "files": [
+    "README.md",
+    "NOTICE.md",
+    "LICENSE",
+    "dist",
+    "rust/Cargo.toml",
+    "rust/src",
+    "prebuilt"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "build:native": "node scripts/adapter.ts build",
+    "dev": "tsdown --watch",
+    "format:native": "node ../../scripts/clang-format.mjs --check native",
+    "format:native:fix": "node ../../scripts/clang-format.mjs --fix native",
+    "gen:expression": "node scripts/expression-runtime.mjs && UPDATE_GOLDEN=1 vitest run src/expression-corpus.test.ts",
+    "lint:native": "node scripts/adapter.ts tidy",
+    "test": "vitest run",
+    "test:native": "node scripts/adapter.ts test",
+    "test:plugin": "soundor build vst3 --config tests/plugin/soundor.config.ts && vitest run --config vitest.plugin.config.ts",
+    "test:watch": "vitest watch",
+    "test:plugin:run": "vitest run --config vitest.plugin.config.ts"
+  },
+  "dependencies": {
+    "@soundor/engine": "workspace:*",
+    "@soundor/runtime-sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "@soundor/config": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
+    "@types/node": "catalog:",
+    "soundor": "workspace:^",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "soundor": "workspace:^"
+  }
+}

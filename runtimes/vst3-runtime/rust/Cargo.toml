@@ -1,0 +1,19 @@
+# The VST3 runtime's Rust side: the private ABI the prebuilt adapter
+# (libsoundor_vst3.a) calls to learn which plugin it is
+# (native/include/soundor/vst3/PluginAbi.h). `soundor build vst3` compiles it
+# into the crate it generates for the project, beside the project's lib/.
+[package]
+name = "soundor-vst3"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "The Soundor VST3 runtime's plugin definition ABI"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+# A workspace of its own, wherever the package is installed.
+[workspace]

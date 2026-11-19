@@ -17,7 +17,7 @@ export function verifyResults(needs) {
       throw new Error(`Invalid ${kind} artifact reuse decision`);
   }
   if (
-    ['native', 'juce', 'benchmark', 'host', 'orbit'].some(
+    ['native', 'juce', 'benchmark', 'host', 'orbit', 'vst3'].some(
       (name) => !['true', 'false'].includes(changes[name]),
     )
   )
@@ -28,7 +28,12 @@ export function verifyResults(needs) {
     required.add('juce9');
   }
   if (changes.orbit === 'true') required.add('orbit');
-  if (changes.host === 'true' || changes.orbit === 'true')
+  if (changes.vst3 === 'true') required.add('vst3');
+  if (
+    changes.host === 'true' ||
+    changes.orbit === 'true' ||
+    changes.vst3 === 'true'
+  )
     required.add('host-plan');
   if (
     required.has('host-plan') &&
@@ -41,7 +46,8 @@ export function verifyResults(needs) {
   if (
     changes.native === 'true' ||
     changes.juce === 'true' ||
-    changes.orbit === 'true'
+    changes.orbit === 'true' ||
+    changes.vst3 === 'true'
   )
     required.add('engine-plan');
   if (

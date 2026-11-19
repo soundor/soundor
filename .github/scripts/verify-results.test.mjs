@@ -13,6 +13,7 @@ function jobs(flags = {}) {
         benchmark: 'false',
         host: 'false',
         orbit: 'false',
+        vst3: 'false',
         ...flags,
       },
     },
@@ -27,11 +28,20 @@ function jobs(flags = {}) {
         'host-plan',
         'host',
         'orbit',
+        'vst3',
       ].map((name) => [name, { result: 'skipped' }]),
     ),
   };
 }
 test('intentional native skips pass', () => verifyResults(jobs()));
+test('an affected VST3 runtime requires its job, and its engine and host plans', () => {
+  const needs = jobs({ vst3: 'true' });
+  needs['engine-plan'] = { result: 'success', outputs: { build: 'false' } };
+  needs['host-plan'] = { result: 'success', outputs: { build: 'false' } };
+  assert.throws(() => verifyResults(needs), /vst3=skipped/);
+  needs.vst3 = { result: 'success' };
+  verifyResults(needs);
+});
 test('a skipped affected job fails', () => {
   const needs = jobs({ native: 'true' });
   needs['engine-plan'] = { result: 'success', outputs: { build: 'true' } };

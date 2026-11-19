@@ -33,6 +33,7 @@
     "devtools-server",
     "devtools-client",
     "vst3-host",
+    "vst3-runtime",
     "---Testing---",
     "test-runtime",
     "react-tests",
