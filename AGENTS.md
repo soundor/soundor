@@ -22,6 +22,11 @@ same lifecycle phases. Two runtimes exist:
   child window, including through XWayland. Canvas nodes have a 2D
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
   shows without copies; Three.js runs on it unmodified.
+- `@soundor/vst3-runtime`: the same plugin as a Linux x86_64 VST3 without
+  JUCE: a generic VST3 adapter (Steinberg's SDK), prebuilt per engine
+  variant and shipped in the package, hosting the engine and the project's
+  Rust crate, which Cargo compiles with the runtime's `soundor-vst3` crate
+  (the plugin's descriptor and UI) and `c++` links. No C++ per plugin.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
   Audio, without Hermes or Skia. Its `soundor:ui` is the engine itself
   (`@soundor/engine/web`): the engine's C++ core (node tree, styles, Yoga,
@@ -136,7 +141,7 @@ Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`). Each group is a reusable
 workflow called from `verify.yml`, so its jobs show as `<group> / <job>`: Engine
 (`engine.yml`; its suites ← `@soundor/engine`), JUCE 8 (juce-runtime) and JUCE 9 (juce-runtime) (`juce.yml`) ←
-`@soundor/juce-runtime`, VST3 (host) (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
+`@soundor/juce-runtime`, VST3 (vst3-runtime) (`vst3.yml`) ← `@soundor/vst3-runtime`, VST3 (host) (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
 Orbit E2E (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`. A change
 only under `hosts/vst3-host/` runs VST3 (host) and Orbit E2E alone. The engine and the host
 share one pattern: `engine-plan` and `host-plan` select, one group builds and
@@ -279,6 +284,13 @@ read the docs bundled with the installed package
   rules: integrity or network failures are errors, never a reason to build.
   See `contribute/web-engine.md` and the docs' `engine.md`.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, the managed host in `native/plugin/` and the JUCE adapters in `native/backend/juce/`.
+- `runtimes/vst3-runtime` — the Linux VST3 runtime: `native/` the adapter
+  (`libsoundor_vst3.a`: component, controller, editor, descriptor, expression
+  interpreter, generic `soundor:state`/`presets`/`native`), `rust/` the
+  private ABI's Rust side, `src/` descriptor, generated crate, link and
+  bundle, `tests/` its test plugin. `prebuilt/` is built
+  (`pnpm --filter @soundor/vst3-runtime build:native`), never committed; see
+  `contribute/vst3-runtime.md`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
   `engine-wasm.ts`, the one place that calls `engine({ target: 'web' })`) and the
   browser side (`src/client/`: parameter store, `WebHost`, the page's engine

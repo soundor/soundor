@@ -17,6 +17,9 @@ name: Release
 #             release, verified and reused
 #   host-artifacts  when @soundor/vst3-host is to be published: its executables
 #             for this commit, built and tested (vst3-host-artifacts.yml)
+#   vst3      when @soundor/vst3-runtime is to be published: its prebuilt
+#             adapter, built against the engine it pins, its test plugin in
+#             the VST3 host and pluginval (vst3.yml); pack puts it in the package
 #
 # Test what uses them:
 #
@@ -76,6 +79,7 @@ jobs:
       engine: ${{ steps.engine.outputs.engine || 'false' }}
       juce: ${{ steps.juce.outputs.juce || 'false' }}
       host: ${{ steps.host.outputs.host || 'false' }}
+      vst3: ${{ steps.vst3.outputs.vst3 || 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -109,6 +113,19 @@ jobs:
             const juce = plan.flat().some((e) => e.kind === 'publish' && e.name === '@soundor/juce-runtime');
             appendFileSync(process.env.GITHUB_OUTPUT, 'juce=' + juce + '\\n');
             console.log('juce=' + juce);" "$RUNNER_TEMP/publish-plan.json"
+
+      # The same plan: does it publish @soundor/vst3-runtime?
+      - name: Is the VST3 runtime released
+        id: vst3
+        if: steps.mode.outputs.mode == 'publish'
+        run: |
+          node --input-type=module -e "
+            import { appendFileSync, readFileSync } from 'node:fs';
+            const { version, plan } = JSON.parse(readFileSync(process.argv[1], 'utf8'));
+            if (version !== 1 || !Array.isArray(plan)) throw new Error('Unknown Changesets publish plan format');
+            const vst3 = plan.flat().some((e) => e.kind === 'publish' && e.name === '@soundor/vst3-runtime');
+            appendFileSync(process.env.GITHUB_OUTPUT, 'vst3=' + vst3 + '\\n');
+            console.log('vst3=' + vst3);" "$RUNNER_TEMP/publish-plan.json"
 
       # The same plan: does it publish @soundor/vst3-host?
       - name: Is the VST3 host released
@@ -242,6 +259,28 @@ jobs:
       engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
       build-host: ${{ needs.select.outputs.host == 'true' }}
 
+  # The VST3 runtime's prebuilt adapter, which its package carries: built
+  # against the engine it pins (this run's archives, or the published
+  # release), tested, validated by pluginval, and kept for pack.
+  vst3:
+    name: VST3 runtime
+    needs: [select, validate, engine, host-artifacts]
+    if: >-
+      always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
+      needs.select.outputs.vst3 == 'true' && needs.validate.result == 'success' &&
+      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success') &&
+      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/vst3.yml
+    with:
+      cache: false
+      build-engine: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'build' }}
+      engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
+      build-host: ${{ needs.select.outputs.host == 'true' }}
+      keep-adapter: true
+
   # ── Publish ────────────────────────────────────────────────────────────
   # Every job above, for what this release publishes, has passed.
 
@@ -268,10 +307,20 @@ jobs:
   pack:
     name: Pack
     needs:
-      [select, validate, engine, host-artifacts, juce, juce9, engine-release]
+      [
+        select,
+        validate,
+        engine,
+        host-artifacts,
+        juce,
+        juce9,
+        engine-release,
+        vst3,
+      ]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
       needs.validate.result == 'success' &&
+      (needs.select.outputs.vst3 != 'true' || needs.vst3.result == 'success') &&
       (needs.select.outputs.engine != 'true' || needs.engine-release.result == 'success') &&
       (needs.select.outputs.engine != 'true' && needs.select.outputs.juce != 'true' ||
         needs.juce.result == 'success' && needs.juce9.result == 'success') &&
@@ -334,6 +383,15 @@ jobs:
           path: ${{ runner.temp }}/vst3-host-tarballs
           if-no-files-found: error
 
+      # The adapter the VST3 job built and tested, into the package (prebuilt/,
+      # never committed).
+      - name: Download the VST3 runtime's adapter
+        if: needs.select.outputs.vst3 == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: vst3-adapter-${{ github.sha }}-linux-x64
+          path: runtimes/vst3-runtime/prebuilt
+
       - name: Pack
         id: pack
         uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -341,7 +399,7 @@ jobs:
           publish-plan-artifact-id: ${{ needs.select.outputs.publish-plan }}
 
       - name: Download the packed packages
-        if: needs.select.outputs.engine == 'true' || needs.select.outputs.host == 'true'
+        if: needs.select.outputs.engine == 'true' || needs.select.outputs.host == 'true' || needs.select.outputs.vst3 == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ steps.pack.outputs.pack-dir-artifact-id }}
@@ -350,6 +408,17 @@ jobs:
       - name: The packed engine carries the manifest
         if: needs.select.outputs.engine == 'true'
         run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" engine/artifacts/manifest.json
+
+      - name: The packed VST3 runtime carries its adapter
+        if: needs.select.outputs.vst3 == 'true'
+        run: |
+          set -eo pipefail
+          tarball=$(find "$RUNNER_TEMP/packed" -name 'soundor-vst3-runtime-*.tgz' | head -1)
+          [ -n "$tarball" ] || { echo "::error::No packed @soundor/vst3-runtime"; exit 1; }
+          for variant in debug release; do
+            tar -tzf "$tarball" | grep -qx "package/prebuilt/linux-x64-$variant/lib/libsoundor_vst3.a" ||
+              { echo "::error::$tarball has no $variant adapter"; exit 1; }
+          done
 
       - name: The packed VST3 host pins its platform packages
         if: needs.select.outputs.host == 'true'

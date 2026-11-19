@@ -43,6 +43,9 @@ flowchart LR
     juce["@soundor/juce-runtime"] --> sdk
     juce --> engine["@soundor/engine"]
     web["@soundor/web-runtime"] --> sdk
+    vst3["@soundor/vst3-runtime"] --> sdk
+    vst3 --> engine
+    vst3 -. peer .-> cli
     juce -. peer .-> cli
     web -. peer .-> cli
     vitest["@soundor/vitest"] --> config
@@ -83,6 +86,7 @@ need it.
 | UI                 | [`@soundor/react`](/docs/react)                                                                                                                                                 | React reconciler, components, hooks, focus scopes, portals, and modals                                            |
 | Native engine      | [`@soundor/engine`](/docs/contribute/engine-reference)                                                                                                                          | Backend-independent C++ UI engine and Hermes module lowering                                                      |
 | Native host        | [`@soundor/juce-runtime`](/docs/juce-runtime)                                                                                                                                   | JUCE code generation, parameter and native API adapters, plugin builds                                            |
+| VST3 without JUCE  | [`@soundor/vst3-runtime`](/docs/vst3-runtime) ([internals](/docs/contribute/vst3-runtime))                                                                                      | Prebuilt generic VST3 adapter, plugin descriptor, Rust linking crate, Linux VST3 bundles                          |
 | Browser host       | [`@soundor/web-runtime`](/docs/web-runtime)                                                                                                                                     | DOM-backed UI, Web Audio host, browser services, and Vite integration                                             |
 | DevTools           | [Client](/docs/contribute/devtools-client), [server](/docs/contribute/devtools-server), [protocol](/docs/contribute/devtools-protocol)                                          | Browser dashboard, authenticated session backend, and shared transport contract                                   |
 | Driver             | [`@soundor/driver`](/docs/driver)                                                                                                                                               | Connected inspection of running plugins from Node.js and `soundor driver`                                         |
@@ -96,8 +100,9 @@ compiled to WebAssembly and the DOM adapter that is the web runtime's
 
 The engine and the VST3 host are versioned independently of the shared
 package release group.
-The JUCE runtime depends on an exact engine version, and lowers the UI bundle
-with that engine's JavaScript module-lowering tool. Neither the engine nor core
+The JUCE and VST3 runtimes depend on an exact engine version, and lower the UI
+bundle with that engine's JavaScript module-lowering tool; the VST3 runtime's
+prebuilt adapter is compiled against that engine's archive. Neither the engine nor core
 depends on the other.
 
 ## Invariants and tests

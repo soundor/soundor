@@ -10,6 +10,7 @@
   "files": [
     "README.md",
     "NOTICE.md",
+    "LICENSE",
     "dist",
     "rust/Cargo.toml",
     "rust/src",

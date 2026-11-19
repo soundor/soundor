@@ -18,6 +18,7 @@
     "rust-controller",
     "---Runtimes---",
     "juce-runtime",
+    "vst3-runtime",
     "web-runtime",
     "engine",
     "---Examples---",
