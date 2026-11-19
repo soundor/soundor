@@ -127,6 +127,24 @@ describe('the VST3 test plugin', () => {
     ]);
   });
 
+  it('reports the Rust processor tail with the editor closed', async () => {
+    const host = await open();
+    expect((await host.getInfo()).tailSamples).toBe(48000);
+
+    await host.setParameter(parameterVstId('gain'), { plain: 0.5 });
+    await output(host);
+    expect((await host.getInfo()).tailSamples).toBe(24000);
+
+    await host.setParameter(parameterVstId('gain'), { plain: 0 });
+    await host.setParameter(parameterVstId('steps'), { plain: -1 });
+    await output(host);
+    expect((await host.getInfo()).tailSamples).toBe(24000);
+
+    await host.setParameter(parameterVstId('steps'), { plain: 0 });
+    await output(host);
+    expect((await host.getInfo()).tailSamples).toBe(0);
+  });
+
   it("gives the host the parameters, with the config's text and flags", async () => {
     const host = await open();
     const parameters = await host.getParameters();

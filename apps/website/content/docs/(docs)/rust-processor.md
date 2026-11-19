@@ -98,6 +98,20 @@ receives the active channel counts. `ctx.layout` in `prepare` exposes
 `inputs()`, `outputs()`, and the matching config layout's `name()`. Hosts can
 send blocks larger than prepared; adapters divide these into prepared-size calls.
 
+### Reporting the effect tail in VST3
+
+With `audio.tail: { mode: 'dynamic' }`, call
+`ctx.report_tail_seconds(seconds)` in `prepare()` to report the initial
+duration, and again in `process()` when a DSP setting changes the duration.
+The tail is how long the effect can keep producing audio after its input goes
+silent. It starts at zero on each prepare. Reports must be finite and
+nonnegative. A report of zero clears the tail, and an invalid report leaves
+the last duration in effect.
+
+The VST3 host reads the latest duration when it queries the processor. With
+a fixed tail, the host reads the configured duration regardless of any reports
+from Rust.
+
 ## Generated parameters and publishing
 
 `soundor gen` generates `soundor::config::Parameters` and layout constants from

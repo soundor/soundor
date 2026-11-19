@@ -24,6 +24,7 @@ export default defineSoundorConfig({
     },
     defaultLayout: 'stereo',
     latency: { mode: 'fixed', samples: 32 },
+    tail: { mode: 'dynamic' },
   },
   // MIDI in and out: the processor echoes notes an octave up.
   midi: { input: true, output: true },

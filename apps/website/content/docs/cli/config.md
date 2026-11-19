@@ -121,10 +121,12 @@ offers several alternatives; it is required for those buses.
 
 Latency defaults to `{ mode: 'fixed', samples: 0 }`. Use `{ mode: 'dynamic' }`
 when native DSP reports latency with JUCE's `setLatencySamples()` on the control
-thread. Tail defaults to `{ mode: 'fixed', seconds: 0 }`; dynamic tail reporting
-uses the generated `setTailLengthSeconds(seconds)`, which accepts finite,
-nonnegative seconds. These declarations report processing behavior to hosts;
-they do not implement DSP, buffering, or tail rendering.
+thread. Tail defaults to `{ mode: 'fixed', seconds: 0 }`. With
+`{ mode: 'dynamic' }`, the VST3 runtime reads the duration published by
+`ctx.report_tail_seconds(seconds)` in the [Rust processor](/docs/rust-processor).
+The JUCE runtime uses the generated C++ `setTailLengthSeconds(seconds)`.
+These declarations report processing behavior to hosts; they do not implement
+DSP, buffering, or tail rendering.
 
 JUCE generates bus construction and final layout/tail overrides in the processor
 base. For an existing project adopting `audio`, use the base's default constructor

@@ -189,7 +189,8 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   host: open the bundle in yours.
 - The Rust controller's scheduled work runs while an editor is open, or with
   a host that lends its run loop to the controller.
-- Dynamic latency and tail (`mode: 'dynamic'`) are reported as none.
+- Dynamic latency (`mode: 'dynamic'`) is reported as zero. Dynamic tail
+  reports come from the [Rust processor](/docs/rust-processor#reporting-the-effect-tail-in-vst3).
 
 ## Validating a plugin
 

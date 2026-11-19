@@ -6,6 +6,7 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::audio::Audio;
 use crate::context::{ActiveLayout, PrepareContext, ProcessContext};
@@ -78,6 +79,7 @@ pub(crate) struct Instance<P: Processor> {
     output_chunk: Vec<*mut f32>,
     parameters: Parameters,
     published: [f64; PUBLISHED.len()],
+    tail_seconds: AtomicU64,
     // What a block without a state of its own sees.
     default_state: Box<StateSnapshot>,
     // Each resource's handoff, shared with the plugin's controller, which
@@ -100,6 +102,7 @@ impl<P: Processor> Instance<P> {
             output_chunk: Vec::new(),
             parameters: Parameters::default(),
             published: [f64::NAN; PUBLISHED.len()],
+            tail_seconds: AtomicU64::new(0.0_f64.to_bits()),
             default_state: StateSnapshot::boxed_defaults(),
             resources: Arc::new(ResourceSlots::default()),
         }
@@ -112,6 +115,14 @@ impl<P: Processor> Instance<P> {
 
     pub fn processor(&self) -> &P {
         &self.processor
+    }
+
+    pub fn tail_seconds(&self) -> f64 {
+        if self.state == State::Prepared {
+            f64::from_bits(self.tail_seconds.load(Ordering::Relaxed))
+        } else {
+            0.0
+        }
     }
 
     pub fn processor_mut(&mut self) -> &mut P {
@@ -183,6 +194,8 @@ impl<P: Processor> Instance<P> {
         self.input_chunk = vec![std::ptr::null(); inputs.iter().sum()];
         self.output_chunk = vec![std::ptr::null_mut(); outputs.iter().sum()];
         self.midi.reset();
+        self.tail_seconds
+            .store(0.0_f64.to_bits(), Ordering::Relaxed);
         let ctx = PrepareContext {
             sample_rate,
             max_frames,
@@ -193,6 +206,7 @@ impl<P: Processor> Instance<P> {
             params: &self.parameters,
             state: state.unwrap_or(&self.default_state),
             resources: ResourcePublishers::new(&self.resources),
+            tail_seconds: &self.tail_seconds,
         };
         // What the audio thread is done with, freed here.
         self.resources.collect();
@@ -326,6 +340,7 @@ impl<P: Processor> Instance<P> {
                 // SAFETY: acquired at this block's start; `ctx` ends with it.
                 resources: unsafe { Resources::new(&self.resources) },
                 sample_rate: self.sample_rate,
+                tail_seconds: &self.tail_seconds,
             };
             let processor = &mut self.processor;
             if catch_unwind(AssertUnwindSafe(|| processor.process(&mut ctx))).is_err() {

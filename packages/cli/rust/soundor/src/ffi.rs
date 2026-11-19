@@ -275,6 +275,16 @@ pub unsafe fn destroy<P: Processor>(handle: *mut Handle<P>) {
     let _ = catch_unwind(AssertUnwindSafe(move || drop(owned)));
 }
 
+/// Reads a processor's latest tail report, in seconds.
+///
+/// # Safety
+/// `handle` is null or a live handle from [`create`]. The read must not
+/// overlap any other call on that handle.
+pub unsafe fn tail_seconds<P: Processor>(handle: *const Handle<P>) -> f64 {
+    // SAFETY: as the caller promises.
+    unsafe { handle.as_ref() }.map_or(0.0, |handle| handle.instance.tail_seconds())
+}
+
 /// `soundor_processor_prepare`.
 ///
 /// # Safety
@@ -496,6 +506,15 @@ macro_rules! export {
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_processor_create() -> *mut c_void {
                 $crate::ffi::create::<__Exported>().cast()
+            }
+
+            /// # Safety
+            /// See `soundor::ffi::tail_seconds`.
+            #[cfg(not(target_arch = "wasm32"))]
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn soundor_processor_tail_seconds(handle: *const c_void) -> f64 {
+                // SAFETY: as the caller promises.
+                unsafe { $crate::ffi::tail_seconds::<__Exported>(handle.cast::<Handle<__Exported>>()) }
             }
 
             /// # Safety

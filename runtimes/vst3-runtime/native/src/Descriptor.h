@@ -145,7 +145,7 @@ namespace soundor::vst3
         bool midiInput = false;
         bool midiOutput = false;
         std::uint32_t latency = 0;
-        // Seconds; negative: dynamic, unknown here (reported as none).
+        // Fixed seconds, or negative for a duration reported by Rust.
         double tailSeconds = 0;
 
         EditorConfig editor;
