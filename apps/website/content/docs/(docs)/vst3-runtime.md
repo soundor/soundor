@@ -199,7 +199,9 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
 - **Instances.** Every instance is independent. When the component and the
   controller share a process, the controller also reaches the processor's
   memory: the Rust controller's audio resources, `soundor:midi` from the UI
-  and native streams. A host that runs them apart gets everything else.
+  and native streams. Hosts load both in one process, even when they sandbox
+  plugins, and JUCE plugins rely on it as well; a host that ran them apart
+  would still get everything else.
 
 ## Limitations
 
