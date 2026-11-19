@@ -30,6 +30,12 @@ import {
   type LifecycleContext,
   type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
+import {
+  launchHost,
+  prepareHost,
+  resolveHost,
+  type Vst3Host,
+} from '@soundor/vst3-host';
 
 import { bundlePaths, writeBundleResources } from './bundle';
 import { buildCrate, writeCrate } from './crate';
@@ -106,6 +112,8 @@ interface BuildOptions {
   readonly out: string;
   /** The cache subdirectory for this kind of build. */
   readonly label: string;
+  /** Close the dev host once Cargo succeeds, before replacing its bundle. */
+  readonly beforeReplace?: () => Promise<void>;
   /** A development build: its UI is read from this directory, its log written there. */
   readonly live?: { readonly uiDirectory: string; readonly logFile: string };
 }
@@ -202,6 +210,8 @@ async function buildPlugin(
     signal: ctx.signal,
   });
 
+  await build.beforeReplace?.();
+  ctx.signal.throwIfAborted();
   const paths = bundlePaths(build.out, config.plugin.name);
   await rm(paths.bundle, { recursive: true, force: true });
   await mkdir(paths.binaryDir, { recursive: true });
@@ -284,7 +294,7 @@ function waitForAbort(signal: AbortSignal): Promise<void> {
   });
 }
 
-/** `dev`: a Debug build whose UI reloads from the CLI's live bundle, rebuilt when lib/ changes. */
+/** `dev`: opens a Debug build with live UI reload and rebuilds when lib/ changes. */
 async function vst3Dev(
   config: ResolvedSoundorConfig,
   ctx: Ctx,
@@ -301,10 +311,25 @@ async function vst3Dev(
             `The UI could not be prepared for the plugin; it keeps the last good one.\n${error instanceof Error ? error.message : String(error)}`,
           ),
         );
-  if (live === undefined && ctx.ui !== undefined)
-    await writeNativeUi(ctx.ui, uiDirectory, 'development');
   let stopWatching: (() => void) | undefined;
+  let host: Vst3Host | undefined;
+  let reopen = false;
+  let pending = Promise.resolve();
+  const enqueue = (action: () => Promise<void>): Promise<void> => {
+    const next = pending.then(async () => {
+      if (!ctx.signal.aborted) await action();
+    });
+    pending = next.catch(() => {});
+    return next;
+  };
+  const closeHost = async (): Promise<void> => {
+    const current = host;
+    host = undefined;
+    await current?.close();
+  };
   try {
+    if (live === undefined && ctx.ui !== undefined)
+      await writeNativeUi(ctx.ui, uiDirectory, 'development');
     await watcher?.ready;
     const build = (): Promise<string> =>
       buildPlugin(
@@ -314,21 +339,84 @@ async function vst3Dev(
           variant: 'debug',
           out: join(ctx.paths.cache, 'dev', 'bundle'),
           label: 'dev',
+          beforeReplace: closeHost,
           live: { uiDirectory, logFile: live?.logFile ?? '' },
         },
         deps,
       );
     const bundle = await build();
     const rows = [{ label: 'VST3', value: bundle }];
-    let rebuilding = Promise.resolve();
+    const session = ctx.devtools?.descriptorPath;
+    const openHost = async (): Promise<void> => {
+      if (host !== undefined || ctx.signal.aborted) return;
+      try {
+        if (!process.env['DISPLAY'])
+          throw new Error('Set DISPLAY to an X11 or XWayland display.');
+        let executable: string;
+        try {
+          executable = resolveHost().executable;
+        } catch (error) {
+          if (
+            (error as { code?: string } | null)?.code !== 'executable-not-found'
+          )
+            throw error;
+          executable = (
+            await prepareHost({ log: (line) => ctx.logger.info(line) })
+          ).executable;
+        }
+        ctx.signal.throwIfAborted();
+        const current = await launchHost({
+          executable,
+          plugin: bundle,
+          editor: true,
+          presentation: null,
+          detached: true,
+          env: { SOUNDOR_DEVTOOLS_SESSION: session },
+          signal: ctx.signal,
+          onLog: (line) => {
+            if (!line.startsWith('[soundor] ')) ctx.logger.info(line);
+          },
+        });
+        host = current;
+        reopen = true;
+        current.once('editorClosed', () => {
+          if (host !== current) return;
+          reopen = false;
+          void enqueue(async () => {
+            if (host !== current) return;
+            await closeHost();
+            ctx.logger.info('VST3 host closed. Press v + enter to reopen it.');
+          });
+        });
+        void current.exited.then(() => {
+          if (host !== current) return;
+          host = undefined;
+          reopen = false;
+          if (!ctx.signal.aborted)
+            ctx.logger.warn('VST3 host exited. Press v + enter to reopen it.');
+        });
+        ctx.logger.info(`Opened the VST3 in the host: ${bundle}`);
+      } catch (error) {
+        reopen = false;
+        if (!ctx.signal.aborted)
+          ctx.logger.warn(
+            `The VST3 host could not open the plugin. Press v + enter to try again.\n${error instanceof Error ? error.message : String(error)}`,
+          );
+      }
+    };
+    ctx.session?.shortcut({
+      key: 'v',
+      description: 'open the VST3 in the host',
+      action: () => enqueue(openHost),
+    });
+    const opening = enqueue(openHost);
     stopWatching = ctx.lib?.onChange?.(() => {
-      rebuilding = rebuilding.then(async () => {
+      void enqueue(async () => {
         ctx.logger.info('The Rust library changed; rebuilding the plugin');
         try {
           await build();
-          ctx.logger.info(
-            'Rebuilt the plugin; open it again in the host to load it.',
-          );
+          if (reopen) await openHost();
+          ctx.logger.info('Rebuilt the plugin with the changed Rust library.');
           ctx.session?.ready(rows);
         } catch (error) {
           if (!ctx.signal.aborted)
@@ -338,19 +426,19 @@ async function vst3Dev(
         }
       });
     });
-    ctx.logger.info(
-      `Debug VST3 ready in ${bundle}. Open it in a VST3 host (link it into ~/.vst3); its UI reloads on every change and its console appears here.`,
-    );
-    const session = ctx.devtools?.descriptorPath;
+    await opening;
+    ctx.logger.info(`Debug VST3 ready in ${bundle}.`);
     if (session !== undefined)
       ctx.logger.info(
-        `DevTools: start the host with SOUNDOR_DEVTOOLS_SESSION=${shellQuote(session)} in its environment for the plugin to connect.`,
+        `DevTools in an external host: start it with SOUNDOR_DEVTOOLS_SESSION=${shellQuote(session)} in its environment.`,
       );
     ctx.session?.ready(rows);
     await waitForAbort(ctx.signal);
   } finally {
     stopWatching?.();
     watcher?.close();
+    await pending;
+    await closeHost();
   }
 }
 
