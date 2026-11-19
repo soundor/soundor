@@ -1,6 +1,8 @@
 // The module's entry point: the factory of the plugin's two classes, the
 // component (Processor) and its controller, described from the plugin's
-// descriptor. ModuleEntry and ModuleExit are the SDK's (linuxmain.cpp,
+// descriptor. The component is not distributable: it and its controller
+// share memory when they share a process (Link.h), so hosts are not invited
+// to run them apart. ModuleEntry and ModuleExit are the SDK's (linuxmain.cpp,
 // moduleinit.cpp); with this, they are the only symbols a plugin exports.
 
 #include "Controller.h"
@@ -28,9 +30,8 @@ extern "C" SMTG_EXPORT_SYMBOL IPluginFactory* PLUGIN_API GetPluginFactory()
                             Vst::kDefaultFactoryFlags);
     gPluginFactory = new CPluginFactory(info);
     const PClassInfo2 processor(reinterpret_cast<const char*>(plugin->processorCid.data()), PClassInfo::kManyInstances,
-                                kVstAudioEffectClass, plugin->name.c_str(), Vst::kDistributable,
-                                plugin->subcategories.c_str(), plugin->vendor.c_str(), plugin->version.c_str(),
-                                kVstVersionString);
+                                kVstAudioEffectClass, plugin->name.c_str(), 0, plugin->subcategories.c_str(),
+                                plugin->vendor.c_str(), plugin->version.c_str(), kVstVersionString);
     gPluginFactory->registerClass(&processor, soundor::vst3::Processor::create);
     const PClassInfo2 controller(reinterpret_cast<const char*>(plugin->controllerCid.data()),
                                  PClassInfo::kManyInstances, kVstComponentControllerClass,

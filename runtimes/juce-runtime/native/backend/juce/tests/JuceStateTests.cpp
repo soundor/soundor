@@ -99,6 +99,35 @@ TEST_CASE("legacy APVTS restoration is retained and initializes state defaults")
     CHECK(target.restored == 1);
     CHECK(! target.state.selectedPreset.get());
 }
+TEST_CASE("a persistent state change, but a restore, tells the host the project is modified")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    struct Listener final : juce::AudioProcessorListener
+    {
+        int modified = 0;
+        void audioProcessorParameterChanged(juce::AudioProcessor*, int, float) override {}
+        void audioProcessorChanged(juce::AudioProcessor*, const ChangeDetails& details) override
+        {
+            if (details.nonParameterStateChanged)
+                ++modified;
+        }
+    } listener;
+    Processor processor;
+    processor.addListener(&listener);
+    processor.getParameters().getParameter("gain")->setValueNotifyingHost(0.75f);
+    CHECK(listener.modified == 0);
+    processor.state.selectedPreset.set(std::string("Warm"));
+    CHECK(listener.modified == 1);
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+    processor.state.selectedPreset.set(std::nullopt);
+    CHECK(listener.modified == 2);
+    restore(processor, saved);
+    CHECK(processor.restored == 1);
+    CHECK(processor.state.selectedPreset.get() == "Warm");
+    CHECK(listener.modified == 2);
+    processor.removeListener(&listener);
+}
 TEST_CASE("off-thread restorations queue each complete operation for the message thread")
 {
     juce::ScopedJuceInitialiser_GUI init;

@@ -684,6 +684,7 @@ ${handles || '        // no parameters'}
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
+        std::vector<std::function<void()>> stateChanges;
         // What the Rust processing gets and gives each block, allocated once.
         processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length}, ${describeAudioState(describeState(config.state, config.native)).size} }, processor::linkedRustProcessor(), midi::linkedMidi() };
         std::shared_ptr<midi::Host> midiBridge = std::make_shared<midi::Host>(rust.nativeHandle(), midi::linkedMidi());
@@ -868,6 +869,15 @@ ${renderControllerServices(config)}    AudioProcessor::AudioProcessor(const Buse
 
 ${bindings || '        // no parameters'}
         factoryPresets = std::make_unique<FactoryPresets>(*this);
+        // Persistent state is not a parameter: a change to it, but a
+        // restore's, tells the host the project is modified.
+        for (const auto& [field, value] : state.storage().snapshot()) {
+            static_cast<void>(value);
+            stateChanges.push_back(state.storage().subscribe(field, [this](const std::string&) {
+                if (! deliveringRestorations)
+                    updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withNonParameterStateChanged(true));
+            }));
+        }
         // The Rust controller, if the crate exports one: last, once every
         // service it reaches exists.
         controllerServices = std::make_unique<ControllerServices>(*this);

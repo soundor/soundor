@@ -3,6 +3,7 @@
 import { getHostState, subscribeHostState } from 'soundor:host';
 import { events, twice } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
+import { presets } from 'soundor:presets';
 import { state } from 'soundor:state';
 import { createText, createView, root } from 'soundor:ui';
 
@@ -30,6 +31,10 @@ showGain(parameters.gain.get());
 showLabel(state.label.get());
 parameters.gain.subscribe(showGain);
 state.label.subscribe(showLabel);
+// Lets the host test load a factory preset from the UI: a label naming one.
+state.label.subscribe((value) => {
+  if (value === 'Load quiet') presets.factory.load('quiet');
+});
 events.doubled.subscribe(({ value }) => state.label.set(`Doubled ${value}`));
 native.text = `Twice ${twice(21)}`;
 

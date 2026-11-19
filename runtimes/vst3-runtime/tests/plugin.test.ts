@@ -120,10 +120,14 @@ describe('the VST3 test plugin', () => {
     expect(info.buses.eventOutputs).toHaveLength(1);
     const manifest = JSON.parse(
       readFileSync(`${plugin}/Contents/Resources/moduleinfo.json`, 'utf8'),
-    ) as { Classes: { CID: string }[] };
+    ) as { Classes: { CID: string; 'Class Flags': number }[] };
     expect(manifest.Classes.map((entry) => entry.CID)).toEqual([
       ids.processor,
       ids.controller,
+    ]);
+    // Not distributable: the component and its controller share a process.
+    expect(manifest.Classes.map((entry) => entry['Class Flags'])).toEqual([
+      0, 0,
     ]);
   });
 
@@ -282,10 +286,14 @@ describe('the VST3 test plugin', () => {
       parameters: { gain: 1.5, mode: 'clean', steps: 0, bypass: false },
       state: { label: 'Init', level: 0.25, pattern: [1, 2, 3] },
     });
-    // A project reopened: a new instance, the saved state.
+    // A project reopened: a new instance, the saved state, its values
+    // told to the host again.
     await host.recreate();
     expect(await output(host)).toBeCloseTo(0.5);
+    const restarts: string[][] = [];
+    host.on('restart', ({ reasons }) => restarts.push(reasons));
     await host.setState(saved);
+    await expect.poll(() => restarts).toContainEqual(['paramValuesChanged']);
     expect((await host.getParameter(parameterVstId('gain'))).plain).toBeCloseTo(
       1.5,
     );
@@ -412,6 +420,55 @@ describe('the VST3 test plugin', () => {
           processingMode: 'offline',
           transport: { playing: true, bpm: 135 },
         });
+    },
+  );
+
+  it.runIf(display)(
+    'marks the project modified when the UI changes its persistent state',
+    async () => {
+      const host = await open(true);
+      await host.openEditor();
+      const dirty: boolean[] = [];
+      host.on('dirty', (event) => dirty.push(event.dirty));
+      // The UI saves what it sees of the host, the transport included, into
+      // `hostSnapshot`.
+      await host.process({
+        inputs: [constant(0.5)],
+        transport: { playing: true, tempo: 135 },
+      });
+      await expect.poll(() => dirty).toContain(true);
+    },
+  );
+
+  it.runIf(display)(
+    "shows the host's program selector the preset the UI loaded",
+    async () => {
+      const host = await open(true);
+      const program = (await host.getParameters()).find(
+        (candidate) => candidate.flags.programChange,
+      )!;
+      const edits: number[] = [];
+      host.on('performEdit', ({ id, value }) => {
+        if (id === program.id) edits.push(value);
+      });
+      await host.openEditor();
+      // A restored label naming a preset makes the UI load it (src/main.ts).
+      const current = await host.getState();
+      const saved = document(current.component);
+      await host.setState({
+        component: new TextEncoder().encode(
+          JSON.stringify({
+            ...saved,
+            state: { ...saved.state, label: 'Load quiet' },
+          }),
+        ),
+        controller: current.controller,
+      });
+      await expect.poll(() => edits).toEqual([1]);
+      expect(
+        (await host.getParameter(parameterVstId('gain'))).plain,
+      ).toBeCloseTo(0.5);
+      expect((await host.getParameter(program.id)).normalized).toBe(1);
     },
   );
 

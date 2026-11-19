@@ -6,7 +6,9 @@ description: 'Typed application data persisted independently of the plugin edito
 Declared state is application data, such as a preset name or a list of bands.
 [Parameters](/docs/api/parameters) represent values shared with host automation;
 state has no host parameter ID, normalized range or implicit smoothing. State
-gestures describe editing lifecycles only.
+gestures describe editing lifecycles only. A change to state, but a host's
+restore, tells the host its project is modified (in VST3, `setDirty`), so it
+offers to save it.
 
 ## Declare state
 
