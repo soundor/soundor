@@ -53,6 +53,12 @@ does (`pnpm --filter controller build:vst3`).
   FreeType and GIO, which desktop systems have; X11 and the GPU's libraries
   are loaded when the editor opens, and libcurl (`libcurl.so.4`) when the UI
   first calls `fetch()`: the system's HTTP stack, never one in the plugin.
+- **For the editor**, a host that offers its run loop (`Linux::IRunLoop`)
+  through the editor's `IPlugFrame`, as the VST3 specification asks of every
+  Linux host, and an X server with XInput 2 (X.Org 1.7 or later, and
+  XWayland). There is no fallback: without the run loop the editor does not
+  open, and without XInput 2 it shows the UI but takes no input (the log says
+  why). Audio, parameters and state work either way.
 
 `soundor doctor` checks the platform, Rust, the compiler driver, the static
 C++ runtime, libcurl and the prebuilt adapter.

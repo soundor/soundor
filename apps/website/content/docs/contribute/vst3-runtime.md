@@ -110,6 +110,10 @@ build's UI directory and log file.
   (the engine's Editor's 60 Hz frame and the input's descriptor). It gives the runtime
   `platform::systemHttpClient()` for `fetch()`. Xlib is loaded with
   `dlopen`, as the engine does, and its headers stay in `X11.cpp`.
+  Both are requirements, with no fallback: `attached()` refuses a frame
+  without `IRunLoop` (a thread of our own, as JUCE has, would race the host's
+  calls), and without XInput 2 the editor takes no input (`inputFailed()`
+  logs it; core X events would only serve X servers older than 2009).
 
 ### Linking
 
