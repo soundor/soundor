@@ -1,33 +1,21 @@
 #pragma once
 
 // The VST3 view (IPlugView, X11EmbedWindowID): the plugin's UI, as the
-// engine runs it. Its part is only what a plugin framework's is in the JUCE
+// engine runs it. Its part is what a plugin framework's is in the JUCE
 // runtime: a window in the host's (its own X11 child window, on a
 // connection of its own), the run loop the host lends (IRunLoop: a 60 Hz
-// timer and the connections' descriptors), sizes, and hands everything else
-// to the engine, unchanged:
-//
-// - RuntimeHost: the JavaScript world, layout, the `soundor:*` modules;
-// - render::GpuCompositor in the window where there is a GPU (its own
-//   input-transparent child window), else render::RasterCompositor, whose
-//   frames this shows with XPutImage;
-// - input::PlatformInput (XInput 2, on its own connection) for pointer,
-//   wheel, keys, text and focus;
-// - a11y::PlatformAccessibility (AT-SPI) for screen readers.
+// timer and the connections' descriptors), sizes, and the host's calls. The
+// engine's editor::Editor does the rest, as for the JUCE runtime's editor:
+// the runtime, placing the UI, the compositor (on the GPU in the window
+// where there is one, else on the CPU, whose frames this shows with
+// XPutImage), native input (XInput 2), the pointer lock, the cursor and
+// accessibility (AT-SPI).
 
 #include "Controller.h"
 #include "X11.h"
 
-#include <soundor/a11y/Platform.h>
-#include <soundor/input/Platform.h>
-#include <soundor/input/PointerLock.h>
+#include <soundor/editor/Editor.h>
 #include <soundor/render/Compositor.h>
-#include <soundor/render/GpuCompositor.h>
-#include <soundor/runtime/DevSession.h>
-#include <soundor/runtime/RuntimeHost.h>
-#if SOUNDOR_DEVTOOLS
-    #include <soundor/debug/Bridge.h>
-#endif
 
 #include <pluginterfaces/gui/iplugview.h>
 #include <pluginterfaces/gui/iplugviewcontentscalesupport.h>
@@ -40,11 +28,8 @@ namespace soundor::vst3
 {
     namespace render = soundor::render;
     namespace input = soundor::input;
-    namespace a11y = soundor::a11y;
     namespace ui = soundor::ui;
-    namespace gpu = soundor::gpu;
-    using RuntimeHost = soundor::RuntimeHost;
-    using DevSession = soundor::DevSession;
+    namespace editor = soundor::editor;
 
     // A CPU compositor's frames, shown in the editor's window.
     class WindowTarget final : public render::RasterTarget
@@ -78,7 +63,8 @@ namespace soundor::vst3
     class Editor final : public Steinberg::CPluginView,
                          public Steinberg::IPlugViewContentScaleSupport,
                          public Steinberg::Linux::ITimerHandler,
-                         public Steinberg::Linux::IEventHandler
+                         public Steinberg::Linux::IEventHandler,
+                         private editor::Platform
     {
     public:
         explicit Editor(Controller& owner);
@@ -115,78 +101,37 @@ namespace soundor::vst3
         REFCOUNT_METHODS(CPluginView)
 
     private:
-        struct Area
-        {
-            // In the window's logical pixels.
-            float x = 0;
-            float y = 0;
-            float width = 0;
-            float height = 0;
-        };
-
-        [[nodiscard]] RuntimeHost& runtimeHost();
         void open();
         void close();
-        void createRuntime();
+        [[nodiscard]] editor::Editor::Options editorOptions();
         // The view's logical size, from its physical rect.
-        [[nodiscard]] float logicalWidth() const;
-        [[nodiscard]] float logicalHeight() const;
-        // How many layout pixels per logical one: 1, or the zoom of a scaling editor.
-        [[nodiscard]] float zoom() const;
-        [[nodiscard]] Area uiArea() const;
-        void sizeSurface();
-        void updateCompositor();
-        void renderFrame();
-        void readWindowEvents();
+        [[nodiscard]] ui::Size logicalSize() const;
         [[nodiscard]] void* nativeWindow() const noexcept;
-        void readInput();
-        void deliver(input::Event& event);
-        void updateInputGeometry();
-        void updateAccessibility();
-        void updateCursor();
-        // Applies the pointer lock the UI asks for (requestPointerLock()).
-        void updatePointerLock();
-        void applySizeRequest();
+        void readWindowEvents();
         void tick();
         [[nodiscard]] Steinberg::ViewRect constrained(Steinberg::ViewRect wanted) const;
+        [[nodiscard]] Steinberg::ViewRect physical(ui::Size logical) const;
+
+        // editor::Platform
+        State state() override;
+        void setCursor(ui::Cursor shape) override;
+        ui::Size holdSize(ui::Size wanted) override;
+        void requestSize(ui::Size wanted) override;
+        void placed(const editor::Placement& placement) override;
+        void inputStarted(input::PlatformInput& input) override;
+        void inputFailed(const std::string& why) override;
 
         Controller* controller;
         const Plugin& definition;
         std::unique_ptr<x11::Window> window;
         Steinberg::IPtr<Steinberg::Linux::IRunLoop> runLoop;
         float contentScale = 1;
-
-        std::shared_ptr<gpu::Device> gpuDevice;
         std::shared_ptr<UiParameters> uiParameters;
-        std::unique_ptr<RuntimeHost> host;
-        std::unique_ptr<DevSession> session;
         js::LogSink logSink;
-
         WindowTarget image;
-        std::unique_ptr<render::Compositor> compositor;
-        render::GpuCompositor* gpu = nullptr;
-        render::Capabilities capabilities;
-        bool gpuLost = false;
-
-        std::unique_ptr<input::PlatformInput> nativeInput;
-        int inputDescriptor = -1;
-        bool readingInput = false;
-        std::vector<input::Event> events;
+        // After the window and the image it shows frames in, so it goes first.
+        std::unique_ptr<editor::Editor> engineEditor;
         bool focusedByHost = false;
-        // Moves the native input's pointer: destroyed (ending a lock) first.
-        input::PointerLock pointerLock { [this](int pointerId) {
-            return nativeInput != nullptr ? input::pointerSource(*nativeInput, pointerId) : nullptr;
-        } };
-#if SOUNDOR_DEVTOOLS
-        // The DevTools session's connection (SOUNDOR_DEVTOOLS_SESSION), in
-        // debug builds.
-        std::unique_ptr<debug::Bridge> bridge;
-#endif
-
-        std::unique_ptr<a11y::PlatformAccessibility> accessibility;
-        bool accessibilityFocused = false;
-
-        ui::Cursor cursor = ui::Cursor::Auto;
         bool attachedToHost = false;
     };
 } // namespace soundor::vst3

@@ -187,79 +187,72 @@ describe('generateJuceSources', () => {
       fileMap(config).get('soundor/SoundorEditor.cpp')!,
     ].join('\n');
     expect(editor).toContain(
-      'class AudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer',
+      'class AudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer, private editor::Platform',
     );
     expect(editor).toContain(
       'std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos())',
     );
     expect(editor).toContain('native::install(context, std::move(api));');
-    expect(editor).toContain('        host->tick();');
+    // The engine's view runs the frame: input, placing, the tick, rendering.
+    expect(editor).toContain(
+      'soundorEditor = std::make_unique<editor::Editor>(platform, std::move(editorOptions));',
+    );
+    expect(editor).toMatch(
+      /void AudioProcessorEditor::timerCallback\(\)\s+\{\s+soundorEditor->frame\(\);\s+\}/,
+    );
     expect(editor).not.toMatch(/WebBrowserComponent|__SOUNDOR__|emitEvent/);
   });
 
-  it('samples editor visibility and focus before ticking the runtime', () => {
+  it("tells the view the editor's visibility, focus and place", () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
-    expect(editor).toContain(
-      'runtimeHost().surface().setVisible(isShowing());',
+    const state = editor.slice(
+      editor.indexOf('editor::Platform::State AudioProcessorEditor::state()'),
+      editor.indexOf('void AudioProcessorEditor::setCursor('),
     );
-    expect(editor).toContain(
-      'runtimeHost().surface().setFocused(viewFocused());',
+    expect(state).toContain('now.visible = isShowing();');
+    expect(state).toContain('now.focused = hasKeyboardFocus(true);');
+    expect(state).toContain('now.nativeView = peer->getNativeHandle();');
+    // AppKit uses points; elsewhere the native view's physical pixels.
+    expect(state).toContain(
+      '#if JUCE_MAC\n        constexpr float physical = 1;',
     );
-    expect(editor).toContain(
-      'return nativeInput != nullptr ? nativeInput->focused() : hasKeyboardFocus(true);',
-    );
-    const timer = editor.slice(
-      editor.indexOf('void AudioProcessorEditor::timerCallback()'),
-    );
-    expect(timer.indexOf('sizeSurface();')).toBeLessThan(
-      timer.indexOf('session->tick();'),
-    );
-    expect(timer.indexOf('sizeSurface();')).toBeLessThan(
-      timer.indexOf('host->tick();'),
+    expect(state).toContain('now.nativeScale = unit.x - origin.x;');
+    // JUCE's menus and dialogs take the view's input while they show.
+    expect(state).toContain(
+      'now.inputSuspended = juce::ModalComponentManager::getInstance()->getNumModalComponents() > 0;',
     );
   });
 
   it('reads desktop input natively, leaving window ownership with JUCE', () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
-    const update = editor.slice(
-      editor.indexOf('void AudioProcessorEditor::updateNativeInput()'),
-      editor.indexOf('void AudioProcessorEditor::detachNativeInput('),
+    expect(editor).toContain(
+      '#if JUCE_LINUX || JUCE_MAC || JUCE_WINDOWS\n        editorOptions.nativeInput = true;',
     );
-    // AppKit uses the peer view; Linux also reads its connection when readable.
-    expect(update).toMatch(
-      /^[^]*?#if JUCE_LINUX \|\| JUCE_MAC \|\| JUCE_WINDOWS[^]*input::createPlatformInput\([^]*#endif/,
+    const started = editor.slice(
+      editor.indexOf('void AudioProcessorEditor::inputStarted('),
+      editor.indexOf('void AudioProcessorEditor::inputFailed('),
     );
-    expect(update).toContain('juce::LinuxEventLoop::registerFdCallback(');
-    expect(update).toContain(
-      '#if JUCE_LINUX\n                    nativeInputDescriptor =',
+    // Linux reads its connection when readable, through JUCE's event loop.
+    expect(started).toContain('juce::LinuxEventLoop::registerFdCallback(');
+    expect(started).toContain('soundorEditor->readInput();');
+    expect(started).toContain('input: native (AppKit)');
+    expect(started).toContain('input: native (Win32)');
+    expect(started).toContain('giveAwayKeyboardFocus();');
+    expect(started).toContain('releaseKeys(true);');
+    expect(editor).toContain(
+      'if (hasKeyboardFocus(true) && ! input.focused())',
     );
-    expect(update).toContain('#if JUCE_MAC\n        // AppKit uses points;');
-    expect(update).toContain('constexpr float physical = 1;');
-    expect(update).toContain('input: native (AppKit)');
-    expect(update).toContain('input: native (Win32)');
-    expect(update).toContain('giveAwayKeyboardFocus();');
-    expect(update).toContain(
-      'if (hasKeyboardFocus(true) && ! nativeInput->focused())',
+    expect(editor).toContain("JUCE's input instead");
+    expect(editor).toMatch(
+      /void AudioProcessorEditor::inputStopping\([^]*juce::LinuxEventLoop::unregisterFdCallback\(nativeInputDescriptor\);/,
     );
-    expect(editor).toContain('nativeInput->requestFocus();');
     const focus = editor.slice(
       editor.indexOf('void AudioProcessorEditor::focusGained('),
       editor.indexOf('void AudioProcessorEditor::focusLost('),
     );
     expect(focus).toContain('#if JUCE_WINDOWS');
     expect(focus).toContain('giveAwayKeyboardFocus();');
-    expect(focus).toContain('nativeInput->requestFocus();');
-    expect(update).toContain("JUCE's input instead");
-    // Over the editor's area only, and JUCE's while its menus and dialogs show.
-    expect(update).toContain('.width = static_cast<float>(getWidth()),');
-    expect(update).toContain('nativeInput->setSuspended(juceModal, ended);');
-    // Input not yet read is delivered before the tick runs the UI's code.
-    const timer = editor.slice(
-      editor.indexOf('void AudioProcessorEditor::timerCallback()'),
-    );
-    expect(timer.indexOf('updateNativeInput();')).toBeLessThan(
-      timer.indexOf('host->tick();'),
-    );
+    expect(focus).toContain('native->requestFocus();');
     // JUCE's callbacks give way to it, so nothing arrives twice.
     for (const callback of [
       'mouseMove(const juce::MouseEvent& event)',
@@ -276,15 +269,15 @@ describe('generateJuceSources', () => {
         editor.indexOf(`AudioProcessorEditor::${callback}`),
       );
       expect(body.slice(0, body.indexOf('}')), callback).toMatch(
-        /if \(nativeInput != nullptr\)\s+return/,
+        /if \(soundorEditor->nativeInput\(\) != nullptr\)\s+return/,
       );
     }
-    // The editor closes it before the runtime it delivers to.
+    // The view closes the input, then the runtime, when the editor goes.
     const destructor = editor.slice(
       editor.indexOf('AudioProcessorEditor::~AudioProcessorEditor()'),
     );
-    expect(destructor.indexOf('detachNativeInput(false);')).toBeLessThan(
-      destructor.indexOf('host.reset();'),
+    expect(destructor.indexOf('stopTimer();')).toBeLessThan(
+      destructor.indexOf('soundorEditor.reset();'),
     );
   });
 
@@ -352,36 +345,27 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it("sizes the UI surface and forwards the view's input to it", () => {
+  it("forwards JUCE's input to the view, and the view's cursor to JUCE", () => {
     const editor = [
       fileMap(config).get('soundor/SoundorEditor.h')!,
       fileMap(config).get('soundor/SoundorEditor.cpp')!,
     ].join('\n');
-    expect(editor).toContain('surface.setSize(');
     expect(editor).toContain(
-      'deliver(backend::pointerInput(event, ui::PointerInput::Phase::Down));',
+      'soundorEditor->pointer(backend::pointerInput(event, ui::PointerInput::Phase::Down));',
     );
+    // The view takes the editor's coordinates to the layout's.
     expect(editor).toContain(
-      'backend::wheelInput((event.position - uiArea().getPosition()) / zoom(), event.mods, wheel));',
+      'soundorEditor->wheel(backend::wheelInput(event.position, event.mods, wheel))',
     );
     expect(editor).toContain('backend::typedText(key));');
-    // The UI's cursor, applied when it changes.
     expect(editor).toContain('setMouseCursor(backend::mouseCursor(cursor));');
-    // The UI's pointer lock, ended however the press ends.
-    expect(editor).toContain('pointerLock.update(');
+    // A pointer lock without native input moves JUCE's pointer.
+    expect(editor).toContain(
+      'return backend::desktopPointerSource(pointerId);',
+    );
     expect(editor).toContain('setWantsKeyboardFocus(true);');
-    // Rendered by the runtime, only when the picture changed, and presented
-    // by a compositor that outlives a reloaded runtime.
-    expect(editor).toContain('if (runtimeHost().needsRender())');
-    expect(editor).toContain(
-      'compositor->composite(runtimeHost().frame(compositorCapabilities));',
-    );
-    expect(editor).toContain('options.gpuDevice = gpuDevice;');
-    // On the GPU where there is one, otherwise on the CPU.
-    expect(editor).toContain('render::GpuCompositor::create(');
-    expect(editor).toContain(
-      'compositor = std::make_unique<render::RasterCompositor>(image);',
-    );
+    // The CPU compositor's frames, presented in this view.
+    expect(editor).toContain('editorOptions.raster = &image;');
     expect(editor).toContain(
       'options.clipboard = platform::systemClipboard();',
     );
@@ -581,14 +565,21 @@ describe('generateJuceSources', () => {
       );
     });
 
+    const layoutOf = (source: string) =>
+      source.slice(
+        source.indexOf('editor::Layout AudioProcessorEditor::editorLayout()'),
+        source.indexOf('float AudioProcessorEditor::surfaceScale('),
+      );
+
     it('lets a resizable editor grow from its size without limit by default', () => {
       const source = editorSource({ resizable: true });
       expect(source).toContain(
         'sizeConstrainer.setSizeLimits(800, 600, 0x3FFFFFFF, 0x3FFFFFFF);',
       );
-      // Nothing is beyond no maximum: the UI is laid out over the whole view.
-      expect(source).toMatch(
-        /juce::Rectangle<float> AudioProcessorEditor::uiArea\(\) const\s+\{\s+return getLocalBounds\(\)\.toFloat\(\);/,
+      // editor::place() lays the UI out over the whole view: nothing is beyond
+      // no maximum.
+      expect(layoutOf(source)).toContain(
+        '.maximum = { std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity() } };',
       );
     });
 
@@ -596,52 +587,38 @@ describe('generateJuceSources', () => {
       const header = fileMap(config).get('soundor/SoundorEditor.h')!;
       expect(header).toContain('void resized() override;');
       const source = editorSource({ resizable: true });
-      expect(source).toContain('void AudioProcessorEditor::resized()');
-      // Nothing before the GPU compositor exists, and the size first.
       expect(source).toMatch(
-        /if \(gpu == nullptr \|\| ! isShowing\(\)\)\s+return;\s+sizeSurface\(\);\s+updateCompositor\(\);/,
+        /void AudioProcessorEditor::resized\(\)\s+\{\s+noteHostSize\(\);[^}]+soundorEditor->resized\(\);/,
+      );
+      expect(layoutOf(source)).toContain(
+        '.resize = editor::Layout::Resize::Layout,',
       );
     });
 
-    it('beyond its maximum, contains the layout at the maximum, in the middle', () => {
-      const source = editorSource({
-        resizable: true,
-        width: 800,
-        height: 600,
-        maxWidth: 1000,
-      });
+    it('tells the view the maximum and fit of an editor that lays out again', () => {
+      const contained = layoutOf(
+        editorSource({
+          resizable: true,
+          width: 800,
+          height: 600,
+          maxWidth: 1000,
+        }),
+      );
       // Only the axis with a maximum is held.
-      expect(source).toContain(
-        'return juce::Rectangle<float>(std::min(view.getWidth(), 1000.0F), view.getHeight())',
+      expect(contained).toContain(
+        '.maximum = { 1000.0F, std::numeric_limits<float>::infinity() } };',
       );
-      expect(source).toContain('.withCentre(view.getCentre());');
-      expect(source).toMatch(
-        /std::optional<ui::Rect> AudioProcessorEditor::safeArea\(\) const\s+\{\s+return std::nullopt;/,
+      expect(contained).toContain('.fit = editor::Layout::Fit::Contain,');
+      const covered = layoutOf(
+        editorSource({
+          resizable: true,
+          fit: 'cover',
+          maxWidth: 1000,
+          maxHeight: 700,
+        }),
       );
-      expect(source).toMatch(
-        /float AudioProcessorEditor::zoom\(\) const\s+\{\s+return 1\.0F;\s+\}/,
-      );
-    });
-
-    it('beyond its maximum, covers the view around a safe area with fit cover', () => {
-      const source = editorSource({
-        resizable: true,
-        fit: 'cover',
-        maxWidth: 1000,
-        maxHeight: 700,
-      });
-      expect(source).toMatch(
-        /juce::Rectangle<float> AudioProcessorEditor::uiArea\(\) const\s+\{\s+\/\/ fit: 'cover'[^\n]*\n\s+return getLocalBounds\(\)\.toFloat\(\);/,
-      );
-      expect(source).toContain(
-        'const float width = std::min(view.getWidth(), 1000.0F);',
-      );
-      expect(source).toContain(
-        'const float height = std::min(view.getHeight(), 700.0F);',
-      );
-      expect(source).toContain(
-        'return ui::Rect { (view.getWidth() - width) / 2.0F, (view.getHeight() - height) / 2.0F, width, height };',
-      );
+      expect(covered).toContain('.fit = editor::Layout::Fit::Cover,');
+      expect(covered).toContain('.maximum = { 1000.0F, 700.0F } };');
     });
 
     it('scales an editor with resize scale, keeping its aspect ratio', () => {
@@ -665,27 +642,16 @@ describe('generateJuceSources', () => {
           '        setSize(1000, 600);',
         ].join('\n'),
       );
-      // The layout stays 1000×600: the view's size over it is the zoom, at
-      // most what its maximum allows.
+      // The layout stays 1000×600: editor::place() zooms it, at most to what
+      // its maximum allows.
+      const layout = layoutOf(source);
+      expect(layout).toContain('.size = { 1000.0F, 600.0F },');
+      expect(layout).toContain('.resizable = true,');
+      expect(layout).toContain('.resize = editor::Layout::Resize::Scale,');
+      expect(layout).toContain('.maximum = { 2000.0F, 1200.0F } };');
+      // The CPU keeps its pixels while the size changes.
       expect(source).toContain(
-        'return std::min({ static_cast<float>(getWidth()) / 1000.0F, static_cast<float>(getHeight()) / 600.0F, 2.0F });',
-      );
-      // Always laid out at 1000×600, in the middle of a view of another shape.
-      expect(source).toContain(
-        'return juce::Rectangle<float>(1000.0F * viewZoom, 600.0F * viewZoom)',
-      );
-      expect(source).toContain(
-        'surface.setSize({ area.getWidth() / viewZoom, area.getHeight() / viewZoom });',
-      );
-      // Input reaches the layout's coordinates.
-      expect(source).toContain(
-        'input.position = { (input.position.x - origin.x) / viewZoom, (input.position.y - origin.y) / viewZoom };',
-      );
-    });
-
-    it('zooms without limit when an editor that scales has no maximum', () => {
-      expect(editorSource({ resizable: true, resize: 'scale' })).toContain(
-        'return std::min(static_cast<float>(getWidth()) / 800.0F, static_cast<float>(getHeight()) / 600.0F);',
+        'rasterScale.update(wanted, getWidth(), getHeight(),',
       );
     });
 
@@ -701,13 +667,7 @@ describe('generateJuceSources', () => {
       expect(source).toContain(
         '        sizeConstrainer.setFixedAspectRatio(1.6666666666666667);',
       );
-      expect(source).toMatch(
-        /juce::Rectangle<float> AudioProcessorEditor::uiArea\(\) const\s+\{\s+\/\/ fit: 'cover'[^\n]*\n\s+return getLocalBounds\(\)\.toFloat\(\);/,
-      );
-      // The configured size, centred in the layout, is the safe area.
-      expect(source).toContain(
-        'return ui::Rect { (width - 1000.0F) / 2.0F, (height - 600.0F) / 2.0F, 1000.0F, 600.0F };',
-      );
+      expect(layoutOf(source)).toContain('.fit = editor::Layout::Fit::Cover,');
     });
 
     it('lets go of the aspect ratio with keepAspectRatio false, either fit', () => {
@@ -728,19 +688,20 @@ describe('generateJuceSources', () => {
       }
     });
 
-    it('resizes to what the UI asks for, held to the limits, after its code ran', () => {
+    it('resizes to what the UI asks for, held to the limits', () => {
       const source = editorSource({
         resizable: true,
         minWidth: 400,
         maxWidth: 1600,
       });
-      expect(source).toContain('surface.setEditorResizable(true);');
-      expect(source).toMatch(
-        /const auto wanted = runtimeHost\(\)\.surface\(\)\.takeEditorSizeRequest\(\);[\s\S]+sizeConstrainer\.constrainRequest\([\s\S]+askedOfHost = size;[\s\S]+setSize\(size\.x, size\.y\);/,
-      );
+      expect(source).toContain('editorOptions.canRequestSize = true;');
       // Held at once, so requestEditorSize() returns the size asked for.
       expect(source).toMatch(
-        /surface\.setEditorSizeHold\([\s\S]+sizeConstrainer\.constrainRequest\(/,
+        /ui::Size AudioProcessorEditor::holdSize\(ui::Size wanted\)\s+\{\s+const auto size = sizeConstrainer\.constrainRequest\(/,
+      );
+      // The view asks once a frame, after the UI's code ran.
+      expect(source).toMatch(
+        /void AudioProcessorEditor::requestSize\(ui::Size wanted\)[\s\S]+sizeConstrainer\.constrainRequest\([\s\S]+askedOfHost = size;[\s\S]+setSize\(size\.x, size\.y\);/,
       );
       // What the host gives in its place soon after is a limit of its own.
       expect(source).toMatch(
@@ -749,12 +710,9 @@ describe('generateJuceSources', () => {
       expect(source).toMatch(
         /sizeConstrainer\.hostReplaced\(\*askedOfHost, now\);\s+else\s+sizeConstrainer\.hostGave\(now\);/,
       );
-      // Once a frame, on the tick, however many events asked for it.
+      // A press forgets what the host showed of its limits.
       expect(source).toMatch(
-        /host->tick\(\);[\s\S]{0,240}applyEditorSizeRequest\(\);/,
-      );
-      expect(source).not.toMatch(
-        /surface\(\)\.pointer\(input\);\s+runtimeHost\(\)\.runtime\(\)\.runPendingJobs\(\);\s+applyEditorSizeRequest/,
+        /void AudioProcessorEditor::pressed\(\)\s+\{\s+sizeConstrainer\.forgetHostLimits\(\);/,
       );
     });
 
@@ -770,33 +728,17 @@ describe('generateJuceSources', () => {
         },
       ]) {
         const source = editorSource(editor);
-        expect(source).toContain('surface.setEditorResizable(false);');
+        expect(source).toContain('editorOptions.canRequestSize = false;');
         expect(source).not.toContain('constrainRequest');
-        expect(source).not.toContain('setEditorSizeHold');
         expect(source).not.toContain('hostReplaced');
+        expect(source).not.toContain('forgetHostLimits');
       }
     });
 
-    it('tells the UI its safe area and the editor size in every mode', () => {
-      for (const editor of [
-        undefined,
-        { resizable: true as const },
-        { resizable: true as const, resize: 'scale' as const },
-      ]) {
-        const source = editorSource(editor);
-        expect(source).toContain('surface.setSafeArea(safeArea());');
-        expect(source).toContain(
-          'surface.setEditorSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });',
-        );
-      }
-    });
-
-    it('keeps a fixed editor at a zoom of 1, all of it', () => {
+    it('keeps a fixed editor fixed, whatever its resize', () => {
       for (const editor of [{ resize: 'scale' as const }, undefined]) {
         const source = editorSource(editor);
-        expect(source).toMatch(
-          /float AudioProcessorEditor::zoom\(\) const\s+\{\s+return 1\.0F;\s+\}/,
-        );
+        expect(layoutOf(source)).toContain('.resizable = false,');
         expect(source).not.toContain('setConstrainer(&sizeConstrainer)');
       }
     });

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <soundor/Abi.h>
+
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 {
     // A scale-mode editor can fit its completed image to a new window without
