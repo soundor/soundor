@@ -5,6 +5,7 @@
 
 #include <soundor/history/Module.h>
 #include <soundor/midi/Midi.h>
+#include <soundor/platform/Clipboard.h>
 #include <soundor/platform/FileLog.h>
 #include <soundor/platform/Platform.h>
 #include <soundor/platform/Resources.h>
@@ -254,6 +255,7 @@ namespace soundor::vst3
 
         RuntimeHost::Options options;
         options.gpuDevice = gpuDevice;
+        options.clipboard = platform::systemClipboard();
         logSink = logToStderr;
         if (! definition.logFile.empty())
             logSink = [file = platform::fileLogSink(definition.logFile, definition.name)](js::LogLevel level,

@@ -835,7 +835,10 @@ Beyond views and text there are the primitives a plugin UI is made of:
   - **Editing:** it edits itself as the default action of its events, so a
     listener's `preventDefault()` takes over. That covers typing, selection
     with the mouse and Shift, word-wise moves and deletes, Home/End, and
-    copy/cut/paste through the system clipboard.
+    copy/cut/paste through the system clipboard. The JUCE and VST3 editors
+    supply the engine's `platform::systemClipboard()` implementation. On
+    X11, clipboard transfers run on a separate connection and thread so
+    a host on the plugin's UI thread can respond to paste requests.
   - **Events:** it fires `input`, and `change` on Enter and on blur.
   - **Selection:** `value`, `selectionStart` and `setSelectionRange()` use
     UTF-16 indices, as on the Web.

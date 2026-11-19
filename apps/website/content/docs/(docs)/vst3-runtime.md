@@ -160,6 +160,7 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   name and any channel metadata the host supplies to the controller. With a
   processor in the same process, the editor also sees the processing mode and
   transport, including loop bounds and SMPTE timecode when reported.
+- **Clipboard.** Text fields and `soundor:ui` share the Linux desktop clipboard with other applications under X11 and XWayland.
 - **The editor.** An X11 child window of the host's, in which the engine runs
   your UI as in the JUCE runtime: GPU composition where there is a GPU, CPU
   otherwise, Soundor's own X11 input (XInput 2) and AT-SPI accessibility. It
