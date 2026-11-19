@@ -1,5 +1,6 @@
 // The test plugin's UI, on soundor:ui itself (no React): its parameters,
 // its state and the Rust controller's method, shown as text.
+import { getHostState, subscribeHostState } from 'soundor:host';
 import { events, twice } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
@@ -31,3 +32,9 @@ parameters.gain.subscribe(showGain);
 state.label.subscribe(showLabel);
 events.doubled.subscribe(({ value }) => state.label.set(`Doubled ${value}`));
 native.text = `Twice ${twice(21)}`;
+
+// Let the real host test read what the editor sees through the plugin state.
+const saveHostSnapshot = (snapshot: ReturnType<typeof getHostState>) =>
+  state.hostSnapshot.set(JSON.stringify(snapshot));
+saveHostSnapshot(getHostState());
+subscribeHostState(saveHostSnapshot);

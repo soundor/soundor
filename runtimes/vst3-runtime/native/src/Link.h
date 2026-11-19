@@ -20,6 +20,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -53,8 +54,11 @@ namespace soundor::vst3
     // by the audio thread, read by the UI's; each field is atomic.
     struct HostState
     {
+        static constexpr double unavailable = std::numeric_limits<double>::quiet_NaN();
+
         std::atomic<double> sampleRate { 0 };
         std::atomic<int> blockSize { 0 };
+        std::atomic<int> processingMode { -1 };
         std::atomic<bool> known { false };
         std::atomic<bool> playing { false };
         std::atomic<bool> recording { false };
@@ -66,6 +70,11 @@ namespace soundor::vst3
         std::atomic<double> barStart { 0 };
         std::atomic<double> seconds { 0 };
         std::atomic<std::int64_t> samples { 0 };
+        std::atomic<double> loopStart { unavailable };
+        std::atomic<double> loopEnd { unavailable };
+        std::atomic<double> frameRate { 0 };
+        std::atomic<bool> dropFrame { false };
+        std::atomic<std::int32_t> smpteOffset { 0 };
     };
 
     struct Link

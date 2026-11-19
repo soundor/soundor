@@ -76,6 +76,7 @@ export default defineSoundorConfig({
   // `level` scales the output (0.25 is unity): the processor reads it.
   state: {
     label: { type: 'string', default: 'Init' },
+    hostSnapshot: { type: 'string', default: '' },
     level: { type: 'float32', default: 0.25, audio: true },
     pattern: { type: 'int32[]', default: [1, 2, 3], audio: true, maxLength: 8 },
   },
