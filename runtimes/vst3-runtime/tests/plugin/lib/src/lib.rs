@@ -11,9 +11,19 @@ use soundor::prelude::*;
 pub struct PluginProcessor;
 
 impl Processor for PluginProcessor {
-    fn prepare(&mut self, _ctx: &PrepareContext) {}
+    fn prepare(&mut self, ctx: &PrepareContext) {
+        ctx.report_tail_seconds(f64::from(ctx.params.gain));
+    }
 
     fn process(&mut self, ctx: &mut ProcessContext) {
+        // Use gain as a tail duration so the host can test changes through
+        // automation. Negative steps exercise rejected reports.
+        let tail = if ctx.params.steps < 0 {
+            f64::NAN
+        } else {
+            f64::from(ctx.params.gain)
+        };
+        ctx.report_tail_seconds(tail);
         let mut factor = ctx.params.gain * ctx.state.level * 4.0;
         if ctx.params.mode == Mode::Invert {
             factor = -factor;

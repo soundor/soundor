@@ -79,6 +79,7 @@ namespace soundor::vst3
         // Which supported layout the buses' channel counts are, if any.
         [[nodiscard]] bool supported(const std::vector<int>& inputs, const std::vector<int>& outputs) const;
         void prepare();
+        void updateTailReport() noexcept;
         void readParameterChanges(Vst::IParameterChanges* changes, int frames);
         void readEvents(Vst::IEventList* events, int frames);
         void writeEvents(Vst::IEventList* events);
@@ -104,6 +105,8 @@ namespace soundor::vst3
         std::vector<int> inputChannels, outputChannels; // per bus, 0 when inactive
         std::vector<bool> inputActive, outputActive;
         double sampleRate = 44100;
+        // Handed off from prepare()/process() to the host's tail query.
+        std::atomic<double> reportedTailSeconds { 0.0 };
         int maxFrames = 1024;
         bool prepared = false;
 

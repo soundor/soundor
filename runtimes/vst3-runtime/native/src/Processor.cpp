@@ -19,6 +19,9 @@
 #include <cstring>
 #include <limits>
 
+// Older Rust SDKs do not export this. Read only between calls on the Rust handle.
+extern "C" [[gnu::weak]] double soundor_processor_tail_seconds(const void* handle);
+
 namespace soundor::vst3
 {
     using namespace Steinberg;
@@ -295,7 +298,8 @@ namespace soundor::vst3
 
     tresult PLUGIN_API Processor::setupProcessing(Vst::ProcessSetup& setup)
     {
-        if (setup.symbolicSampleSize != Vst::kSample32 || setup.sampleRate <= 0 || setup.maxSamplesPerBlock <= 0)
+        if (setup.symbolicSampleSize != Vst::kSample32 || ! std::isfinite(setup.sampleRate) || setup.sampleRate <= 0
+            || setup.maxSamplesPerBlock <= 0)
             return kResultFalse;
         sampleRate = setup.sampleRate;
         maxFrames = setup.maxSamplesPerBlock;
@@ -344,9 +348,11 @@ namespace soundor::vst3
         if (rust == nullptr || ! rust->valid())
         {
             prepared = false;
+            reportedTailSeconds.store(0.0, std::memory_order_relaxed);
             return;
         }
         const auto status = rust->prepare(sampleRate, maxFrames, layout, blockValues, audioState.acquire());
+        updateTailReport();
         // Notes released downstream only for a reset after this: nothing sounds yet.
         midiGeneration = soundor_midi_generation(rust->nativeHandle());
         prepared = status == SOUNDOR_STATUS_OK;
@@ -378,9 +384,16 @@ namespace soundor::vst3
 
     uint32 PLUGIN_API Processor::getTailSamples()
     {
-        if (definition.tailSeconds <= 0)
-            return Vst::kNoTail;
-        return static_cast<uint32>(std::min(definition.tailSeconds * sampleRate, 4294967295.0));
+        const auto seconds =
+            definition.tailSeconds < 0 ? reportedTailSeconds.load(std::memory_order_relaxed) : definition.tailSeconds;
+        // Keep the largest finite duration below VST3's infinite-tail sentinel.
+        return static_cast<uint32>(std::min(seconds * sampleRate, static_cast<double>(Vst::kInfiniteTail - 1)));
+    }
+
+    void Processor::updateTailReport() noexcept
+    {
+        if (definition.tailSeconds < 0 && soundor_processor_tail_seconds != nullptr)
+            reportedTailSeconds.store(soundor_processor_tail_seconds(rust->nativeHandle()), std::memory_order_relaxed);
     }
 
     void Processor::readParameterChanges(Vst::IParameterChanges* changes, int frames)
@@ -737,6 +750,7 @@ namespace soundor::vst3
         std::uint32_t midiOutCount = 0;
         rust->process(channels, frames, blockValues, published, transportNow, streams->sink(), audioState.acquire(),
                       { midiIn.data(), midiInCount }, midiOut, &midiOutCount);
+        updateTailReport();
         for (int32 b = 0; b < data.numOutputs; ++b)
             data.outputs[b].silenceFlags = 0;
         writePublished(data.outputParameterChanges);

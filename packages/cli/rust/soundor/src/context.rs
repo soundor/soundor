@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::audio::Audio;
 use crate::layout::Layout;
 use crate::plugin::{
@@ -66,6 +68,15 @@ pub struct PrepareContext<'a> {
     /// impulse response here, outside the audio thread, and `process` reads
     /// it from the next block (`ctx.resources.wavetable.publish(table)`).
     pub resources: ResourcePublishers<'a>,
+    pub(crate) tail_seconds: &'a AtomicU64,
+}
+
+impl PrepareContext<'_> {
+    /// Reports the initial tail duration for a dynamically configured VST3
+    /// plugin. See [`ProcessContext::report_tail_seconds`].
+    pub fn report_tail_seconds(&self, seconds: f64) {
+        report_tail_seconds(self.tail_seconds, seconds);
+    }
 }
 
 /// What [`process`](crate::Processor::process) is given for one block.
@@ -97,4 +108,24 @@ pub struct ProcessContext<'a> {
     pub resources: Resources<'a>,
     /// The sample rate, in hertz, as prepared.
     pub sample_rate: f64,
+    pub(crate) tail_seconds: &'a AtomicU64,
+}
+
+impl ProcessContext<'_> {
+    /// Reports how long this processor can produce audio after its input
+    /// goes silent. Call when the tail changes. The VST3 runtime uses the
+    /// latest value for `audio.tail: { mode: 'dynamic' }`.
+    ///
+    /// Finite, nonnegative seconds are accepted. Invalid values leave the
+    /// previous report in effect. Zero clears the tail. Reporting requires
+    /// no allocation or lock.
+    pub fn report_tail_seconds(&self, seconds: f64) {
+        report_tail_seconds(self.tail_seconds, seconds);
+    }
+}
+
+fn report_tail_seconds(tail_seconds: &AtomicU64, seconds: f64) {
+    if seconds.is_finite() && seconds >= 0.0 {
+        tail_seconds.store(seconds.to_bits(), Ordering::Relaxed);
+    }
 }
