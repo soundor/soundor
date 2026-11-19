@@ -28,41 +28,16 @@ namespace soundor::vst3
 
     namespace
     {
-        // soundor:host, from what the processor last saw (when it shares
-        // this process).
+        // The editor owns its runtime and keeps the controller alive.
         class HostInfo final : public platform::HostInfo
         {
         public:
-            explicit HostInfo(std::shared_ptr<HostState> state) : shared(std::move(state)) {}
+            explicit HostInfo(const Controller& owner) : controller(owner) {}
 
-            [[nodiscard]] platform::HostSnapshot snapshot() const override
-            {
-                platform::HostSnapshot out;
-                out.samplePrecision = "32-bit";
-                if (shared == nullptr)
-                    return out;
-                out.sampleRate = shared->sampleRate.load(std::memory_order_relaxed);
-                out.blockSize = shared->blockSize.load(std::memory_order_relaxed);
-                out.processingMode = "realtime";
-                if (! shared->known.load(std::memory_order_relaxed))
-                    return out;
-                platform::Transport transport;
-                transport.playing = shared->playing.load(std::memory_order_relaxed);
-                transport.recording = shared->recording.load(std::memory_order_relaxed);
-                transport.looping = shared->looping.load(std::memory_order_relaxed);
-                transport.bpm = shared->bpm.load(std::memory_order_relaxed);
-                transport.timeSignatureNumerator = shared->numerator.load(std::memory_order_relaxed);
-                transport.timeSignatureDenominator = shared->denominator.load(std::memory_order_relaxed);
-                transport.ppqPosition = shared->ppq.load(std::memory_order_relaxed);
-                transport.barStartPpq = shared->barStart.load(std::memory_order_relaxed);
-                transport.timeInSeconds = shared->seconds.load(std::memory_order_relaxed);
-                transport.timeInSamples = shared->samples.load(std::memory_order_relaxed);
-                out.transport = transport;
-                return out;
-            }
+            [[nodiscard]] platform::HostSnapshot snapshot() const override { return controller.hostSnapshot(); }
 
         private:
-            std::shared_ptr<HostState> shared;
+            const Controller& controller;
         };
 
         // <XDG config home>/Soundor/<plugin id>: where the JUCE runtime's
@@ -293,8 +268,7 @@ namespace soundor::vst3
         options.pluginName = definition.name;
         options.pluginVersion = definition.version;
         options.environment = { "vst3", SOUNDOR_VST3_RUNTIME_VERSION, "linux", "x64", "vst3" };
-        const auto& link = owner.link();
-        options.hostInfo = std::make_shared<HostInfo>(link != nullptr ? link->host : nullptr);
+        options.hostInfo = std::make_shared<HostInfo>(owner);
         // fetch(): the system's HTTP stack (its libcurl).
         options.http = platform::systemHttpClient();
         options.dataDirectory = dataDirectory(definition.id);

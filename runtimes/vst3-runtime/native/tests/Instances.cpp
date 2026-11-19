@@ -13,6 +13,7 @@
 #include <dlfcn.h>
 #include <pluginterfaces/base/ipluginbase.h>
 #include <pluginterfaces/vst/ivstaudioprocessor.h>
+#include <pluginterfaces/vst/ivstchannelcontextinfo.h>
 #include <pluginterfaces/vst/ivstcomponent.h>
 #include <pluginterfaces/vst/ivsteditcontroller.h>
 #include <pluginterfaces/vst/ivstmessage.h>
@@ -97,6 +98,17 @@ namespace
         out.component = owned(component);
         check(component->initialize(host) == kResultOk, name + ": initialize the component");
         out.processor = FUnknownPtr<Vst::IAudioProcessor>(out.component);
+        if (const FUnknownPtr<Vst::IProcessContextRequirements> requirements(out.processor); requirements)
+        {
+            using Context = Vst::IProcessContextRequirements;
+            constexpr auto flags = Context::kNeedTransportState | Context::kNeedTempo | Context::kNeedTimeSignature
+                                   | Context::kNeedProjectTimeMusic | Context::kNeedBarPositionMusic
+                                   | Context::kNeedCycleMusic | Context::kNeedFrameRate;
+            check((requirements->getProcessContextRequirements() & flags) == flags,
+                  name + ": requests transport fields");
+        }
+        else
+            check(false, name + ": exposes process context requirements");
         TUID controllerId {};
         check(component->getControllerClassId(controllerId) == kResultOk, name + ": its controller's class");
         Vst::IEditController* controller = nullptr;
@@ -107,6 +119,14 @@ namespace
             return out;
         out.controller = owned(controller);
         check(controller->initialize(host) == kResultOk, name + ": initialize the controller");
+        if (const FUnknownPtr<Vst::ChannelContext::IInfoListener> listener(out.controller); listener)
+        {
+            const auto attributes = Vst::HostAttributeList::make();
+            attributes->setString(Vst::ChannelContext::kChannelNameKey, u"Lead track");
+            check(listener->setChannelContextInfos(attributes) == kResultOk, name + ": accepts track metadata");
+        }
+        else
+            check(false, name + ": exposes a channel context listener");
         out.componentPoint = FUnknownPtr<Vst::IConnectionPoint>(out.component);
         out.controllerPoint = FUnknownPtr<Vst::IConnectionPoint>(out.controller);
         if (out.componentPoint && out.controllerPoint)

@@ -19,9 +19,11 @@
 #include "State.h"
 
 #include <soundor/midi/Midi.h>
+#include <soundor/platform/Platform.h>
 #include <soundor/processor/RustController.h>
 
 #include <pluginterfaces/gui/iplugview.h>
+#include <pluginterfaces/vst/ivstchannelcontextinfo.h>
 #include <pluginterfaces/vst/ivstmidicontrollers.h>
 #include <public.sdk/source/vst/vsteditcontroller.h>
 
@@ -40,6 +42,7 @@ namespace soundor::vst3
 
     class Controller final : public Vst::EditControllerEx1,
                              public Vst::IMidiMapping,
+                             public Vst::ChannelContext::IInfoListener,
                              public ParameterTarget,
                              public processor::ControllerServices,
                              public Steinberg::Linux::ITimerHandler
@@ -70,6 +73,9 @@ namespace soundor::vst3
         tresult PLUGIN_API getMidiControllerAssignment(Steinberg::int32 busIndex, Steinberg::int16 channel,
                                                        Vst::CtrlNumber midiControllerNumber, Vst::ParamID& id) override;
 
+        // ChannelContext::IInfoListener
+        tresult PLUGIN_API setChannelContextInfos(Vst::IAttributeList* attributes) override;
+
         // ITimerHandler: the run loop's timer, when the host lends one without a view.
         void PLUGIN_API onTimer() override;
 
@@ -90,6 +96,7 @@ namespace soundor::vst3
         void loadPreset(std::string_view id) override;
 
         // For the editor.
+        [[nodiscard]] platform::HostSnapshot hostSnapshot() const;
         [[nodiscard]] const Plugin& plugin() const noexcept { return definition; }
         [[nodiscard]] const StateSchema& schema() const noexcept { return stateSchema; }
         [[nodiscard]] StateStore& store() noexcept { return *stateStore; }
@@ -113,6 +120,7 @@ namespace soundor::vst3
         OBJ_METHODS(Controller, EditControllerEx1)
         DEFINE_INTERFACES
         DEF_INTERFACE(Vst::IMidiMapping)
+        DEF_INTERFACE(Vst::ChannelContext::IInfoListener)
         DEF_INTERFACE(Steinberg::Linux::ITimerHandler)
         END_DEFINE_INTERFACES(EditControllerEx1)
         REFCOUNT_METHODS(EditControllerEx1)
@@ -133,6 +141,8 @@ namespace soundor::vst3
         std::vector<double> plainValues;
         std::set<UiParameters*> uis;
         std::set<Editor*> openEditors;
+        std::string hostName;
+        std::optional<platform::TrackInfo> track;
         std::shared_ptr<Link> processorLink;
         std::shared_ptr<processor::RustController> controller;
         std::shared_ptr<midi::Host> midi;

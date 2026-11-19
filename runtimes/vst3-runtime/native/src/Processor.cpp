@@ -88,6 +88,13 @@ namespace soundor::vst3
           audioState(std::max<std::size_t>(plugin.audioStateSize, 1))
     {
         setControllerClass(FUID::fromTUID(reinterpret_cast<const char*>(plugin.controllerCid.data())));
+        processContextRequirements.needTransportState()
+            .needTempo()
+            .needTimeSignature()
+            .needProjectTimeMusic()
+            .needBarPositionMusic()
+            .needCycleMusic()
+            .needFrameRate();
         blockValues.resize(plugin.parameters.size());
         for (std::size_t i = 0; i < plugin.parameters.size(); ++i)
         {
@@ -149,11 +156,9 @@ namespace soundor::vst3
         if (! rust->valid())
             log("Soundor: " + rust->error());
         streams = std::make_shared<Streams>(definition);
-        auto link = std::make_shared<Link>();
-        link->rust = rust;
-        link->streams = streams;
-        link->host = hostState;
-        linkToken = publishLink(link);
+        // The registry holds a weak reference until the controller connects.
+        sharedLink = std::make_shared<Link>(Link { rust, streams, hostState });
+        linkToken = publishLink(sharedLink);
         return kResultOk;
     }
 
@@ -162,6 +167,7 @@ namespace soundor::vst3
         if (linkToken != 0)
             withdrawLink(linkToken);
         linkToken = 0;
+        sharedLink.reset();
         prepared = false;
         return AudioEffect::terminate();
     }
@@ -295,6 +301,7 @@ namespace soundor::vst3
         maxFrames = setup.maxSamplesPerBlock;
         hostState->sampleRate.store(sampleRate);
         hostState->blockSize.store(maxFrames);
+        hostState->processingMode.store(setup.processMode, std::memory_order_relaxed);
         return AudioEffect::setupProcessing(setup);
     }
 
@@ -565,11 +572,23 @@ namespace soundor::vst3
     SoundorTransport Processor::transport(const Vst::ProcessContext* context) noexcept
     {
         auto out = processor::unknownTransport();
+        auto& host = *hostState;
+        const auto state = context != nullptr ? context->state : 0u;
+        const bool hasCycle = (state & Vst::ProcessContext::kCycleValid) != 0;
+        host.loopStart.store(hasCycle ? context->cycleStartMusic : HostState::unavailable, std::memory_order_relaxed);
+        host.loopEnd.store(hasCycle ? context->cycleEndMusic : HostState::unavailable, std::memory_order_relaxed);
+        if ((state & Vst::ProcessContext::kSmpteValid) != 0 && context->frameRate.framesPerSecond > 0)
+        {
+            const auto& rate = context->frameRate;
+            const bool pullDown = (rate.flags & Vst::FrameRate::kPullDownRate) != 0;
+            host.dropFrame.store((rate.flags & Vst::FrameRate::kDropRate) != 0, std::memory_order_relaxed);
+            host.smpteOffset.store(context->smpteOffsetSubframes, std::memory_order_relaxed);
+            host.frameRate.store(rate.framesPerSecond * (pullDown ? 1000.0 / 1001.0 : 1.0), std::memory_order_release);
+        }
+        else
+            host.frameRate.store(0, std::memory_order_release);
         if (context == nullptr)
             return out;
-        const auto state = context->state;
-        auto& host = *hostState;
-        host.known.store(true, std::memory_order_relaxed);
         const bool playing = (state & Vst::ProcessContext::kPlaying) != 0;
         host.playing.store(playing, std::memory_order_relaxed);
         host.recording.store((state & Vst::ProcessContext::kRecording) != 0, std::memory_order_relaxed);
@@ -602,6 +621,7 @@ namespace soundor::vst3
             host.seconds.store(out.timeSeconds, std::memory_order_relaxed);
         }
         host.samples.store(context->projectTimeSamples, std::memory_order_relaxed);
+        host.known.store(true, std::memory_order_release);
         return out;
     }
 
@@ -629,6 +649,7 @@ namespace soundor::vst3
             silence();
             return kResultFalse;
         }
+        hostState->processingMode.store(data.processMode, std::memory_order_relaxed);
         const auto transportNow = transport(data.processContext);
         if (! prepared || rust == nullptr || frames > maxFrames * 64)
         {

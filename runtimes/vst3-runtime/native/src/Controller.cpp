@@ -8,11 +8,15 @@
 
 #include <pluginterfaces/base/ibstream.h>
 #include <pluginterfaces/vst/ivsteditcontroller.h>
+#include <pluginterfaces/vst/ivsthostapplication.h>
 #include <pluginterfaces/vst/ivstmessage.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <limits>
 
 namespace soundor::vst3
 {
@@ -161,6 +165,15 @@ namespace soundor::vst3
         const auto result = EditControllerEx1::initialize(context);
         if (result != kResultOk)
             return result;
+        if (const FUnknownPtr<Vst::IHostApplication> app(context); app)
+        {
+            Vst::String128 name {};
+            if (app->getName(name) == kResultOk)
+            {
+                name[127] = 0;
+                hostName = utf8(name);
+            }
+        }
         // Units: the root (with the factory presets as its program list),
         // then one per parameter group.
         const bool programs = ! definition.presets.empty();
@@ -238,6 +251,97 @@ namespace soundor::vst3
         return EditControllerEx1::terminate();
     }
 
+    tresult PLUGIN_API Controller::setChannelContextInfos(Vst::IAttributeList* attributes)
+    {
+        namespace channel = Vst::ChannelContext;
+        if (attributes == nullptr)
+            return kInvalidArgument;
+
+        const auto readString = [attributes](Vst::IAttributeList::AttrID key,
+                                             Vst::IAttributeList::AttrID lengthKey) -> std::optional<std::string>
+        {
+            int64 length = 0;
+            attributes->getInt(lengthKey, length);
+            constexpr int64 maxLength = 65535;
+            const auto capacity = static_cast<std::size_t>(std::clamp(length, int64 { 127 }, maxLength) + 1);
+            std::vector<Vst::TChar> text(capacity);
+            const auto bytes = static_cast<uint32>(text.size() * sizeof(Vst::TChar));
+            if (attributes->getString(key, text.data(), bytes) != kResultOk)
+                return std::nullopt;
+            text.back() = 0;
+            return utf8(text.data());
+        };
+        platform::TrackInfo info;
+        info.name = readString(channel::kChannelNameKey, channel::kChannelNameLengthKey);
+        info.id = readString(channel::kChannelUIDKey, channel::kChannelUIDLengthKey);
+        int64 value = 0;
+        if (attributes->getInt(channel::kChannelIndexKey, value) == kResultOk && value > 0
+            && value <= std::numeric_limits<int>::max())
+            info.index = static_cast<int>(value);
+        if (attributes->getInt(channel::kChannelColorKey, value) == kResultOk)
+        {
+            const auto color = static_cast<channel::ColorSpec>(value);
+            std::array<char, 10> rgba {};
+            std::snprintf(rgba.data(), rgba.size(), "#%02x%02x%02x%02x", static_cast<unsigned>(channel::GetRed(color)),
+                          static_cast<unsigned>(channel::GetGreen(color)),
+                          static_cast<unsigned>(channel::GetBlue(color)),
+                          static_cast<unsigned>(channel::GetAlpha(color)));
+            info.color = rgba.data();
+        }
+        track = info == platform::TrackInfo {} ? std::nullopt : std::optional { std::move(info) };
+        return kResultOk;
+    }
+
+    platform::HostSnapshot Controller::hostSnapshot() const
+    {
+        platform::HostSnapshot out;
+        out.hostName = hostName;
+        out.track = track;
+        out.samplePrecision = "float32";
+        const auto shared = processorLink != nullptr ? processorLink->host : nullptr;
+        if (shared == nullptr)
+            return out;
+        out.sampleRate = shared->sampleRate.load(std::memory_order_relaxed);
+        out.blockSize = shared->blockSize.load(std::memory_order_relaxed);
+        switch (shared->processingMode.load(std::memory_order_relaxed))
+        {
+            case Vst::kRealtime:
+                out.processingMode = "realtime";
+                break;
+            case Vst::kPrefetch:
+                out.processingMode = "prefetch";
+                break;
+            case Vst::kOffline:
+                out.processingMode = "offline";
+                break;
+            default:
+                break;
+        }
+        if (! shared->known.load(std::memory_order_acquire))
+            return out;
+        platform::Transport transport;
+        transport.playing = shared->playing.load(std::memory_order_relaxed);
+        transport.recording = shared->recording.load(std::memory_order_relaxed);
+        transport.looping = shared->looping.load(std::memory_order_relaxed);
+        transport.bpm = shared->bpm.load(std::memory_order_relaxed);
+        transport.timeSignatureNumerator = shared->numerator.load(std::memory_order_relaxed);
+        transport.timeSignatureDenominator = shared->denominator.load(std::memory_order_relaxed);
+        transport.ppqPosition = shared->ppq.load(std::memory_order_relaxed);
+        transport.barStartPpq = shared->barStart.load(std::memory_order_relaxed);
+        transport.timeInSeconds = shared->seconds.load(std::memory_order_relaxed);
+        transport.timeInSamples = shared->samples.load(std::memory_order_relaxed);
+        if (const double start = shared->loopStart.load(std::memory_order_relaxed); std::isfinite(start))
+            transport.loopStartPpq = start;
+        if (const double end = shared->loopEnd.load(std::memory_order_relaxed); std::isfinite(end))
+            transport.loopEndPpq = end;
+        if (const double fps = shared->frameRate.load(std::memory_order_acquire); fps > 0)
+            transport.timecode =
+                platform::Timecode { fps, shared->dropFrame.load(std::memory_order_relaxed),
+                                     static_cast<double>(shared->smpteOffset.load(std::memory_order_relaxed)) };
+        out.transport = transport;
+        return out;
+    }
+
     tresult PLUGIN_API Controller::notify(Vst::IMessage* message)
     {
         if (message == nullptr)
@@ -251,7 +355,7 @@ namespace soundor::vst3
             return kInvalidArgument;
         // Another binary's processor (another process, or another plugin):
         // nothing is shared.
-        if (module != moduleIdentity() || controller != nullptr)
+        if (module != moduleIdentity() || processorLink != nullptr)
             return kResultOk;
         processorLink = resolveLink(static_cast<std::uint64_t>(token));
         if (processorLink != nullptr && processorLink->rust != nullptr && processorLink->rust->valid())

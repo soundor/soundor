@@ -91,6 +91,7 @@ namespace soundor::vst3
         std::shared_ptr<processor::RustProcessor> rust;
         std::shared_ptr<Streams> streams;
         std::shared_ptr<HostState> hostState = std::make_shared<HostState>();
+        std::shared_ptr<Link> sharedLink;
         std::uint64_t linkToken = 0;
 
         // Each parameter's plain value: written by process() (host changes)

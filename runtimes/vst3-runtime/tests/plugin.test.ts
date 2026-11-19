@@ -20,6 +20,7 @@ import {
   launchHost,
   midiInput,
   midiOutput,
+  type LaunchOptions,
   type ParameterInfo,
   type Vst3Host,
 } from '@soundor/vst3-host';
@@ -44,7 +45,10 @@ const instances = fileURLToPath(
 );
 
 const hosts: Vst3Host[] = [];
-async function open(editor = false): Promise<Vst3Host> {
+async function open(
+  editor = false,
+  processMode?: LaunchOptions['processMode'],
+): Promise<Vst3Host> {
   if (!existsSync(plugin))
     throw new Error(
       `${plugin} is missing: run \`pnpm test:plugin\`, which builds it first.`,
@@ -52,6 +56,7 @@ async function open(editor = false): Promise<Vst3Host> {
   const host = await launchHost({
     plugin,
     editor,
+    processMode,
     sampleRate: 48000,
     blockSize: 256,
   });
@@ -360,6 +365,35 @@ describe('the VST3 test plugin', () => {
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }
+    },
+  );
+
+  it.runIf(display)(
+    'reports the host and offline processing to the editor',
+    async () => {
+      const host = await open(true, 'offline');
+      await host.openEditor();
+      await host.process({
+        inputs: [constant(0.5)],
+        transport: { playing: true, tempo: 135 },
+      });
+      await expect
+        .poll(async () => {
+          const snapshot = document((await host.getState()).component).state[
+            'hostSnapshot'
+          ];
+          return typeof snapshot === 'string' && snapshot
+            ? JSON.parse(snapshot)
+            : null;
+        })
+        .toMatchObject({
+          hostName: 'Soundor VST3 Host',
+          sampleRate: 48000,
+          blockSize: 256,
+          samplePrecision: 'float32',
+          processingMode: 'offline',
+          transport: { playing: true, bpm: 135 },
+        });
     },
   );
 
