@@ -132,34 +132,34 @@ namespace soundor::vst3
         public:
             MacWindow(NSView* parent, int width, int height, std::uint32_t background) : image(*this)
             {
-                view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
-                view.wantsLayer = YES;
-                view.autoresizingMask = NSViewNotSizable;
+                nsView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
+                nsView.wantsLayer = YES;
+                nsView.autoresizingMask = NSViewNotSizable;
                 frameLayer = [CALayer layer];
                 frameLayer.anchorPoint = CGPointZero;
                 frameLayer.actions =
                     @ { @"contents" : [NSNull null], @"bounds" : [NSNull null], @"position" : [NSNull null] };
                 frameLayer.magnificationFilter = kCAFilterNearest;
                 setBackground(background);
-                [view.layer addSublayer:frameLayer];
-                [parent addSubview:view];
+                [nsView.layer addSublayer:frameLayer];
+                [parent addSubview:nsView];
             }
 
             ~MacWindow() override
             {
                 [frameLayer removeFromSuperlayer];
-                [view removeFromSuperview];
+                [nsView removeFromSuperview];
             }
             MacWindow(const MacWindow&) = delete;
             MacWindow& operator=(const MacWindow&) = delete;
             MacWindow(MacWindow&&) = delete;
             MacWindow& operator=(MacWindow&&) = delete;
 
-            [[nodiscard]] void* view() const noexcept override { return (__bridge void*)view; }
+            [[nodiscard]] void* view() const noexcept override { return (__bridge void*)nsView; }
 
             void resize(int width, int height) override
             {
-                [view setFrameSize:NSMakeSize(width, height)];
+                [nsView setFrameSize:NSMakeSize(width, height)];
                 layout();
             }
 
@@ -173,7 +173,7 @@ namespace soundor::vst3
 
             [[nodiscard]] float backingScale() const override
             {
-                NSWindow* window = view.window;
+                NSWindow* window = nsView.window;
                 return window != nil ? static_cast<float>(window.backingScaleFactor) : 1.0f;
             }
 
@@ -181,12 +181,12 @@ namespace soundor::vst3
             {
                 // AppKit shows the cursor the last view under the pointer set:
                 // this one's, while the pointer is over it.
-                NSWindow* window = view.window;
+                NSWindow* window = nsView.window;
                 if (cursor == nil || window == nil || ! window.visible)
                     return;
                 const NSPoint inWindow = [window mouseLocationOutsideOfEventStream];
-                const NSPoint point = [view convertPoint:inWindow fromView:nil];
-                if (! NSPointInRect(point, view.bounds) || view.hiddenOrHasHiddenAncestor)
+                const NSPoint point = [nsView convertPoint:inWindow fromView:nil];
+                if (! NSPointInRect(point, nsView.bounds) || nsView.hiddenOrHasHiddenAncestor)
                     return;
                 if ([NSCursor currentCursor] != cursor)
                     [cursor set];
@@ -221,7 +221,7 @@ namespace soundor::vst3
             void setBackground(std::uint32_t background)
             {
                 CGColorRef fill = colour(background);
-                view.layer.backgroundColor = fill;
+                nsView.layer.backgroundColor = fill;
                 CGColorRelease(fill);
             }
 
@@ -233,7 +233,7 @@ namespace soundor::vst3
                 const CGFloat width = static_cast<CGFloat>(image.width()) / scale;
                 const CGFloat height = static_cast<CGFloat>(image.height()) / scale;
                 const CGFloat bottom =
-                    view.layer.geometryFlipped ? top : view.bounds.size.height - static_cast<CGFloat>(top) - height;
+                    nsView.layer.geometryFlipped ? top : nsView.bounds.size.height - static_cast<CGFloat>(top) - height;
                 [CATransaction begin];
                 [CATransaction setDisableActions:YES];
                 frameLayer.contentsScale = scale;
@@ -241,7 +241,7 @@ namespace soundor::vst3
                 [CATransaction commit];
             }
 
-            NSView* view = nil;
+            NSView* nsView = nil;
             CALayer* frameLayer = nil;
             NSCursor* cursor = nil;
             LayerTarget image;

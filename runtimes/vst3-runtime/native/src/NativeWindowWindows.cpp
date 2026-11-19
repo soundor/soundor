@@ -27,7 +27,9 @@ namespace soundor::vst3
 
         HCURSOR cursorOf(ui::Cursor cursor)
         {
-            const auto load = [](LPCWSTR id) { return LoadCursorW(nullptr, id); };
+            // The IDC_ ids are MAKEINTRESOURCE ordinals, typed for the A or W
+            // functions by UNICODE: the W one's, whichever they are.
+            const auto load = [](const void* id) { return LoadCursorW(nullptr, static_cast<LPCWSTR>(id)); };
             switch (cursor)
             {
                 case ui::Cursor::Pointer:
@@ -234,7 +236,7 @@ namespace soundor::vst3
             DibTarget image;
             HBRUSH brush = nullptr;
             COLORREF brushColour = 0;
-            HCURSOR cursor = LoadCursorW(nullptr, IDC_ARROW);
+            HCURSOR cursor = cursorOf(ui::Cursor::Default);
             int left = 0;
             int top = 0;
         };

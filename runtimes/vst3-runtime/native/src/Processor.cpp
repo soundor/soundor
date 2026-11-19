@@ -19,8 +19,8 @@
 #include <cstring>
 #include <limits>
 
-// Older Rust SDKs do not export this. Read only between calls on the Rust handle.
-extern "C" [[gnu::weak]] double soundor_processor_tail_seconds(const void* handle);
+// The Rust SDK's (soundor::export!). Read only between calls on the Rust handle.
+extern "C" double soundor_processor_tail_seconds(const void* handle);
 
 namespace soundor::vst3
 {
@@ -392,7 +392,7 @@ namespace soundor::vst3
 
     void Processor::updateTailReport() noexcept
     {
-        if (definition.tailSeconds < 0 && soundor_processor_tail_seconds != nullptr)
+        if (definition.tailSeconds < 0)
             reportedTailSeconds.store(soundor_processor_tail_seconds(rust->nativeHandle()), std::memory_order_relaxed);
     }
 
