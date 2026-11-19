@@ -33,10 +33,10 @@ namespace
                               native::controllerDescriptor,  sizeof(native::controllerDescriptor) };
                     return 0;
                 },
-                [](const SoundorControllerHost* host, void* instance) -> void*
+                [](const SoundorControllerHost* controllerHost, void* instance) -> void*
                 {
                     auto* self = static_cast<Source*>(instance);
-                    self->host = *host;
+                    self->host = *controllerHost;
                     return self;
                 },
                 [](void*) {},
