@@ -39,6 +39,13 @@ const display =
   process.platform !== 'linux' ||
   (process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '');
 // Instances.cpp, which `pnpm test:native` builds.
+/** The view the host gives the editor (VST3's platform type strings). */
+function platformType(): string {
+  if (process.platform === 'darwin') return 'NSView';
+  if (process.platform === 'win32') return 'HWND';
+  return 'X11EmbedWindowID';
+}
+
 const instances = fileURLToPath(
   new URL(
     '../native/build/tests/tests/soundor_vst3_instances',
@@ -490,7 +497,7 @@ describe('the VST3 test plugin', () => {
           width: 320,
           height: 240,
           resizable: true,
-          platformType: 'X11EmbedWindowID',
+          platformType: platformType(),
         });
         await expect
           .poll(
