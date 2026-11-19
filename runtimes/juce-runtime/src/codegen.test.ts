@@ -501,22 +501,18 @@ describe('generateJuceSources', () => {
 
   it('wires HTTP, host info and the data directory into the runtime', () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
-    expect(editor).toContain(
-      'options.http = std::make_shared<backend::JuceHttpClient>();',
-    );
+    // The system's HTTP stack, through the engine (no JUCE networking).
+    expect(editor).toContain('options.http = platform::systemHttpClient();');
     expect(editor).toContain(
       'options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());',
     );
     expect(editor).toContain('.getChildFile(AudioProcessor::pluginId)');
     const setup = fileMap(config).get('setup.cmake')!;
-    for (const name of [
-      'JuceCursor',
-      'JuceHttpClient',
-      'JuceParameterHost',
-      'JuceTransport',
-    ]) {
+    for (const name of ['JuceCursor', 'JuceParameterHost', 'JuceTransport']) {
       expect(setup).toContain(`backend/juce/soundor/backend/${name}.cpp`);
     }
+    for (const name of ['JuceHttpClient', 'JuceDebugBridge'])
+      expect(setup).not.toContain(name);
   });
 
   it("gives the runtime the time limit from juceRuntime's options", () => {

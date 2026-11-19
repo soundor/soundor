@@ -22,7 +22,7 @@ the prebuilt engine. What makes a plugin itself is data, read at run time.
 | `native/src/Processor.*`                                           | The component (`AudioEffect`): buses, processing, MIDI, state                                                                                 |
 | `native/src/Controller.*`                                          | The edit controller (`EditControllerEx1`, `IMidiMapping`): parameters, state store, History, presets, the Rust controller                     |
 | `native/src/Editor.*`, `X11.*`                                     | The view (`IPlugView`, X11EmbedWindowID): its window, the engine's `RuntimeHost`, compositor, input, accessibility                            |
-| `native/src/Descriptor.*`, `Json.*`                                | The descriptor, parsed once per module                                                                                                        |
+| `native/src/Descriptor.*`                                          | The descriptor, parsed once per module (with the engine's `soundor::json`)                                                                    |
 | `native/src/Expression.*`                                          | The expression interpreter; `generated/ExpressionRuntime.h` is the C++ compiler's helpers (`pnpm gen:expression`)                             |
 | `native/src/State*.*`, `Presets.*`, `ParameterHost.*`, `Modules.*` | Persistent state, documents, presets, History-aware parameter edits, the generic `soundor:state`, `soundor:presets`, `soundor:native` modules |
 | `native/src/Link.*`                                                | What a controller shares with its processor in one process, and the native streams                                                            |
@@ -102,8 +102,10 @@ build's UI directory and log file.
   whichever the host destroys first.
 - **The editor** owns an X11 window (its own connection), a `RuntimeHost`
   (`DevSession` in development) and, from the engine, the compositor,
-  `input::PlatformInput` and `a11y::PlatformAccessibility`. Xlib is loaded
-  with `dlopen`, as the engine does, and its headers stay in `X11.cpp`.
+  `input::PlatformInput`, `input::PointerLock`, `a11y::PlatformAccessibility`,
+  `platform::systemHttpClient()` for `fetch()` and, in Debug builds,
+  `debug::Bridge` for DevTools. Xlib is loaded with `dlopen`, as the engine
+  does, and its headers stay in `X11.cpp`.
 
 ### Linking
 
@@ -139,8 +141,8 @@ adapter of another engine. The package depends on the exact engine version.
 
 ## Invariants and tests
 
-- No plugin-specific C++; no JUCE; the engine's own input, rendering and
-  accessibility, unchanged.
+- No plugin-specific C++; no JUCE; the engine's own input, pointer lock,
+  rendering, accessibility, HTTP and DevTools bridge, unchanged.
 - The interpreter computes what the expression compilers compute:
   `native/tests/AdapterTests.cpp` evaluates `@soundor/expression`'s
   differential corpus (`native/tests/generated/expression-corpus.json`, from

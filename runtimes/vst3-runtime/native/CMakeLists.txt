@@ -52,7 +52,6 @@ set(soundor_vst3_sources
   src/Editor.cpp
   src/Expression.cpp
   src/Factory.cpp
-  src/Json.cpp
   src/Link.cpp
   src/Log.cpp
   src/Modules.cpp

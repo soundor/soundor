@@ -20,10 +20,14 @@
 
 #include <soundor/a11y/Platform.h>
 #include <soundor/input/Platform.h>
+#include <soundor/input/PointerLock.h>
 #include <soundor/render/Compositor.h>
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
+#if SOUNDOR_DEVTOOLS
+    #include <soundor/debug/Bridge.h>
+#endif
 
 #include <pluginterfaces/gui/iplugview.h>
 #include <pluginterfaces/gui/iplugviewcontentscalesupport.h>
@@ -140,6 +144,8 @@ namespace soundor::vst3
         void updateInputGeometry();
         void updateAccessibility();
         void updateCursor();
+        // Applies the pointer lock the UI asks for (requestPointerLock()).
+        void updatePointerLock();
         void applySizeRequest();
         void tick();
         [[nodiscard]] Steinberg::ViewRect constrained(Steinberg::ViewRect wanted) const;
@@ -167,6 +173,15 @@ namespace soundor::vst3
         bool readingInput = false;
         std::vector<input::Event> events;
         bool focusedByHost = false;
+        // Moves the native input's pointer: destroyed (ending a lock) first.
+        input::PointerLock pointerLock { [this](int pointerId) {
+            return nativeInput != nullptr ? input::pointerSource(*nativeInput, pointerId) : nullptr;
+        } };
+#if SOUNDOR_DEVTOOLS
+        // The DevTools session's connection (SOUNDOR_DEVTOOLS_SESSION), in
+        // debug builds.
+        std::unique_ptr<debug::Bridge> bridge;
+#endif
 
         std::unique_ptr<a11y::PlatformAccessibility> accessibility;
         bool accessibilityFocused = false;

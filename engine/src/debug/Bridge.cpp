@@ -1,17 +1,22 @@
-#include "JuceDebugBridge.h"
+#include <soundor/debug/Bridge.h>
 
 #if SOUNDOR_DEVTOOLS
-    #include <juce_core/juce_core.h>
+    #include <soundor/json/Json.h>
 
     #include <array>
     #include <atomic>
     #include <charconv>
     #include <condition_variable>
+    #include <cstdlib>
     #include <deque>
+    #include <fstream>
+    #include <future>
+    #include <iterator>
+    #include <memory>
     #include <mutex>
     #include <thread>
 
-namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
 {
     namespace
     {
@@ -19,21 +24,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         constexpr int protocolVersion = 2;
         constexpr std::size_t maxMessage = std::size_t { 1024 } * 1024;
         constexpr std::size_t maxQueue = 128;
-        juce::var property(const juce::var& value, const char* name)
+        constexpr std::size_t maxDescriptor = 65536;
+
+        std::string stringField(const json::Value& value, const char* name)
         {
-            return value.getProperty(name, {});
+            const auto* member = value.find(name);
+            return member != nullptr && member->isString() ? member->asString() : std::string();
         }
-        std::string string(const juce::var& value, const char* name)
+        std::int64_t integerField(const json::Value& value, const char* name)
         {
-            return property(value, name).toString().toStdString();
-        }
-        unsigned number(const juce::var& value, const char* name)
-        {
-            return static_cast<unsigned>(static_cast<juce::int64>(property(value, name)));
+            const auto* member = value.find(name);
+            return member != nullptr ? member->asInt64().value_or(0) : 0;
         }
     } // namespace
 
-    struct JuceDebugBridge::State
+    struct Bridge::State
     {
         struct Credentials
         {
@@ -43,52 +48,62 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         struct Incoming
         {
             unsigned epoch;
-            debug::Command command;
+            Command command;
         };
-        using Outgoing = JuceDebugBridge::Message;
-        std::string descriptor, name, project;
+        using Outgoing = Bridge::Message;
+        struct Response
+        {
+            int status = 0;
+            json::Value body;
+        };
+
+        std::string descriptor, name, runtime, project;
+        std::shared_ptr<platform::HttpClient> http;
         std::mutex mutex;
         std::condition_variable wake;
         std::deque<Incoming> incoming;
         std::deque<Outgoing> outgoing;
-        std::array<std::shared_ptr<juce::WebInputStream>, 2> streams;
+        // The request each worker (0: polling, 1: sending) waits for.
+        std::array<std::shared_ptr<platform::CancellationToken>, 2> requests;
         Credentials credentials;
         std::atomic<bool> stopped { false }, connected { false };
         std::atomic<unsigned> epoch { 0 }, generation { 1 };
         std::atomic<int> error { 0 };
         std::thread polling, sending;
 
-        State(std::string path, std::string label) : descriptor(std::move(path)), name(std::move(label)) {}
-        void emit(std::string message)
-        {
-            if (! connected.load())
-                return;
-            std::unique_lock lock(mutex, std::try_to_lock);
-            if (! lock || outgoing.size() >= maxQueue)
-                return;
-            if (message.size() > maxMessage)
-                return;
-            outgoing.push_back({ .epoch = epoch.load(), .text = std::move(message) });
-            wake.notify_all();
-        }
         std::optional<Credentials> readDescriptor()
         {
-            const juce::File file { juce::String(descriptor) };
-            if (! file.existsAsFile() || file.getSize() > 65536)
+            std::ifstream file(descriptor, std::ios::binary);
+            if (! file)
                 return {};
-            const auto value = juce::JSON::parse(file.loadFileAsString());
-            Credentials data { string(value, "endpoint"),
-                               string(value, "sessionId"),
-                               string(value, "token"),
+            std::string text;
+            text.resize(maxDescriptor + 1);
+            file.read(text.data(), static_cast<std::streamsize>(text.size()));
+            text.resize(static_cast<std::size_t>(file.gcount()));
+            if (text.size() > maxDescriptor)
+                return {};
+            json::Value value;
+            try
+            {
+                value = json::parse(text);
+            }
+            catch (const json::Error&)
+            {
+                return {};
+            }
+            Credentials data { stringField(value, "endpoint"),
+                               stringField(value, "sessionId"),
+                               stringField(value, "token"),
                                {},
                                {},
-                               string(value, "project"),
+                               stringField(value, "project"),
                                0 };
+            // The server `soundor dev` runs on this machine, and nothing else.
             constexpr std::string_view prefix = "http://127.0.0.1:";
             if (! data.endpoint.starts_with(prefix) || data.session.empty() || data.session.size() > 128
                 || data.token.size() != 64 || data.project.empty())
                 return {};
-            const auto port = data.endpoint.substr(prefix.size());
+            const auto port = std::string_view(data.endpoint).substr(prefix.size());
             unsigned parsed = 0;
             const auto result = std::from_chars(port.data(), port.data() + port.size(), parsed);
             if (result.ec != std::errc() || result.ptr != port.data() + port.size() || parsed == 0 || parsed > 65535)
@@ -101,60 +116,82 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             project = data.project;
             return data;
         }
-        std::optional<std::pair<int, juce::var>> request(const Credentials& data, const char* path, const char* method,
-                                                         const std::string& body, std::size_t worker,
-                                                         const char* contentType = "application/json")
+
+        // A request to the server, waited for on worker `worker`'s thread;
+        // nothing when it failed, was cancelled, or its answer is no JSON.
+        std::optional<Response> request(const Credentials& data, const std::string& path, const char* method,
+                                        const std::string& body, std::size_t worker, bool poll,
+                                        const char* contentType = "application/json")
         {
-            juce::URL url(juce::String(data.endpoint + path));
-            if (! body.empty())
-                url = url.withPOSTData(juce::MemoryBlock(body.data(), body.size()));
-            // Registration has no target credentials yet. Omit those headers
-            // until issued: WinINet rejects a request with an empty header value.
-            juce::String headers = "Content-Type: " + juce::String(contentType) + "\r\nAuthorization: Bearer "
-                                   + juce::String(data.token) + "\r\nX-Soundor-Session: " + juce::String(data.session)
-                                   + "\r\n";
+            platform::HttpRequest request;
+            request.method = method;
+            request.url = data.endpoint + path;
+            request.proxy = false;
+            request.followRedirects = false;
+            request.connectTimeoutMs = 25000;
+            // A poll waits until the dashboard has something to say.
+            request.timeoutMs = poll ? 0 : 60000;
+            // Registration has no target credentials yet: those headers come
+            // once issued.
+            request.headers = { { "Content-Type", contentType },
+                                { "Authorization", "Bearer " + data.token },
+                                { "X-Soundor-Session", data.session } };
             if (! data.target.empty())
-                headers += "X-Soundor-Target: " + juce::String(data.target)
-                           + "\r\nX-Soundor-Target-Token: " + juce::String(data.targetToken) + "\r\n";
-            auto stream = std::make_shared<juce::WebInputStream>(url, false);
-            stream->withCustomRequestCommand(method)
-                .withConnectionTimeout(25000)
-                .withNumRedirectsToFollow(0)
-                .withExtraHeaders(headers);
+            {
+                request.headers.push_back({ "X-Soundor-Target", data.target });
+                request.headers.push_back({ "X-Soundor-Target-Token", data.targetToken });
+            }
+            request.body.assign(body.begin(), body.end());
+
+            auto token = std::make_shared<platform::CancellationToken>();
+            auto promise = std::make_shared<std::promise<platform::HttpClient::Result>>();
+            auto future = promise->get_future();
             {
                 std::lock_guard lock(mutex);
                 if (stopped.load())
                     return {};
-                streams[worker] = stream;
+                requests[worker] = token;
             }
-            bool valid = stream->connect(nullptr);
-            std::string contents;
-            std::array<char, 8192> buffer {};
-            while (valid && ! stopped.load() && ! stream->isExhausted())
-            {
-                const int count = stream->read(buffer.data(), static_cast<int>(buffer.size()));
-                if (count <= 0)
-                    break;
-                contents.append(buffer.data(), static_cast<std::size_t>(count));
-                if (contents.size() > maxMessage)
-                {
-                    valid = false;
-                    break;
-                }
-            }
+            http->send(std::move(request), token,
+                       [promise](platform::HttpClient::Result result) { promise->set_value(std::move(result)); });
+            auto result = future.get();
             {
                 std::lock_guard lock(mutex);
-                if (streams[worker] == stream)
-                    streams[worker].reset();
+                if (requests[worker] == token)
+                    requests[worker].reset();
             }
-            if (! valid || stopped.load() || stream->isError())
+            auto* response = std::get_if<platform::HttpResponse>(&result);
+            if (response == nullptr || stopped.load() || response->body.size() > maxMessage)
                 return {};
-            return std::pair { stream->getStatusCode(), juce::JSON::parse(juce::String::fromUTF8(
-                                                            contents.data(), static_cast<int>(contents.size()))) };
+            Response out { response->status, {} };
+            if (! response->body.empty())
+            {
+                try
+                {
+                    out.body = json::parse(
+                        std::string_view(reinterpret_cast<const char*>(response->body.data()), response->body.size()));
+                }
+                catch (const json::Error&)
+                {
+                    out.body = {};
+                }
+            }
+            return out;
         }
+
+        void cancel(std::size_t worker)
+        {
+            std::shared_ptr<platform::CancellationToken> token;
+            {
+                std::lock_guard lock(mutex);
+                token = requests[worker];
+            }
+            if (token)
+                token->cancel();
+        }
+
         void disconnect(unsigned expected)
         {
-            std::shared_ptr<juce::WebInputStream> poll;
             {
                 std::lock_guard lock(mutex);
                 if (credentials.epoch != expected)
@@ -164,12 +201,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 incoming.clear();
                 outgoing.clear();
                 ++epoch;
-                poll = streams[0];
             }
-            if (poll)
-                poll->cancel();
+            cancel(0);
             wake.notify_all();
         }
+
         void poll()
         {
             while (! stopped.load())
@@ -187,26 +223,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                     if (descriptorData)
                     {
                         const auto registration =
-                            debug::Value(
-                                debug::Value::Object {
-                                    { "version", protocolVersion },
-                                    { "sessionId", descriptorData->session },
-                                    { "name", name },
-                                    { "runtime", "JUCE" },
-                                    { "generation", generation.load() },
-                                    { "capabilities", debug::Value::Array { "inspector", "accessibility", "animations",
-                                                                            "performance", "input", "capture" } },
-                                })
+                            Value(Value::Object {
+                                      { "version", protocolVersion },
+                                      { "sessionId", descriptorData->session },
+                                      { "name", name },
+                                      { "runtime", runtime },
+                                      { "generation", generation.load() },
+                                      { "capabilities", Value::Array { "inspector", "accessibility", "animations",
+                                                                       "performance", "input", "capture" } },
+                                  })
                                 .json();
-                        const auto response = request(*descriptorData, "/runtime/register", "POST", registration, 0);
-                        if (! response || response->first != 200)
-                            error.store(response ? response->first : 503);
-                        if (response && response->first == 200
-                            && number(response->second, "version") == protocolVersion)
+                        const auto response =
+                            request(*descriptorData, "/runtime/register", "POST", registration, 0, false);
+                        if (! response || response->status != 200)
+                            error.store(response ? response->status : 503);
+                        if (response && response->status == 200
+                            && integerField(response->body, "version") == protocolVersion)
                         {
                             data = *descriptorData;
-                            data.target = string(response->second, "targetId");
-                            data.targetToken = string(response->second, "targetToken");
+                            data.target = stringField(response->body, "targetId");
+                            data.targetToken = stringField(response->body, "targetToken");
                             if (! data.target.empty() && data.targetToken.size() == 64)
                             {
                                 std::lock_guard lock(mutex);
@@ -225,36 +261,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                         continue;
                     }
                 }
-                const auto response = request(data, "/runtime/poll", "GET", {}, 0);
-                if (! response || response->first != 200)
+                const auto response = request(data, "/runtime/poll", "GET", {}, 0, true);
+                if (! response || response->status != 200)
                 {
-                    error.store(response ? response->first : 503);
+                    error.store(response ? response->status : 503);
                     disconnect(data.epoch);
                     continue;
                 }
-                const auto commands = property(response->second, "commands");
-                if (const auto* array = commands.getArray())
+                const auto* commands = response->body.find("commands");
+                if (commands == nullptr || ! commands->isArray())
+                    continue;
+                for (const auto& item : commands->asArray())
                 {
-                    for (const auto& value : *array)
+                    // The engine decodes commands, for every runtime alike.
+                    const auto parsed = Value::parse(json::write(item));
+                    auto command = parsed ? Command::parse(*parsed) : std::nullopt;
+                    if (! command)
+                        continue;
+                    std::lock_guard lock(mutex);
+                    if (command->method == "cancel")
                     {
-                        // The engine decodes commands, for every runtime alike.
-                        const auto parsed = debug::Value::parse(juce::JSON::toString(value, true).toStdString());
-                        auto command = parsed ? debug::Command::parse(*parsed) : std::nullopt;
-                        if (! command)
-                            continue;
-                        std::lock_guard lock(mutex);
-                        if (command->method == "cancel")
-                        {
-                            std::erase_if(incoming,
-                                          [&](const Incoming& item) { return item.command.id == command->id; });
-                            continue;
-                        }
-                        if (data.epoch == credentials.epoch && incoming.size() < maxQueue)
-                            incoming.push_back({ data.epoch, std::move(*command) });
+                        std::erase_if(incoming, [&](const Incoming& entry) { return entry.command.id == command->id; });
+                        continue;
                     }
+                    if (data.epoch == credentials.epoch && incoming.size() < maxQueue)
+                        incoming.push_back({ data.epoch, std::move(*command) });
                 }
             }
         }
+
         void send()
         {
             while (! stopped.load())
@@ -276,31 +311,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 // CAPTURE_UNAVAILABLE when the answer comes without it.
                 if (! item.attachmentId.empty())
                 {
-                    const auto uploaded = request(data, ("/runtime/captures/" + item.attachmentId).c_str(), "POST",
-                                                  item.attachment, 1, "image/png");
-                    if (! uploaded || uploaded->first == 401 || uploaded->first == 410)
+                    const auto uploaded = request(data, "/runtime/captures/" + item.attachmentId, "POST",
+                                                  item.attachment, 1, false, "image/png");
+                    if (! uploaded || uploaded->status == 401 || uploaded->status == 410)
                     {
                         disconnect(data.epoch);
                         continue;
                     }
                 }
-                const auto response = request(data, "/runtime/messages", "POST", item.text, 1);
-                if (! response || response->first == 401 || response->first == 410)
+                const auto response = request(data, "/runtime/messages", "POST", item.text, 1, false);
+                if (! response || response->status == 401 || response->status == 410)
                     disconnect(data.epoch);
             }
         }
+
         void stop()
         {
             stopped.store(true);
             wake.notify_all();
-            std::array<std::shared_ptr<juce::WebInputStream>, 2> active;
-            {
-                std::lock_guard lock(mutex);
-                active = streams;
-            }
-            for (const auto& stream : active)
-                if (stream)
-                    stream->cancel();
+            cancel(0);
+            cancel(1);
             if (polling.joinable())
                 polling.join();
             if (sending.joinable())
@@ -308,16 +338,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         }
     };
 
-    JuceDebugBridge::JuceDebugBridge(std::string descriptor, std::string name, js::LogSink output)
-        : state(std::make_shared<State>(std::move(descriptor), std::move(name))),
+    std::string Bridge::sessionFromEnvironment()
+    {
+        // Read once, while the editor is made, on the UI thread.
+    #if defined(_MSC_VER)
+        char* value = nullptr;
+        std::size_t size = 0;
+        const auto error = _dupenv_s(&value, &size, "SOUNDOR_DEVTOOLS_SESSION");
+        const std::unique_ptr<char, decltype(&std::free)> owned(value, &std::free);
+        return error == 0 && owned ? std::string(owned.get()) : std::string();
+    #else
+        const char* value = std::getenv("SOUNDOR_DEVTOOLS_SESSION"); // NOLINT(concurrency-mt-unsafe)
+        return value != nullptr ? std::string(value) : std::string();
+    #endif
+    }
+
+    Bridge::Bridge(Options options)
+        : state(std::make_shared<State>()),
           inspector(
               [this](std::string message)
               {
                   if (outgoing.size() < maxQueue && state->connected.load())
                       outgoing.push_back({ .epoch = observedEpoch, .text = std::move(message) });
               }),
-          log(std::move(output))
+          log(std::move(options.log))
     {
+        state->descriptor = std::move(options.descriptor);
+        state->name = std::move(options.name);
+        state->runtime = std::move(options.runtime);
+        state->http = options.http ? std::move(options.http) : platform::systemHttpClient();
         inspector.attachments(
             [this](std::string id, std::vector<std::uint8_t> attachment, std::string response)
             {
@@ -360,11 +409,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             throw;
         }
     }
-    JuceDebugBridge::~JuceDebugBridge()
+
+    Bridge::~Bridge()
     {
         state->stop();
     }
-    void JuceDebugBridge::tick(RuntimeHost& host, unsigned generation)
+
+    void Bridge::tick(RuntimeHost& host, unsigned generation)
     {
         state->generation.store(generation);
         const int error = state->error.load();
@@ -385,17 +436,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         {
             outgoing.clear();
             inspector.reset(host.surface());
-            debug::Command subscriptions;
+            Command subscriptions;
             subscriptions.method = "subscribe";
             inspector.execute(host, subscriptions);
             observedEpoch = epoch;
             if (state->connected.load())
                 outgoing.push_back(
                     { .epoch = observedEpoch,
-                      .text = debug::Value(debug::Value::Object {
-                                               { "type", "event" },
-                                               { "event", "Runtime.generationChanged" },
-                                               { "data", debug::Value::Object { { "generation", generation } } } })
+                      .text = Value(Value::Object { { "type", "event" },
+                                                    { "event", "Runtime.generationChanged" },
+                                                    { "data", Value::Object { { "generation", generation } } } })
                                   .json() });
         }
         inspector.tick(host, generation);
@@ -425,17 +475,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             }
         }
     }
-    bool JuceDebugBridge::pointer(RuntimeHost& host, const ui::PointerInput& input)
+
+    bool Bridge::pointer(RuntimeHost& host, const ui::PointerInput& input)
     {
         if (! state->connected.load() || state->epoch.load() != observedEpoch)
             inspector.reset(host.surface());
         return inspector.pointer(host.surface(), input);
     }
-    bool JuceDebugBridge::key(RuntimeHost& host, const ui::KeyInput& input)
+
+    bool Bridge::key(RuntimeHost& host, const ui::KeyInput& input)
     {
         if (! state->connected.load() || state->epoch.load() != observedEpoch)
             inspector.reset(host.surface());
         return inspector.key(host.surface(), input);
     }
-} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
 #endif

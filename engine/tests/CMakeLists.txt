@@ -96,18 +96,21 @@ if(SOUNDOR_JS_SOURCE)
     a11y/SemanticsTests.cpp
     input/ClickCounterTests.cpp
     input/MacTranslationTests.cpp
+    input/PointerLockTests.cpp
     js/ContextTests.cpp
     js/ErrorTests.cpp
     js/JobTests.cpp
     js/LifecycleTests.cpp
     js/ModuleTests.cpp
     js/RuntimeTests.cpp
+    json/JsonTests.cpp
     native/NativeModuleTests.cpp
     native/NativeStreamsTests.cpp
     native/NativeEventsTests.cpp
     native/MidiTests.cpp
     native/RustControllerTests.cpp
     parameters/ParametersTests.cpp
+    platform/HttpClientTests.cpp
     history/HistoryTests.cpp
     render/CompositorTests.cpp
     render/AnimationFrameTests.cpp
@@ -144,11 +147,12 @@ if(SOUNDOR_JS_SOURCE)
     target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_SVG=1)
   endif()
   if(WIN32)
-    target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
+    # dbghelp, and Winsock for the HTTP tests' server.
+    target_link_libraries(soundor_runtime_tests PRIVATE dbghelp ws2_32)
   endif()
   soundor_configure_target(soundor_runtime_tests)
   if(SOUNDOR_ENABLE_DEVTOOLS)
-    target_sources(soundor_runtime_tests PRIVATE debug/InspectorTests.cpp debug/DiagnosticsTests.cpp debug/CommandTests.cpp debug/InputTests.cpp debug/CaptureTests.cpp)
+    target_sources(soundor_runtime_tests PRIVATE debug/BridgeTests.cpp debug/InspectorTests.cpp debug/DiagnosticsTests.cpp debug/CommandTests.cpp debug/InputTests.cpp debug/CaptureTests.cpp)
   endif()
 
   # Generated code is checked by its generator's tests, not linted.
@@ -423,7 +427,7 @@ if(NOT WIN32)
       -DAPPLE=${APPLE}
       -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckPrefixed.cmake)
   set_tests_properties(soundor_skia_prefixes_bundled_libraries_detects_unprefixed PROPERTIES
-    PASS_REGULAR_EXPRESSION "lack the soundor_ prefix(.|\n)*png_prefix_probe ")
+    PASS_REGULAR_EXPRESSION "lack[ \n]+the[ \n]+soundor_[ \n]+prefix(.|\n)*png_prefix_probe ")
 endif()
 
 # Coexistence: two plugin-shaped libraries link the same engine archive and

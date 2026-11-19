@@ -444,9 +444,11 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
 `fetch`, `crypto`, …) and the host/storage/file modules (see
 [the engine reference](/docs/contribute/engine-reference)). The JUCE backend provides:
 
-- **`fetch`** over `juce::URL` on a small thread pool. Linux builds use
-  `JUCE_USE_CURL=0`, which supports plain `http` only; `https` there needs
-  libcurl enabled in JUCE.
+- **`fetch`** through the system's HTTP stack (the engine's
+  `systemHttpClient()`): `NSURLSession` on macOS, WinHTTP on Windows, and on
+  Linux the system's libcurl, loaded when first used (`libcurl.so.4`, which
+  desktop distributions install), so HTTPS is as current as the system keeps
+  it. Where Linux has no libcurl, `fetch()` rejects, saying so.
 - **The transport** for `soundor:host`. The generated base processor captures
   the play head in `processBlock()`, and gives the Rust processing the same
   transport (`ctx.transport`).

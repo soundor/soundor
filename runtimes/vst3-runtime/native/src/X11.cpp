@@ -37,6 +37,9 @@ namespace soundor::vst3::x11
     F(XFree)                                                                                                           \
     F(XTranslateCoordinates)                                                                                           \
     F(XCreateFontCursor)                                                                                               \
+    F(XCreateBitmapFromData)                                                                                           \
+    F(XCreatePixmapCursor)                                                                                             \
+    F(XFreePixmap)                                                                                                     \
     F(XDefineCursor)                                                                                                   \
     F(XFreeCursor)                                                                                                     \
     F(XSetErrorHandler)
@@ -197,11 +200,23 @@ namespace soundor::vst3::x11
                 font = XC_bottom_right_corner;
                 break;
             case CursorIcon::Arrow:
+            case CursorIcon::Hidden:
                 break;
         }
         if (cursor != 0)
             lib->XFreeCursor(asDisplay(display), cursor);
-        cursor = lib->XCreateFontCursor(asDisplay(display), font);
+        if (shape == CursorIcon::Hidden)
+        {
+            // A cursor of one transparent pixel.
+            const char empty[1] = { 0 };
+            const Pixmap blank =
+                lib->XCreateBitmapFromData(asDisplay(display), static_cast<::Window>(window), empty, 1, 1);
+            XColor black {};
+            cursor = lib->XCreatePixmapCursor(asDisplay(display), blank, blank, &black, &black, 0, 0);
+            lib->XFreePixmap(asDisplay(display), blank);
+        }
+        else
+            cursor = lib->XCreateFontCursor(asDisplay(display), font);
         lib->XDefineCursor(asDisplay(display), static_cast<::Window>(window), cursor);
         lib->XFlush(asDisplay(display));
     }

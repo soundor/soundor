@@ -403,6 +403,11 @@ framework or runtime package, rather than user-owned starter templates.
   namespace `soundor::SOUNDOR_ABI_NAMESPACE` (derived from the exact engine package version).
   `soundor_exported_symbols` and `soundor_coexistence` tests enforce it; a new
   dependency must keep its symbols hidden.
+- HTTP is the system's, never bundled: `platform::systemHttpClient()` is
+  `NSURLSession`, WinHTTP, or the system's libcurl loaded at run time
+  (`libcurl.so.4`, else `libcurl-gnutls.so.4`); `fetch()` and the DevTools
+  bridge (`debug::Bridge`) use it. Do not link an HTTP or TLS library into
+  the engine: the system keeps them patched.
 - Dependencies are pinned in `cmake/SoundorDependencies.cmake` (FetchContent,
   SHA-256 verified) and compiled into private static targets, not their own
   CMake projects. Skia, ANGLE and Hermes are built from source once per

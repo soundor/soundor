@@ -1,12 +1,14 @@
 #pragma once
 
-// JSON for the adapter: the plugin's descriptor, state documents (the VST3
-// component's and controller's state) and persistent-state values.
+// JSON for the engine and its runtimes: documents a runtime keeps (plugin
+// descriptors, saved states), protocol messages (DevTools), configuration.
 //
 // Strict (RFC 8259): no comments, no trailing commas, UTF-8 checked, at most
 // 64 levels deep and 100000 values. Numbers keep their text, so a 64-bit
 // integer or a float survives a parse and a write unchanged. Objects keep
 // their members' order.
+
+#include <soundor/Abi.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -18,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace soundor::vst3::json
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::json
 {
     class Error : public std::runtime_error
     {
@@ -115,4 +117,4 @@ namespace soundor::vst3::json
     // The shortest decimal text that reads back as `value` (finite), as
     // JavaScript's Number.prototype.toString writes it.
     [[nodiscard]] std::string formatNumber(double value);
-} // namespace soundor::vst3::json
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::json

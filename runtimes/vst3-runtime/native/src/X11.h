@@ -26,6 +26,8 @@ namespace soundor::vst3::x11
         VerticalResize,
         DiagonalResizeUp,
         DiagonalResizeDown,
+        // None shown (a locked pointer, CSS's `cursor: none`).
+        Hidden,
     };
 
     class Window

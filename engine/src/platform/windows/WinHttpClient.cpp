@@ -1,0 +1,477 @@
+// systemHttpClient() on Windows: WinHTTP, the system's HTTP stack for
+// applications and services (HTTP/2, and HTTP/3 from Windows 11), with the
+// system's proxy settings and certificate store.
+//
+// Each request has a worker that waits for asynchronous WinHTTP operations
+// and closes its own request handle on cancellation.
+
+#include "platform/Http.h"
+
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
+#include <windows.h>
+#include <winhttp.h>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstdint>
+#include <cwchar>
+#include <list>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
+
+// Newer SDKs' names, for older SDKs (the values are WinHTTP's).
+#ifndef WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL
+    #define WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL 133
+#endif
+#ifndef WINHTTP_PROTOCOL_FLAG_HTTP2
+    #define WINHTTP_PROTOCOL_FLAG_HTTP2 0x1
+#endif
+#ifndef WINHTTP_PROTOCOL_FLAG_HTTP3
+    #define WINHTTP_PROTOCOL_FLAG_HTTP3 0x2
+#endif
+#ifndef WINHTTP_OPTION_DECOMPRESSION
+    #define WINHTTP_OPTION_DECOMPRESSION 118
+#endif
+#ifndef WINHTTP_DECOMPRESSION_FLAG_ALL
+    #define WINHTTP_DECOMPRESSION_FLAG_ALL 0x3
+#endif
+#ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY
+    #define WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY 4
+#endif
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
+{
+    namespace
+    {
+        std::wstring wide(std::string_view text)
+        {
+            if (text.empty())
+                return {};
+            const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+            std::wstring out(static_cast<std::size_t>(std::max(size, 0)), L'\0');
+            if (size > 0)
+                MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), size);
+            return out;
+        }
+
+        std::string narrow(std::wstring_view text)
+        {
+            if (text.empty())
+                return {};
+            const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0,
+                                                 nullptr, nullptr);
+            std::string out(static_cast<std::size_t>(std::max(size, 0)), '\0');
+            if (size > 0)
+                WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), size, nullptr,
+                                    nullptr);
+            return out;
+        }
+
+        std::string describe(DWORD error)
+        {
+            switch (error)
+            {
+                case ERROR_WINHTTP_TIMEOUT:
+                    return "the request timed out";
+                case ERROR_WINHTTP_NAME_NOT_RESOLVED:
+                    return "the server's name could not be resolved";
+                case ERROR_WINHTTP_CANNOT_CONNECT:
+                    return "could not connect to the server";
+                case ERROR_WINHTTP_CONNECTION_ERROR:
+                    return "the connection was reset";
+                case ERROR_WINHTTP_SECURE_FAILURE:
+                    return "the server's certificate is not trusted";
+                case ERROR_WINHTTP_REDIRECT_FAILED:
+                    return "a redirect failed";
+                case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
+                case ERROR_WINHTTP_INVALID_URL:
+                    return "invalid URL";
+                default:
+                    return "WinHTTP error " + std::to_string(error);
+            }
+        }
+
+        // Owns a connection for the lifetime of its request.
+        struct Handle
+        {
+            HINTERNET value = nullptr;
+            Handle() = default;
+            explicit Handle(HINTERNET handle) : value(handle) {}
+            Handle(const Handle&) = delete;
+            Handle& operator=(const Handle&) = delete;
+            Handle(Handle&&) = delete;
+            Handle& operator=(Handle&&) = delete;
+            ~Handle()
+            {
+                if (value != nullptr)
+                    WinHttpCloseHandle(value);
+            }
+        };
+
+        class PendingRequest
+        {
+        public:
+            explicit PendingRequest(HINTERNET request) : handle(request) {}
+            ~PendingRequest() { close(); }
+            PendingRequest(const PendingRequest&) = delete;
+            PendingRequest& operator=(const PendingRequest&) = delete;
+            PendingRequest(PendingRequest&&) = delete;
+            PendingRequest& operator=(PendingRequest&&) = delete;
+
+            [[nodiscard]] DWORD_PTR context() const { return reinterpret_cast<DWORD_PTR>(this); }
+
+            bool observe()
+            {
+                auto value = context();
+                if (! WinHttpSetOption(handle, WINHTTP_OPTION_CONTEXT_VALUE, &value, sizeof value))
+                    return false;
+                observing = WinHttpSetStatusCallback(
+                                handle, &callback,
+                                WINHTTP_CALLBACK_FLAG_SENDREQUEST_COMPLETE | WINHTTP_CALLBACK_FLAG_HEADERS_AVAILABLE
+                                    | WINHTTP_CALLBACK_FLAG_READ_COMPLETE | WINHTTP_CALLBACK_FLAG_REQUEST_ERROR
+                                    | WINHTTP_CALLBACK_FLAG_HANDLES,
+                                0)
+                            != WINHTTP_INVALID_STATUS_CALLBACK;
+                return observing;
+            }
+
+            template <typename Start, typename Cancelled>
+            DWORD run(Start start, Cancelled cancelled, std::chrono::steady_clock::time_point deadline)
+            {
+                if (cancelled())
+                    return ERROR_WINHTTP_OPERATION_CANCELLED;
+                if (std::chrono::steady_clock::now() >= deadline)
+                    return ERROR_WINHTTP_TIMEOUT;
+                {
+                    std::lock_guard lock(mutex);
+                    completed = false;
+                }
+                // WinHTTP may invoke the callback before the call returns.
+                if (! start())
+                    return GetLastError();
+                std::unique_lock lock(mutex);
+                while (! completed && ! cancelled() && std::chrono::steady_clock::now() < deadline)
+                    wake.wait_until(
+                        lock, std::min(deadline, std::chrono::steady_clock::now() + std::chrono::milliseconds(50)));
+                if (completed)
+                    return error;
+                const DWORD failure = cancelled() ? ERROR_WINHTTP_OPERATION_CANCELLED : ERROR_WINHTTP_TIMEOUT;
+                lock.unlock();
+                // Wait until WinHTTP has finished using the operation's buffers.
+                close();
+                return failure;
+            }
+
+            DWORD bytesRead = 0;
+
+        private:
+            static void CALLBACK callback(HINTERNET, DWORD_PTR context, DWORD status, void* info, DWORD length)
+            {
+                if (context == 0)
+                    return;
+                auto& request = *reinterpret_cast<PendingRequest*>(context);
+                std::lock_guard lock(request.mutex);
+                switch (status)
+                {
+                    case WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING:
+                        request.closed = true;
+                        break;
+                    case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
+                        request.error = static_cast<const WINHTTP_ASYNC_RESULT*>(info)->dwError;
+                        request.completed = true;
+                        break;
+                    case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
+                    case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+                    case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
+                        request.bytesRead = length;
+                        request.error = ERROR_SUCCESS;
+                        request.completed = true;
+                        break;
+                    default:
+                        return;
+                }
+                request.wake.notify_all();
+            }
+
+            void close()
+            {
+                if (handle == nullptr)
+                    return;
+                WinHttpCloseHandle(std::exchange(handle, nullptr));
+                if (observing)
+                {
+                    // HANDLE_CLOSING is the last callback that can access this request.
+                    std::unique_lock lock(mutex);
+                    wake.wait(lock, [&] { return closed; });
+                }
+            }
+
+            HINTERNET handle;
+            std::mutex mutex;
+            std::condition_variable wake;
+            DWORD error = ERROR_SUCCESS;
+            bool observing = false;
+            bool completed = false;
+            bool closed = false;
+        };
+
+        HINTERNET openSession(bool proxy)
+        {
+            HINTERNET session = nullptr;
+            if (proxy)
+            {
+                session = WinHttpOpen(L"Soundor", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
+                                      WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
+                if (session == nullptr) // before Windows 8.1
+                    session = WinHttpOpen(L"Soundor", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
+                                          WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
+            }
+            else
+                session = WinHttpOpen(L"Soundor", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME,
+                                      WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
+            if (session == nullptr)
+                return nullptr;
+            // HTTP/3 where Windows has it (11 and later), else HTTP/2.
+            DWORD protocols = WINHTTP_PROTOCOL_FLAG_HTTP2 | WINHTTP_PROTOCOL_FLAG_HTTP3;
+            if (! WinHttpSetOption(session, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &protocols, sizeof protocols))
+            {
+                protocols = WINHTTP_PROTOCOL_FLAG_HTTP2;
+                WinHttpSetOption(session, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &protocols, sizeof protocols);
+            }
+            DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_ALL;
+            WinHttpSetOption(session, WINHTTP_OPTION_DECOMPRESSION, &decompression, sizeof decompression);
+            return session;
+        }
+
+        class WinHttpClient final : public HttpClient
+        {
+        public:
+            WinHttpClient() = default;
+
+            ~WinHttpClient() override
+            {
+                stopping.store(true);
+                for (auto& job : jobs)
+                    if (job.thread.joinable())
+                        job.thread.join();
+                for (HINTERNET session : sessions)
+                    if (session != nullptr)
+                        WinHttpCloseHandle(session);
+            }
+
+            WinHttpClient(const WinHttpClient&) = delete;
+            WinHttpClient& operator=(const WinHttpClient&) = delete;
+            WinHttpClient(WinHttpClient&&) = delete;
+            WinHttpClient& operator=(WinHttpClient&&) = delete;
+
+            void send(HttpRequest request, std::shared_ptr<const CancellationToken> cancellation,
+                      Completion complete) override
+            {
+                std::lock_guard lock(mutex);
+                // Threads of requests that finished.
+                for (auto it = jobs.begin(); it != jobs.end();)
+                {
+                    if (it->finished.load())
+                    {
+                        it->thread.join();
+                        it = jobs.erase(it);
+                    }
+                    else
+                        ++it;
+                }
+                if (stopping)
+                {
+                    complete(std::string("aborted"));
+                    return;
+                }
+                const std::size_t index = request.proxy ? 0 : 1;
+                if (sessions[index] == nullptr)
+                    sessions[index] = openSession(request.proxy);
+                if (sessions[index] == nullptr)
+                {
+                    complete(describe(GetLastError()));
+                    return;
+                }
+                auto& job = jobs.emplace_back();
+                job.cancellation = std::move(cancellation);
+                job.thread = std::thread(
+                    [this, &job, session = sessions[index], request = std::move(request),
+                     complete = std::move(complete)]() mutable
+                    {
+                        const auto cancelled = [&]
+                        { return stopping.load() || (job.cancellation && job.cancellation->isCancelled()); };
+                        auto result = perform(session, request, cancelled);
+                        if (cancelled())
+                            result = std::string("aborted");
+                        complete(std::move(result));
+                        job.finished.store(true);
+                    });
+            }
+
+        private:
+            struct Job
+            {
+                std::shared_ptr<const CancellationToken> cancellation;
+                std::thread thread;
+                std::atomic<bool> finished { false };
+            };
+
+            template <typename Cancelled>
+            static Result perform(HINTERNET session, const HttpRequest& request, Cancelled cancelled)
+            {
+                if (cancelled())
+                    return std::string("aborted");
+                const auto deadline = request.timeoutMs == 0 ? std::chrono::steady_clock::time_point::max()
+                                                             : std::chrono::steady_clock::now()
+                                                                   + std::chrono::milliseconds(request.timeoutMs);
+                const std::wstring url = wide(request.url);
+                URL_COMPONENTS parts {};
+                parts.dwStructSize = sizeof parts;
+                parts.dwSchemeLength = static_cast<DWORD>(-1);
+                parts.dwHostNameLength = static_cast<DWORD>(-1);
+                parts.dwUrlPathLength = static_cast<DWORD>(-1);
+                parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+                if (! WinHttpCrackUrl(url.c_str(), static_cast<DWORD>(url.size()), 0, &parts)
+                    || (parts.nScheme != INTERNET_SCHEME_HTTP && parts.nScheme != INTERNET_SCHEME_HTTPS))
+                    return "invalid URL " + request.url;
+                const std::wstring host(parts.lpszHostName, parts.dwHostNameLength);
+                std::wstring path(parts.lpszUrlPath, parts.dwUrlPathLength);
+                path.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
+                if (path.empty())
+                    path = L"/";
+
+                const Handle connection(WinHttpConnect(session, host.c_str(), parts.nPort, 0));
+                if (connection.value == nullptr)
+                    return describe(GetLastError());
+                HINTERNET handle = WinHttpOpenRequest(connection.value, wide(request.method).c_str(), path.c_str(),
+                                                      nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                                      parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+                if (handle == nullptr)
+                    return describe(GetLastError());
+                PendingRequest pending(handle);
+                if (! pending.observe())
+                    return describe(GetLastError());
+
+                // 0: no limit, as WinHTTP reads it.
+                const int connect = static_cast<int>(request.connectTimeoutMs);
+                const int transfer = static_cast<int>(request.timeoutMs);
+                WinHttpSetTimeouts(handle, 0, connect, transfer, transfer);
+                if (! request.followRedirects)
+                {
+                    DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+                    WinHttpSetOption(handle, WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof policy);
+                }
+                std::wstring headers;
+                for (const auto& [name, value] : request.headers)
+                {
+                    if (name.find_first_of("\r\n") != std::string::npos
+                        || value.find_first_of("\r\n") != std::string::npos)
+                        return "invalid header " + name;
+                    headers += wide(name) + L": " + wide(value) + L"\r\n";
+                }
+                auto* body = request.body.empty() ? WINHTTP_NO_REQUEST_DATA
+                                                  : const_cast<std::uint8_t*>(request.body.data()); // NOLINT
+                const auto size = static_cast<DWORD>(request.body.size());
+                const auto sendError = pending.run(
+                    [&]
+                    {
+                        return WinHttpSendRequest(
+                            handle, headers.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : headers.c_str(),
+                            headers.empty() ? 0 : static_cast<DWORD>(-1L), body, size, size, pending.context());
+                    },
+                    cancelled, deadline);
+                if (sendError != ERROR_SUCCESS)
+                    return describe(sendError);
+                const auto receiveError =
+                    pending.run([&] { return WinHttpReceiveResponse(handle, nullptr); }, cancelled, deadline);
+                if (receiveError != ERROR_SUCCESS)
+                    return describe(receiveError);
+
+                HttpResponse response;
+                DWORD status = 0;
+                DWORD length = sizeof status;
+                WinHttpQueryHeaders(handle, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                                    WINHTTP_HEADER_NAME_BY_INDEX, &status, &length, WINHTTP_NO_HEADER_INDEX);
+                response.status = static_cast<int>(status);
+
+                const auto query = [&](DWORD info) -> std::wstring
+                {
+                    DWORD bytes = 0;
+                    WinHttpQueryHeaders(handle, info, WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER, &bytes,
+                                        WINHTTP_NO_HEADER_INDEX);
+                    if (bytes == 0)
+                        return {};
+                    std::wstring text(bytes / sizeof(wchar_t), L'\0');
+                    if (! WinHttpQueryHeaders(handle, info, WINHTTP_HEADER_NAME_BY_INDEX, text.data(), &bytes,
+                                              WINHTTP_NO_HEADER_INDEX))
+                        return {};
+                    text.resize(bytes / sizeof(wchar_t));
+                    return text;
+                };
+                http::HeaderReader reader;
+                const std::string raw = narrow(query(WINHTTP_QUERY_RAW_HEADERS_CRLF));
+                for (std::size_t start = 0; start < raw.size();)
+                {
+                    auto end = raw.find("\r\n", start);
+                    if (end == std::string::npos)
+                        end = raw.size();
+                    reader.line(std::string_view(raw).substr(start, end - start));
+                    start = end + 2;
+                }
+                response.headers = std::move(reader.headers());
+                response.statusText = narrow(query(WINHTTP_QUERY_STATUS_TEXT));
+                if (response.statusText.empty())
+                    response.statusText = std::string(http::reasonPhrase(response.status));
+
+                DWORD urlBytes = 0;
+                WinHttpQueryOption(handle, WINHTTP_OPTION_URL, nullptr, &urlBytes);
+                if (urlBytes != 0)
+                {
+                    std::wstring final(urlBytes / sizeof(wchar_t), L'\0');
+                    if (WinHttpQueryOption(handle, WINHTTP_OPTION_URL, final.data(), &urlBytes))
+                    {
+                        final.resize(wcsnlen(final.c_str(), final.size()));
+                        response.url = narrow(final);
+                    }
+                }
+                if (response.url.empty())
+                    response.url = request.url;
+
+                std::array<std::uint8_t, 16384> buffer;
+                for (;;)
+                {
+                    const auto readError = pending.run(
+                        [&]
+                        { return WinHttpReadData(handle, buffer.data(), static_cast<DWORD>(buffer.size()), nullptr); },
+                        cancelled, deadline);
+                    if (readError != ERROR_SUCCESS)
+                        return describe(readError);
+                    if (pending.bytesRead == 0)
+                        break;
+                    response.body.insert(response.body.end(), buffer.data(), buffer.data() + pending.bytesRead);
+                }
+                return response;
+            }
+
+            std::mutex mutex;
+            std::list<Job> jobs; // stable addresses, for the threads
+            std::array<HINTERNET, 2> sessions {};
+            std::atomic<bool> stopping { false };
+        };
+    } // namespace
+
+    std::shared_ptr<HttpClient> systemHttpClient()
+    {
+        return std::make_shared<WinHttpClient>();
+    }
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform

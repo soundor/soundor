@@ -18,11 +18,9 @@ target_sources(soundor_juce_platform_tests
     JuceEditorConstrainerTests.cpp
     JuceInputTests.cpp
     JucePlatformTests.cpp
-    JucePointerLockTests.cpp
     JucePresentationTests.cpp
     JuceRasterScaleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceCursor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceHttpClient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceInput.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JucePointerLock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JucePresentation.cpp
@@ -39,9 +37,8 @@ target_link_libraries(soundor_juce_platform_tests
     juce::juce_audio_processors
     juce::juce_recommended_config_flags)
 if(SOUNDOR_ENABLE_DEVTOOLS)
-  target_sources(soundor_juce_platform_tests PRIVATE JuceDebugBridgeTests.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceDebugBridge.cpp)
   juce_add_console_app(soundor_debug_target)
-  target_sources(soundor_debug_target PRIVATE DebugTarget.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceDebugBridge.cpp)
+  target_sources(soundor_debug_target PRIVATE DebugTarget.cpp)
   target_include_directories(soundor_debug_target PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_compile_definitions(soundor_debug_target PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
   target_link_libraries(soundor_debug_target PRIVATE Soundor::Engine juce::juce_core juce::juce_recommended_config_flags)

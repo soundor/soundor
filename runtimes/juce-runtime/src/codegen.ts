@@ -380,8 +380,6 @@ target_sources(\${PROJECT_NAME}
           // Compiles to nothing unless the engine has DevTools (SOUNDOR_DEVTOOLS,
           // which the engine defines: a debug prebuilt always has them).
           'JuceCursor',
-          'JuceDebugBridge',
-          'JuceHttpClient',
           'JuceInput',
           'JuceParameter',
           'JuceParameterHost',
@@ -981,8 +979,9 @@ function renderEditorHeader(editor: ResolvedEditorConfig): string {
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
 #include <soundor/backend/JucePointerLock.h>
+#include <soundor/input/PointerLock.h>
 #if SOUNDOR_DEVTOOLS
-#include <soundor/backend/JuceDebugBridge.h>
+#include <soundor/debug/Bridge.h>
 #endif
 
 #include <map>
@@ -1140,16 +1139,16 @@ namespace ${NS}
         [[nodiscard]] bool textInputFocused();
         // Ends a lock by itself when the editor closes during a drag. Moves
         // the pointer of the input in use: the native input's, or JUCE's.
-        backend::PointerLock pointerLock { [this](int pointerId)
-                                           {
-                                               return nativeInput != nullptr
-                                                          ? backend::nativePointerSource(*nativeInput, pointerId)
-                                                          : backend::desktopPointerSource(pointerId);
-                                           } };
+        input::PointerLock pointerLock { [this](int pointerId)
+                                         {
+                                             return nativeInput != nullptr
+                                                        ? input::pointerSource(*nativeInput, pointerId)
+                                                        : backend::desktopPointerSource(pointerId);
+                                         } };
         // Where the runtime's log goes: diagnostics go there too.
         js::LogSink log;
 #if SOUNDOR_DEVTOOLS
-        std::unique_ptr<backend::JuceDebugBridge> debug;
+        std::unique_ptr<debug::Bridge> debug;
         const bool showRendererBadge =
             juce::SystemStats::getEnvironmentVariable("SOUNDOR_SHOW_RENDERER", {}) == "1";
         ui::NodeId rendererBadge = ui::noNode;
@@ -1388,7 +1387,6 @@ function renderEditorSource(
 ): string {
   return `${HEADER}#include "SoundorEditor.h"
 
-#include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceInput.h>
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/history/Module.h>
@@ -1450,7 +1448,7 @@ namespace ${NS}
         options.pluginName = AudioProcessor::pluginName;
         options.pluginVersion = AudioProcessor::pluginVersion;
         options.environment = backend::hostEnvironment(owner, ${cppString(RUNTIME_VERSION)});
-        options.http = std::make_shared<backend::JuceHttpClient>();
+        options.http = platform::systemHttpClient();
         options.clipboard = std::make_shared<backend::JuceClipboard>();
         options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());
         // <user application data>/Soundor/<plugin id>: soundor:storage and soundor:fs.
@@ -1506,9 +1504,11 @@ ${renderNativeInstall(native)}
         setOpaque(true);
 ${renderEditorSize(editor)}
 #if SOUNDOR_DEVTOOLS
-        const auto descriptor = juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {});
-        if (descriptor.isNotEmpty()) {
-            try { debug = std::make_unique<backend::JuceDebugBridge>(descriptor.toStdString(), AudioProcessor::pluginName, log); }
+        if (auto descriptor = debug::Bridge::sessionFromEnvironment(); ! descriptor.empty()) {
+            try {
+                debug = std::make_unique<debug::Bridge>(debug::Bridge::Options {
+                    .descriptor = std::move(descriptor), .name = AudioProcessor::pluginName, .runtime = "JUCE", .log = log });
+            }
             catch (const std::exception&) { log(js::LogLevel::Warn, "DevTools could not connect; native UI continues normally."); }
         }
 #endif
@@ -2006,10 +2006,10 @@ ${renderEditorArea(editor)}
     void AudioProcessorEditor::updatePointerLock()
     {
         const auto lock = runtimeHost().surface().pointerLock();
-        pointerLock.update(lock ? std::optional<int>(lock->pointerId) : std::nullopt,
-                           lock ? juce::Point<float>(lock->position.x, lock->position.y) * zoom()
+        const auto where = lock ? juce::Point<float>(lock->position.x, lock->position.y) * zoom()
                                       + uiArea().getPosition()
-                                : juce::Point<float>());
+                                : juce::Point<float>();
+        pointerLock.update(lock ? std::optional<int>(lock->pointerId) : std::nullopt, { where.x, where.y });
     }
 
     void AudioProcessorEditor::updateCursor()

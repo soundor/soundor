@@ -1,4 +1,4 @@
-# The adapter's unit tests: its JSON, expressions, state and documents,
+# The adapter's unit tests: its expressions, state and documents,
 # without a plugin (the VST3 classes are tested through real plugins, in
 # the VST3 host and pluginval: tests/plugin.ts).
 # doctest, at the engine's pin (its SoundorDependencies.cmake, included once,
@@ -16,7 +16,6 @@ add_executable(soundor_vst3_tests
   AdapterTests.cpp
   ../src/Descriptor.cpp
   ../src/Expression.cpp
-  ../src/Json.cpp
   ../src/Log.cpp
   ../src/State.cpp
   ../src/StateDocument.cpp
