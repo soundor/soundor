@@ -356,13 +356,12 @@ namespace
             return result.error().toString();
         }
 
-        Fixture() { native::installController(*context, controller, events, streams); }
+        Fixture() { native::installController(*context, controller, streams); }
 
         Services services;
         std::shared_ptr<RustController> controller =
             std::make_shared<RustController>(descriptor(), functions(), services, nullptr);
         js::Runtime runtime;
-        native::Events events;
         native::Streams streams;
         std::unique_ptr<js::Context> context = std::make_unique<js::Context>(runtime);
         int counter = 0;
@@ -400,11 +399,11 @@ TEST_SUITE("Rust controller")
         trailing.push_back(0);
         CHECK_FALSE(ControllerContract::parse(trailing).has_value());
         std::vector<std::uint8_t> version(bytes.begin(), bytes.end());
-        version[4] = 2;
+        version[4] ^= 0xff;
         CHECK_FALSE(ControllerContract::parse(version).has_value());
         CHECK_FALSE(ControllerContract::parse({}).has_value());
         // A huge count never allocates for it.
-        const std::uint8_t huge[] = { 'S', 'N', 'D', 'C', 1, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0x7f };
+        const std::uint8_t huge[] = { 'S', 'N', 'D', 'C', 2, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0x7f };
         CHECK_FALSE(ControllerContract::parse(huge).has_value());
     }
 
@@ -553,7 +552,7 @@ TEST_SUITE("Rust controller")
         CHECK_FALSE(f.controller->pump());
         // A new editor's context gets the same controller.
         f.context = std::make_unique<js::Context>(f.runtime);
-        native::installController(*f.context, f.controller, f.events, f.streams);
+        native::installController(*f.context, f.controller, f.streams);
         CHECK(f.value("globalThis.result = n.add(2, 2);").asNumber() == 4);
     }
 

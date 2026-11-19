@@ -163,6 +163,7 @@ gets a `&mut TaskContext`, made for that one call:
 | `store.shared` | `&SharedStore`                                                                                                                                        |
 | `params`       | every parameter, typed as declared: `get()`, and `set()` for writable ones, as the UI edits them (constrained, recorded in History, told to the host) |
 | `state`        | every persistent state field, typed as declared: `get()`, `set()` and `try_set()`, through the state store the UI uses                                |
+| `events`       | typed [native event](/docs/api/native#events) publishers                                                                                              |
 | `history`      | `undo()`, `redo()`, `can_undo()`, `can_redo()`: the plugin's one History                                                                              |
 | `presets`      | `ids()` and `load(id)`: the config's factory presets, loaded as `soundor:presets` does                                                                |
 | `processor`    | `resources()`: the processor's audio resources, to publish                                                                                            |

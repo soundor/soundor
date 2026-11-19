@@ -44,13 +44,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
   for (const instance of instances.splice(0)) instance.dispose();
 });
-function instance(): {
+function instance(publishEvent?: (index: number, value: unknown) => boolean): {
   controller: WasmController;
   context: WebHostContext;
   call(name: string, ...args: unknown[]): unknown;
 } {
   const context = createHostContext(manifest, {}, behaviors);
-  const controller = new WasmController(module, context);
+  const controller = new WasmController(module, context, publishEvent);
   instances.push(controller);
   return {
     context,
@@ -104,6 +104,23 @@ it('encodes enums, nullable values, structs, arrays and binary buffers', () => {
     label: null,
   });
 });
+it('decodes event payloads produced by the Rust controller', () => {
+  const publish = vi.fn<(index: number, value: unknown) => boolean>(() => true);
+  const a = instance(publish);
+  a.call('analyze', new Float32Array([0.5, -0.75]));
+  expect(publish.mock.calls).toEqual([
+    [
+      0,
+      {
+        label: 'analysis',
+        curve: 'ease-in',
+        samples: new Float32Array([0.5, -0.75]),
+      },
+    ],
+    [1, {}],
+  ]);
+});
+
 it('publishes actual controller resources into a separate processor instance', async () => {
   const a = instance();
   const processor = new WasmProcessor(module, contract, [1], [1], streams);

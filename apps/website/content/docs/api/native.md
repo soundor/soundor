@@ -83,20 +83,24 @@ const unsubscribe = events.presetLoaded.subscribe(({ path, preset }) => {
 unsubscribe();
 ```
 
-```cpp
-// in the plugin (JUCE): any thread but the audio callback
-nativeEvents.presetLoaded({ .path = path, .preset = preset });
+```rust
+// In a controller method with a TaskContext
+ctx.events.preset_loaded(soundor::events::PresetLoadedEvent { path, preset });
+ctx.events.ready();
 ```
+
+Run `soundor gen` after changing an event declaration. A method with an
+`AsyncTaskContext` can publish inside `ctx.schedule(|ctx| ...).await`.
+JUCE, VST3, and the web runtime use the same Rust publishers.
 
 - **Delivered on the UI thread, later:** subscribers never run inside the
   call that published the event, and never on the thread that published it.
-  The JUCE runtime delivers at its next tick (60 times a second), the web
-  runtime right after the publishing code returns.
+  JUCE and VST3 deliver on an editor tick. The web runtime delivers in a
+  later turn of the event loop.
 - **In order:** a UI receives its events in the order they were published,
   so one thread's events keep their order.
-- **From now on:** a subscriber receives the events published after it
-  subscribed, none from before; a UI that opens, or reloads, starts with
-  none. An event is a notification, not state: what a newly shown component
+- **From now on:** subscriptions receive events when the runtime delivers
+  them. An editor that opens or reloads starts with an empty queue. An event is a notification, not state: what a newly shown component
   needs to read belongs in a method, in [`soundor:state`](/docs/api/state)
   or in a parameter.
 - **Bounded:** a UI holds at most 1024 undelivered events; one published
@@ -105,10 +109,8 @@ nativeEvents.presetLoaded({ .path = path, .preset = preset });
   closed never makes memory grow.
 - **One value for all:** the subscribers of one event receive the same
   object. A subscriber that throws is reported, and the others still run.
-- **Not for audio-rate data:** publishing allocates and takes a short lock,
-  so it is not for the audio callback, and an event per audio block is too
-  many. Use a [stream](#streams) for values the audio thread keeps
-  producing.
+- **Audio-rate data:** use a [stream](#streams) for values the processor
+  produces in its audio callback.
 
 ## Streams
 

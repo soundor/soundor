@@ -20,6 +20,7 @@ import {
 
 /** The helpers `renderPluginRs` shares. */
 export interface RustNames {
+  readonly type: (name: string, fallback: string) => string;
   readonly field: (id: string) => string;
   readonly string: (text: string) => string;
   readonly numbers: Readonly<Record<string, string>>;
@@ -336,6 +337,90 @@ ${fields.map((field) => `            ${field.rust}: ${field.kind}::new(host, ${f
 `;
 }
 
+function renderEventPublishers(
+  native: NativeApiModel,
+  names: RustNames,
+): string {
+  const events = native.events.map((event, index) => ({
+    ...event,
+    index,
+    rust: names.field(event.name),
+    payload: names.type(`${event.name}Event`, 'NativeEvent'),
+  }));
+  names.checkUnique(
+    events.map((event) => [event.rust, `native.events.${event.name}`]),
+    'a Rust event publisher',
+  );
+  names.checkUnique(
+    events.map((event) => [event.payload, `native.events.${event.name}`]),
+    'a Rust event type',
+  );
+  for (const event of events)
+    names.checkUnique(
+      event.fields.map((field) => [
+        names.field(field.name),
+        `native.events.${event.name}.fields.${field.name}`,
+      ]),
+      'a Rust event field',
+    );
+  const payloads = events
+    .filter((event) => event.fields.length > 0)
+    .map(
+      (event) => `    /// The payload of \`${event.name}\`.
+    pub struct ${event.payload} {
+${event.fields
+  .map(
+    (field) => `        /// \`${field.name}\`.
+        pub ${names.field(field.name)}: ${rustValueType(field.type, names)},`,
+  )
+  .join('\n')}
+    }`,
+    );
+  const publishers = events.map((event) => {
+    const empty = event.fields.length === 0;
+    return `    /// Publishes \`${event.name}\`. Returns whether an editor queued it.
+    pub fn ${event.rust}(&self${empty ? '' : `, value: events::${event.payload}`}) -> bool {
+${
+  empty
+    ? ''
+    : `        let mut bytes = Vec::new();
+${event.fields.map((field) => `        value.${names.field(field.name)}.encode(&mut bytes);`).join('\n')}
+`
+}        self.host.publish_event(${event.index}, ${empty ? '&[]' : '&bytes'})
+    }`;
+  });
+  return (
+    `/// Payloads for soundor.config's \`native.events\`.
+pub mod events {
+${
+  payloads.length > 0
+    ? `    use super::*;
+
+${payloads.join('\n\n')}\n`
+    : ''
+}}
+
+` +
+    `/// Typed native event publishers, on the control thread.
+pub struct EventPublishers<'a> {
+    ${events.length > 0 ? 'host' : '_host'}: &'a Host,
+}
+
+pub(crate) fn event_publishers(host: &Host) -> EventPublishers<'_> {
+    EventPublishers { ${events.length > 0 ? 'host' : '_host: host'} }
+}
+${
+  publishers.length
+    ? `
+impl EventPublishers<'_> {
+${publishers.join('\n\n')}
+}
+`
+    : ''
+}`
+  );
+}
+
 function renderStateAccess(state: StateSchema, names: RustNames): string {
   const fields = state.fields.map((field, index) => ({
     field,
@@ -493,7 +578,8 @@ export function renderControllerRs(
     renderDispatch(list),
     renderParameterAccess(config, names),
     renderStateAccess(state, names),
-    `/// The controller's descriptor (\`describeController()\`): its methods,`,
+    renderEventPublishers(native, names),
+    `/// The controller's descriptor (\`describeController()\`): its methods, events,`,
     `/// types, parameters and state, which the runtime checks against its own.`,
     `pub(crate) const DESCRIPTOR: &[u8] = &[`,
     byteLiterals(descriptor, '    '),

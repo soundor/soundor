@@ -54,8 +54,10 @@ impl Controller for PluginController {
 }
 
 impl NativeMethods for PluginController {
-    fn twice(_ctx: &mut TaskContext<Self>, value: i32) -> i32 {
-        value.wrapping_mul(2)
+    fn twice(ctx: &mut TaskContext<Self>, value: i32) -> i32 {
+        let value = value.wrapping_mul(2);
+        ctx.events.doubled(events::DoubledEvent { value });
+        value
     }
 }
 

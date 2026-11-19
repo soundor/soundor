@@ -821,10 +821,50 @@ pub(crate) const STATE_DEFAULTS: [&str; 10] = ["\"linear\"", "0.25", "true", "[6
 /// Every state field's `maxLength`, if it has one.
 pub(crate) const STATE_MAX_LENGTHS: [Option<usize>; 10] = [None, None, None, Some(8), None, None, None, None, Some(4), Some(3)];
 
-/// The controller's descriptor (`describeController()`): its methods,
+/// Payloads for soundor.config's `native.events`.
+pub mod events {
+    use super::*;
+
+    /// The payload of `analysisReady`.
+    pub struct AnalysisReadyEvent {
+        /// `label`.
+        pub label: Option<String>,
+        /// `curve`.
+        pub curve: types::Curve,
+        /// `samples`.
+        pub samples: Vec<f32>,
+    }
+}
+
+/// Typed native event publishers, on the control thread.
+pub struct EventPublishers<'a> {
+    host: &'a Host,
+}
+
+pub(crate) fn event_publishers(host: &Host) -> EventPublishers<'_> {
+    EventPublishers { host }
+}
+
+impl EventPublishers<'_> {
+    /// Publishes `analysisReady`. Returns whether an editor queued it.
+    pub fn analysis_ready(&self, value: events::AnalysisReadyEvent) -> bool {
+        let mut bytes = Vec::new();
+        value.label.encode(&mut bytes);
+        value.curve.encode(&mut bytes);
+        value.samples.encode(&mut bytes);
+        self.host.publish_event(0, &bytes)
+    }
+
+    /// Publishes `ready`. Returns whether an editor queued it.
+    pub fn ready(&self) -> bool {
+        self.host.publish_event(1, &[])
+    }
+}
+
+/// The controller's descriptor (`describeController()`): its methods, events,
 /// types, parameters and state, which the runtime checks against its own.
 pub(crate) const DESCRIPTOR: &[u8] = &[
-    83, 78, 68, 67, 1, 0, 0, 0, 5, 0, 0, 0, 3, 0, 0, 0,
+    83, 78, 68, 67, 2, 0, 0, 0, 5, 0, 0, 0, 3, 0, 0, 0,
     1, 5, 0, 0, 0, 67, 117, 114, 118, 101, 2, 0, 0, 0, 6, 0,
     0, 0, 108, 105, 110, 101, 97, 114, 7, 0, 0, 0, 101, 97, 115, 101,
     45, 105, 110, 0, 5, 0, 0, 0, 80, 111, 105, 110, 116, 2, 0, 0,
@@ -855,5 +895,9 @@ pub(crate) const DESCRIPTOR: &[u8] = &[
     104, 8, 15, 11, 4, 0, 0, 0, 112, 105, 99, 107, 0, 1, 0, 0,
     0, 5, 0, 0, 0, 99, 117, 114, 118, 101, 16, 13, 0, 0, 0, 0,
     13, 0, 0, 0, 0, 5, 0, 0, 0, 114, 101, 115, 101, 116, 0, 0,
-    0, 0, 0, 0,
+    0, 0, 0, 0, 2, 0, 0, 0, 13, 0, 0, 0, 97, 110, 97, 108,
+    121, 115, 105, 115, 82, 101, 97, 100, 121, 3, 0, 0, 0, 5, 0, 0,
+    0, 108, 97, 98, 101, 108, 16, 2, 5, 0, 0, 0, 99, 117, 114, 118,
+    101, 13, 0, 0, 0, 0, 7, 0, 0, 0, 115, 97, 109, 112, 108, 101,
+    115, 15, 11, 5, 0, 0, 0, 114, 101, 97, 100, 121, 0, 0, 0, 0,
 ];

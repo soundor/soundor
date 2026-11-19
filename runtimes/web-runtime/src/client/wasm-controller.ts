@@ -4,7 +4,7 @@ import { stateFieldValue, stateJson } from '@soundor/runtime-sdk/client';
 import type { WebHostContext } from './context';
 import type { WebNativeMethod } from './manifest';
 import { nativeArguments, nativeResult, nativeTypes } from './native-values';
-import { encodeNative, decodeNative } from './native-wire';
+import { encodeNative, decodeNative, decodeNativeEvent } from './native-wire';
 
 interface Exports {
   readonly memory: WebAssembly.Memory;
@@ -61,6 +61,7 @@ export class WasmController {
   constructor(
     module: WebAssembly.Module,
     readonly context: WebHostContext,
+    private readonly publishEvent?: (index: number, value: unknown) => boolean,
   ) {
     try {
       const instance = new WebAssembly.Instance(module, {
@@ -404,6 +405,21 @@ export class WasmController {
     const text = () =>
       new TextDecoder().decode(new Uint8Array(memory, ptr, length));
     try {
+      if (op === 6) {
+        const event = manifest.native.events[index];
+        if (
+          this.#closed ||
+          event === undefined ||
+          this.publishEvent === undefined
+        )
+          return 0;
+        const value = decodeNativeEvent(
+          new Uint8Array(memory, ptr, length),
+          event.fields,
+          manifest.native.types,
+        );
+        return Number(this.publishEvent(index, value));
+      }
       if (op === 0) {
         const p = parameters.list[index]!;
         const value = p.get();
@@ -460,6 +476,7 @@ export class WasmController {
       } else throw new Error('Unknown controller service');
       return this.#serviceResult.length;
     } catch (error) {
+      if (op === 6) return 0;
       if (op === 0) return NaN;
       if (op === 1 || op === 4) return -1;
       this.#serviceResult = new TextEncoder().encode(

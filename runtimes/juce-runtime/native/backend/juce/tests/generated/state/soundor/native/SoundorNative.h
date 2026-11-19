@@ -3,7 +3,6 @@
 
 #include <soundor/js/Context.h>
 #include <soundor/js/Streams.h>
-#include <soundor/js/Events.h>
 #include <soundor/js/Promise.h>
 #include <soundor/processor/RustController.h>
 
@@ -46,35 +45,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         virtual std::uint32_t setBand(Band band) = 0;
     };
 
-    // The values of the events declared under `native.events`.
-    namespace events
-    {
-        struct BandChanged
-        {
-            Band band {};
-            std::uint32_t index {};
-        };
-    } // namespace events
-
-    // The plugin's native events, declared under `native.events` in
-    // soundor.config: the plugin publishes them, the UI subscribes to them
-    // (`events` of `soundor:native`). Keep one per plugin instance and
-    // install() it into each JavaScript context.
-    //
-    // Publish from any thread but the audio callback: a publisher copies the
-    // value, takes a short lock and returns; it never waits for the UI. Each
-    // open UI receives every event published while it is open, on its UI
-    // thread at its next tick, in the order they were published. A UI holds
-    // at most `capacity` undelivered events and drops newer ones; with no UI
-    // open, events are dropped. A publisher returns whether a UI took it.
-    class Events : public js::EventSource
-    {
-    public:
-        using js::EventSource::EventSource;
-
-        bool bandChanged(events::BandChanged event) const;
-    };
-
     // The plugin's native streams, declared under `native.streams` in
     // soundor.config: values the plugin keeps publishing, of which the UI
     // reads the latest (`streams` of `soundor:native`). Keep one per plugin
@@ -91,9 +61,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
     };
 
     // Makes `soundor:native` importable in `context`, backed by `api`, and
-    // connects `events` and `streams` to it. Call before evaluating code that imports
+    // installs the configured feeds. Call before evaluating code that imports
     // it; the context keeps `api` alive, and disconnects when it goes.
-    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Streams& streams);
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Streams& streams, std::shared_ptr<processor::RustController> controller = {});
 
     // The plugin's controller descriptor (@soundor/core's describeController()):
     // these methods, their types, the parameters and the persistent state, as
@@ -101,7 +71,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
     // backs them. processor::RustController checks the controller's own
     // against it.
     inline constexpr std::uint8_t controllerDescriptor[] = {
-        83, 78, 68, 67, 1, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0,
+        83, 78, 68, 67, 2, 0, 0, 0, 3, 0, 0, 0, 2, 0, 0, 0,
         0, 4, 0, 0, 0, 66, 97, 110, 100, 3, 0, 0, 0, 9, 0, 0,
         0, 102, 114, 101, 113, 117, 101, 110, 99, 121, 11, 4, 0, 0, 0, 103,
         97, 105, 110, 12, 5, 0, 0, 0, 108, 97, 98, 101, 108, 16, 2, 0,
@@ -120,14 +90,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         117, 112, 1, 1, 0, 0, 0, 4, 0, 0, 0, 112, 97, 116, 104, 2,
         16, 13, 1, 0, 0, 0, 7, 0, 0, 0, 115, 101, 116, 66, 97, 110,
         100, 0, 1, 0, 0, 0, 4, 0, 0, 0, 98, 97, 110, 100, 13, 0,
-        0, 0, 0, 8,
+        0, 0, 0, 8, 1, 0, 0, 0, 11, 0, 0, 0, 98, 97, 110, 100,
+        67, 104, 97, 110, 103, 101, 100, 2, 0, 0, 0, 4, 0, 0, 0, 98,
+        97, 110, 100, 13, 0, 0, 0, 0, 5, 0, 0, 0, 105, 110, 100, 101,
+        120, 8,
     };
 
-    // As install(), with the methods backed by the plugin's Rust controller
+    // Installs the native events and the methods backed by the plugin's Rust controller
     // (one per plugin instance, shared by its editors) rather than a NativeApi:
     // the engine converts arguments and results as these bindings do, runs
     // async methods on the controller's worker, and settles their promises
     // when the controller is pumped. What the context started is cancelled
     // when it goes.
-    void installController(js::Context& context, std::shared_ptr<processor::RustController> controller, const Events& events, const Streams& streams);
+    void installController(js::Context& context, std::shared_ptr<processor::RustController> controller, const Streams& streams);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native

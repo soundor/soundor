@@ -451,40 +451,25 @@ soundor::native::install(context, std::make_shared<Api>());
 
 #### Events
 
-`native.events` adds a publisher, `soundor::native::Events`, with one function
-per event taking `events::<Name>`, the struct of its value. It derives from
-`js::EventSource` (`js/Events.h`), which is everything that is not per plugin:
+The generated Rust `TaskContext::events` publishers encode event fields
+using the same wire format as native method results. The controller
+descriptor identifies events and their field types. Both native runtimes
+use the engine's generic bindings:
 
-- **Publishing** (any thread but a realtime one) puts the value, allocated
-  once (`std::shared_ptr<const T>`), into the queue of every connected
-  context under the source's one mutex, and returns. Nothing runs JavaScript
-  or waits for it; holding the lock is a push per open UI. Since every
-  publisher takes the same lock, a context's queue is in the order publish()
-  was called, so each thread's events keep their order.
-- **Connecting.** `install(context, api, events)` connects the source to the
-  context (`bind::connectEvents`): the context owns the connection, which
-  takes its queue out of the source when the context goes, so either can go
-  first. A reload is a new context, connected anew; what the old one had
-  not delivered goes with it.
-- **Delivering.** `RuntimeHost::tick()` calls `js::deliverEvents()` after the
-  parameter changes: for each connection it swaps the queue out under the
-  lock, then converts each value from a copy (one per context) with the
-  generated `write()` and calls the dispatcher of
-  `soundor:internal/native-events` (`src/modules/native/events.js`), which
-  calls the subscribers. Before the module is imported there is no
-  dispatcher, and events are dropped.
-- **Bounds.** A context holds at most `EventSource::Options::capacity`
-  (1024) undelivered events; one published while it is full is dropped for
-  it and counted, and the next delivery logs how many. With no context
-  connected, an event is dropped. `EventSource::statistics()` counts what
-  was published and dropped. So a closed, hidden or stalled UI never makes
-  memory grow, and a UI never sees an event from before it connected.
-- **Not realtime-safe:** publishing allocates and locks. Events are for
-  discrete notifications; data the audio thread produces continuously goes
-  through a stream.
+- **Publishing.** The Rust controller's host callback queues the encoded
+  bytes through `js::EventSource`. Each open editor has a queue of up to
+  1024 events. A full editor queue drops newer events and logs the count
+  on its next delivery. The publisher returns whether any editor queued
+  the event.
+- **Connecting.** `bind::connectRustEvents` connects the controller to a
+  JavaScript context. Closing or reloading an editor destroys its queue.
+- **Delivering.** `RuntimeHost::tick()` drains queues in publication order.
+  The engine decodes the payload using the controller descriptor and calls
+  `soundor:internal/native-events` with the resulting JavaScript object.
 
-The web runtime delivers with the same rules (`web-runtime/src/client/native-events.ts`):
-the generated contract's `events` publishes, a `setTimeout` delivers.
+The web runtime decodes the same wire payload in its WASM controller host
+and queues it alongside events published by the web project's native API.
+The browser delivers them on a later turn of the event loop.
 
 #### Streams
 

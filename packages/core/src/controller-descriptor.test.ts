@@ -14,6 +14,7 @@ describe('describeController', () => {
   it('lays out the contract as the engine and the Rust SDK read it', () => {
     const native = model({
       types: { Curve: { enum: ['linear', 'low-cut'] } },
+      events: { picked: { current: 'Curve' } },
       methods: {
         pick: {
           args: { curve: 'Curve?' },
@@ -30,7 +31,7 @@ describe('describeController', () => {
     ];
     expect([...bytes]).toEqual([
       ...[...'SNDC'].map((c) => c.charCodeAt(0)),
-      ...u32(1), // version
+      ...u32(2), // version
       ...u32(3), // parameters
       ...u32(1), // types
       1, // an enum
@@ -49,6 +50,12 @@ describe('describeController', () => {
       ...u32(0),
       15, // buffer
       11, // of float32
+      ...u32(1), // events
+      ...text('picked'),
+      ...u32(1), // fields
+      ...text('current'),
+      13, // declared
+      ...u32(0),
     ]);
   });
 

@@ -392,23 +392,10 @@ std::shared_ptr<soundor::native::NativeApi> createNativeApi() override
 }
 ```
 
-Events declared under `native.events` are published through the processor's
-`nativeEvents` (a `soundor::native::Events`, with one function per event and
-a struct of its value in `soundor::native::events`), from any thread but the
-audio callback:
-
-```cpp
-// a worker thread, a timer, a method of the native API
-nativeEvents.presetLoaded({ .path = path, .preset = std::move(preset) });
-```
-
-A publisher copies the value into a queue for each open editor, takes a short
-lock and returns; it never waits for JavaScript. Each editor's runtime
-delivers what was published at its next tick, on the message thread, in
-order. An editor holds at most 1024 undelivered events and drops newer ones,
-logging how many; with no editor open, events are dropped. A publisher
-returns whether an editor took the event. The audio callback should not
-publish (it allocates): hand what it has to another thread first.
+The Rust controller publishes `native.events` through `ctx.events`.
+Each open editor delivers them on its next tick. Migrate C++
+`nativeEvents` calls to a Rust controller method or a callback scheduled
+onto the control thread. See [native events](/docs/api/native#events).
 
 Streams declared under `native.streams` are the processor's
 `nativeStreams` (a `soundor::native::Streams`, one member per stream: a

@@ -96,6 +96,14 @@ export default defineSoundorConfig({
       },
       fail: { args: { message: 'string' }, async: true },
     },
+    events: {
+      analysisReady: {
+        label: 'string?',
+        curve: 'Curve',
+        samples: 'buffer<float32>',
+      },
+      ready: {},
+    },
     streams: {
       level: { type: 'float32' },
       history: { type: 'buffer<float32>', maxLength: 8 },

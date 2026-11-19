@@ -144,6 +144,7 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   VST3 wrapper does. `readOnly` parameters are output parameters the
   processor publishes; `role: 'bypass'` is VST3's bypass parameter;
   parameter groups are VST3 units.
+- **Native events.** The Rust controller publishes [typed events](/docs/api/native#events) to open editors.
 - **MIDI.** Note on, note off and polyphonic pressure as VST3 events, control
   changes, pitch bend, channel pressure and program change through
   `IMidiMapping` (hidden parameters) and legacy MIDI CC output, at their sample
@@ -182,7 +183,6 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
 - Linux x86_64 only; no AU, CLAP or standalone.
 - `soundor dev vst3` builds the plugin and keeps its UI current, but opens no
   host: open the bundle in yours.
-- `soundor:native` events, which only C++ publishes, never arrive.
 - The Rust controller's scheduled work runs while an editor is open, or with
   a host that lends its run loop to the controller.
 - Dynamic latency and tail (`mode: 'dynamic'`) are reported as none.

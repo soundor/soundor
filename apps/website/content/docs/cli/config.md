@@ -429,9 +429,10 @@ type names are PascalCase.
   native objects in JavaScript.
 
 `events` declares what native code tells the UI: each event names the fields
-of its value, of the types above, in order (an event may have none). Its
-value is `events::<Name>` in C++ (`presetLoaded` → `events::PresetLoaded`),
-which no declared type may be called, and an object in TypeScript:
+of its value, of the types above. `soundor gen` generates typed Rust
+publishers on `TaskContext::events` and a payload struct for each event
+with fields (`presetLoaded` → `soundor::events::PresetLoadedEvent`).
+The UI receives the payload as a TypeScript object:
 
 ```ts
 native: {
@@ -448,8 +449,8 @@ import { events } from 'soundor:native';
 events.presetLoaded.subscribe(({ path, preset }) => {});
 ```
 
-Event names are camelCase; `events`, `publish`, `statistics` and `hub` are
-taken, and no method can be called `events`. See
+Event names are camelCase. The `events` export is reserved, so a method
+cannot use that name. See
 [`soundor:native`](/docs/api/native#events) for how they are delivered.
 
 `streams` declares values native code keeps publishing, of which the UI

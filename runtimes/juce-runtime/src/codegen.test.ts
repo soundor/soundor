@@ -301,23 +301,23 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it('owns the native events and installs them into every editor runtime', () => {
+  it('installs Rust events even when no methods are declared', () => {
     const withEvents = (native: ResolvedSoundorConfig['native']) =>
       fileMap({ ...config, native });
     const both = withEvents({
       methods: { probe: {} },
       events: { presetLoaded: { path: 'string' } },
     });
-    expect(both.get('soundor/SoundorProcessor.h')).toContain(
-      '        native::Events nativeEvents;',
+    expect(both.get('soundor/SoundorProcessor.h')).not.toContain(
+      'native::Events',
     );
     expect(both.get('soundor/SoundorEditor.cpp')).toContain(
-      'native::install(context, std::move(api), owner.nativeEvents);',
+      'native::install(context, std::move(api), owner.rustController());',
     );
     // Events alone need no implementation of methods.
     const eventsOnly = withEvents({ events: { ready: {} } });
     expect(eventsOnly.get('soundor/SoundorEditor.cpp')).toContain(
-      'native::install(context, owner.createNativeApi(), owner.nativeEvents);',
+      'native::installController(context, controller);',
     );
     expect(fileMap(config).get('soundor/SoundorProcessor.h')).not.toContain(
       'nativeEvents',
@@ -336,7 +336,7 @@ describe('generateJuceSources', () => {
       '        native::Streams nativeStreams;',
     );
     expect(all.get('soundor/SoundorEditor.cpp')).toContain(
-      'native::install(context, std::move(api), owner.nativeEvents, owner.nativeStreams);',
+      'native::installController(context, controller, owner.nativeStreams);',
     );
     const streamsOnly = withNative({
       streams: { spectrum: { type: 'buffer<float32>', maxLength: 512 } },

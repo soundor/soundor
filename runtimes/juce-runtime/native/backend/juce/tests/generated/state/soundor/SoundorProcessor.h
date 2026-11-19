@@ -123,11 +123,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         const std::shared_ptr<midi::Host>& midiHost() const noexcept { return midiBridge; }
 
 
-        // The config's native events (`events` of soundor:native): publish
-        // them from any thread but the audio callback, and every open editor
-        // receives them on its UI thread.
-        native::Events nativeEvents;
-
         // The config's native streams (`streams` of soundor:native): the
         // Rust processing publishes their latest values (`ctx.streams`),
         // and every open editor reads the newest.

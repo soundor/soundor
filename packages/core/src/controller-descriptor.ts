@@ -1,6 +1,6 @@
 /**
  * The descriptor of a plugin's Rust controller: what soundor.config makes of
- * its native methods, their types, its parameters and its persistent state,
+ * its native methods, events, their types, its parameters and its persistent state,
  * as bytes. `soundor gen` writes the same bytes into the Rust SDK (which the
  * controller hands the runtime) and into a native runtime's generated code
  * (which checks them, and converts JavaScript values with the types they
@@ -10,7 +10,7 @@
  * or a string's UTF-8 length as a uint32 before what it counts):
  *
  * ```text
- * "SNDC"  uint32 version (1)
+ * "SNDC"  uint32 version (2)
  * uint32 parameterCount
  * uint32 typeCount, each:   uint8 kind (0 struct, 1 enum)  string name
  *                           uint32 count, each: string field  Type  (struct)
@@ -19,6 +19,8 @@
  * uint32 methodCount, each: string name  uint8 async
  *                           uint32 argCount, each: string name  Type
  *                           Type returns
+ * uint32 eventCount, each: string name
+ *                          uint32 fieldCount, each: string name  Type
  * Type: uint8 tag (DESCRIPTOR_TAGS), then for a declared type its uint32
  *       index in the types, for an array or a nullable its element's Type,
  *       for a buffer its element's uint8 tag
@@ -52,7 +54,7 @@ export const DESCRIPTOR_TAGS = {
   nullable: 16,
 } as const;
 
-export const DESCRIPTOR_VERSION = 1;
+export const DESCRIPTOR_VERSION = 2;
 
 class Writer {
   readonly bytes: number[] = [];
@@ -140,6 +142,15 @@ export function describeController(
       type(arg.type);
     }
     type(method.returns);
+  }
+  out.u32(native.events.length);
+  for (const event of native.events) {
+    out.string(event.name);
+    out.u32(event.fields.length);
+    for (const field of event.fields) {
+      out.string(field.name);
+      type(field.type);
+    }
   }
   return Uint8Array.from(out.bytes);
 }

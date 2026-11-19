@@ -130,11 +130,15 @@ pub unsafe fn create<P: Processor, C: NativeMethods>(
     processor: *mut c_void,
 ) -> *mut ControllerHandle<C> {
     catch_unwind(AssertUnwindSafe(|| {
-        // SAFETY: as the caller promises.
-        let Some(table) = (unsafe { host.as_ref() }) else {
+        // SAFETY: a non-null host starts with its size, even for other ABI versions.
+        if host.is_null()
+            || unsafe { host.cast::<u32>().read() }
+                < std::mem::size_of::<SoundorControllerHost>() as u32
+        {
             return std::ptr::null_mut();
-        };
-        let Some(host) = Host::new(*table) else {
+        }
+        // SAFETY: the size covers this version of the table.
+        let Some(host) = Host::new(unsafe { host.read() }) else {
             return std::ptr::null_mut();
         };
         // SAFETY: as the caller promises.

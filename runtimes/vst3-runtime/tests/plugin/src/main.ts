@@ -1,6 +1,6 @@
 // The test plugin's UI, on soundor:ui itself (no React): its parameters,
 // its state and the Rust controller's method, shown as text.
-import { twice } from 'soundor:native';
+import { events, twice } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
 import { createText, createView, root } from 'soundor:ui';
@@ -29,4 +29,5 @@ showGain(parameters.gain.get());
 showLabel(state.label.get());
 parameters.gain.subscribe(showGain);
 state.label.subscribe(showLabel);
+events.doubled.subscribe(({ value }) => state.label.set(`Doubled ${value}`));
 native.text = `Twice ${twice(21)}`;

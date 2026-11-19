@@ -449,6 +449,44 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         }
     } // namespace
 
+    namespace
+    {
+        const char rustEventsKey = 0;
+        const char rustEventDispatchKey = 0;
+
+        void deliverRustEvent(ContextState& context, std::uint32_t index, const void* payload)
+        {
+            const auto& contract = contextData<RustController>(context, &rustEventsKey)->contract();
+            const auto& bytes = *static_cast<const std::vector<std::uint8_t>*>(payload);
+            Decoder input(bytes);
+            ObjectBuilder value(context);
+            for (const auto& field : contract.events.at(index).fields)
+                value.set(field.name.c_str(), decode(context, input, contract, field.type));
+            input.finish();
+            dispatchEvent(context, &rustEventDispatchKey, index, value.release());
+        }
+    } // namespace
+
+    void connectRustEvents(Context& context, std::shared_ptr<RustController> controller)
+    {
+        if (controller == nullptr || controller->contract().events.empty())
+            return;
+        const auto& source = controller->eventSource();
+        setContextData(context, &rustEventsKey, std::move(controller));
+        connectEvents(context, source, deliverRustEvent);
+    }
+
+    void installRustEvents(ContextState& context, jsi::Object& exports)
+    {
+        const auto* controller = contextData<RustController>(context, &rustEventsKey);
+        if (controller == nullptr)
+            return;
+        std::vector<const char*> names;
+        for (const auto& event : controller->contract().events)
+            names.push_back(event.name.c_str());
+        installEvents(context, exports, names, &rustEventDispatchKey);
+    }
+
     void setRustController(Context& context, const void* key, std::shared_ptr<processor::RustController> controller)
     {
         auto binding = std::make_shared<RustBinding>();
