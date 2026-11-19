@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <variant>
 
@@ -233,8 +234,12 @@ namespace soundor::vst3
         if (window == nullptr)
             throw std::runtime_error(why);
         image.attach(window.get());
-        createRuntime();
+        auto& owner = *controller;
+        uiParameters = std::make_shared<UiParameters>(definition, owner.editors(), owner.historyManager());
+        owner.addUi(uiParameters.get());
         attachedToHost = true;
+        view::Platform& platform = *this;
+        pluginView = std::make_unique<view::View>(platform, viewOptions());
         runLoop->registerTimer(this, 16);
         runLoop->registerEventHandler(this, window->fileDescriptor());
         tick();
@@ -246,15 +251,31 @@ namespace soundor::vst3
         return window != nullptr ? reinterpret_cast<void*>(window->id()) : nullptr; // NOLINT(performance-no-int-to-ptr)
     }
 
-    void Editor::createRuntime()
+    view::View::Options Editor::viewOptions()
     {
-        gpuDevice = render::GpuCompositor::createDevice();
-        auto& owner = *controller;
-        uiParameters = std::make_shared<UiParameters>(definition, owner.editors(), owner.historyManager());
-        owner.addUi(uiParameters.get());
+        const auto& editor = definition.editor;
+        constexpr float unbounded = std::numeric_limits<float>::infinity();
+        const float maxWidth = editor.maxWidth > 0 ? static_cast<float>(editor.maxWidth) : unbounded;
+        const float maxHeight = editor.maxHeight > 0 ? static_cast<float>(editor.maxHeight) : unbounded;
 
+        view::View::Options result;
+        result.layout = { .size = { static_cast<float>(editor.width), static_cast<float>(editor.height) },
+                          .resizable = editor.resizable,
+                          .resize = editor.scale ? view::Layout::Resize::Scale : view::Layout::Resize::Layout,
+                          .fit = editor.cover ? view::Layout::Fit::Cover : view::Layout::Fit::Contain,
+                          .maximum = { maxWidth, maxHeight } };
+        // A resizable editor whose limits allow another size, as the JUCE
+        // runtime's and the Web host's.
+        result.canRequestSize =
+            editor.resizable
+            && (static_cast<float>(editor.minWidth) < maxWidth || static_cast<float>(editor.minHeight) < maxHeight);
+        result.background = editor.background;
+        result.raster = &image;
+        result.name = definition.name;
+        result.runtimeName = "VST3";
+
+        auto& owner = *controller;
         RuntimeHost::Options options;
-        options.gpuDevice = gpuDevice;
         options.clipboard = platform::systemClipboard();
         logSink = logToStderr;
         if (! definition.logFile.empty())
@@ -291,40 +312,16 @@ namespace soundor::vst3
             modules::dispatchState(context);
             modules::dispatchPresets(context);
         };
+        // soundor dev: the UI the CLI keeps rebuilding, reloaded when it changes.
         if (! definition.uiDirectory.empty())
+            result.bundleDirectory = definition.uiDirectory;
+        else if (! definition.files.empty())
         {
-            // soundor dev: the UI the CLI keeps rebuilding, reloaded when it changes.
-            session = std::make_unique<DevSession>(
-                DevSession::Options { .host = std::move(options), .bundleDirectory = definition.uiDirectory });
+            options.resources = std::make_shared<platform::EmbeddedResources>(definition.files);
+            options.entry = "/bundle.js";
         }
-        else
-        {
-            if (! definition.files.empty())
-            {
-                options.resources = std::make_shared<platform::EmbeddedResources>(definition.files);
-                options.entry = "/bundle.js";
-            }
-            host = std::make_unique<RuntimeHost>(std::move(options));
-        }
-#if SOUNDOR_DEVTOOLS
-        if (auto descriptor = debug::Bridge::sessionFromEnvironment(); ! descriptor.empty())
-        {
-            try
-            {
-                bridge = std::make_unique<debug::Bridge>(debug::Bridge::Options {
-                    .descriptor = std::move(descriptor), .name = definition.name, .runtime = "VST3", .log = logSink });
-            }
-            catch (const std::exception&)
-            {
-                logSink(js::LogLevel::Warn, "DevTools could not connect; native UI continues normally.");
-            }
-        }
-#endif
-    }
-
-    RuntimeHost& Editor::runtimeHost()
-    {
-        return session != nullptr ? session->host() : *host;
+        result.runtime = std::move(options);
+        return result;
     }
 
     void Editor::close()
@@ -334,310 +331,106 @@ namespace soundor::vst3
             runLoop->unregisterTimer(this);
             runLoop->unregisterEventHandler(this);
         }
-#if SOUNDOR_DEVTOOLS
-        bridge.reset();
-#endif
-        // While the input whose pointer it moves is there.
-        pointerLock.release();
-        if (nativeInput != nullptr)
+        if (pluginView != nullptr)
         {
-            std::vector<input::Event> ended;
-            nativeInput->cancel(ended);
-            if (host != nullptr || session != nullptr)
-                for (auto& event : ended)
-                    deliver(event);
-            nativeInput.reset();
+            // A press or keys in progress end in the UI (a gesture ends).
+            pluginView->endInput();
+            pluginView.reset();
         }
-        inputDescriptor = -1;
-        accessibility.reset();
-        gpu = nullptr;
-        compositor.reset();
-        session.reset();
-        host.reset();
         if (uiParameters != nullptr)
         {
             if (controller != nullptr)
                 controller->removeUi(uiParameters.get());
             uiParameters.reset();
         }
-        gpuDevice.reset();
         image.attach(nullptr);
         window.reset();
-        cursor = ui::Cursor::Auto;
         runLoop = nullptr;
         attachedToHost = false;
     }
 
-    float Editor::logicalWidth() const
+    ui::Size Editor::logicalSize() const
     {
-        return static_cast<float>(rect.getWidth()) / contentScale;
-    }
-    float Editor::logicalHeight() const
-    {
-        return static_cast<float>(rect.getHeight()) / contentScale;
-    }
-
-    float Editor::zoom() const
-    {
-        const auto& editor = definition.editor;
-        if (! editor.scale)
-            return 1;
-        const float sx = logicalWidth() / static_cast<float>(editor.width);
-        const float sy = logicalHeight() / static_cast<float>(editor.height);
-        float zoomed = std::min(sx, sy);
-        if (editor.maxWidth > 0 && editor.maxHeight > 0)
-            zoomed =
-                std::min(zoomed, std::min(static_cast<float>(editor.maxWidth) / static_cast<float>(editor.width),
-                                          static_cast<float>(editor.maxHeight) / static_cast<float>(editor.height)));
-        return std::max(zoomed, 0.05f);
-    }
-
-    Editor::Area Editor::uiArea() const
-    {
-        const float width = logicalWidth();
-        const float height = logicalHeight();
-        const auto& editor = definition.editor;
-        if (! editor.scale || editor.cover)
-            return { 0, 0, width, height };
-        // 'contain': the configured size, zoomed, in the middle.
-        const float shownWidth = static_cast<float>(editor.width) * zoom();
-        const float shownHeight = static_cast<float>(editor.height) * zoom();
-        return { std::max(0.0f, (width - shownWidth) / 2), std::max(0.0f, (height - shownHeight) / 2),
-                 std::min(width, shownWidth), std::min(height, shownHeight) };
-    }
-
-    void Editor::sizeSurface()
-    {
-        auto& surface = runtimeHost().surface();
-        surface.setVisible(attachedToHost);
-        surface.setFocused(nativeInput != nullptr ? nativeInput->focused() : focusedByHost);
-        const float viewZoom = zoom();
-        const auto area = uiArea();
-        surface.setSize({ area.width / viewZoom, area.height / viewZoom });
-        const auto& editor = definition.editor;
-        if (editor.scale && editor.cover)
-        {
-            const float width = area.width / viewZoom;
-            const float height = area.height / viewZoom;
-            surface.setSafeArea(ui::Rect { (width - static_cast<float>(editor.width)) / 2,
-                                           (height - static_cast<float>(editor.height)) / 2,
-                                           static_cast<float>(editor.width), static_cast<float>(editor.height) });
-        }
-        else
-            surface.setSafeArea(std::nullopt);
-        surface.setEditorSize({ logicalWidth(), logicalHeight() });
-        surface.setEditorResizable(editor.resizable);
-        if (editor.resizable)
-            surface.setEditorSizeHold(
-                [this](ui::Size wanted)
-                {
-                    auto requested =
-                        constrained(ViewRect(0, 0, static_cast<int32>(std::lround(wanted.width * contentScale)),
-                                             static_cast<int32>(std::lround(wanted.height * contentScale))));
-                    return ui::Size { static_cast<float>(requested.getWidth()) / contentScale,
-                                      static_cast<float>(requested.getHeight()) / contentScale };
-                });
-        surface.setScale(contentScale * viewZoom);
-        image.setPlacement(static_cast<int>(std::lround(area.x * contentScale)),
-                           static_cast<int>(std::lround(area.y * contentScale)), definition.editor.background);
-    }
-
-    void Editor::updateCompositor()
-    {
-        if (gpu != nullptr && ! gpu->healthy())
-        {
-            logSink(js::LogLevel::Warn, "the GPU was lost: rendering on the CPU from now on");
-            gpuLost = true;
-            gpu = nullptr;
-            compositor.reset();
-        }
-        if (compositor == nullptr)
-        {
-            std::string why = "no GPU";
-            if (! gpuLost)
-                if (auto created = render::GpuCompositor::create(
-                        { .view = { nativeWindow() }, .background = definition.editor.background, .device = gpuDevice },
-                        &why))
-                {
-                    gpu = created.get();
-                    compositor = std::move(created);
-                }
-            if (compositor == nullptr)
-                compositor = std::make_unique<render::RasterCompositor>(image);
-            capabilities = compositor->capabilities();
-            logSink(js::LogLevel::Info, capabilities.gpu ? "renderer: GPU compositor, " + capabilities.backend
-                                                         : "renderer: CPU, " + capabilities.backend + " (" + why + ")");
-        }
-        if (gpu != nullptr)
-        {
-            const auto area = uiArea();
-            gpu->setBounds(area.x * contentScale, area.y * contentScale, area.width * contentScale,
-                           area.height * contentScale, runtimeHost().surface().scale());
-            gpu->setVisible(attachedToHost);
-        }
-    }
-
-    void Editor::renderFrame()
-    {
-#if SOUNDOR_DEVTOOLS
-        if (bridge != nullptr && bridge->recording())
-        {
-            bridge->renderFrame(runtimeHost(), *compositor, capabilities);
-            return;
-        }
-#endif
-        compositor->composite(runtimeHost().frame(capabilities));
+        return { static_cast<float>(rect.getWidth()) / contentScale,
+                 static_cast<float>(rect.getHeight()) / contentScale };
     }
 
     void Editor::readWindowEvents()
     {
-        if (window != nullptr && window->pump() && gpu == nullptr)
+        if (window != nullptr && window->pump() && (pluginView == nullptr || ! pluginView->gpu()))
             image.repaint();
     }
 
-    void Editor::updateInputGeometry()
+    // ── view::Platform ───────────────────────────────────────────────────────
+
+    view::Platform::State Editor::state()
     {
-        if (window == nullptr)
-            return;
-        if (nativeInput == nullptr && inputDescriptor != -2)
+        State now;
+        now.nativeView = nativeWindow();
+        now.size = logicalSize();
+        // The window is the editor: at its top-left, in physical pixels.
+        now.nativeScale = contentScale;
+        now.pixelScale = contentScale;
+        if (window != nullptr)
         {
-            std::string why;
-            nativeInput = input::createPlatformInput({ .view = { nativeWindow() } }, &why);
-            if (nativeInput == nullptr)
-            {
-                // No XInput 2: the editor shows, and takes no input.
-                logSink(js::LogLevel::Warn, "native input could not start (" + why + ")");
-                inputDescriptor = -2;
-                return;
-            }
-            inputDescriptor = nativeInput->fileDescriptor();
-            if (inputDescriptor >= 0)
-                runLoop->registerEventHandler(this, inputDescriptor);
-            logSink(js::LogLevel::Info, "input: native (X11, XInput 2)");
+            const auto [x, y] = window->screenPosition();
+            now.screenOrigin = ui::Point { static_cast<float>(x), static_cast<float>(y) };
         }
-        if (nativeInput == nullptr)
-            return;
-        nativeInput->setGeometry(
-            { .x = 0, .y = 0, .scale = contentScale, .width = logicalWidth(), .height = logicalHeight() });
+        now.visible = attachedToHost;
+        now.focused = focusedByHost;
+        return now;
     }
 
-    void Editor::readInput()
+    void Editor::setCursor(ui::Cursor shape)
     {
-        if (nativeInput == nullptr || readingInput)
+        if (window != nullptr)
+            window->setCursor(cursorIcon(shape));
+    }
+
+    ViewRect Editor::physical(ui::Size logical) const
+    {
+        return { 0, 0, static_cast<int32>(std::lround(logical.width * contentScale)),
+                 static_cast<int32>(std::lround(logical.height * contentScale)) };
+    }
+
+    ui::Size Editor::holdSize(ui::Size wanted)
+    {
+        const auto held = constrained(physical(wanted));
+        return { static_cast<float>(held.getWidth()) / contentScale,
+                 static_cast<float>(held.getHeight()) / contentScale };
+    }
+
+    void Editor::requestSize(ui::Size wanted)
+    {
+        if (! plugFrame || ! definition.editor.resizable)
             return;
-        readingInput = true;
-        events.clear();
-        nativeInput->read(events);
-        for (auto& event : events)
-            deliver(event);
-        events.clear();
-        readingInput = false;
-        if (nativeInput != nullptr)
-        {
-            auto& surface = runtimeHost().surface();
-            const auto* node = surface.find(surface.focused());
-            nativeInput->setTextInputFocused(node != nullptr && node->type() == ui::NodeType::Input);
-        }
-    }
-
-    void Editor::deliver(input::Event& event)
-    {
-        auto& runtime = runtimeHost();
-        const float viewZoom = zoom();
-        const auto area = uiArea();
-        const auto toLayout = [&](ui::Point point)
-        { return ui::Point { (point.x - area.x) / viewZoom, (point.y - area.y) / viewZoom }; };
-        if (auto* pointer = std::get_if<ui::PointerInput>(&event))
-        {
-            // A locked pointer goes on past the view's edges.
-            if (pointer->phase == ui::PointerInput::Phase::Move && pointer->buttons != 0)
-                pointer->position =
-                    pointerLock.follow(pointer->pointerId, pointer->position, { logicalWidth(), logicalHeight() });
-            pointer->position = toLayout(pointer->position);
-#if SOUNDOR_DEVTOOLS
-            if (bridge != nullptr && bridge->pointer(runtime, *pointer))
-                return;
-#endif
-            runtime.surface().pointer(*pointer);
-            runtime.runtime().runPendingJobs();
-            updatePointerLock();
-            updateCursor();
-        }
-        else if (auto* wheel = std::get_if<ui::WheelInput>(&event))
-        {
-#if SOUNDOR_DEVTOOLS
-            if (bridge != nullptr && bridge->picking())
-                return;
-#endif
-            wheel->position = toLayout(wheel->position);
-            runtime.surface().wheel(*wheel);
-            runtime.runtime().runPendingJobs();
-        }
-        else if (auto* key = std::get_if<input::KeyEvent>(&event))
-        {
-#if SOUNDOR_DEVTOOLS
-            if (bridge != nullptr && bridge->key(runtime, key->key))
-                return;
-#endif
-            runtime.surface().key(key->key, key->typed);
-            runtime.runtime().runPendingJobs();
-        }
-        else if (auto* text = std::get_if<ui::TextInput>(&event))
-        {
-            runtime.surface().text(*text);
-            runtime.runtime().runPendingJobs();
-        }
-        else if (auto* focus = std::get_if<input::FocusChange>(&event))
-            runtime.surface().setFocused(focus->focused);
-    }
-
-    void Editor::updatePointerLock()
-    {
-        const auto lock = runtimeHost().surface().pointerLock();
-        const float viewZoom = zoom();
-        const auto area = uiArea();
-        pointerLock.update(
-            lock ? std::optional<int>(lock->pointerId) : std::nullopt,
-            lock ? ui::Point { lock->position.x * viewZoom + area.x, lock->position.y * viewZoom + area.y }
-                 : ui::Point {});
-    }
-
-    void Editor::updateCursor()
-    {
-        if (window == nullptr)
+        auto held = constrained(physical(wanted));
+        if (held.getWidth() == rect.getWidth() && held.getHeight() == rect.getHeight())
             return;
-        // None while the pointer is locked: it stays in this view for that.
-        const auto wanted = pointerLock.active() ? ui::Cursor::None : runtimeHost().surface().cursor();
-        if (wanted == cursor)
-            return;
-        cursor = wanted;
-        window->setCursor(cursorIcon(cursor));
+        // The host answers with onSize(), with this size or its own.
+        plugFrame->resizeView(this, &held);
     }
 
-    void Editor::updateAccessibility()
+    void Editor::placed(const view::Placement& placement)
     {
-        if (accessibility == nullptr)
-        {
-            accessibility = a11y::createPlatformAccessibility({ { nullptr, nullptr }, definition.name });
-            if (accessibility == nullptr)
-                return;
-        }
-        const auto area = uiArea();
-        const auto [screenX, screenY] = window != nullptr ? window->screenPosition() : std::pair { 0, 0 };
-        const float scale = runtimeHost().surface().scale();
-        accessibility->setGeometry({ area.x * contentScale,
-                                     area.y * contentScale,
-                                     scale,
-                                     { static_cast<float>(screenX) + area.x * contentScale,
-                                       static_cast<float>(screenY) + area.y * contentScale, area.width * contentScale,
-                                       area.height * contentScale } });
-        const bool focused = nativeInput != nullptr ? nativeInput->focused() : focusedByHost;
-        if (focused != accessibilityFocused)
-        {
-            accessibilityFocused = focused;
-            accessibility->setFocused(focused);
-        }
-        accessibility->tick(runtimeHost());
+        image.setPlacement(static_cast<int>(std::lround(placement.area.x * contentScale)),
+                           static_cast<int>(std::lround(placement.area.y * contentScale)),
+                           definition.editor.background);
+    }
+
+    void Editor::inputStarted(input::PlatformInput& input)
+    {
+        // Read when its connection is readable. It goes with the View, whose
+        // handlers close() unregisters (all of this editor's at once).
+        if (const int descriptor = input.fileDescriptor(); descriptor >= 0 && runLoop)
+            runLoop->registerEventHandler(this, descriptor);
+        logSink(js::LogLevel::Info, "input: native (X11, XInput 2)");
+    }
+
+    void Editor::inputFailed(const std::string& why)
+    {
+        // No XInput 2: the editor shows, and takes no input.
+        logSink(js::LogLevel::Warn, "native input could not start (" + why + ")");
     }
 
     ViewRect Editor::constrained(ViewRect wanted) const
@@ -663,47 +456,14 @@ namespace soundor::vst3
         return { wanted.left, wanted.top, wanted.left + width, wanted.top + height };
     }
 
-    void Editor::applySizeRequest()
-    {
-        auto& surface = runtimeHost().surface();
-        const auto request = surface.takeEditorSizeRequest();
-        if (! request || ! plugFrame || ! definition.editor.resizable)
-            return;
-        auto wanted = constrained(ViewRect(0, 0, static_cast<int32>(std::lround(request->width * contentScale)),
-                                           static_cast<int32>(std::lround(request->height * contentScale))));
-        if (wanted.getWidth() == rect.getWidth() && wanted.getHeight() == rect.getHeight())
-            return;
-        // The host answers with onSize(), with this size or its own.
-        plugFrame->resizeView(this, &wanted);
-    }
-
     void Editor::tick()
     {
-        if (window == nullptr || (host == nullptr && session == nullptr))
+        if (pluginView == nullptr)
             return;
         try
         {
             readWindowEvents();
-            updateInputGeometry();
-            readInput();
-            sizeSurface();
-            if (session != nullptr)
-                session->tick();
-            else
-                host->tick();
-            applySizeRequest();
-            updateAccessibility();
-            // A lock ends with a reloaded runtime or a drag the platform
-            // ended, and styles also change outside input.
-            updatePointerLock();
-            updateCursor();
-#if SOUNDOR_DEVTOOLS
-            if (bridge != nullptr)
-                bridge->tick(runtimeHost(), session != nullptr ? session->reloadCount() + 1 : 1);
-#endif
-            updateCompositor();
-            if (runtimeHost().needsRender())
-                renderFrame();
+            pluginView->frame();
             if (controller != nullptr)
                 controller->pump();
         }
@@ -720,8 +480,8 @@ namespace soundor::vst3
 
     void PLUGIN_API Editor::onFDIsSet(Linux::FileDescriptor fd)
     {
-        if (fd == inputDescriptor)
-            readInput();
+        if (pluginView != nullptr && fd == pluginView->inputDescriptor())
+            pluginView->readInput();
         else
             readWindowEvents();
     }
@@ -734,12 +494,10 @@ namespace soundor::vst3
         if (window != nullptr)
         {
             window->resize(rect.getWidth(), rect.getHeight());
-            if (host != nullptr || session != nullptr)
+            if (pluginView != nullptr)
             {
-                updateInputGeometry();
-                sizeSurface();
-                updateCompositor();
-                if (gpu == nullptr)
+                pluginView->resized();
+                if (! pluginView->gpu())
                     image.repaint();
             }
         }

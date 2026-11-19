@@ -2,6 +2,8 @@
 
 // JUCE backend: the size constraints of a resizable editor.
 
+#include <soundor/Abi.h>
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <algorithm>
