@@ -138,7 +138,11 @@ export function environmentLinkFlags(
 /** What a macOS plugin exports (macexport.exp, the SDK's): nothing else. */
 export const MAC_EXPORTS = '_GetPluginFactory\n_bundleEntry\n_bundleExit\n';
 
-/** What the adapter needs on macOS beside the engine's frameworks. */
+/**
+ * The frameworks the adapter and the engine need on macOS: the engine's
+ * beside its archives' (SoundorPlatformLibraries.cmake: the runtime's, Skia's
+ * and Hermes's, which its metadata leaves to CMake), and the adapter's.
+ */
 export const MAC_FRAMEWORKS = [
   '-framework',
   'CoreFoundation',
@@ -150,7 +154,23 @@ export const MAC_FRAMEWORKS = [
   'QuartzCore',
   '-framework',
   'CoreGraphics',
+  '-framework',
+  'CoreText',
+  '-framework',
+  'ImageIO',
 ];
+
+/**
+ * The engine's link flags as the driver takes them: its metadata lists
+ * Hermes's frameworks as system libraries ("-framework CoreFoundation"),
+ * which engine() makes `-l-framework CoreFoundation`.
+ */
+export function macEngineFlags(flags: readonly string[]): string[] {
+  return flags.flatMap((flag) => {
+    const framework = /^-l-framework\s+(.+)$/.exec(flag);
+    return framework ? ['-framework', framework[1]!] : [flag];
+  });
+}
 
 /** What Rust's standard library needs on macOS (rustc --print native-static-libs). */
 export const MAC_RUST_LIBRARIES = ['-liconv', '-lSystem', '-lc', '-lm'];
@@ -184,7 +204,7 @@ export function macLinkArguments(inputs: MacLinkInputs): string[] {
     `-Wl,-force_load,${inputs.adapter}`,
     inputs.rust,
     ...inputs.engineLibraries,
-    ...inputs.engineFlags,
+    ...macEngineFlags(inputs.engineFlags),
     ...MAC_FRAMEWORKS,
     ...MAC_RUST_LIBRARIES,
   ];
@@ -192,14 +212,27 @@ export function macLinkArguments(inputs: MacLinkInputs): string[] {
 
 // ── Windows ────────────────────────────────────────────────────────────────
 
-/** What the adapter needs on Windows beside the engine's libraries. */
+/**
+ * The system libraries the adapter and the engine need on Windows: the
+ * engine's beside its archives' (SoundorPlatformLibraries.cmake: the
+ * runtime's and Skia's, which its metadata leaves to CMake), and the
+ * adapter's.
+ */
 export const WINDOWS_LIBRARIES = [
   'kernel32.lib',
   'user32.lib',
   'gdi32.lib',
   'comctl32.lib',
   'ole32.lib',
+  'oleaut32.lib',
   'shell32.lib',
+  'bcrypt.lib',
+  'winhttp.lib',
+  'uiautomationcore.lib',
+  'imm32.lib',
+  'dwrite.lib',
+  'usp10.lib',
+  'fontsub.lib',
 ];
 
 /** What Rust's standard library needs on Windows (rustc --print native-static-libs). */

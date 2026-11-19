@@ -165,7 +165,10 @@ On **macOS**, by `c++` too: `-bundle -arch <the machine's>
 -mmacosx-version-min=<the engine's minimum>`, the adapter with `-force_load`,
 `-exported_symbols_list` naming `_GetPluginFactory`, `_bundleEntry` and
 `_bundleExit` (the SDK's `macexport.exp`), the engine's frameworks and the
-adapter's (AppKit, QuartzCore, CoreFoundation). Two-level namespaces and
+adapter's (AppKit, QuartzCore, CoreFoundation). The engine's metadata lists
+only its archives' system dependencies (Hermes's, ANGLE's); what the
+engine's own code and Skia need (`SoundorPlatformLibraries.cmake`, which
+CMake consumers link) is listed in `link.ts`, as on Linux. Two-level namespaces and
 hosts' `RTLD_LOCAL` keep everything else apart; the build signs the bundle
 last (`codesign`, `ctx.signing`). The Rust library is built for the
 machine's target (`aarch64-apple-darwin` or `x86_64-apple-darwin`); the
@@ -174,7 +177,9 @@ adapter and the engine are universal.
 On **Windows**, by MSVC's `link.exe`, found with `vswhere` and its
 `vcvars64.bat` (or the developer prompt's `VCToolsInstallDir` and `LIB`),
 from a response file: `/DLL`, `/WHOLEARCHIVE:` the adapter, whose
-`SMTG_EXPORT_SYMBOL`s (`__declspec(dllexport)`) are the only exports.
+`SMTG_EXPORT_SYMBOL`s (`__declspec(dllexport)`) are the only exports. The
+system libraries are listed in `link.ts` (WinHTTP, UI Automation, IMM,
+DirectWrite and the rest of `SoundorPlatformLibraries.cmake`'s).
 Everything links the static C runtime: the adapter and the engine's `-static`
 archives (`/MT`, `/MTd`), Rust with `+crt-static`; Rust's standard library
 names the release runtime in Debug builds too, so they drop it

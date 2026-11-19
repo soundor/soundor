@@ -13,6 +13,7 @@ import {
   findAdapter,
   linkArguments,
   MAC_EXPORTS,
+  macEngineFlags,
   macLinkArguments,
   responseFile,
   VERSION_SCRIPT,
@@ -377,10 +378,29 @@ describe('macOS and Windows', () => {
       args.indexOf('/t/libplugin.a'),
     );
     expect(args).toContain('-Wl,-dead_strip');
+    // What the engine's own code needs, which its metadata does not list.
+    expect(args.join(' ')).toContain('-framework CoreText');
     expect(MAC_EXPORTS.trim().split('\n')).toEqual([
       '_GetPluginFactory',
       '_bundleEntry',
       '_bundleExit',
+    ]);
+  });
+
+  it("passes the engine's Hermes frameworks as frameworks", () => {
+    expect(
+      macEngineFlags([
+        '-l-framework CoreFoundation',
+        '-lpthread',
+        '-framework',
+        'Metal',
+      ]),
+    ).toEqual([
+      '-framework',
+      'CoreFoundation',
+      '-lpthread',
+      '-framework',
+      'Metal',
     ]);
   });
 
@@ -395,6 +415,8 @@ describe('macOS and Windows', () => {
     expect(release).toContain('/WHOLEARCHIVE:C:/a/soundor_vst3.lib');
     expect(release).toContain('/LIBPATH:C:/kits/lib');
     expect(release).toContain('/OPT:REF');
+    expect(release).toContain('winhttp.lib');
+    expect(release).toContain('uiautomationcore.lib');
     expect(release.some((arg) => arg.startsWith('/NODEFAULTLIB'))).toBe(false);
     const debug = windowsLinkArguments({
       ...inputs,
