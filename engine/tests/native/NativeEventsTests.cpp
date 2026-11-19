@@ -56,10 +56,10 @@ namespace
         struct PresetLoaded
         {
             std::string path;
-            std::optional<native::Preset> preset {};
+            std::optional<native::Preset> preset;
         };
 
-        bool presetLoaded(const PresetLoaded& event) const
+        [[nodiscard]] bool presetLoaded(const PresetLoaded& event) const
         {
             std::vector<std::uint8_t> bytes;
             putString(bytes, event.path);
@@ -78,7 +78,7 @@ namespace
             native::Curve curve;
         };
 
-        bool levels(const Levels& event) const
+        [[nodiscard]] bool levels(const Levels& event) const
         {
             std::vector<std::uint8_t> bytes;
             putFloats(bytes, event.values);
@@ -86,8 +86,8 @@ namespace
             return publish(0, bytes);
         }
 
-        bool ready() const { return publish(2, {}); }
-        auto statistics() const { return controller->eventSource().statistics(); }
+        [[nodiscard]] bool ready() const { return publish(2, {}); }
+        [[nodiscard]] auto statistics() const { return controller->eventSource().statistics(); }
         void install(js::Context& context) const
         {
             js::bind::connectRustEvents(context, controller);
@@ -98,7 +98,7 @@ namespace
         SoundorControllerHost host {};
         std::shared_ptr<processor::RustController> controller;
 
-        bool publish(std::uint32_t index, std::span<const std::uint8_t> bytes) const
+        [[nodiscard]] bool publish(std::uint32_t index, std::span<const std::uint8_t> bytes) const
         {
             return host.publishEvent(host.user, index, bytes.data(), bytes.size()) != 0;
         }
@@ -238,12 +238,12 @@ TEST_SUITE("soundor:native events")
             events.presetLoaded.subscribe((e) => { seen.push('second ' + e.path); globalThis.same = globalThis.firstValue === e; });
             globalThis.stopFirst = first;
         )");
-        source.presetLoaded({ .path = "x" });
+        CHECK(source.presetLoaded({ .path = "x" }));
         js::deliverEvents(f.context);
         CHECK(f.text("seen.join()") == "first x,second x");
         CHECK(f.text("String(same)") == "true");
         f.run("stopFirst(); stopFirst();");
-        source.presetLoaded({ .path = "y" });
+        CHECK(source.presetLoaded({ .path = "y" }));
         js::deliverEvents(f.context);
         CHECK(f.text("seen.join()") == "first x,second x,second y");
     }
@@ -262,11 +262,11 @@ TEST_SUITE("soundor:native events")
             });
             stopSecond = events.ready.subscribe(() => seen.push('second'));
         )");
-        source.ready();
+        CHECK(source.ready());
         js::deliverEvents(f.context);
         // Removed during the dispatch: not called; added during it: from the next event.
         CHECK(f.text("seen.join()") == "first");
-        source.ready();
+        CHECK(source.ready());
         js::deliverEvents(f.context);
         CHECK(f.text("seen.join()") == "first,first,late");
     }
@@ -281,7 +281,7 @@ TEST_SUITE("soundor:native events")
             events.ready.subscribe(() => { throw new Error('boom'); });
             events.ready.subscribe(() => seen.push('after'));
         )");
-        source.ready();
+        CHECK(source.ready());
         js::deliverEvents(f.context);
         CHECK(f.text("seen.join()") == "after");
         REQUIRE(log.errors.size() == 1);
@@ -322,13 +322,13 @@ TEST_SUITE("soundor:native events")
     {
         Source source;
         Fixture f(source);
-        source.ready();
+        CHECK(source.ready());
         // Nobody imported soundor:native: nothing to call, nothing kept.
         CHECK(js::deliverEvents(f.context) == 1);
         f.run("globalThis.count = 0; events.ready.subscribe(() => ++globalThis.count);");
         js::deliverEvents(f.context);
         CHECK(f.number("count") == 0);
-        source.ready();
+        CHECK(source.ready());
         js::deliverEvents(f.context);
         CHECK(f.number("count") == 1);
     }
@@ -340,8 +340,8 @@ TEST_SUITE("soundor:native events")
         Fixture second(source);
         first.run("globalThis.count = 0; events.ready.subscribe(() => ++globalThis.count);");
         second.run("globalThis.count = 0; events.ready.subscribe(() => ++globalThis.count);");
-        source.ready();
-        source.ready();
+        CHECK(source.ready());
+        CHECK(source.ready());
         js::deliverEvents(first.context);
         js::deliverEvents(second.context);
         CHECK(first.number("count") == 2);
@@ -363,7 +363,8 @@ TEST_SUITE("soundor:native events")
                 [&source, &finished, thread]
                 {
                     for (int index = 0; index < perThread; ++index)
-                        source.presetLoaded({ .path = std::to_string(thread) + ":" + std::to_string(index) });
+                        static_cast<void>(
+                            source.presetLoaded({ .path = std::to_string(thread) + ":" + std::to_string(index) }));
                     ++finished;
                 });
         // Delivering while they publish.
@@ -396,7 +397,7 @@ TEST_SUITE("soundor:native events")
         {
             Fixture f(source);
             f.run("events.ready.subscribe(() => {});");
-            source.ready();
+            CHECK(source.ready());
             // Destroyed with an event undelivered.
         }
         CHECK_FALSE(source.ready());
@@ -404,7 +405,7 @@ TEST_SUITE("soundor:native events")
         auto early = std::make_unique<Source>();
         Fixture f(*early);
         f.run("globalThis.count = 0; events.ready.subscribe(() => ++globalThis.count);");
-        early->ready();
+        CHECK(early->ready());
         early.reset();
         // What it published before it went is still delivered.
         CHECK(js::deliverEvents(f.context) == 1);
@@ -416,13 +417,13 @@ TEST_SUITE("soundor:native events")
         Source source;
         auto first = std::make_unique<Fixture>(source);
         first->run("globalThis.count = 0; events.ready.subscribe(() => ++globalThis.count);");
-        source.ready();
+        CHECK(source.ready());
         // Reload: the old context goes, its undelivered event with it.
         first.reset();
-        source.ready();
+        CHECK_FALSE(source.ready());
         Fixture second(source);
         second.run("globalThis.count = 0; events.ready.subscribe(() => ++globalThis.count);");
-        source.ready();
+        CHECK(source.ready());
         js::deliverEvents(second.context);
         CHECK(second.number("count") == 1);
     }
@@ -439,7 +440,7 @@ TEST_SUITE("soundor:native events")
                                                           "events.ready.subscribe(() => ++globalThis.count);"),
                                     "/ui.js")
                     .ok());
-        source.ready();
+        CHECK(source.ready());
         host.tick();
         CHECK(host.context().evaluateScript("count").value().asNumber() == 1);
     }
