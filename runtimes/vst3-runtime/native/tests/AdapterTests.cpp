@@ -19,7 +19,9 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 using namespace soundor::vst3;
@@ -27,6 +29,15 @@ namespace json = soundor::json;
 
 namespace
 {
+    // An optional the test needs: its value, or the test case fails.
+    template <typename T>
+    T present(const std::optional<T>& value)
+    {
+        if (! value)
+            throw std::runtime_error("an expected value is absent");
+        return *value;
+    }
+
     std::string readFile(const char* path)
     {
         std::ifstream in(path, std::ios::binary);
@@ -75,9 +86,9 @@ namespace
         }
         const auto number = value.isString() ? json::Value::numberText(value.asString()) : value;
         if (expression::isSigned(type.base))
-            out.i = *number.asInt64();
+            out.i = present(number.asInt64());
         else
-            out.u = *number.asUint64();
+            out.u = present(number.asUint64());
         return out;
     }
 
@@ -125,7 +136,8 @@ namespace
 
 TEST_CASE("expressions: the interpreter computes @soundor/expression's corpus bit for bit")
 {
-    const auto corpus = json::parse(readFile(SOUNDOR_VST3_EXPRESSION_CORPUS), { 64, 10000000, 64 * 1024 * 1024 });
+    const auto corpus =
+        json::parse(readFile(SOUNDOR_VST3_EXPRESSION_CORPUS), { 64, 10000000, std::size_t { 64 } * 1024 * 1024 });
     std::size_t checked = 0;
     for (const auto& test : corpus.at("cases").asArray())
     {
@@ -193,10 +205,10 @@ TEST_CASE("state: canonical values by type, the audio snapshot, documents")
 {
     const auto plugin = parseDescriptor(descriptor());
     const StateSchema schema(*plugin);
-    const auto level = *schema.indexOf("level");
-    const auto seed = *schema.indexOf("seed");
-    const auto band = *schema.indexOf("band");
-    const auto steps = *schema.indexOf("steps");
+    const auto level = present(schema.indexOf("level"));
+    const auto seed = present(schema.indexOf("seed"));
+    const auto band = present(schema.indexOf("band"));
+    const auto steps = present(schema.indexOf("steps"));
     CHECK(schema.canonical(level, std::string_view("0.1")) == "0.10000000149011612");
     CHECK(schema.canonical(seed, std::string_view("\"18446744073709551615\"")) == "\"18446744073709551615\"");
     CHECK_THROWS_AS(static_cast<void>(schema.canonical(seed, std::string_view("\"007\""))), std::invalid_argument);
@@ -239,7 +251,7 @@ TEST_CASE("state: canonical values by type, the audio snapshot, documents")
     const auto partial = readStateDocument(*plugin, schema, R"({"version":1,"parameters":{"on":false}})");
     CHECK(partial.parameters[0] == doctest::Approx(1.0));
     CHECK(partial.parameters[1] == 0);
-    CHECK(partial.state.at("level") == plugin->state[*schema.indexOf("level")].defaultJson);
+    CHECK(partial.state.at("level") == plugin->state[present(schema.indexOf("level"))].defaultJson);
     CHECK_THROWS_AS(static_cast<void>(readStateDocument(*plugin, schema, R"({"version":1,"parameters":{"gain":3}})")),
                     std::invalid_argument);
     CHECK_THROWS_AS(static_cast<void>(readStateDocument(*plugin, schema, R"({"version":2})")), std::invalid_argument);
@@ -266,7 +278,7 @@ TEST_CASE("state: the store's edits, History and notifications")
     CHECK(heard == std::vector<std::string> { "\"One\"" });
     CHECK(history.canUndo());
     history.undo();
-    CHECK(store.get("label") == plugin->state[*schema.indexOf("label")].defaultJson);
+    CHECK(store.get("label") == plugin->state[present(schema.indexOf("label"))].defaultJson);
     CHECK(heard.size() == 2);
     CHECK_THROWS(store.set("label", "\"One\" "));
     store.replace({ { "label", "\"Restored\"" } });

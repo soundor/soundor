@@ -39,8 +39,10 @@
     "format:native:fix": "node ../../scripts/clang-format.mjs --fix native",
     "gen:expression": "node scripts/expression-runtime.mjs && UPDATE_GOLDEN=1 vitest run src/expression-corpus.test.ts",
     "lint:native": "node scripts/adapter.ts tidy",
+    "lint:rust": "cargo fmt --check --manifest-path rust/Cargo.toml && cargo clippy --all-targets --manifest-path rust/Cargo.toml -- -D warnings",
     "test": "vitest run",
     "test:native": "node scripts/adapter.ts test",
+    "test:rust": "cargo test --manifest-path rust/Cargo.toml",
     "test:plugin": "soundor build vst3 --config tests/plugin/soundor.config.ts && vitest run --config vitest.plugin.config.ts",
     "test:watch": "vitest watch",
     "test:plugin:run": "vitest run --config vitest.plugin.config.ts"

@@ -101,8 +101,9 @@ build (examples included) links; build it again after an engine edit:
 
 ```sh
 pnpm --filter @soundor/vst3-runtime build:native   # the prebuilt adapter, both variants, against engine()
-pnpm --filter @soundor/vst3-runtime test:native    # its native tests
-pnpm --filter @soundor/vst3-runtime lint:native    # clang-tidy
+pnpm --filter @soundor/vst3-runtime test:native    # its native tests (--preset sanitize: ASan + UBSan; --build <dir> for another compiler)
+pnpm --filter @soundor/vst3-runtime lint:native    # clang-tidy, the adapter and its tests
+pnpm --filter @soundor/vst3-runtime lint:rust      # rustfmt + clippy of its crate (test:rust: its tests)
 xvfb-run -a pnpm --filter @soundor/vst3-runtime test:plugin  # its test plugin in the VST3 host
 pnpm --filter @soundor/vst3-runtime exec soundor build vst3 --debug --config tests/plugin/soundor.config.ts  # the Debug build the real-plugin suites load
 ```

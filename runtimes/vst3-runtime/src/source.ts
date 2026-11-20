@@ -35,7 +35,13 @@ export interface AdapterEngine {
   readonly sourceFingerprint: string | undefined;
 }
 
-export type AdapterPreset = 'adapter' | 'tests' | 'tidy';
+/**
+ * What a build directory is for: the adapter alone (`adapter`, what is
+ * staged and what source mode builds), or Soundor's checks of it, each with
+ * the native unit tests: `dev` (Debug, -Werror), `sanitize` (ASan + UBSan)
+ * and `tidy` (clang-tidy over the adapter and its tests).
+ */
+export type AdapterPreset = 'adapter' | 'dev' | 'sanitize' | 'tidy';
 
 export interface AdapterBuild {
   readonly packageRoot: string;
@@ -118,7 +124,8 @@ export function configureAdapter(options: AdapterBuild): void {
       `-DSOUNDOR_ENGINE_PREBUILT_${variant.toUpperCase()}_DIR=${engine.directory}`,
       `-DSOUNDOR_VST3_RUNTIME_VERSION=${packageVersion(packageRoot)}`,
       `-DSOUNDOR_WARNINGS_AS_ERRORS=${options.warningsAsErrors ? 'ON' : 'OFF'}`,
-      `-DSOUNDOR_VST3_TESTS=${preset === 'tests' ? 'ON' : 'OFF'}`,
+      `-DSOUNDOR_VST3_TESTS=${preset === 'adapter' ? 'OFF' : 'ON'}`,
+      `-DSOUNDOR_ENABLE_SANITIZERS=${preset === 'sanitize' ? 'ON' : 'OFF'}`,
       `-DSOUNDOR_ENABLE_CLANG_TIDY=${preset === 'tidy' ? 'ON' : 'OFF'}`,
       `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     ],

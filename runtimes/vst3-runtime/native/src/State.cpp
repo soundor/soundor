@@ -465,7 +465,7 @@ namespace soundor::vst3
         listeners[field].emplace(id, std::move(callback));
         return [this, field, id]
         {
-            const std::lock_guard historyGuard(history.mutex());
+            const std::lock_guard removeHistoryGuard(history.mutex());
             const std::lock_guard removeGuard(lock);
             listeners[field].erase(id);
         };

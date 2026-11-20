@@ -38,7 +38,6 @@ const plugin = fileURLToPath(
 const display =
   process.platform !== 'linux' ||
   (process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '');
-// Instances.cpp, which `pnpm test:native` builds.
 /**
  * A class id as the VST3 host reports it: its bytes in order. On Windows the
  * SDK keeps an id as a GUID, whose first three groups are little-endian, so
@@ -62,12 +61,20 @@ function platformType(): string {
   return 'X11EmbedWindowID';
 }
 
-const instances = fileURLToPath(
-  new URL(
-    '../native/build/tests/tests/soundor_vst3_instances',
-    import.meta.url,
-  ),
-);
+// Linux: Instances.cpp, which `pnpm test:native` builds (another build of
+// the tests: SOUNDOR_VST3_INSTANCES). CI requires it; elsewhere its test is
+// skipped without it.
+const instances =
+  process.env['SOUNDOR_VST3_INSTANCES'] ??
+  fileURLToPath(
+    new URL(
+      '../native/build/dev/tests/soundor_vst3_instances',
+      import.meta.url,
+    ),
+  );
+const runInstances =
+  process.platform === 'linux' &&
+  (existsSync(instances) || process.env['CI'] !== undefined);
 
 const hosts: Vst3Host[] = [];
 async function open(
@@ -400,7 +407,7 @@ describe('the VST3 test plugin', () => {
     },
   );
 
-  it.runIf(existsSync(instances))(
+  it.runIf(runInstances)(
     'shares one process with its other instances and another build of itself',
     () => {
       // Another binary of the plugin (another version, as the process sees it).
