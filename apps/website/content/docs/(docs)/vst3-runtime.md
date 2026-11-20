@@ -175,8 +175,9 @@ step of the build, as the JUCE runtime's are; notarizing it is yours.
 
 **Identity.** Hosts know a plugin by its class ids, not by its file name: they
 are derived from `plugin.id` (a hash), so they stay the same across versions
-and rebuilds, and renaming the bundle keeps the plugin. Changing `plugin.id`
-makes another plugin. A parameter's VST3 id is a hash of its id in the config
+and rebuilds, and renaming the bundle keeps the plugin. They are the same on
+every platform, as hosts write them (`moduleinfo.json`), so a project made on
+one opens the plugin on another. Changing `plugin.id` makes another plugin. A parameter's VST3 id is a hash of its id in the config
 (as the JUCE runtime's), so renaming a parameter's key breaks automation that
 hosts recorded for it.
 

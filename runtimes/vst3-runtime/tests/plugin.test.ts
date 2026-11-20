@@ -39,6 +39,22 @@ const display =
   process.platform !== 'linux' ||
   (process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '');
 // Instances.cpp, which `pnpm test:native` builds.
+/**
+ * A class id as the VST3 host reports it: its bytes in order. On Windows the
+ * SDK keeps an id as a GUID, whose first three groups are little-endian, so
+ * the bytes of the id hosts write (FUID::toString, moduleinfo.json) differ.
+ */
+function hostClassId(id: string): string {
+  if (process.platform !== 'win32') return id;
+  const swap = (hex: string) => hex.match(/../g)!.reverse().join('');
+  return (
+    swap(id.slice(0, 8)) +
+    swap(id.slice(8, 12)) +
+    swap(id.slice(12, 16)) +
+    id.slice(16)
+  );
+}
+
 /** The view the host gives the editor (VST3's platform type strings). */
 function platformType(): string {
   if (process.platform === 'darwin') return 'NSView';
@@ -112,7 +128,7 @@ describe('the VST3 test plugin', () => {
       name: 'Soundor VST3 Test',
       vendor: 'Soundor',
       version: '1.2.3',
-      classId: ids.processor,
+      classId: hostClassId(ids.processor),
       separateController: true,
       hasController: true,
       latencySamples: 32,

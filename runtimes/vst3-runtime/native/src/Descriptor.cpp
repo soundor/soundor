@@ -167,6 +167,15 @@ namespace soundor::vst3
             }
             out[i] = static_cast<std::uint8_t>(byte);
         }
+#ifdef _WIN32
+        // The digits are the class's id as hosts write it (FUID::toString,
+        // moduleinfo.json), the same on every platform; the SDK keeps an id
+        // as a GUID on Windows (COM_COMPATIBLE), whose first three groups
+        // are little-endian integers.
+        std::reverse(out.begin(), out.begin() + 4);
+        std::reverse(out.begin() + 4, out.begin() + 6);
+        std::reverse(out.begin() + 6, out.begin() + 8);
+#endif
         return out;
     }
 
