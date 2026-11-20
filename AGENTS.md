@@ -13,7 +13,9 @@ same lifecycle phases. Two runtimes exist:
 - `@soundor/vst3-runtime` (the reference): a VST3 plugin for Linux x86_64,
   macOS and Windows x64 (each building for itself), with no JUCE and no C++
   compiled per plugin: a generic VST3 adapter (Steinberg's SDK), prebuilt per
-  platform and engine variant and shipped in the package, hosting the engine
+  platform and engine variant and released on GitHub as the engine's archives
+  are (the package's manifest names them; a build downloads its own into the
+  Soundor cache), hosting the engine
   and the project's Rust crate, which Cargo compiles with the runtime's
   `soundor-vst3` crate (the plugin's descriptor and UI) and the platform's
   linker links (`c++`, MSVC's `link.exe`). The engine runs the UI bundle in an
@@ -164,7 +166,8 @@ package's own build and checks (the engine in `engine-prebuilts.yml`'s
 `build` phase, the host in `vst3-host-artifacts.yml`), then what uses them
 (`vst3.yml` when the engine or the VST3 runtime is released, its adapters
 built against the archives to be published), and only when all of it passed the engine's prebuilt
-release (`release` phase), npm and the website.
+release (`release` phase), the VST3 runtime's adapter release (`vst3-release`,
+`.github/scripts/vst3-adapters.mjs`), npm and the website.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the native engine, headless; see `contribute/benchmark.md`). Measure an optimization against a saved
@@ -295,9 +298,11 @@ read the docs bundled with the installed package
   (`libsoundor_vst3.a`: component, controller, editor, descriptor, expression
   interpreter, generic `soundor:state`/`presets`/`native`), `rust/` the
   private ABI's Rust side, `src/` descriptor, generated crate, link and
-  bundle, `tests/` its test plugin. `prebuilt/` is built
-  (`pnpm --filter @soundor/vst3-runtime build:native`), never committed; see
-  `contribute/vst3-runtime.md`.
+  bundle, `src/adapter.ts` which adapter a build links, `tests/` its test
+  plugin. `prebuilt/` is built (`pnpm --filter @soundor/vst3-runtime
+  build:native`), never committed or packed: the published package's
+  `artifacts/manifest.json` (written by the release workflow) names the
+  adapter release's archives instead; see `contribute/vst3-runtime.md`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
   `engine-wasm.ts`, the one place that calls `engine({ target: 'web' })`) and the
   browser side (`src/client/`: parameter store, `WebHost`, the page's engine

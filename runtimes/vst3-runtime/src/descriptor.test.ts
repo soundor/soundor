@@ -10,7 +10,6 @@ import { crateBuildArguments, cratePackageName, renderCrate } from './crate';
 import { classIds, describePlugin, parameterVstId } from './descriptor';
 import { renderExpressionRuntime } from './expression-runtime';
 import {
-  findAdapter,
   linkArguments,
   MAC_EXPORTS,
   macEngineFlags,
@@ -335,15 +334,6 @@ describe('link', () => {
     expect(VERSION_SCRIPT).toMatch(
       /GetPluginFactory;\s*ModuleEntry;\s*ModuleExit;\s*local:\s*\*;/,
     );
-  });
-
-  it('refuses an adapter built against another engine', async () => {
-    await expect(
-      findAdapter('/nowhere', 'linux-x64', 'release', {
-        version: '1.0.0',
-        sourceFingerprint: 'x',
-      }),
-    ).rejects.toThrow(/prebuilt release adapter is missing/);
   });
 });
 

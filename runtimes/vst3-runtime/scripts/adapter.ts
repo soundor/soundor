@@ -11,8 +11,10 @@
 //   node scripts/adapter.ts test                    the native unit tests
 //   node scripts/adapter.ts tidy                    clang-tidy
 //
-// The published package carries prebuilt/ for every target (CI builds each on
-// its runner before publishing); a workspace builds its own with this.
+// A workspace builds its own with this; the published package carries none:
+// CI builds each target's on its runner and releases them on GitHub
+// (.github/scripts/vst3-adapters.mjs), and the package's
+// artifacts/manifest.json names them (src/adapter.ts).
 //
 // Generators: Ninja on Linux and macOS; on Windows, CMake's default (Visual
 // Studio's, which finds MSVC itself), or CMAKE_GENERATOR and
@@ -136,7 +138,7 @@ async function build(variant: Variant): Promise<void> {
   const metadata = JSON.parse(
     readFileSync(join(artifact.directory, 'soundor-engine.json'), 'utf8'),
   ) as {
-    abiNamespace?: string;
+    engine?: { abiNamespace?: string };
   };
   writeFileSync(
     join(stage, 'adapter.json'),
@@ -150,7 +152,7 @@ async function build(variant: Variant): Promise<void> {
         engine: {
           version: artifact.version,
           sourceFingerprint: artifact.sourceFingerprint,
-          abiNamespace: metadata.abiNamespace,
+          abiNamespace: metadata.engine?.abiNamespace,
         },
       },
       null,

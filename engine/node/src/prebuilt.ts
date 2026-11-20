@@ -38,13 +38,19 @@ export function sha256File(path: string): string {
   return sha256(readFileSync(path));
 }
 
+/** What installing an archive needs of its manifest entry. */
+export type ArchiveEntry = Pick<
+  ManifestArtifact,
+  'file' | 'sha256' | 'size' | 'url'
+>;
+
 /** The archive's top directory: its file name without `.tar.gz`. */
-export function archiveTop(artifact: ManifestArtifact): string {
+export function archiveTop(artifact: ArchiveEntry): string {
   return artifact.file.replace(/\.tar\.gz$/, '');
 }
 
 async function download(
-  artifact: ManifestArtifact,
+  artifact: ArchiveEntry,
   fetcher: Fetch,
 ): Promise<Buffer> {
   const url = new URL(artifact.url);
@@ -89,10 +95,19 @@ function verifiedDirectory(extracted: string, top: string): string | undefined {
  * when it is not there yet. Concurrent callers wait for each other.
  */
 export async function installArchive(
-  artifact: ManifestArtifact,
-  context: { cache: string; fetch: Fetch; log: (message: string) => void },
+  artifact: ArchiveEntry,
+  context: {
+    cache: string;
+    fetch: Fetch;
+    log: (message: string) => void;
+    /** The cache's subdirectory: default `engine-prebuilts`. */
+    directory?: string;
+  },
 ): Promise<string> {
-  const directory = join(context.cache, 'engine-prebuilts');
+  const directory = join(
+    context.cache,
+    context.directory ?? 'engine-prebuilts',
+  );
   const extracted = join(directory, artifact.sha256);
   const top = archiveTop(artifact);
   const ready = verifiedDirectory(extracted, top);

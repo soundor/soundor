@@ -37,14 +37,13 @@ import {
   type Vst3Host,
 } from '@soundor/vst3-host';
 
+import { adapterDirectory, adapterManifest, resolveAdapter } from './adapter';
 import { bundlePaths, writeBundleResources } from './bundle';
 import { buildCrate, writeCrate } from './crate';
 import { describePlugin, descriptorJson } from './descriptor';
 import {
-  adapterDirectory,
   compilerDriver,
   environmentLinkFlags,
-  findAdapter,
   findMsvcLinker,
   linkArguments,
   MAC_EXPORTS,
@@ -102,6 +101,8 @@ export interface Vst3PhaseDeps {
   readonly exists?: (path: string) => boolean;
   /** Windows: finds MSVC's linker. */
   readonly msvc?: () => MsvcLinker;
+  /** Finds the prebuilt adapter (adapter.ts). */
+  readonly adapter?: typeof resolveAdapter;
 }
 
 /** Where Linux distributions keep x86_64 libraries. */
@@ -187,11 +188,15 @@ async function buildPlugin(
   ctx.logger.info(
     `Engine: ${artifact.version} ${artifact.variant} for ${target} (${artifact.mode}: ${artifact.reason})`,
   );
-  const adapter = await findAdapter(
+  const adapter = await (deps.adapter ?? resolveAdapter)(
     PACKAGE_ROOT,
     target,
     build.variant,
     artifact,
+    { log: (message) => ctx.logger.info(message) },
+  );
+  ctx.logger.info(
+    `Adapter: ${build.variant} for ${target} (${adapter.reason})`,
   );
   const metadata = await engineMetadata(artifact);
 
@@ -266,7 +271,7 @@ async function buildPlugin(
     deps,
     inputs: {
       output: paths.binary,
-      adapter,
+      adapter: adapter.archive,
       rust,
       engineLibraries: artifact.libraries,
       engineFlags: artifact.linkFlags,
@@ -282,11 +287,7 @@ async function buildPlugin(
     licenses: [
       {
         name: 'vst3sdk',
-        directory: join(
-          adapterDirectory(PACKAGE_ROOT, target, build.variant),
-          'licenses',
-          'vst3sdk',
-        ),
+        directory: join(adapter.directory, 'licenses', 'vst3sdk'),
       },
       {
         name: 'soundor-engine',
@@ -701,8 +702,41 @@ export async function vst3Doctor(
           },
     );
   }
-  if (target !== undefined)
+  if (target !== undefined) {
+    let manifest: ReturnType<typeof adapterManifest>;
+    try {
+      manifest = adapterManifest(PACKAGE_ROOT);
+    } catch (error) {
+      checks.push({
+        label: 'Prebuilt adapters',
+        status: 'fail',
+        detail: error instanceof Error ? error.message : String(error),
+        suggestion: 'Reinstall @soundor/vst3-runtime.',
+      });
+      return { checks };
+    }
     for (const variant of ['release', 'debug'] as const) {
+      const label = `Prebuilt adapter (${variant})`;
+      if (manifest !== undefined) {
+        const artifact = manifest.value.artifacts.find(
+          (entry) => entry.target === target && entry.variant === variant,
+        );
+        checks.push(
+          artifact !== undefined
+            ? {
+                label,
+                status: 'ok',
+                detail: `${artifact.file} of ${manifest.value.tag} (downloaded into the Soundor cache on first use)`,
+              }
+            : {
+                label,
+                status: 'fail',
+                detail: `${manifest.value.tag} has no ${variant} adapter for ${target}`,
+                suggestion: 'Reinstall @soundor/vst3-runtime.',
+              },
+        );
+        continue;
+      }
       const archive = join(
         adapterDirectory(PACKAGE_ROOT, target, variant),
         'lib',
@@ -710,20 +744,16 @@ export async function vst3Doctor(
       );
       checks.push(
         exists(archive)
-          ? {
-              label: `Prebuilt adapter (${variant})`,
-              status: 'ok',
-              detail: archive,
-            }
+          ? { label, status: 'ok', detail: archive }
           : {
-              label: `Prebuilt adapter (${variant})`,
+              label,
               status: 'fail',
               detail: `${archive} is missing`,
-              suggestion:
-                "In Soundor's workspace: pnpm --filter @soundor/vst3-runtime build:native. Installed: reinstall @soundor/vst3-runtime.",
+              suggestion: 'pnpm --filter @soundor/vst3-runtime build:native',
             },
       );
     }
+  }
   return { checks };
 }
 
