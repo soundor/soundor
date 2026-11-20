@@ -52,6 +52,7 @@ add_executable(soundor_vst3_instances
 target_include_directories(soundor_vst3_instances SYSTEM PRIVATE "${sdk}")
 target_compile_definitions(soundor_vst3_instances PRIVATE RELEASE=1)
 target_link_libraries(soundor_vst3_instances PRIVATE ${CMAKE_DL_LIBS})
+soundor_configure_target(soundor_vst3_instances)
 set_source_files_properties(Instances.cpp PROPERTIES COMPILE_OPTIONS "-Wno-old-style-cast")
 get_target_property(instances_sources soundor_vst3_instances SOURCES)
 list(FILTER instances_sources INCLUDE REGEX "vst3sdk")

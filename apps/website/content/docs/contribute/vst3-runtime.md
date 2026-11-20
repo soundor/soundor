@@ -261,8 +261,10 @@ treat warnings as errors; Soundor's own (`build:native`, CI) do.
   one process.
 - CI (`.github/workflows/vst3.yml`) builds both adapters against the engine
   Verify selected, on Linux, macOS and Windows, runs the native tests and the
-  plugin tests (on Linux under Xvfb, with clang-tidy and the Rust crate's
-  checks), builds the controller example, and runs pinned pluginval (checked
+  plugin tests (on Linux under Xvfb; there the native tests run in the
+  clang-tidy build, with ASan and UBSan, and built with GCC, as source mode
+  may build the adapter, and the Rust crate is formatted, linted and
+  tested), builds the controller example, and runs pinned pluginval (checked
   by SHA-256) at strictness 10 on both plugins. macOS checks the plugin's
   minimum macOS, Windows its imports (no C runtime DLL) and exports. Release
   builds the adapters in the same workflow, against the engine to be
@@ -274,8 +276,12 @@ treat warnings as errors; Soundor's own (`build:native`, CI) do.
 
 ```sh
 pnpm --filter @soundor/vst3-runtime build:native      # both adapters → prebuilt/
-pnpm --filter @soundor/vst3-runtime test:native       # native unit tests
-pnpm --filter @soundor/vst3-runtime lint:native       # clang-tidy
+pnpm --filter @soundor/vst3-runtime test:native       # native unit tests (native/build/dev)
+pnpm --filter @soundor/vst3-runtime test:native --preset sanitize   # with ASan and UBSan
+CC=gcc CXX=g++ LDFLAGS= pnpm --filter @soundor/vst3-runtime test:native --build native/build/gcc
+pnpm --filter @soundor/vst3-runtime lint:native       # clang-tidy, the adapter and its tests
+pnpm --filter @soundor/vst3-runtime lint:rust         # rustfmt and clippy over rust/
+pnpm --filter @soundor/vst3-runtime test:rust
 pnpm --filter @soundor/vst3-runtime test              # unit tests
 xvfb-run -a pnpm --filter @soundor/vst3-runtime test:plugin
 pnpm --filter @soundor/vst3-runtime gen:expression    # after @soundor/expression changes

@@ -2,9 +2,10 @@ name: VST3 runtime
 
 # @soundor/vst3-runtime, on each platform it builds (Linux, macOS, Windows):
 # its prebuilt adapter (both variants) built against the engine Verify or
-# Release selected, its native tests (and on Linux clang-tidy and the Rust
-# crate's checks), its test plugin and the controller example built as VST3s,
-# tested in the VST3 host (UI and audio) and validated by pluginval. Release
+# Release selected, its native tests (and on Linux clang-tidy, ASan and
+# UBSan, a GCC build and the Rust crate's checks), its test plugin and the
+# controller example built as VST3s, tested in the VST3 host (UI and audio)
+# and validated by pluginval. Release
 # keeps the adapters, packed as the archives of their GitHub release
 # (vst3-adapters.mjs); Verify keeps only failure reports.
 on:
@@ -131,18 +132,29 @@ jobs:
         run: pnpm turbo run build --filter=@soundor/vst3-runtime... --filter=controller^...
       - name: Rust crate
         run: |
-          cargo fmt --check --manifest-path runtimes/vst3-runtime/rust/Cargo.toml
-          cargo clippy --all-targets --manifest-path runtimes/vst3-runtime/rust/Cargo.toml -- -D warnings
-          cargo test --manifest-path runtimes/vst3-runtime/rust/Cargo.toml
+          pnpm --filter @soundor/vst3-runtime lint:rust
+          pnpm --filter @soundor/vst3-runtime test:rust
       - name: Build the adapter
         run: pnpm --filter @soundor/vst3-runtime build:native
-      - name: Native unit tests
-        run: pnpm --filter @soundor/vst3-runtime test:native
-      - name: Clang-tidy
-        run: pnpm --filter @soundor/vst3-runtime lint:native
+      # The adapter and its tests built once with clang-tidy (-Werror), and
+      # those tests run: what test:native and lint:native check, in one build.
+      - name: Clang-tidy and native unit tests
+        run: pnpm --filter @soundor/vst3-runtime test:native --preset tidy
+      - name: Native unit tests with ASan and UBSan
+        run: pnpm --filter @soundor/vst3-runtime test:native --preset sanitize
+      # Source mode compiles the adapter with the plugin author's compiler,
+      # which on Linux may be GCC: its warnings fail this build too.
+      - name: Native unit tests with GCC
+        env:
+          CC: gcc
+          CXX: g++
+          LDFLAGS: ''
+        run: pnpm --filter @soundor/vst3-runtime test:native --build native/build/gcc
       # The test plugin in the VST3 host: audio, parameters, MIDI, state,
-      # presets, instances in one process, the editor.
+      # presets, instances in one process (the tidy build's), the editor.
       - name: Plugin tests
+        env:
+          SOUNDOR_VST3_INSTANCES: ${{ github.workspace }}/runtimes/vst3-runtime/native/build/tidy/tests/soundor_vst3_instances
         run: xvfb-run -a -s "-screen 0 1280x1024x24" pnpm --filter @soundor/vst3-runtime test:plugin
       - name: Build the controller example
         run: pnpm --filter controller build:vst3

@@ -57,7 +57,12 @@ namespace
         const auto binary = bundle / "Contents" / "x86_64-linux" / (name + ".so");
         Module out;
         out.handle = dlopen(binary.c_str(), RTLD_NOW | RTLD_LOCAL);
-        check(out.handle != nullptr, "dlopen " + binary.string() + ": " + (dlerror() ?: ""));
+        if (out.handle == nullptr)
+        {
+            // NOLINTNEXTLINE(concurrency-mt-unsafe): the test's one thread loads plugins.
+            const char* error = dlerror();
+            check(false, "dlopen " + binary.string() + ": " + (error != nullptr ? error : ""));
+        }
         if (out.handle == nullptr)
             return out;
         using Entry = bool (*)(void*);

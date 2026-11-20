@@ -93,6 +93,10 @@ if(NOT MSVC)
                                               "-ffile-prefix-map=${CMAKE_BINARY_DIR}=soundor-vst3-build")
 endif()
 soundor_configure_target(soundor_vst3)
+# GCC flags every VST3 interface the classes implement: COM-style, its
+# destructor non-virtual by design (an object is released through
+# FUnknown::release, never deleted through an interface). Clang does not.
+target_compile_options(soundor_vst3 PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-non-virtual-dtor>)
 if(APPLE)
   # As the engine's Objective-C++.
   target_compile_options(soundor_vst3 PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
