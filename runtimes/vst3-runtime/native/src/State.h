@@ -4,11 +4,10 @@
 // than by generated code:
 //
 // - StateSchema checks a value against its field's type and writes it as
-//   canonical state JSON (the encoding the JUCE runtime's generated codecs
-//   write: 64-bit integers as decimal strings, struct fields in declared
+//   canonical state JSON (64-bit integers as decimal strings, struct fields in declared
 //   order), and lays out the audio fields' snapshot (describeAudioState()).
 // - StateStore holds the committed values, with History, gestures and
-//   notifications: the JUCE backend's StateStore (JuceState.h), without JUCE.
+//   notifications.
 
 #include "Descriptor.h"
 

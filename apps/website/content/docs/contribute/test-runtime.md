@@ -6,7 +6,7 @@ description: '@soundor/test-runtime: ownership, semantics, virtual clock, and si
 Source: [`packages/test-runtime/`](https://github.com/soundor/soundor/tree/main/packages/test-runtime).
 
 Internal, framework independent simulation of Soundor's observable runtime.
-It executes JavaScript in Node, without React, Vitest, Hermes, JUCE or a browser.
+It executes JavaScript in Node, without React, Vitest, Hermes, a plugin host or a browser.
 Applications normally install the Vitest integration and Testing Library rather
 than this package directly.
 

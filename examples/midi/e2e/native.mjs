@@ -1,4 +1,4 @@
-// Run after build:juce: the same Rust synth as the browser, in a real VST3.
+// Run after build:vst3: the same Rust synth as the browser, in a real VST3.
 import assert from 'node:assert/strict';
 import { globSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +7,7 @@ import { launchHost, midiInput } from '@soundor/vst3-host';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const plugin =
   process.argv[2] ??
-  globSync('.soundor/dist/juce/**/*.vst3', { cwd: root }).map(
+  globSync('.soundor/dist/vst3/*.vst3', { cwd: root }).map(
     (path) => `${root}/${path}`,
   )[0];
 assert.ok(plugin, 'Build the piano VST3 first');

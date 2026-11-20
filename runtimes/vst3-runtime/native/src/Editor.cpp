@@ -42,9 +42,8 @@ namespace soundor::vst3
             const Controller& controller;
         };
 
-        // <user application data>/Soundor/<plugin id>, where the JUCE
-        // runtime's plugins keep soundor:storage and soundor:fs too (JUCE's
-        // userApplicationDataDirectory): the XDG config home on Linux,
+        // <user application data>/Soundor/<plugin id>, where soundor:storage
+        // and soundor:fs keep their files: the XDG config home on Linux,
         // ~/Library on macOS, the roaming AppData on Windows.
         std::filesystem::path dataDirectory(const std::string& pluginId)
         {
@@ -227,8 +226,8 @@ namespace soundor::vst3
                           .resize = editor.scale ? editor::Layout::Resize::Scale : editor::Layout::Resize::Layout,
                           .fit = editor.cover ? editor::Layout::Fit::Cover : editor::Layout::Fit::Contain,
                           .maximum = { maxWidth, maxHeight } };
-        // A resizable editor whose limits allow another size, as the JUCE
-        // runtime's and the Web host's.
+        // A resizable editor whose limits allow another size, as the Web
+        // host's.
         result.canRequestSize =
             editor.resizable
             && (static_cast<float>(editor.minWidth) < maxWidth || static_cast<float>(editor.minHeight) < maxHeight);
@@ -384,7 +383,7 @@ namespace soundor::vst3
 
     void Editor::pressed()
     {
-        // A press takes the keyboard, as it does in the JUCE runtime's editor.
+        // A press takes the keyboard.
         if (auto* native = engineEditor != nullptr ? engineEditor->nativeInput() : nullptr;
             native != nullptr && ! native->focused())
             native->requestFocus();

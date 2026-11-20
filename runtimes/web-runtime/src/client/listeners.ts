@@ -4,7 +4,7 @@ import { report } from './report';
  * A listener list for values that change often (parameters, the transport):
  * notifying allocates nothing. Subscribing and unsubscribing replace the
  * array instead, so a notification in progress keeps the listeners it began
- * with, whoever (un)subscribes meanwhile, as in the JUCE runtime.
+ * with, whoever (un)subscribes meanwhile, as in the native runtime.
  */
 export class Listeners<Value> {
   #entries: readonly { readonly listener: (value: Value) => void }[] = [];

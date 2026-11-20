@@ -1,5 +1,0 @@
-# Written by soundor gen and build.
-.soundor/
-runtimes/
-lib/
-rust-toolchain.toml

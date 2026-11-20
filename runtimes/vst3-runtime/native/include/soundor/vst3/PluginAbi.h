@@ -20,8 +20,7 @@
 // The processor, the controller and MIDI are not part of this ABI: they are
 // the plugin crate's `soundor::export!` ABI (RustProcessorAbi.h,
 // RustControllerAbi.h, midi/Midi.h in the engine), which the adapter calls
-// through the engine's RustProcessor, RustController and midi::Host, as the
-// JUCE runtime does.
+// through the engine's RustProcessor, RustController and midi::Host.
 //
 // Rules:
 // - Every structure starts with its size and SOUNDOR_VST3_ABI_VERSION; the

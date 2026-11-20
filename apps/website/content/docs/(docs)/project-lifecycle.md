@@ -18,7 +18,7 @@ runtime exposes the same four lifecycle phases.
 | `soundor doctor`          | Check the environment, configuration, and all configured runtimes' prerequisites                   |
 
 `build` operates on all configured runtimes when its selector is
-omitted. `dev` requires a runtime: `soundor dev juce` or `soundor dev web`.
+omitted. `dev` requires a runtime: `soundor dev vst3` or `soundor dev web`.
 For example, `soundor build web` builds only the browser host. Generation runs
 before development and production builds; the standalone `gen` command is also
 useful for refreshing types in an editor.
@@ -45,7 +45,7 @@ so existing projects can receive them without overwriting custom code.
 ## Configuration and generated types
 
 Config loading bundles and evaluates `soundor.config.ts`, then validates the
-result. Runtime entries are factory results such as `juceRuntime()` and
+result. Runtime entries are factory results such as `vst3Runtime()` and
 `webRuntime()`, rather than plain runtime IDs. Validation reports all problems
 with paths into the configuration.
 
@@ -55,8 +55,8 @@ It also writes the Rust SDK with config-specific types under
 `.soundor/generated/rust/soundor/`, the crate `lib/` depends on.
 Runtime generation adds its own implementation contract:
 
-- JUCE generates CMake integration, processor/editor bases, and C++ native API
-  declarations and bindings under `.soundor/generated/runtimes/juce/`.
+- VST3 writes the plugin's descriptor (the config as the adapter reads it)
+  under `.soundor/generated/runtimes/vst3/`.
 - Web generates a manifest and the Rust controller contract under
   `.soundor/generated/runtimes/web/`.
 
@@ -72,7 +72,7 @@ alternatives, and bundles its npm imports with tsdown. `soundor:*` imports stay
 external for the runtime to supply.
 
 Each build produces `bundle.mjs`, one ES module, which every runtime starts
-from: the web runtime loads it as it is, and the JUCE runtime lowers it into
+from: the web runtime loads it as it is, and the VST3 runtime lowers it into
 the module form its engine runs. Images and fonts are bundled as
 content-addressed assets. Development output includes source maps; production output is minified
 and tree-shaken. `process.env.NODE_ENV` is replaced during bundling.
@@ -84,10 +84,9 @@ UI source.
 
 ## Development and reload
 
-For JUCE, `dev` builds a debug plugin, uses the development UI files on disk,
-and opens the VST3 when the project installs the host, otherwise the Standalone
-when configured. [Development launch options](/docs/cli/dev#what-soundor-dev-juce-opens)
-can override that choice. A successful UI rebuild destroys
+For VST3, `dev` builds a debug plugin, uses the development UI files on disk,
+and [opens it in the VST3 host](/docs/cli/dev#what-soundor-dev-vst3-opens).
+A successful UI rebuild destroys
 the old `RuntimeHost` and creates a fresh one. Timers, subscriptions, gestures,
 and pending work from the old UI end. Processor parameters and persisted data
 can outlive the UI; local React state cannot.
@@ -109,19 +108,19 @@ animation information, and measured rendering diagnostics. See
 ## Production builds
 
 `build` generates the contract and one production UI bundle, then runs the
-selected runtimes' build phases. JUCE uses a Release build with bytecode-only
+selected runtimes' build phases. VST3 uses a Release build with bytecode-only
 Hermes and no DevTools bridge; the browser runtime emits a static site with
 relative asset URLs.
 
-JUCE's default prebuilt mode selects matching released engine libraries or
-compiles local sources for modified inputs or unpublished versions. Explicit
-source mode always compiles them, caching heavy dependencies. Download and
-integrity errors fail the build, as does a mismatched explicit CI artifact. See [Soundor Engine](/docs/engine).
+The plugin links the released engine libraries of the runtime's engine
+version; in Soundor's workspace, modified inputs or an unpublished version
+compile local sources, caching heavy dependencies. Download and integrity
+errors fail the build, as does a mismatched explicit CI artifact. See [Soundor Engine](/docs/engine).
 
-On macOS, final bundle modification and signing have a fixed order: Soundor
-writes the VST3 manifest before final signing and verification. Signing details
-and the separate notarization workflow are documented in the
-[JUCE guide](/docs/juce-runtime#signing-and-distributing-on-macos).
+On macOS, signing is the last step: Soundor writes the whole bundle, the VST3
+manifest included, before signing and verifying it. Signing details and the
+separate notarization workflow are documented in the
+[VST3 guide](/docs/vst3-runtime#signing-and-distributing-on-macos).
 
 ## Adding a runtime
 

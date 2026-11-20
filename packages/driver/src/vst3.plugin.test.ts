@@ -1,9 +1,11 @@
-// The connector with the real pieces: the Debug build of the JUCE test plugin
-// in the real VST3 host, under a display. Runs only when told where it is:
+// The connector with the real pieces: the Debug build of the VST3 runtime's
+// test plugin in the real VST3 host, under a display. Runs only when told where
+// it is:
 //
 //   pnpm --filter @soundor/vst3-host build:native
-//   pnpm --filter @soundor/juce-runtime test:plugin:debug
-//   SOUNDOR_DRIVER_VST3_PLUGIN=<runtimes/juce-runtime/tests/plugin/.soundor/debug/juce/VST3/Soundor Test Plugin.vst3> \
+//   pnpm --filter @soundor/vst3-runtime build:native debug
+//   pnpm --filter @soundor/vst3-runtime exec soundor build vst3 --debug --config tests/plugin/soundor.config.ts
+//   SOUNDOR_DRIVER_VST3_PLUGIN=<runtimes/vst3-runtime/tests/plugin/.soundor/debug/vst3/Soundor VST3 Test.vst3> \
 //     xvfb-run -a pnpm --filter @soundor/driver exec vitest run src/vst3.plugin.test.ts
 import { existsSync } from 'node:fs';
 
@@ -27,7 +29,7 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
 
   it('clicks in the UI reach the processor', async () => {
     plugin = await launch({ plugin: path! });
-    expect((await plugin.driver.target()).name).toBe('Soundor Test Plugin');
+    expect((await plugin.driver.target()).name).toBe('Soundor VST3 Test');
     expect(await bypass()).toBe(0);
 
     await plugin.driver.getByText('Active').click();
@@ -41,17 +43,17 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
   it('shows parameters set through the host in the UI', async () => {
     plugin = await launch({ plugin: path! });
     const { id } = (await plugin.host.getParameters())[0]!;
-    await plugin.host.setParameter(id, 0.25);
-    await plugin.driver.getByText('Gain: 0.25').waitFor();
-    expect(await plugin.driver.getByText('Gain: 0.25').getNode()).toMatchObject(
-      { text: 'Gain: 0.25' },
-    );
+    await plugin.host.setParameter(id, 0.25); // normalized: gain is 0 to 2
+    await plugin.driver.getByText('Gain 0.50').waitFor();
+    expect(await plugin.driver.getByText('Gain 0.50').getNode()).toMatchObject({
+      text: 'Gain 0.50',
+    });
   }, 30_000);
 
   it('captures the view at the editor size', async () => {
     plugin = await launch({ plugin: path! });
     const { width, height } = await plugin.driver.screenshot();
-    expect({ width, height }).toEqual({ width: 640, height: 480 });
+    expect({ width, height }).toEqual({ width: 320, height: 240 });
   }, 30_000);
 
   it('works with the editor reopened, in another presentation too', async () => {

@@ -34,9 +34,9 @@ builds and validates Debug and
 Release artifacts for Linux, macOS and Windows. Windows uses two runners in
 parallel: one for the dynamic C runtime (`/MD`, `/MDd`), the other for the static
 C runtime (`/MT`, `/MTd`), each with its own dependency cache. Consumers merge
-the two Windows artifacts before selecting an engine. JUCE jobs consume those
-artifacts from the same run and commit instead of rebuilding the engine. When it is not
-affected, JUCE uses a matching released engine. If the current version is
+the two Windows artifacts before selecting an engine. The VST3 runtime's and
+Orbit's jobs consume those artifacts from the same run and commit instead of
+rebuilding the engine. When it is not affected, they use a matching released engine. If the current version is
 unpublished or its inputs do not match the release, an unchanged package in a
 pull request can instead use complete artifacts from a successful `main` push.
 CI matches the native input fingerprint and the build recipe, including the
@@ -58,8 +58,8 @@ or `none` without waiting for Verify. Version mode maintains the release PR.
 Publish mode builds, then tests, then publishes. It runs its own package
 checks and builds and tests the engine/host binaries being published, each
 package with its own checks. Then it tests what uses them: when the engine or
-the JUCE runtime is published, the JUCE workflow, against the engine to be
-published. Only once every one of these has passed does it publish anything:
+the VST3 runtime is published, the VST3 workflow, its adapters built against the
+engine to be published, its test plugin in the VST3 host and pluginval. Only once every one of these has passed does it publish anything:
 the engine's prebuilt release, then the packed packages on npm.
 It neither calls Verify nor consumes its required results or binary artifacts.
 Release disables pnpm store caching throughout its jobs, reusable engine/host
@@ -165,12 +165,13 @@ with `node -p "require.resolve('turbo/package.json')"`.
 From the repository root:
 
 ```sh
-UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test
-pnpm --filter @soundor/juce-runtime gen:webgl
+pnpm --filter @soundor/vst3-runtime gen:expression
+pnpm --filter @soundor/engine gen:webgl
 ```
 
-These update the native API golden C++ and the WebGL bindings with their
-declarations (`packages/environment/webgl.d.ts`) respectively. The other
+These update the VST3 adapter's expression runtime and corpus, and the WebGL
+bindings with their declarations (`packages/environment/webgl.d.ts`)
+respectively. The other
 declarations in `packages/environment` are written by hand. Use only the relevant generator, and include its output
 in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
 IDL inputs.
@@ -206,12 +207,12 @@ changes do not need a package release.
 Native CI jobs follow affected packages, in groups that show as `<group> / <job>`,
 each a reusable workflow called from `verify.yml`:
 
-| Group                                        | Workflow                  | Follows                 | What it does                                                                                     |
-| -------------------------------------------- | ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| Engine                                       | `engine.yml`              | `engine-plan`           | Builds the engine for every target and, when it is affected, its static analysis and test suites |
-| VST3 (host)                                  | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host                                                                        |
-| JUCE 8 (juce-runtime), JUCE 9 (juce-runtime) | `juce.yml`                | `@soundor/juce-runtime` | Adapters and a real plugin                                                                       |
-| Orbit E2E                                    | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
+| Group               | Workflow                  | Follows                 | What it does                                                                                     |
+| ------------------- | ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Engine              | `engine.yml`              | `engine-plan`           | Builds the engine for every target and, when it is affected, its static analysis and test suites |
+| VST3 (host)         | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host                                                                        |
+| VST3 (vst3-runtime) | `vst3.yml`                | `@soundor/vst3-runtime` | The adapter, its native tests, a real plugin in the VST3 host and pluginval                      |
+| Orbit E2E           | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
 
 What uses the engine or the host waits for its whole group, so it starts from one that
 passed. Each group checks its own package only: the engine's never builds or tests a runtime,
@@ -227,7 +228,7 @@ and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/
 The website generates `/changelog` from the published package `CHANGELOG.md`
 files when Vite starts for development or a build. Shared notes appear once per
 release, with their affected packages; dependency-only bumps are omitted. The
-engine, JUCE runtime, web runtime and VST3 host each have their own release history and
+engine, VST3 runtime, web runtime and VST3 host each have their own release history and
 version numbers. Each history is a collapsible sidebar section, with one page
 per version, grouped under Packages, Runtimes, Engines and Hosts. Update release
 notes through Changesets. Overview pages show totals and category counts: minor

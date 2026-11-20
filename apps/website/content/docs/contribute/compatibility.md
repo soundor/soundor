@@ -28,12 +28,12 @@ dependency.
 
 ### Declaring dependencies
 
-| Field                               | When                                                                                                                                                                                                                                                                                     |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dependencies`                      | The package's emitted JavaScript imports it, or its published declarations name its types. Declare it directly, even when another dependency happens to bring it.                                                                                                                        |
-| `devDependencies`                   | Tests, build tools, fixtures, and code inlined into the bundle (such as `@soundor/core/spring` in the test runtime). A type-only import belongs here only if no published `.d.ts` refers to it.                                                                                          |
-| `peerDependencies`                  | The package integrates with a host or a shared library: `soundor` for runtimes; React for `@soundor/react`'s reconciler, Vitest and Vite for their plugins, the VST3 host for `@soundor/vitest-e2e`.                                                                                     |
-| `peerDependenciesMeta` (`optional`) | An integration the package supports when the project installs it, and works without: `@soundor/vst3-host` for the Driver's `vst3` entry and for `soundor dev` of the JUCE runtime, React for Testing Library. The code must import it lazily and say what to install when it is missing. |
+| Field                               | When                                                                                                                                                                                                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dependencies`                      | The package's emitted JavaScript imports it, or its published declarations name its types. Declare it directly, even when another dependency happens to bring it.                                                                              |
+| `devDependencies`                   | Tests, build tools, fixtures, and code inlined into the bundle (such as `@soundor/core/spring` in the test runtime). A type-only import belongs here only if no published `.d.ts` refers to it.                                                |
+| `peerDependencies`                  | The package integrates with a host or a shared library: `soundor` for runtimes; React for `@soundor/react`'s reconciler, Vitest and Vite for their plugins, the VST3 host for `@soundor/vitest-e2e` and the VST3 runtime.                      |
+| `peerDependenciesMeta` (`optional`) | An integration the package supports when the project installs it, and works without: `@soundor/vst3-host` for the Driver's `vst3` entry, React for Testing Library. The code must import it lazily and say what to install when it is missing. |
 
 A peer is not a way to avoid duplicates: if a package runs another's code,
 it depends on it. Shared packages depend on each other at `workspace:*` (they
@@ -56,7 +56,7 @@ minor before 1.0, since it says which schema the config was written for.
 VST3 host consumers also declare a caret peer range (`workspace:^` in the
 repository, published as `^%version:@soundor/vst3-host%`). Host API compatibility
 is scoped to the current minor and its patches before 1.0. The host remains
-optional for the Driver and JUCE runtime, and required for `@soundor/vitest-e2e`.
+optional for the Driver, and required for `@soundor/vitest-e2e` and the VST3 runtime.
 
 ### Cross-package protocols
 

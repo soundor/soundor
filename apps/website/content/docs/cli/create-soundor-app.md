@@ -15,11 +15,11 @@ pnpm create soundor-app my-plugin
 npm create soundor-app my-plugin
 ```
 
-The scaffolder asks which runtimes the plugin targets: the JUCE runtime (the
+The scaffolder asks which runtimes the plugin targets: the VST3 runtime (the
 default), the web runtime, or both. The generated project includes a Soundor
 config (plugin identity, parameters, the chosen runtimes) and its
 dependencies, and `soundor gen` creates the Rust processor and controller
-crate in `lib/`. JUCE and Web hosts are managed by their installed packages
+crate in `lib/`. VST3 and Web hosts are managed by their installed packages
 and create no `runtimes/` directory. When adding custom browser inputs, add a separate
 [`tsconfig.web.json`](/docs/web-runtime#browser-typescript-environment) and its
 root solution reference; built-in inputs need neither. The scaffolder installs the dependencies with the package
@@ -27,23 +27,23 @@ manager it was started with, pnpm or npm, the two Soundor supports. Started
 any other way, it asks which of them to use.
 
 The project's `dev` script runs [`soundor dev`](/docs/cli/dev) with the first
-runtime chosen (JUCE if both are); with both, `dev:web` runs the web runtime.
-`build` builds every runtime; with both, `build:juce` and `build:web` build
-one. With the JUCE runtime, the project has `@soundor/vst3-host` as a
-devDependency, which [`soundor dev`](/docs/cli/dev#what-soundor-dev-juce-opens)
-opens the plugin in. Removing it leaves the Standalone.
+runtime chosen (VST3 if both are); with both, `dev:web` runs the web runtime.
+`build` builds every runtime; with both, `build:vst3` and `build:web` build
+one. With the VST3 runtime, the project has `@soundor/vst3-host` as a
+devDependency, the runtime's peer, which [`soundor dev`](/docs/cli/dev#what-soundor-dev-vst3-opens)
+opens the plugin in.
 
 ## Dependency versions
 
 The project pins each direct Soundor dependency exactly. The scaffolder first
 tries the versions it was built and tested with (the template's **golden
-versions**). Each independent package has its own golden version: the JUCE
+versions**). Each independent package has its own golden version: the VST3
 runtime, web runtime and VST3 host need not share the CLI's version.
 
 Before generating files, the scaffolder resolves the entire dependency tree
 with the chosen package manager, without installing dependencies or running
 install scripts. This checks transitive dependencies too, including the
-engine required by the JUCE runtime. The check respects that manager's registry
+engine required by the VST3 runtime. The check respects that manager's registry
 and release-age policy; it never adds age exclusions or changes the policy.
 For `.` it retains `.npmrc` and `pnpm-workspace.yaml` when clearing the directory.
 
@@ -75,7 +75,7 @@ the golden version automatically at build time and leave the minimum unchanged.
 When the template starts requiring a newer API or configuration, raise only
 the affected minimum. Review compatibility before accepting a breaking package
 release as a new golden version. The engine's constraints belong to the
-selected JUCE runtime, rather than the template.
+selected VST3 runtime, rather than the template.
 
 ## License
 

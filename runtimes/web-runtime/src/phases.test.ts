@@ -75,7 +75,7 @@ describe('webRuntime', () => {
 });
 
 describe('webGen', () => {
-  it("resolves the config's editor into the manifest as the JUCE runtime does", async () => {
+  it("resolves the config's editor into the manifest as the VST3 runtime does", async () => {
     const config = {
       ...testConfig,
       editor: { width: 1000, height: 640, resizable: true },
@@ -448,7 +448,7 @@ describe('webDoctor', () => {
     });
 
     expect(
-      report.checks.every((check) => !/cmake|juce|c\+\+/i.test(check.label)),
+      report.checks.every((check) => !/cmake|vst3|c\+\+/i.test(check.label)),
     ).toBe(true);
   });
 });

@@ -5,15 +5,15 @@
   "type": "module",
   "scripts": {
     "build": "soundor build",
-    "dev": "soundor dev juce",
+    "dev": "soundor dev vst3",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "test:rust": "soundor gen && cargo test --manifest-path lib/Cargo.toml",
     "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
     "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },

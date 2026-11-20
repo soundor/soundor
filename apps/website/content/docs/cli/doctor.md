@@ -13,9 +13,9 @@ cannot:
 - **The machine:** the Node.js version, and the package manager (pnpm or npm).
 - **The config:** that `soundor.config.ts` loads and is valid, with every
   problem and its path.
-- **Each runtime's prerequisites:** for JUCE, CMake, a C++ compiler, the
-  tools Skia and ANGLE build with, and JUCE itself; for the web, Vite and
-  the host project.
+- **Each runtime's prerequisites:** for VST3, the platform, Rust, the
+  linker (and on Linux the static C++ runtime and libcurl) and the prebuilt
+  adapters; for the web, Vite and the host project.
 
 | Option            | What it does                                               |
 | ----------------- | ---------------------------------------------------------- |

@@ -11,7 +11,7 @@ build alone does not establish that packaging boundary.
 
 ## Where the code is
 
-Use `runtimes/juce-runtime/package.json` and `runtimes/web-runtime/package.json`
+Use `runtimes/vst3-runtime/package.json` and `runtimes/web-runtime/package.json`
 as reference manifests. The engine's public ABI and prebuilt checks are documented in
 [Soundor Engine](/docs/engine#abi-versioning) and the
 [engine reference](/docs/contribute/engine-reference#prebuilt-engines).

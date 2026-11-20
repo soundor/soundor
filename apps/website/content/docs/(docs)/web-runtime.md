@@ -9,7 +9,7 @@ Runs a Soundor plugin in the browser.
 
 The plugin contract you declare once in `soundor.config.ts` (identity,
 parameters, native API) is implemented here with TypeScript, the DOM and Web
-Audio, where the JUCE runtime implements it with C++. The plugin UI is the
+Audio, where the VST3 runtime implements it natively. The plugin UI is the
 same: the same `src/main.tsx`, the same `@soundor/react` components, the same
 `soundor:*` modules.
 
@@ -18,16 +18,16 @@ same: the same `src/main.tsx`, the same `@soundor/react` components, the same
                           │
                  generated contract
                     /             \
-     @soundor/juce-runtime     @soundor/web-runtime
-          C++ / JUCE           TypeScript / browser APIs
+     @soundor/vst3-runtime     @soundor/web-runtime
+       C++ / VST3 SDK          TypeScript / browser APIs
                     \             /
                  src/main.tsx (@soundor/react)
 ```
 
-This is not the JUCE plugin compiled for the Web. The browser's own engine runs
+This is not the VST3 plugin compiled for the Web. The browser's own engine runs
 the plugin UI's JavaScript and draws it, without Hermes or Skia, and your Rust controller and processor run through WebAssembly. The UI's engine is Soundor's
 own, though: its C++ core (the node tree, styles, Yoga layout and text layout,
-the same code the JUCE runtime compiles) runs as WebAssembly, so a UI gets the
+the same code the VST3 plugin runs) runs as WebAssembly, so a UI gets the
 same boxes and the same style errors in both runtimes, and the browser draws
 them with HTML elements and CSS. A page with a strict Content Security Policy
 has to allow it, with `wasm-unsafe-eval`.
@@ -45,12 +45,12 @@ needs no Emscripten, CMake or C++ compiler; Rust compiles its controller and pro
 ```ts
 // soundor.config.ts
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
   plugin: { id: 'com.example.gain', name: 'Gain' },
-  runtimes: [juceRuntime(), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
   parameters: {
     gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
   },
@@ -64,7 +64,7 @@ step. A newly created project can run immediately:
 ```sh
 pnpm create soundor-app my-plugin
 cd my-plugin
-pnpm dev:web       # choose JUCE + Web in the scaffolder
+pnpm dev:web       # choose VST3 + Web in the scaffolder
 ```
 
 For a web-only project the scaffolder names this script `dev`.
@@ -222,19 +222,19 @@ UI. Controller calls use schema-driven WASM dispatch.
 
 | Module               | In the browser                                                                                                                                                                                                                                                                                                                            |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `soundor:parameters` | One parameter store, running the behavior `gen` compiles from the config to JavaScript (`parameters.js`), from the same expressions as the JUCE runtime's C++: mapping, steps, `format` and `parse`. A value of the wrong type, or a write to a read-only parameter, is a `TypeError`; listeners hear of changes only, and gestures nest. |
+| `soundor:parameters` | One parameter store, running the behavior `gen` compiles from the config to JavaScript (`parameters.js`), from the same expressions as the VST3 runtime's C++: mapping, steps, `format` and `parse`. A value of the wrong type, or a write to a read-only parameter, is a `TypeError`; listeners hear of changes only, and gestures nest. |
 | `soundor:host`       | `WebHost`: host name "Soundor Web", the AudioContext's sample rate, a 128-sample block, and a transport the host UI controls. Snapshots arrive every frame while playing.                                                                                                                                                                 |
 | `soundor:ui`         | The DOM (see below).                                                                                                                                                                                                                                                                                                                      |
 | `soundor:native`     | The same generated TypeScript methods as natively, dispatched to the Rust controller in WASM.                                                                                                                                                                                                                                             |
 | `soundor:storage`    | IndexedDB, one database per `plugin.id`.                                                                                                                                                                                                                                                                                                  |
-| `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the JUCE runtime's errors. The user's own files are never reachable.                                                                                                                                                         |
+| `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the VST3 runtime's errors. The user's own files are never reachable.                                                                                                                                                         |
 
 The Web globals Soundor declares (`fetch`, timers, `URL`, `TextEncoder`,
 `crypto`, `requestAnimationFrame`, …) are the browser's own, except
 `ResizeObserver`. A browser's observes DOM elements only, so Soundor's takes
 its place and observes nodes. The browser still decides when it reports, through
 its own `ResizeObserver` on each node's element. What an entry says is measured
-from Yoga, as in the JUCE runtime. DOM elements are passed through to the
+from Yoga, as in the VST3 runtime. DOM elements are passed through to the
 browser's, so the host page's own code works as before.
 
 ### `soundor:ui` on the DOM
@@ -245,24 +245,24 @@ editor's size, scaled down when the page is smaller; see
 `@soundor/react`'s own; there is no ReactDOM. Plugin code only ever sees
 UiNodes.
 
-- **Layout.** The engine decides every box, with its Yoga, as in the JUCE
+- **Layout.** The engine decides every box, with its Yoga, as in the VST3
   runtime, and each element is placed absolutely where it says: CSS only draws. `flex` is read as React
-  Native reads it, and invalid styles fail with the JUCE runtime's messages. What
+  Native reads it, and invalid styles fail with the VST3 runtime's messages. What
   still differs is listed in [Where layout differs](#where-layout-differs).
 - **Events.** Events capture and bubble along the Soundor tree, and input
-  follows the JUCE runtime's rules: implicit pointer capture, hover enter and
+  follows the VST3 runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
   release, counted as the browser counts clicks (its own `click`'s `detail`,
   by the platform's double-click time) with a `dblclick` after the second,
-  focus on press, Tab cycling, `focusVisible` (by the JUCE
+  focus on press, Tab cycling, `focusVisible` (by the VST3
   runtime's rules, not the browser's `:focus-visible`), and the wheel
   scrolling the nearest scroll view. With Control, the wheel, a trackpad's
   pinch included, scrolls nothing and is left to the browser's zoom unless
   plugin code prevents it. All four `pointerEvents` modes work, and the cursor is the
-  JUCE runtime's: the view resolves `cursor` along the Soundor tree and
+  VST3 runtime's: the view resolves `cursor` along the Soundor tree and
   shows it on its element, which every node inherits. Hover follows what
   changes under a pointer that did not move (the tree, a style, a scroll, a
-  resize) in the next frame, as in the JUCE runtime.
+  resize) in the next frame, as in the VST3 runtime.
 - **Text inputs** edit natively (IME, selection, copy and paste) and report
   `beforeinput`, `input` and `change`. A press in one is left to the browser
   rather than captured by the view, so selecting with the mouse works in
@@ -277,7 +277,7 @@ UiNodes.
   stage with (1 unless the stage is smaller than the plugin).
 - **Layers.** `root` and `overlayRoot` are two elements in one isolated
   stacking context inside the viewport, the overlay above; every node
-  stacks its own children, so `zIndex` orders siblings as in the JUCE
+  stacks its own children, so `zIndex` orders siblings as in the VST3
   runtime and never lifts content over the overlay. Nothing is rendered
   into `document.body`.
 - **Coordinates** are logical pixels relative to the view, whatever the
@@ -285,7 +285,7 @@ UiNodes.
   `contextmenu` becomes Soundor's, and preventing it keeps the browser's
   menu away.
 - **Accessibility** is ARIA on the elements that draw the nodes: no second,
-  hidden DOM, and no native accessibility adapter. The JUCE runtime's semantic rules decide
+  hidden DOM, and no native accessibility adapter. The VST3 runtime's semantic rules decide
   what is an element, as what, labelled how; a pass after each task's
   changes sets the matching attributes:
   - Roles: `adjustable` is `slider`, `togglebutton` a `button` with
@@ -324,8 +324,8 @@ the browser itself decides:
 - **Text** is measured by Skia natively and by the browser here, with the
   platform's fonts in each, so a text's width, and where it wraps, can differ by
   a few pixels. Bundled fonts narrow this; they do not remove it. It wraps by the
-  JUCE runtime's rules in both: only at spaces and line breaks, never inside a
-  word, at a hyphen or between CJK characters. Baselines are the JUCE runtime's
+  engine's rules in both: only at spaces and line breaks, never inside a
+  word, at a hyphen or between CJK characters. Baselines are the VST3 runtime's
   too, in text and in inputs, on the device pixel it would use: the browser's
   rounding of a font's metrics, which moves text by a pixel between 1x and 2x, is
   corrected for. Glyphs still differ by what each renderer hints.
@@ -358,11 +358,11 @@ cancellation, browser limitations and migration from `WebNativeApi`.
 
 ## Audio: the plugin's processor, in WebAssembly
 
-The Web host runs the same audio processing as the JUCE plugin: the
+The Web host runs the same audio processing as the VST3 plugin: the
 project's Rust crate, `lib/`, compiled to WebAssembly
 (`wasm32-unknown-unknown`) and run in an AudioWorklet. There is no Web Audio
 code of your own to write, and nothing to keep in step with the plugin's
-DSP. See [The audio processing](/docs/juce-runtime#the-audio-processing) for
+DSP. See [Rust audio processing](/docs/rust-processor) for
 the processor itself.
 
 ```text
@@ -510,7 +510,7 @@ it came from the demo, a file, or a microphone.
 ## The host UI
 
 The plugin is the page. Its view opens at the editor's size, the config's
-[`editor`](/docs/cli/config#editor) (800×600 by default), as the JUCE editor
+[`editor`](/docs/cli/config#editor) (800×600 by default), as the VST3 editor
 does, and is scaled down, never up, when the page is smaller (an iframe in
 docs, a phone, the panel open). The host stays out of its way:
 
@@ -557,7 +557,7 @@ Two different things change how big the plugin looks:
 
 - **Resizing** changes the view's size in logical pixels: the size its UI is
   laid out at. A view with `flex: 1` grows with it and text keeps its size,
-  as in a resized JUCE editor. Only a resizable editor is resized, by its
+  as in a resized VST3 editor. Only a resizable editor is resized, by its
   handle (`demo` and `dev`) or by its iframe (`embed`).
 - **Scaling** draws the same layout smaller, with a CSS transform, when the
   page has less room than the view's size. Its logical size, and so its
@@ -584,7 +584,7 @@ and is resized within its limits; dragged past the page's edge, it stops
 there rather than being scaled. Its handle is shown only where its limits
 allow another size. In `embed` the page owns the size and may make it
 larger than its maximum: the editor then lays its UI out as its `fit`
-says, as in a JUCE host that ignores the maximum: at most at the maximum,
+says, as in a VST3 host that ignores the maximum: at most at the maximum,
 centred in bands of the editor's background (`'contain'`), or over all of
 it around the safe area (`'cover'`).
 
@@ -692,17 +692,16 @@ previous UI and runs the files again. Its messages with the page are in
   150 KB) into the Soundor cache when `soundor dev` or `soundor build` first
   needs it: the first run needs the network. Engine versions released before
   it had no module. See [Soundor Engine](/docs/engine#the-webassembly-core).
-- Audio runs the shared Rust processor in an AudioWorklet; JUCE C++ DSP is not
-  compiled for the browser.
+- Audio runs the shared Rust processor in an AudioWorklet.
 - The host is a test bench, not a DAW: no tracks, automation lanes, MIDI or
   recording. `beginGesture()`/`endGesture()` are tracked but not recorded.
 - `node.style.width = 120` changes one style property and `'120px'` lengths
-  are numbers, as in the JUCE runtime (Three.js's `setSize()` writes the
+  are numbers, as in the VST3 runtime (Three.js's `setSize()` writes the
   canvas's style this way).
 - Images and canvases are leaves, as natively: their children are not shown.
 - A canvas node is a real `<canvas>`, so its contexts are the browser's: it
-  draws what browsers draw (shadows, `Path2D`, …) where the JUCE runtime's
-  2D context throws. Like the JUCE runtime, it gives only '2d' and 'webgl2'
+  draws what browsers draw (shadows, `Path2D`, …) where the VST3 runtime's
+  2D context throws. Like the VST3 runtime, it gives only '2d' and 'webgl2'
   contexts (null for other types), and their methods that take an image
   (`drawImage`, `createPattern`, `texImage2D`, …) also take canvas and image
   nodes.

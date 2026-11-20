@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "soundor build",
-    "build:juce": "soundor build juce",
-    "dev": "soundor dev juce",
+    "build:vst3": "soundor build vst3",
+    "dev": "soundor dev vst3",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "test": "vitest run",
@@ -19,8 +19,8 @@
     "test:web": "node e2e/web.mjs"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
     "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },

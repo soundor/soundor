@@ -48,7 +48,7 @@ export function projectIdSegment(name: string): string {
   return segment.length > 0 ? segment : 'plugin';
 }
 
-export const RUNTIMES = ['juce', 'web'] as const;
+export const RUNTIMES = ['vst3', 'web'] as const;
 export type Runtime = (typeof RUNTIMES)[number];
 
 /** What each runtime adds to the project: its package and its config entry. */
@@ -64,12 +64,12 @@ export const RUNTIME_INFO: Readonly<
     }
   >
 > = {
-  juce: {
-    label: 'JUCE',
-    hint: 'VST3, AU and Standalone plugins',
-    package: '@soundor/juce-runtime',
-    factory: 'juceRuntime',
-    call: "juceRuntime({ formats: ['vst3', 'standalone'] })",
+  vst3: {
+    label: 'VST3',
+    hint: 'VST3 plugins for Linux, macOS and Windows',
+    package: '@soundor/vst3-runtime',
+    factory: 'vst3Runtime',
+    call: 'vst3Runtime()',
   },
   web: {
     label: 'Web',
@@ -184,8 +184,8 @@ export function projectManifest(
       (runtime) => RUNTIME_INFO[runtime].package,
     ),
   );
-  // What `soundor dev juce` runs the VST3 in.
-  if (!runtimes.includes('juce')) unused.add('@soundor/vst3-host');
+  // The VST3 runtime's peer: what `soundor dev vst3` runs the plugin in.
+  if (!runtimes.includes('vst3')) unused.add('@soundor/vst3-host');
   const pkg: Manifest = { ...template, name };
   for (const field of ['dependencies', 'devDependencies'] as const) {
     const dependencies = template[field];

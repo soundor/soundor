@@ -15,20 +15,21 @@ flowchart TD
     Toolchain --> Contract["Types, manifests, and native bindings"]
     Source["src/main.tsx and npm dependencies"] --> Bundle["CLI: bundle UI"]
     Bundle --> ESM["bundle.mjs: ES module"]
-    ESM --> Native["JUCE runtime: lowered for its engine"]
-    Contract --> JUCE["JUCE plugin: your C++ host, the Rust DSP"]
-    Contract --> Web["Browser host: your TypeScript, the Rust DSP in WebAssembly"]
-    Native --> JUCE
+    ESM --> Native["VST3 runtime: lowered for its engine"]
+    Contract --> VST3["VST3 plugin: the prebuilt adapter, your Rust crate"]
+    Contract --> Web["Browser host: the Rust crate in WebAssembly"]
+    Native --> VST3
     ESM --> Web
-    JUCE --> Engine["Soundor Engine: Hermes, Yoga, Skia, ANGLE"]
+    VST3 --> Engine["Soundor Engine: Hermes, Yoga, Skia, ANGLE"]
     Web --> Browser["Browser JavaScript, DOM, Canvas, ARIA"]
 ```
 
-The [VST3 runtime](/docs/vst3-runtime) runs the same engine and Rust crate as
-a VST3 without JUCE (Linux, macOS, Windows), from a prebuilt adapter.
+The [VST3 runtime](/docs/vst3-runtime) builds a VST3 for Linux, macOS and
+Windows from a prebuilt adapter, the prebuilt engine and the project's Rust
+crate: no C++ is compiled per plugin.
 
 The CLI bundles npm dependencies into the UI and leaves `soundor:*` imports for
-the runtime, in one ES module. The web runtime loads it as it is. The JUCE
+the runtime, in one ES module. The web runtime loads it as it is. The VST3
 runtime lowers it into a module function for Hermes, with the lowering of the
 engine it links, and production builds compile that to bytecode with the
 matching `hermesc`.
@@ -82,7 +83,7 @@ frame. Paint animations repaint affected content. See the
 ## Threads and ownership
 
 JavaScript, node mutation, event dispatch, and native animation timelines run on
-the UI/message thread. The generated editor calls `RuntimeHost::tick()` at
+the UI/message thread. The plugin's editor calls `RuntimeHost::tick()` at
 60 Hz to deliver pending parameter changes, run timers, and settle async work.
 
 Audio callbacks execute your native DSP. Parameter listeners that may run on
@@ -123,9 +124,9 @@ That tree drives native platform bridges and the web runtime's ARIA attributes.
 
 Windows uses native UI Automation, Linux uses native AT-SPI over GDBus, and
 macOS uses Soundor's Apple bridge. The engine
-also contains an iOS bridge, but Soundor has no iOS plugin build yet. JUCE
-supplies the native view and attachment point. It does not define Soundor's
-control semantics.
+also contains an iOS bridge, but Soundor has no iOS plugin build yet. The
+plugin's editor supplies the native view and attachment point; the semantics
+are Soundor's.
 
 Pointer and keyboard routing also follow the Soundor tree. React's `Modal` and
 `FocusScope` add keyboard focus management. Details and examples live in the

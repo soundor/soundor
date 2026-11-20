@@ -1,6 +1,6 @@
 ---
 title: 'Basic'
-description: 'One gain plugin with the same UI and the same Rust processing in JUCE and the browser.'
+description: 'One gain plugin with the same UI and the same Rust processing in a VST3 plugin and the browser.'
 ---
 
 Source: [`examples/basic/`](https://github.com/soundor/soundor/tree/main/examples/basic).
@@ -61,7 +61,7 @@ Press ▶ to play the host's input (an oscillator, or an audio file of yours)
 and move the fader: the plugin UI sets `gain`, and the processor follows it.
 Its editor is resizable (`editor: { resizable: true }`): drag the handle at
 the view's corner and the UI is laid out again at the new size, as in the
-JUCE editor. `App.tsx` reads the size with
+VST3 editor. `App.tsx` reads the size with
 [`useViewSize()`](/docs/hooks/use-view-size): it shows it, and narrower than
 640 logical pixels it stacks the fader and the panel instead of setting them
 side by side, the same in both runtimes.
@@ -81,14 +81,16 @@ the code above next to the running plugin:
 <iframe src="examples/basic/" width="840" height="720"></iframe>
 ```
 
-## As a JUCE plugin
+## As a VST3 plugin
 
 ```sh
-pnpm dev          # soundor dev juce: a debug build, the VST3 opened in the host
-pnpm build:juce   # soundor build juce: VST3 and Standalone in .soundor/dist/juce
+pnpm dev          # soundor dev vst3: a debug build, opened in the VST3 host
+pnpm build:vst3   # soundor build vst3: the VST3 in .soundor/dist/vst3
 ```
 
-JUCE must be installed (see `soundor doctor`).
+In Soundor's repository, build the VST3 runtime's adapter first
+(`pnpm --filter @soundor/vst3-runtime build:native`); `soundor doctor` checks
+the rest.
 
 ## Tests
 

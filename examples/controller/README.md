@@ -3,7 +3,7 @@
 A ring modulator whose native methods are Rust: the plugin's **controller**
 (`lib/src/controller.rs`), beside its **processor** (`lib/src/processor.rs`).
 Both are the one crate, `lib/`; `soundor::export!(PluginProcessor,
-PluginController)` exports them for both the JUCE and Web runtimes.
+PluginController)` exports them for both the VST3 and Web runtimes.
 
 - `click()` is synchronous: it runs on the control thread inside the
   JavaScript call, and counts in the controller's local store, which lasts

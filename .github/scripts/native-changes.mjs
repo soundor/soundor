@@ -3,8 +3,6 @@
 // its external dependencies or turbo's global dependencies. CI's own
 // definition is not in the package graph, so a change to it runs everything,
 // as does an unknown base. Host-only changes run the VST3 and Orbit checks.
-// JUCE's Rust gain test consumes the selected host when the JUCE runtime itself
-// is affected; it need not rebuild unchanged adapters for a host-only change.
 // Changeset release notes do not affect this host-only decision.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
@@ -12,14 +10,13 @@ import { appendFileSync, readFileSync } from 'node:fs';
 // The package each job tests.
 const JOBS = {
   native: '@soundor/engine',
-  juce: '@soundor/juce-runtime',
   benchmark: 'soundor-benchmark',
   host: '@soundor/vst3-host',
   orbit: 'orbit',
   vst3: '@soundor/vst3-runtime',
 };
 const CI =
-  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|juce|orbit|vst3|vst3-host-artifacts)\.yml|actions\/|scripts\/(verified-deps|verified_deps_test|native-artifacts|native-plan|native-changes|engine-prebuilts|verify-results|macos-minimum|linux-plugin-check|windows-plugin-check))/;
+  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|orbit|vst3|vst3-host-artifacts)\.yml|actions\/|scripts\/(verified-deps|verified_deps_test|native-artifacts|native-plan|native-changes|engine-prebuilts|verify-results|macos-minimum|linux-plugin-check|windows-plugin-check))/;
 
 const HOST = 'hosts/vst3-host/';
 

@@ -138,7 +138,7 @@ describe('soundor:fs files', () => {
     expect(await fs.stat('')).toMatchObject({ kind: 'directory' });
   });
 
-  it('fails like the JUCE runtime, with DOMExceptions', async () => {
+  it('fails like the native runtime, with DOMExceptions', async () => {
     const { fs } = plugin();
     await fs.writeText('dir/file.txt', 'x');
     await expect(fs.readBytes('missing.txt')).rejects.toMatchObject({

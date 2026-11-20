@@ -34,9 +34,7 @@ The same attachment as on macOS, in UIKit's terms:
 1. Create the bridge with the `UIView` the surface is drawn in:
    `a11y::createPlatformAccessibility({ { (__bridge void*) view, nullptr }, name })`.
 2. Put `accessibilityContainer()` (a system `UIAccessibilityElement` that is
-   not an element itself) in the view's `accessibilityElements`. With JUCE's
-   iOS peer, that is `AccessibilityHandler::setNativeChildForComponent`, as
-   on macOS. The view must not be an accessibility element itself.
+   not an element itself) in the view's `accessibilityElements`. The view must not be an accessibility element itself.
 3. Every frame, on the main thread, after `RuntimeHost::tick()`: call
    `setGeometry({ x, y, scale })`, the surface's origin and scale in the view's
    points (y down), then `tick(host)`.

@@ -2,7 +2,7 @@
  * The plugin view in the browser: the root node's element, focus, and the
  * routing of the browser's input to Soundor events.
  *
- * Input follows the JUCE runtime's Surface rule for rule, so plugin UIs
+ * Input follows the native runtime's Surface rule for rule, so plugin UIs
  * behave alike in both: a pressed pointer is captured by its target until
  * the last button is up; hover enters and leaves along the tree; a click
  * goes to the deepest node holding both press and release; pressing moves
@@ -68,7 +68,7 @@ export interface EngineOptions extends CoreOptions {
 /** The module Engine.load() loaded, which engines start from by default. */
 let loaded: WebAssembly.Module | undefined;
 
-/** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
+/** Pixels a wheel line scrolls, as in the native runtime and browsers. */
 const PIXELS_PER_LINE = 40;
 /** Keys that pressed on their own do not show focus. */
 const MODIFIER_KEYS = new Set([
@@ -133,7 +133,7 @@ export class Engine implements ViewLink {
   /**
    * Whether the focused node shows its focus, and whether the last input
    * was the keyboard's (or assistive technology's) rather than a pointer
-   * press: what focus moved now would show. As the JUCE runtime decides.
+   * press: what focus moved now would show. As the native runtime decides.
    */
   #focusShown = false;
   #keyboardModality = true;
@@ -568,7 +568,7 @@ export class Engine implements ViewLink {
   }
 
   /**
-   * Asks the host for another editor size, checked and rounded as the JUCE
+   * Asks the host for another editor size, checked and rounded as the native
    * runtime does. Returns the size asked of the host (held to the editor's
    * limits), or null where the editor's size cannot be asked for.
    */
@@ -750,7 +750,7 @@ export class Engine implements ViewLink {
 
   /**
    * Locks the mouse or pen pressing `node` (or a node in it) to `node`, as
-   * the JUCE runtime does: the browser locks the view's element, which gets
+   * the native runtime does: the browser locks the view's element, which gets
    * every move, and the view routes them to `node`.
    */
   requestPointerLock(node: UiNode): Promise<void> {
@@ -866,7 +866,7 @@ export class Engine implements ViewLink {
 
   /**
    * Hover follows what changed under pointers that did not move, as in
-   * browsers and the JUCE runtime: each mouse or pen in the view and not
+   * browsers and the native runtime: each mouse or pen in the view and not
    * pressed is hit-tested again where it is, and pointerleave/pointerenter
    * fire as for a move (no pointermove).
    */
@@ -889,7 +889,7 @@ export class Engine implements ViewLink {
   }
 
   /**
-   * The cursor the mouse shows, as in the JUCE runtime: the style's of the
+   * The cursor the mouse shows, as in the native runtime: the style's of the
    * node holding the pointer, or else of the deepest it hovers, or of their
    * nearest ancestor with one; a text input's 'text', and the arrow where
    * none has one.
@@ -1552,7 +1552,7 @@ export class Engine implements ViewLink {
 
 /**
  * One side of a size requestEditorSize() is asked for, checked and whole:
- * any finite number, held to what the JUCE runtime converts (1 to
+ * any finite number, held to what the native runtime converts (1 to
  * 0x3FFFFFFF), then to the editor's limits by the host.
  */
 function requestedSide(value: unknown, name: string): number {
@@ -1567,7 +1567,7 @@ function requestedSide(value: unknown, name: string): number {
   return Math.min(Math.max(Math.round(value), 1), 0x3fffffff);
 }
 
-/** What a value is, as the JUCE runtime's errors say it. */
+/** What a value is, as the native runtime's errors say it. */
 function describe(value: unknown): string {
   if (value === null) return 'null';
   if (typeof value === 'object')

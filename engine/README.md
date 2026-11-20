@@ -1,6 +1,6 @@
 # @soundor/engine
 
-The independently versioned C++ UI engine: Hermes, Yoga, Skia, WebGL, accessibility, and the native Soundor modules. JUCE integration lives in `@soundor/juce-runtime`.
+The independently versioned C++ UI engine: Hermes, Yoga, Skia, WebGL, accessibility, and the native Soundor modules. The VST3 integration lives in `@soundor/vst3-runtime`.
 
 - [Guide and reference](https://soundor.dev/docs/contribute/engine-reference)
 - [Documentation](https://soundor.dev/docs)

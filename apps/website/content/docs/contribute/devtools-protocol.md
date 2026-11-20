@@ -168,7 +168,7 @@ metadata is omitted. Snapshot limits are 256 animations, 64 targets per animatio
 and a transport budget. `targetsTruncated` and `snapshotTruncated` report limits.
 
 `Animation.changed` carries bounded `changes` (ID, node, playback generation,
-state) and `truncated`. JUCE captures these from the real timeline only while
+state) and `truncated`. The native engine captures these from the real timeline only while
 subscribed, including replacement, pause/resume, completion and cancellation.
 Running animations also invalidate presentation inspection at up to 10 Hz.
 Lifecycle queues retain at most 128 changes; the browser retains 100 entries.
@@ -191,7 +191,7 @@ layers, raster work, GPU layers/readbacks, uploads and draw calls. `phases` repo
 measured UI tick dispatch phases over its `windowMs`, including timers/async work,
 parameter dispatch, promise jobs, animation callbacks and native animation work.
 These are not total Hermes execution time. `tickIntervalMs` is the measured UI
-callback interval; JUCE's `delayedTicks` counts intervals over its reported
+callback interval; the native engine's `delayedTicks` counts intervals over its reported
 `tickDelayThresholdMs` of 25 ms against the 60 Hz timer, not dropped GPU frames. GPU execution time is unavailable. Expensive raster
 and frame timing clocks run only during recording, on the owning UI thread.
 

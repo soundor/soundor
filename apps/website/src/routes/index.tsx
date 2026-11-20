@@ -34,9 +34,9 @@ const workflow = [
   {
     icon: AudioLines,
     title: 'Give it a sound.',
-    text: 'Connect the controls to your processor. Use C++ with JUCE for the DAW and a separate Web Audio implementation for the browser.',
-    url: '/docs/juce-runtime',
-    link: 'Explore the runtimes',
+    text: 'Write the processor once in Rust. It runs natively in the VST3 plugin and as WebAssembly in the browser.',
+    url: '/docs/rust-processor',
+    link: 'Rust audio processing',
   },
 ];
 
@@ -55,7 +55,7 @@ function Home() {
             </h1>
             <p className="home-lead">
               Build the interface in TypeScript and React. Run it in a native
-              JUCE plugin and in the browser. Bring your own DSP.
+              VST3 plugin and in the browser. Write the DSP once, in Rust.
             </p>
             <div className="home-hero-actions">
               <Link
@@ -90,7 +90,7 @@ function Home() {
           <div>
             <Layers size={18} aria-hidden />
             <span>
-              <strong>Native JUCE plugin</strong>
+              <strong>Native VST3 plugin</strong>
               <span>Embedded engine · no browser in the editor</span>
             </span>
           </div>
@@ -169,7 +169,7 @@ function Home() {
             <p className="home-eyebrow">Your next plugin starts here</p>
             <h2 id="start-title">Make a little noise.</h2>
             <p>
-              Create a project with a working gain control and a JUCE processor
+              Create a project with a working gain control and a Rust processor
               scaffold. Then make it your own.
             </p>
             <Link
@@ -195,7 +195,7 @@ function Home() {
               </code>
             </pre>
             <p>
-              Node.js 24 · Native builds need CMake, a C++20 compiler and JUCE.{' '}
+              Node.js 24 · Rust · VST3 builds need the platform's linker.{' '}
               <a href="/docs/getting-started#requirements">
                 Requirements <ArrowUpRight size={12} aria-hidden />
               </a>

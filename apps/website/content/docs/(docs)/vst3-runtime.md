@@ -1,15 +1,15 @@
 ---
 title: 'VST3 runtime'
-description: 'VST3 plugins for Linux, macOS and Windows without JUCE: a prebuilt VST3 adapter, the Soundor engine and your Rust crate, linked by Cargo and the system linker.'
+description: 'VST3 plugins for Linux, macOS and Windows: a prebuilt VST3 adapter, the Soundor engine and your Rust crate, linked by Cargo and the system linker.'
 ---
 
 Source: [`runtimes/vst3-runtime/`](https://github.com/soundor/soundor/tree/main/runtimes/vst3-runtime).
 
 `@soundor/vst3-runtime` builds a project as a **VST3 plugin for Linux,
-macOS or Windows, without JUCE**. The same project as the [JUCE runtime](/docs/juce-runtime)'s,
-unchanged: the UI in `src/`, the [Rust processor](/docs/rust-processor) and
-[controller](/docs/rust-controller) in `lib/`, the contract in
-`soundor.config.ts`. No C++ is compiled when a plugin is built: the plugin is
+macOS or Windows**: the UI in `src/`, the [Rust processor](/docs/rust-processor)
+and [controller](/docs/rust-controller) in `lib/`, the contract in
+`soundor.config.ts`, the same project the [web runtime](/docs/web-runtime)
+runs in a browser. No C++ is compiled when a plugin is built: the plugin is
 linked from parts built once.
 
 ```ts
@@ -33,15 +33,17 @@ soundor build vst3 --debug   # a Debug build with DevTools
 soundor dev vst3             # opens the Debug build in the VST3 host
 ```
 
-A project can list it beside the JUCE and web runtimes;
-[`examples/controller`](https://github.com/soundor/soundor/tree/main/examples/controller)
-does (`pnpm --filter controller build:vst3`).
+A project lists it beside the web runtime, as every
+[example](https://github.com/soundor/soundor/tree/main/examples) does
+(`pnpm --filter controller build:vst3`). In Soundor's own repository, build
+the runtime's prebuilt adapter first, which the published package carries:
+`pnpm --filter @soundor/vst3-runtime build:native`.
 
 ## Requirements
 
-Each platform builds its own plugins: there is no cross-compilation. On
-other platforms and architectures (Linux on ARM, Windows on ARM), use the
-JUCE runtime.
+Each platform builds its own plugins: there is no cross-compilation, and
+there are no builds for other platforms and architectures (Linux on ARM,
+Windows on ARM).
 
 | Platform                      | Builds                                         | Plugins run on              |
 | ----------------------------- | ---------------------------------------------- | --------------------------- |
@@ -99,7 +101,7 @@ static C++ runtime and libcurl) and the prebuilt adapters.
 | Option      | Default                                                                                                        |
 | ----------- | -------------------------------------------------------------------------------------------------------------- |
 | `classIds`  | derived from `plugin.id`: `{ processor, controller }`, 32 hexadecimal digits each, to keep a released identity |
-| `timeLimit` | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none (as the JUCE runtime's)          |
+| `timeLimit` | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none                                  |
 
 The plugin's name, vendor (`plugin.vendor.name`, else the vendor part of
 `plugin.id`), version, categories, buses, MIDI, editor, parameters, state and
@@ -142,7 +144,7 @@ lib/ (your crate) ────────────────────�
   generates in `.soundor/cache/vst3/`: your `lib/` crate as a dependency,
   unchanged, and the runtime's `soundor-vst3` crate, which embeds the
   descriptor and the UI. Your processor and controller run through
-  `soundor::export!`, exactly as in the JUCE runtime.
+  `soundor::export!`, exactly as in the web runtime.
 - **The engine**: the prebuilt engine of `@soundor/engine`, the exact version
   this package depends on, resolved through npm from this package (never
   from whatever copy the workspace root happens to hold), downloaded once into
@@ -171,14 +173,15 @@ VST3's three entry points (`GetPluginFactory`, and `ModuleEntry` and
 and `ExitDll` on Windows); everything else (the SDK, the engine, Rust's
 standard library, the C++ runtime) is hidden, so any number of Soundor
 plugins, of any versions, share a host. A macOS bundle is signed as the last
-step of the build, as the JUCE runtime's are; notarizing it is yours.
+step of the build; notarizing it is yours (see
+[Signing and distributing on macOS](#signing-and-distributing-on-macos)).
 
 **Identity.** Hosts know a plugin by its class ids, not by its file name: they
 are derived from `plugin.id` (a hash), so they stay the same across versions
 and rebuilds, and renaming the bundle keeps the plugin. They are the same on
 every platform, as hosts write them (`moduleinfo.json`), so a project made on
 one opens the plugin on another. Changing `plugin.id` makes another plugin. A parameter's VST3 id is a hash of its id in the config
-(as the JUCE runtime's), so renaming a parameter's key breaks automation that
+(as JUCE's VST3 wrapper derives it), so renaming a parameter's key breaks automation that
 hosts recorded for it.
 
 **Installing.** Copy or link the bundle where hosts look, then rescan in the
@@ -201,8 +204,8 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   the host set up; the config's layouts are what `setBusArrangements`
   accepts. Processing takes no lock and allocates nothing.
 - **Parameters.** Each parameter's mapping, steps and text are the config's,
-  interpreted from its expressions with the same semantics as the JUCE
-  runtime's generated C++ and the web runtime's JavaScript (checked against
+  interpreted from its expressions with the same semantics as the
+  expression language's C++ and the web runtime's JavaScript (checked against
   the expression language's corpus, bit for bit). Hosts' text works with the
   editor closed. A block uses each parameter's last value in it, as JUCE's
   VST3 wrapper does. `readOnly` parameters are output parameters the
@@ -213,8 +216,8 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   changes, pitch bend, channel pressure and program change through
   `IMidiMapping` (hidden parameters) and legacy MIDI CC output, at their sample
   offsets. See [MIDI](/docs/midi).
-- **State.** The component's state is the plugin's whole state, in the JUCE
-  runtime's format (`{"version":1,"parameters":{...},"state":{...}}`), so a
+- **State.** The component's state is the plugin's whole state
+  (`{"version":1,"parameters":{...},"state":{...}}`), so a
   saved project restores parameters and [persistent state](/docs/api/state).
   State the UI or the controller changes reaches the processor as a message,
   so it works when a host runs the component and the controller apart, and
@@ -230,8 +233,8 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
 - **Clipboard.** Text fields and `soundor:ui` share the system clipboard
   with other applications (on Linux, under X11 and XWayland).
 - **The editor.** A child of the host's view (an X11 window on Linux, an
-  NSView on macOS, an HWND on Windows), in which the engine runs your UI as
-  in the JUCE runtime: GPU composition where there is a GPU (through
+  NSView on macOS, an HWND on Windows), in which the engine runs your UI:
+  GPU composition where there is a GPU (through
   ANGLE: Vulkan, Metal, Direct3D 11), CPU otherwise, Soundor's own input (XInput 2,
   AppKit, Win32) and accessibility (AT-SPI, VoiceOver, UI Automation). It
   resizes within the config's limits (`editor`), and follows the host's
@@ -244,12 +247,11 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   certificates and proxies, and HTTP/3 where that libcurl has it. Fedora and
   Ubuntu desktops install it; where there is none, `fetch()` rejects, saying
   so.
-- **Storage.** `soundor:storage` and `soundor:fs` keep their files where the
-  JUCE runtime's do, so both builds of a plugin share them:
+- **Storage.** `soundor:storage` and `soundor:fs` keep their files in
   `<data>/Soundor/<plugin id>`, `<data>` being `$XDG_CONFIG_HOME` (or
   `~/.config`), `~/Library` or `%APPDATA%`.
 - **Pointer lock** (`requestPointerLock()`) hides the pointer and keeps it in
-  the view as in the JUCE runtime. Under Wayland (XWayland), moving the
+  the view, moving it back to where the lock began whenever it strays. Under Wayland (XWayland), moving the
   pointer back is the compositor's to allow.
 - **DevTools.** A Debug build (`soundor build vst3 --debug`, `soundor dev
   vst3`) connects to the DevTools session the environment variable
@@ -260,6 +262,83 @@ mkdir -p ~/.vst3 && ln -sfn "$PWD/.soundor/dist/vst3/Acme Reverb.vst3" ~/.vst3/
   and native streams. Hosts load both in one process, even when they sandbox
   plugins, and JUCE plugins rely on it as well; a host that ran them apart
   would still get everything else.
+
+## The plugin's JavaScript runtime
+
+Each open editor has its own runtime: Hermes (interpreted, no JIT) on the
+host's UI thread, ticked at 60 Hz to deliver parameter changes and run
+pending jobs. No JavaScript runs on the audio thread. Closing the editor
+destroys its runtime; opening it again starts a fresh one.
+
+A release build embeds the UI bundle compiled to Hermes bytecode by the
+`hermesc` of the engine's own Hermes, and links the VM without its compiler.
+The bytecode keeps line and column numbers, so stack traces point at lines,
+but not source text: a function's `toString()` cannot return its code. A
+Debug build (`soundor dev`, `--debug`) runs the bundle from source, with the
+compiler linked, but JavaScript compiles none in either: `eval()` and
+`new Function()` throw, so a dependency that generates code at run time (a
+schema validator compiling its checks, a template engine) needs its
+build-time form, and this shows up in development rather than in the built
+plugin. The CLI's bundle is lowered with the engine's own lowering (a
+CommonJS module function, with the syntax Hermes lacks lowered); see
+[the module reference](/docs/contribute/engine-reference#modules) for what
+that changes, and [the engine](/docs/contribute/engine-reference#the-javascript-engine)
+for the language.
+
+### Canvases: 2D and WebGL
+
+A canvas node draws with `getContext('2d')`, which uses Skia (on the GPU
+where there is one, otherwise on the CPU), or with `getContext('webgl2')`,
+which uses ANGLE on the GPU. WebGL needs a hardware GPU. Where there is none
+(a VM, a headless Linux machine), `getContext('webgl2')` returns null and
+the plugin log says why, so code should fall back. Three.js's
+`WebGLRenderer` runs on it unmodified. The GPU compositor shows WebGL as it
+is, without copies; with the CPU compositor, WebGL is read back.
+
+Retained UI layers and Canvas 2D use Skia Ganesh on the same ANGLE device as
+WebGL and the compositor. `getImageData()` reads pixels back;
+`putImageData()` uploads them. If a GPU reset loses a 2D canvas, its
+contents and context state reset; the plugin's code must draw it again.
+`SOUNDOR_RENDERER=cpu` keeps drawing and presentation on the CPU. In a Debug
+build, `SOUNDOR_SHOW_RENDERER=1` shows a small, input-transparent badge with
+the active compositor: **GPU composition** or **CPU composition**.
+
+### Performance: what a frame costs
+
+The UI's JavaScript runs in an interpreter (Hermes, with no JIT: plugin hosts
+do not all allow one), on the host's UI thread, so a slow frame also stalls
+the host's own UI. Layout, drawing and compositing are native and cheap;
+what costs is JavaScript run every frame. Measured with
+[`tools/benchmark`](/docs/contribute/benchmark) (Linux, an RTX 4050), per
+frame:
+
+- **Give per-frame work to the GPU.** 200,000 points moved by JavaScript: 28
+  ms. The same points moved by the vertex shader, JavaScript setting one
+  `time` uniform: 0.1 ms.
+- **Compute natively.** FFTs, peaks, envelopes belong in the
+  [Rust controller](/docs/rust-controller) or the processor (its
+  [streams](/docs/api/native#streams)); JavaScript draws the result.
+- **Draw what is visible.** A 1.5-pixel stroke through 10,000 points takes Skia
+  7.3 ms, a 1-pixel one 0.4 ms; a waveform needs a point or two per pixel
+  column (its minimum and maximum), not fifteen. Path commands themselves are
+  cheap: they reach native code in one call.
+- **Animate how things look, not where they are.** Opacity and colors are
+  drawn again without layout. Assigning a value a style already has costs
+  nothing.
+- **Animate nodes, not React trees.** Setting `node.style.opacity` on 500 nodes
+  through refs: 2.0 ms of JavaScript. Re-rendering 500 React elements to do
+  it: 4.3 ms. Native animations (`Animated.View`, see the
+  [native animation contract](/docs/contribute/engine-reference#native-timing-animations))
+  run on the UI tick without JavaScript.
+
+### Accessibility
+
+The view is accessible to screen readers through Soundor's own semantics
+(the accessibility props of `@soundor/react`): AT-SPI over the system's GIO
+on Linux (`libgio-2.0.so.0`), UI Automation on Windows, NSAccessibility on
+macOS. See [native accessibility](/docs/contribute/engine-reference#accessibility),
+and the [Linux](/docs/contribute/linux-accessibility) and
+[Windows](/docs/contribute/windows-accessibility) notes.
 
 ## Limitations
 
@@ -288,3 +367,48 @@ or `pluginval_Windows.zip` (`pluginval.exe`). On Linux without a display,
 run it under `xvfb-run -a` for its editor tests.
 
 Internals: [the VST3 runtime's architecture](/docs/contribute/vst3-runtime).
+
+## Signing and distributing on macOS
+
+`soundor build vst3` signs the bundle with the identity resolved from
+`SOUNDOR_MACOS_SIGNING_IDENTITY`, then the config's
+[`signing.macos.identity`](/docs/cli/config#signing), then ad hoc, as the
+last step of every build (`soundor dev`'s too), and verifies the signature
+(`codesign --verify --deep --strict`), so a broken one fails the build rather
+than a host's plugin scan.
+
+- **Ad hoc** (the default) is enough to use the plugin on the Mac that built
+  it. No Apple account is involved.
+- **To distribute** it, sign with a _Developer ID Application_ certificate
+  from a paid Apple Developer account. With a real identity Soundor adds the
+  hardened runtime and a secure timestamp, which notarization requires:
+
+  ```sh
+  SOUNDOR_MACOS_SIGNING_IDENTITY="Developer ID Application: Acme (ABCDE12345)" soundor build vst3
+  ```
+
+  In CI, import the certificate into a keychain first (for example with
+  `Apple-Actions/import-codesign-certs`); set `SOUNDOR_MACOS_KEYCHAIN` if the
+  step does not add that keychain to the search list.
+
+- **Where to set the identity:** usually only as
+  `SOUNDOR_MACOS_SIGNING_IDENTITY` in the release CI job. Put it in
+  `signing.macos.identity` only if everyone who runs `soundor build` has the
+  certificate and its private key: otherwise their build fails at the signing
+  step.
+
+Notarization is yours to run on what you ship; downloaded files are
+quarantined, and Gatekeeper blocks plugins Apple has not notarized. For a
+bundle shipped in a zip:
+
+```sh
+cd .soundor/dist/vst3
+ditto -c -k --keepParent "Acme Reverb.vst3" AcmeReverb.zip
+xcrun notarytool submit AcmeReverb.zip --keychain-profile <profile> --wait
+xcrun stapler staple "Acme Reverb.vst3"   # then zip the stapled bundle to ship
+xcrun stapler validate "Acme Reverb.vst3"
+```
+
+`<profile>` is stored once with `xcrun notarytool store-credentials`; in CI,
+pass `--key`, `--key-id` and `--issuer` (an App Store Connect API key)
+instead.

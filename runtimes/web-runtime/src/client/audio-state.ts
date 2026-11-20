@@ -1,7 +1,7 @@
 /**
  * The persistent state the plugin's Rust processor reads (soundor.config's
  * `audio: true` fields), as the AudioWorklet's processor gets it: a binary
- * snapshot in describeAudioState()'s layout, the one the JUCE runtime writes
+ * snapshot in describeAudioState()'s layout, the one the native runtime writes
  * and the SDK's StateSnapshot reads.
  *
  * Every change to one of the fields, from any path (a set, History, a

@@ -31,7 +31,7 @@ body:
         - '@soundor/core'
         - '@soundor/config'
         - '@soundor/runtime-sdk'
-        - JUCE runtime
+        - VST3 runtime
         - Web runtime
         - Not sure
     validations:

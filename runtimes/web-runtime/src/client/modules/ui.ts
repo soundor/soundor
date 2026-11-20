@@ -1,6 +1,6 @@
 // `soundor:ui` in the browser: the plugin view's node tree, drawn with DOM
 // elements in the host's plugin viewport. The same plugin code (and
-// @soundor/react) runs on it as on the JUCE runtime's Skia renderer.
+// @soundor/react) runs on it as on the native runtime's Skia renderer.
 
 // The engine (`@soundor/engine/web`) is the view: its C++ core, compiled to
 // WebAssembly, holds the tree and lays it out; its DOM adapter shows it and

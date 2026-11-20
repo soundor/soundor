@@ -98,10 +98,9 @@ actions, focus-only and incremental updates, modal relationships, Unicode text,
 independent editors, cancellation during authentication, unavailable services,
 registry restarts and bus reconnection. Existing semantic tests remain in place; Windows has focused native UIA tests.
 
-The JUCE runtime's real test plugin runs its Rust gain processor through the
-existing headless VST3 host (`test:plugin:audio`), using the prebuilt C++ engine.
-Release checks verify dynamic GIO linkage, the plugin's exported symbols and the
-absence of debug sections. The audio test opens no editor and introduces no
+The VST3 runtime's real test plugin runs its Rust processor through the
+VST3 host (`test:plugin`), using the prebuilt C++ engine. CI checks the
+plugin's exported symbols and validates it with pluginval. The audio test opens no editor and introduces no
 accessibility E2E infrastructure.
 
 No Linux desktop environment or screen-reader combination has been manually

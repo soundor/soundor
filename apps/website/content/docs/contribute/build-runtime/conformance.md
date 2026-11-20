@@ -15,7 +15,7 @@ described below does not exist yet.
 Existing coverage lives in `packages/runtime-sdk/src/*.test.ts`, CLI command
 tests, engine `tests/`, web runtime `src/**/*.test.ts`, the test-runtime package,
 and `packages/react/testing/`. Native adapter tests and plugin fixtures belong
-to the JUCE runtime. Website and DevTools Playwright tests cover their browser
+to the VST3 runtime. Website and DevTools Playwright tests cover their browser
 integrations.
 
 ## How it works today

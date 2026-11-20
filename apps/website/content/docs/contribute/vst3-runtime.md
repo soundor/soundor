@@ -8,7 +8,7 @@ User guide: [VST3 runtime](/docs/vst3-runtime).
 
 ## Purpose
 
-A JUCE-free VST3 runtime for Linux, macOS and Windows in which nothing is
+A VST3 runtime for Linux, macOS and Windows in which nothing is
 compiled per plugin: a generic C++ adapter is prebuilt once per platform and
 engine variant and shipped in the npm package, and each plugin is its Rust crate and that adapter, linked with
 the prebuilt engine. What makes a plugin itself is data, read at run time.
@@ -40,11 +40,11 @@ the prebuilt engine. What makes a plugin itself is data, read at run time.
 - **The adapter** translates VST3 into Soundor and back. It hosts the
   plugin's processor, controller and MIDI through the engine's
   `processor::RustProcessor`, `processor::RustController` and `midi::Host`,
-  as the JUCE runtime does, so the processor's and controller's ABI is
-  `soundor::export!`'s (`RustProcessorAbi.h`, `RustControllerAbi.h`,
-  `midi/Midi.h`), unchanged. What the JUCE runtime generates per plugin (the
-  parameters' behaviour, `soundor:state`, `soundor:presets`, the controller's
-  `soundor:native`) is written once here and driven by the descriptor.
+  so the processor's and controller's ABI is `soundor::export!`'s
+  (`RustProcessorAbi.h`, `RustControllerAbi.h`, `midi/Midi.h`), as in the web
+  runtime. What could be generated per plugin (the parameters' behaviour,
+  `soundor:state`, `soundor:presets`, the controller's `soundor:native`) is
+  written once here and driven by the descriptor.
 - **The Rust runtime** (`soundor-vst3`) implements the adapter's private ABI:
   which plugin it is.
 - **The user's crate** is the processor and controller, as for every runtime.
@@ -104,7 +104,8 @@ build's UI directory and log file.
   `Link` (shared pointers to the `RustProcessor`, the streams and the host
   state), so the processor outlives the Rust controller that publishes to it,
   whichever the host destroys first. The component is still not declared
-  `kDistributable` (factory and `moduleinfo.json`), as JUCE's are not: what
+  `kDistributable` (factory and `moduleinfo.json`), as JUCE's VST3 plugins are
+  not: what
   needs one process would be lost, so hosts are not invited to split them.
 - **What the host is told.** A state change is `setDirty(true)` (parameters
   speak for themselves); a restore ends with
@@ -112,7 +113,7 @@ build's UI directory and log file.
   program list's parameter (`beginEdit`, `performEdit`, `endEdit`), unless
   the host chose it.
 - **The editor** owns a native window (`NativeWindow`) and the engine's
-  `editor::Editor`, as the JUCE runtime's editor does: the runtime
+  `editor::Editor`: the runtime
   (`DevSession` in development), placing the UI, the compositor, native
   input, the pointer lock, the cursor, accessibility and, in Debug builds,
   DevTools. The editor is its `editor::Platform`: the window's size, content
@@ -201,7 +202,7 @@ adapter of another engine. The package depends on the exact engine version.
 
 ## Invariants and tests
 
-- No plugin-specific C++; no JUCE; the engine's own input, pointer lock,
+- No plugin-specific C++; no plugin framework; the engine's own input, pointer lock,
   rendering, accessibility, HTTP and DevTools bridge, unchanged.
 - The interpreter computes what the expression compilers compute:
   `native/tests/AdapterTests.cpp` evaluates `@soundor/expression`'s

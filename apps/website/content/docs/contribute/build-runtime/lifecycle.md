@@ -122,8 +122,8 @@ the runtime.
 
 Sign macOS binaries after every build step that writes into their bundles. For
 a non-ad-hoc identity, use `--options runtime --timestamp`. Soundor does not
-manage signing key material or notarization. The JUCE implementation finalizes
-signing with `soundor_finalize_plugin`.
+manage signing key material or notarization. The VST3 implementation signs
+and verifies the bundle as its last step.
 
 ### Optional DevTools
 

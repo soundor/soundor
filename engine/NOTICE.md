@@ -3,8 +3,7 @@
 The engine's Soundor-owned code is MIT licensed; see LICENSE. Native dependency
 revisions and archive hashes are pinned in cmake/SoundorDependencies.cmake.
 Source mode fetches dependencies into the build/cache directories, outside this
-npm package. JUCE is a separate, consumer-supplied dependency of the JUCE adapter
-and is never part of the engine.
+npm package.
 
 | Dependency            | License                                         | Use                                      |
 | --------------------- | ----------------------------------------------- | ---------------------------------------- |

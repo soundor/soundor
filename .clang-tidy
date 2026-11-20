@@ -40,5 +40,5 @@ Checks: >
 # modernize-use-trailing-return-type / avoid-c-arrays: style, not defects.
 WarningsAsErrors: '*'
 # Generated headers (tests/generated) are excluded.
-HeaderFilterRegex: '.*/(engine/(include|src|tests/(js|native|symbols))|runtimes/juce-runtime/native/backend)/.*'
+HeaderFilterRegex: '.*/(engine/(include|src|tests/(js|native|symbols)))/.*'
 FormatStyle: file

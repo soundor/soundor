@@ -32,7 +32,7 @@ import type { RuntimeDescriptor } from './runtime';
  * extends this with the live {@link Runtime} implementation.
  */
 export interface RuntimeConfig {
-  /** Identifier of the runtime that owns `options` (e.g. `'juce'`). */
+  /** Identifier of the runtime that owns `options` (e.g. `'vst3'`). */
   id: string;
   /** Runtime-specific options. Core treats this as an opaque bag. */
   options?: object;

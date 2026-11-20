@@ -3,11 +3,11 @@
  * parameter, shared by the plugin UI (`soundor:parameters`), the user's Web
  * Audio code and the host's own UI. There is no second copy to keep in sync.
  *
- * Values are in plain units, as in the JUCE runtime: numbers within
+ * Values are in plain units, as in the native runtime: numbers within
  * [min, max] on the step's grid (float32 values are 32-bit floats), booleans,
  * or one of a choice's option values. Their mapping, step and text are the
  * generated behavior (`parameters.js`), compiled from the same expressions as
- * the JUCE runtime's C++; the API and its errors are the JUCE runtime's.
+ * the VST3 runtime's C++; the API and its errors are the native runtime's.
  */
 
 import {

@@ -97,7 +97,7 @@ export class TestRuntime {
   /**
    * Whether the focused node shows its focus, and whether the last input
    * was the keyboard's (or assistive technology's) rather than a pointer
-   * press, as the JUCE runtime decides.
+   * press, as the native runtime decides.
    */
   private focusShown = false;
   private keyboardModality = true;
@@ -1160,7 +1160,7 @@ export function createTestRuntime(options: RuntimeOptions = {}) {
 
 /**
  * One side of a size requestEditorSize() is asked for, checked and whole:
- * any finite number, held to 1 to 0x3FFFFFFF as the JUCE runtime holds it.
+ * any finite number, held to 1 to 0x3FFFFFFF as the native runtime holds it.
  */
 function requestedSide(value: unknown, name: string): number {
   if (typeof value !== 'number')

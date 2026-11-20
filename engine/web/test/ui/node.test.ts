@@ -126,7 +126,7 @@ describe('UiNode tree', () => {
     expect([...el(root).children]).toEqual([el(c!), el(a!), el(b!)]);
   });
 
-  it('enforces the tree rules with the JUCE runtime messages', () => {
+  it('enforces the tree rules with the native runtime messages', () => {
     const { root } = setup();
     const parent = view.createNode('view');
     const text = view.createNode('text');
@@ -882,7 +882,7 @@ describe('UiNode canvases', () => {
     canvas.height = 32;
     expect([canvas.width, canvas.height]).toEqual([64, 32]);
     expect((el(canvas) as HTMLCanvasElement).width).toBe(64);
-    // Negative sizes are the defaults, as in the JUCE runtime.
+    // Negative sizes are the defaults, as in the native runtime.
     canvas.width = -5;
     expect(canvas.width).toBe(300);
   });
@@ -899,7 +899,7 @@ describe('UiNode canvases', () => {
     expect(getContext).toHaveBeenCalledWith('2d', { alpha: true });
   });
 
-  it("gives only the JUCE runtime's context types", () => {
+  it("gives only the native runtime's context types", () => {
     setup();
     const canvas = view.createNode('canvas');
     const getContext = vi.spyOn(el(canvas) as HTMLCanvasElement, 'getContext');

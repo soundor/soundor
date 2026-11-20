@@ -15,7 +15,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 {
     // The native view a plugin view's surface is shown in. This is all a
-    // plugin framework (JUCE today, iPlug2 or another tomorrow) hands over for
+    // plugin framework (the VST3 runtime's editor, or another) hands over for
     // Soundor to present the view to the platform's assistive technology; the
     // semantics are Soundor's.
     struct NativeView
@@ -24,8 +24,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         // the UIView. Linux: unused (AT-SPI needs no window, only geometry).
         void* handle = nullptr;
         // macOS and iOS: the accessibility object the view's elements are
-        // children of: the framework's element for the plugin view (JUCE:
-        // the editor's), or null for the view itself.
+        // children of: the framework's element for the plugin view, or null for the view itself.
         void* accessibilityParent = nullptr;
     };
 
@@ -75,8 +74,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 
         // macOS and iOS: the object holding the view's elements, which the
         // framework lists among the native view's accessibility children
-        // (JUCE: AccessibilityHandler::setNativeChildForComponent(); a view
-        // of one's own: its accessibilityElements / accessibilityChildren).
+        // (a view of one's own: its accessibilityElements /
+        // accessibilityChildren).
         // Null elsewhere.
         [[nodiscard]] virtual void* accessibilityContainer() const { return nullptr; }
     };

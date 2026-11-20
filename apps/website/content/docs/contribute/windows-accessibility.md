@@ -10,7 +10,7 @@ The public React props and `soundor:ui` accessibility API are unchanged.
 
 ## HWND ownership
 
-The generated editor passes its own peer HWND to `createPlatformAccessibility`.
+The editor passes its own HWND to `createPlatformAccessibility`.
 The adapter attaches on that window's UI thread using `SetWindowSubclass`.
 It handles only `WM_GETOBJECT` with `UiaRootObjectId`, returning the editor's
 fragment through `UiaReturnRawElementProvider`. Other messages and object IDs

@@ -20,8 +20,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
     // Pixels to draw into: 32 bits each, premultiplied alpha, B, G, R, A in
-    // memory on every platform (a 0xAARRGGBB word on little-endian machines,
-    // the layout of juce::Image::ARGB).
+    // memory on every platform (a 0xAARRGGBB word on little-endian machines).
     struct Bitmap
     {
         void* pixels = nullptr;

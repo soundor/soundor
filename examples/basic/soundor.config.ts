@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
@@ -32,14 +32,9 @@ export default defineSoundorConfig({
     maxHeight: 1200,
     resizable: true,
   },
-  // One plugin, two runtimes: the same UI (src/main.tsx) in a JUCE plugin
+  // One plugin, two runtimes: the same UI (src/main.tsx) in a VST3 plugin
   // and in the browser.
-  runtimes: [
-    juceRuntime({
-      formats: ['vst3', 'standalone'],
-    }),
-    webRuntime(),
-  ],
+  runtimes: [vst3Runtime(), webRuntime()],
   state: { presetName: { type: 'string', default: 'Init' } },
   parameters: {
     gain: {

@@ -6,9 +6,9 @@
   "scripts": {
     "bench": "node scripts/bench.ts",
     "build": "soundor build",
-    "build:juce": "soundor build juce",
+    "build:vst3": "soundor build vst3",
     "build:web": "soundor build web",
-    "dev": "soundor dev juce",
+    "dev": "soundor dev vst3",
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
@@ -18,8 +18,8 @@
     "test:svg-native": "node scripts/svg-native-test.mjs"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
     "@soundor/web-runtime": "workspace:*",
     "react": "catalog:",
     "three": "catalog:"

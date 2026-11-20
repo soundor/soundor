@@ -95,7 +95,7 @@ export interface WebManifest {
 }
 
 /**
- * The plugin view's size in logical pixels, as the JUCE editor opens it, and
+ * The plugin view's size in logical pixels, as the native editor opens it, and
  * the limits the user can resize it within (a fixed view's are its size).
  */
 export interface WebEditor {

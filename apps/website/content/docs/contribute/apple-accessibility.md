@@ -8,7 +8,7 @@ Source: [`engine/src/a11y/apple/`](https://github.com/soundor/soundor/tree/main/
 On macOS, VoiceOver perceives a Soundor view through virtual
 `NSAccessibilityElement`s that Soundor creates from its own semantic tree
 (`a11y::SurfaceSemantics`). There is one element per semantic element, not one
-`NSView` per node. The Skia surface stays a single custom-drawn view. JUCE's `AccessibilityHandler` only attaches
+`NSView` per node. The Skia surface stays a single custom-drawn view. The plugin's editor only attaches
 Soundor's native accessibility container; it does not define the semantics.
 
 ```text
@@ -29,20 +29,14 @@ A framework hands over only `a11y::NativeView`:
 top-level elements, and the framework lists it as the view's accessibility
 child:
 
-- **JUCE:** the peer's `NSView` takes its accessibility children from JUCE's
-  element tree. The generated editor passes the container to
-  `juce::AccessibilityHandler::setNativeChildForComponent(editor, container)`,
-  JUCE's public hook for native children. It passes the editor's own JUCE
-  element as `accessibilityParent`. JUCE only exposes the container: no
-  semantics come from it, and no JUCE class is changed.
-- **A framework with its own view (iPlug2):** set the view's accessibility
+- **A framework with its own view:** set the view's accessibility
   children to the container's children, or return them from its
   `accessibilityChildren`, and pass the view as `handle`.
 
 ## Plugin safety
 
 A host process may load several Soundor plugins, several versions of
-Soundor, VST3 and AU builds of one plugin, plugins using other accessibility implementations, and unload any of them. The Objective-C class namespace is
+Soundor, several builds of one plugin, plugins using other accessibility implementations, and unload any of them. The Objective-C class namespace is
 process-global; C++ symbol hiding does nothing for it.
 
 `AppleShared.mm` implements class registration, element tags, the token
@@ -177,8 +171,8 @@ A modal opening or closing is a layout change.
 ## Manual VoiceOver checklist
 
 CI cannot run VoiceOver. Before calling macOS accessibility complete, go
-through this with VoiceOver on (⌘F5), with the `primitives` example as an AU
-and as a VST3 in a host (Logic, Reaper), and in the Standalone app:
+through this with VoiceOver on (⌘F5), with the `primitives` example as a VST3
+in hosts (Reaper, Cubase, Bitwig), and in the Soundor VST3 host:
 
 - [ ] Plain text is read when the cursor reaches it.
 - [ ] A labelled button ("Open dialog") is read as "Open dialog, button";
@@ -210,7 +204,7 @@ iOS: see [the iOS bridge](/docs/contribute/ios-accessibility).
 
 The native macOS input adapter uses the same randomized class utility
 (`src/platform/apple/RuntimeClass.mm`) and lifetime policy. Its transparent
-child view is not an accessibility element; JUCE's existing native-child
-attachment continues to expose Soundor's accessibility container. See
+child view is not an accessibility element; the editor's attachment
+continues to expose Soundor's accessibility container. See
 [Native input](./engine-reference#native-input) for responder ownership,
 text input and teardown.

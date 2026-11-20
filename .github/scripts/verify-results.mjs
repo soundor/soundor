@@ -17,16 +17,12 @@ export function verifyResults(needs) {
       throw new Error(`Invalid ${kind} artifact reuse decision`);
   }
   if (
-    ['native', 'juce', 'benchmark', 'host', 'orbit', 'vst3'].some(
+    ['native', 'benchmark', 'host', 'orbit', 'vst3'].some(
       (name) => !['true', 'false'].includes(changes[name]),
     )
   )
     throw new Error('Native input detection did not return every decision');
   if (changes.benchmark === 'true') required.add('benchmark');
-  if (changes.juce === 'true') {
-    required.add('juce8');
-    required.add('juce9');
-  }
   if (changes.orbit === 'true') required.add('orbit');
   if (changes.vst3 === 'true') required.add('vst3');
   if (
@@ -45,7 +41,6 @@ export function verifyResults(needs) {
   if (needs['host-plan']?.outputs?.build === 'true') required.add('host');
   if (
     changes.native === 'true' ||
-    changes.juce === 'true' ||
     changes.orbit === 'true' ||
     changes.vst3 === 'true'
   )

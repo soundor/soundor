@@ -51,7 +51,7 @@ function projectData(config: ResolvedSoundorConfig): unknown {
 /** Expected serializable projection of the `valid` fixture. */
 const expectedData = {
   plugin: { id: 'com.example.valid', name: 'Valid', version: '0.1.0' },
-  runtimes: [{ id: 'juce', options: { format: 'vst3' } }],
+  runtimes: [{ id: 'vst3', options: { format: 'vst3' } }],
   parameters: [
     {
       id: 'gain',
@@ -123,7 +123,7 @@ describe('parseConfig — loading', () => {
   it('loads and normalizes a valid config', async () => {
     const config = await parseConfig({ path: validConfig });
     expect(projectData(config)).toEqual(expectedData);
-    expectRuntime(config, 'juce');
+    expectRuntime(config, 'vst3');
   });
 
   it('is deterministic: identical input yields identical output', async () => {
@@ -141,8 +141,8 @@ describe('parseConfig — loading', () => {
     writeFileSync(
       path,
       `const noop = async () => {};
-       const runtime = { id: 'juce', gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
-       export default { plugin: { id: 'com.example.defaults', name: ' Defaults ' }, runtimes: [{ id: 'juce', runtime }], parameters: {} };`,
+       const runtime = { id: 'vst3', gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
+       export default { plugin: { id: 'com.example.defaults', name: ' Defaults ' }, runtimes: [{ id: 'vst3', runtime }], parameters: {} };`,
     );
     const config = await parseConfig({ path });
     expect(projectData(config)).toEqual({
@@ -151,11 +151,11 @@ describe('parseConfig — loading', () => {
         name: 'Defaults',
         version: '0.1.0',
       },
-      runtimes: [{ id: 'juce', options: {} }],
+      runtimes: [{ id: 'vst3', options: {} }],
       parameters: [],
       native: {},
     });
-    expectRuntime(config, 'juce');
+    expectRuntime(config, 'vst3');
   });
 
   it('discovers soundor.config.ts by walking up from cwd', async () => {
@@ -164,7 +164,7 @@ describe('parseConfig — loading', () => {
     cleanups.push(resolve(fixtures, 'valid/deeply'));
     const config = await parseConfig({ cwd: nested });
     expect(projectData(config)).toEqual(expectedData);
-    expectRuntime(config, 'juce');
+    expectRuntime(config, 'vst3');
   });
 
   it('throws not-found when no config exists up the tree', async () => {
@@ -204,9 +204,9 @@ describe('validateConfig — validation rules', () => {
   const base = { plugin, runtimes: [], parameters: {} };
 
   it('accepts a valid config and normalizes it', () => {
-    const runtime = makeRuntime('juce');
+    const runtime = makeRuntime('vst3');
     expect(
-      validateConfig({ ...base, runtimes: [{ id: 'juce', runtime }] }),
+      validateConfig({ ...base, runtimes: [{ id: 'vst3', runtime }] }),
     ).toEqual({
       plugin: { ...plugin, version: '0.1.0' },
       midi: { input: false, output: false },
@@ -222,7 +222,7 @@ describe('validateConfig — validation rules', () => {
         fit: 'contain',
         keepAspectRatio: false,
       },
-      runtimes: [{ id: 'juce', options: {}, runtime }],
+      runtimes: [{ id: 'vst3', options: {}, runtime }],
       parameters: [],
       state: {},
       native: {},
@@ -231,7 +231,7 @@ describe('validateConfig — validation rules', () => {
   });
 
   it('rejects a runtime entry with no implementation', () => {
-    const error = expectValidation({ ...base, runtimes: [{ id: 'juce' }] });
+    const error = expectValidation({ ...base, runtimes: [{ id: 'vst3' }] });
     expect(error.issues).toContainEqual(
       expect.objectContaining({ path: 'runtimes[0].runtime' }),
     );
@@ -316,8 +316,8 @@ describe('validateConfig — validation rules', () => {
     const error = expectValidation({
       plugin,
       runtimes: [
-        { id: 'juce', runtime: makeRuntime('juce') },
-        { id: 'juce', runtime: makeRuntime('juce') },
+        { id: 'vst3', runtime: makeRuntime('vst3') },
+        { id: 'vst3', runtime: makeRuntime('vst3') },
       ],
     });
     expect(error.issues).toContainEqual(

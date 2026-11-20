@@ -3,7 +3,7 @@ title: 'Getting started'
 description: 'Create a project, connect the UI, add the browser runtime, test, and build.'
 ---
 
-This guide creates a JUCE plugin, explains the generated project, and shows how
+This guide creates a VST3 plugin, explains the generated project, and shows how
 to add the browser runtime. To explore Soundor without a native toolchain, use
 the repository's [browser example](#try-the-repository-example).
 
@@ -17,15 +17,11 @@ Install Rust stable with Cargo. Both runtimes compile the plugin's Rust audio
 processor. Web builds additionally need `rustup target add wasm32-unknown-unknown`.
 Soundor checks these tools with `doctor` and never installs them automatically.
 
-Native builds also need CMake, a C++20 compiler, and a JUCE checkout. Plugin
-builds use Ninja on macOS and Linux, and Visual Studio on Windows. Source engine
-builds additionally need the tools described in [Soundor Engine](/docs/engine#prebuilt-and-source-mode).
-
-Soundor discovers JUCE in standard locations, including `/opt/JUCE` on Linux,
-or through `jucePath` or `JUCE_DIR`. You provide the JUCE checkout; Soundor never
-downloads it. Run `soundor doctor` to check discovery and toolchain setup. See
-[JUCE resolution](/docs/juce-runtime#juce-is-required-and-never-downloaded) for the
-complete search order.
+VST3 builds also need the platform's linker: a C++ compiler driver on Linux
+(g++ or clang++), Apple's Command Line Tools on macOS, Visual Studio or its
+Build Tools on Windows. No C++ is compiled per plugin, and no CMake is
+needed. Run `soundor doctor` to check the toolchain. See
+[the VST3 runtime's requirements](/docs/vst3-runtime#requirements).
 
 The browser runtime needs Rust, Node.js and a browser, with no C++ build. Audio starts
 after a user gesture in the browser host.
@@ -46,12 +42,11 @@ these docs describe.
 
 The scaffolder prompts for the runtime and package manager, copies the template,
 installs dependencies, and runs `soundor gen` to create the Rust crate. Both
-JUCE and Web manage their hosts inside their packages; neither needs runtime
-initialization or a `runtimes/` directory. Choose JUCE (the default), web,
-or both. JUCE projects include VST3 and Standalone formats and the VST3 host:
-`pnpm dev` opens the VST3 in that host. Without the host package, it opens the
-Standalone instead. Either native editor needs a graphical desktop. See
-[What development opens](/docs/cli/dev#what-soundor-dev-juce-opens).
+VST3 and Web manage their hosts inside their packages; neither needs runtime
+initialization or a `runtimes/` directory. Choose VST3 (the default), web,
+or both. VST3 projects include the Soundor VST3 host: `pnpm dev` opens the
+plugin in it, which needs a graphical desktop. See
+[`soundor dev`](/docs/cli/dev).
 
 Soundor is pre-1.0, and a minor release (0.10 to 0.11) can change its APIs. The
 new project therefore pins each direct Soundor dependency exactly. The
@@ -105,11 +100,11 @@ The scaffold creates a config like this:
 
 ```ts
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 
 export default defineSoundorConfig({
   plugin: { id: 'com.example.my-plugin', name: 'My Plugin' },
-  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] })],
+  runtimes: [vst3Runtime()],
   parameters: {
     gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
   },
@@ -120,13 +115,12 @@ Choose a stable, globally unique `plugin.id` before release. Hosts and saved
 sessions use its derived identities. `plugin.name` is the display name.
 
 Run `pnpm gen` after editing the contract to refresh editor types. Restart
-`pnpm dev` after config or runtime C++ changes. UI and Rust crate edits rebuild
+`pnpm dev` after config changes. UI and Rust crate edits rebuild
 automatically during development.
 
-The default engine mode selects matching prebuilt libraries, including in a
-workspace checkout. Modified engine inputs or an unpublished version select
-local sources automatically. Use `juceRuntime({ engine: { mode: 'source' } })`
-to force a source build. See [Engine modes](/docs/engine).
+The plugin links the prebuilt engine of the exact `@soundor/engine` version
+the runtime depends on, downloaded once and verified. See
+[Soundor Engine](/docs/engine).
 
 ## Connect the UI
 
@@ -162,7 +156,7 @@ events, canvases, focus, accessibility, and animations.
 
 ## Add the browser runtime
 
-Choose the web runtime along with JUCE when you create the project, and it is
+Choose the web runtime along with VST3 when you create the project, and it is
 set up already: run it with `pnpm dev:web`.
 
 To add it to an existing project, install the web runtime:
@@ -176,7 +170,7 @@ Import `webRuntime` from `@soundor/web-runtime` in `soundor.config.ts` and appen
 there is no web initialization step. Add these scripts to `package.json`:
 
 ```json
-"build:juce": "soundor build juce",
+"build:vst3": "soundor build vst3",
 "build:web": "soundor build web",
 "dev:web": "soundor dev web",
 "typecheck": "soundor gen && tsc -b"
@@ -190,7 +184,7 @@ Open the URL printed by the CLI. Your shared `src/main.tsx` runs inside the
 browser host, and so does your audio processing: the Rust crate in `lib/`,
 compiled to WebAssembly (it needs `rustup target add wasm32-unknown-unknown`).
 `lib/src/controller.rs` implements your configured native API for the
-browser and JUCE plugin alike.
+browser and VST3 plugin alike.
 
 Press Play in the host to enable audio. The
 [web runtime guide](/docs/web-runtime) explains the host, storage, transport,
@@ -208,11 +202,11 @@ pnpm test:rust
 pnpm build
 ```
 
-`pnpm build` builds every configured runtime; with several, `pnpm build:juce`
-and `pnpm build:web` build one. Native output lives under
-`.soundor/dist/juce/`; the browser build is a static site under
+`pnpm build` builds every configured runtime; with several, `pnpm build:vst3`
+and `pnpm build:web` build one. The VST3 bundle is under
+`.soundor/dist/vst3/`; the browser build is a static site under
 `.soundor/dist/web/`. Platform-specific details are in the
-[JUCE guide](/docs/juce-runtime) and [web guide](/docs/web-runtime).
+[VST3 guide](/docs/vst3-runtime) and [web guide](/docs/web-runtime).
 
 ## Try the repository example
 
@@ -225,7 +219,7 @@ pnpm build
 pnpm --filter basic dev:web
 ```
 
-This path needs no JUCE or native engine build. The example uses both managed runtimes and includes
+This path needs no native build. The example uses both managed runtimes and includes
 one shared Rust gain processor and application tests. See
 [Basic example](/docs/examples/basic) for its file map and
 [Contributing](/docs/contribute) for repository checks.
@@ -236,7 +230,7 @@ If your project uses `native/Cargo.toml`, rename the user-owned `native/`
 directory to `lib/`, update Cargo manifest paths in scripts and editor tooling,
 and run `soundor gen`. Keep the Cargo package name and the processor/controller
 exports unchanged. The relative dependency on `.soundor/generated/rust/soundor`
-stays the same. Both JUCE and Web build this library with Cargo.
+stays the same. Both VST3 and Web build this library with Cargo.
 
 Soundor rejects the old layout and also rejects projects with both
 `native/Cargo.toml` and `lib/Cargo.toml`. Resolve which crate to keep in `lib/`

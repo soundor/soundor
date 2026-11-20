@@ -13,8 +13,7 @@ in `.soundor/generated/`:
 - the TypeScript declarations of the `soundor:*` modules, typed from the
   config (`parameters.gain` exists because the config declares it), image
   imports, and the Web globals the runtimes provide;
-- each runtime's own framework: for JUCE, its CMake integration, processor
-  and editor bases, and the C++ native API with its bindings; for the web,
+- each runtime's own framework: for VST3, the plugin's descriptor; for the web,
   a manifest with the Rust controller contract and event/stream publishers;
 - the Rust SDK, `rust/soundor`, with the config's contract in `src/plugin.rs`:
   the processor's parameters, layouts, streams, state and resources, and the

@@ -9,8 +9,7 @@
  * | `macos-universal` | `macos-universal` `<variant>` | the machine's (`aarch64`, `x86_64`) | `Contents/MacOS/<Name>`           |
  * | `windows-x64`     | `windows-x64` `<variant>-static` | `x86_64-pc-windows-msvc`, crt-static | `Contents/x86_64-win/<Name>.vst3` |
  *
- * macOS plugins are built for the machine's architecture (as the JUCE
- * runtime's), from the universal engine and adapter. Windows plugins link the
+ * macOS plugins are built for the machine's architecture, from the universal engine and adapter. Windows plugins link the
  * static C runtime (/MT, /MTd), so they need no Visual C++ redistributable.
  */
 
@@ -45,7 +44,7 @@ export function requireTarget(
   const target = hostTarget(platform, arch);
   if (target === undefined)
     throw new EnvError(
-      `The VST3 runtime builds on Linux x86_64, macOS (Apple silicon or Intel) and Windows x64, each for itself (this is ${platform} ${arch}). Use the JUCE runtime elsewhere.`,
+      `The VST3 runtime builds on Linux x86_64, macOS (Apple silicon or Intel) and Windows x64, each for itself (this is ${platform} ${arch}).`,
     );
   return target;
 }

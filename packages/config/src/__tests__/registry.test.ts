@@ -63,8 +63,8 @@ function config(...runtimes: RuntimeDescriptor[]): ResolvedSoundorConfig {
 }
 
 describe('resolveRuntime', () => {
-  const juce: Runtime = {
-    id: 'juce',
+  const vst3: Runtime = {
+    id: 'vst3',
     gen: async () => {},
     dev: async () => {},
     build: async () => {},
@@ -72,17 +72,17 @@ describe('resolveRuntime', () => {
   };
 
   it('returns the runtime and its config entry for a known id', () => {
-    const cfg = config(descriptor('juce', juce, { format: 'vst3' }));
-    const resolved = resolveRuntime(cfg, 'juce');
-    expect(resolved.runtime).toBe(juce);
+    const cfg = config(descriptor('vst3', vst3, { format: 'vst3' }));
+    const resolved = resolveRuntime(cfg, 'vst3');
+    expect(resolved.runtime).toBe(vst3);
     expect(resolved.config).toEqual({
-      id: 'juce',
+      id: 'vst3',
       options: { format: 'vst3' },
     });
   });
 
   it('throws UnknownRuntimeError listing available ids', () => {
-    const cfg = config(descriptor('juce', juce));
+    const cfg = config(descriptor('vst3', vst3));
     let caught: unknown;
     try {
       resolveRuntime(cfg, 'au');
@@ -90,7 +90,7 @@ describe('resolveRuntime', () => {
       caught = error;
     }
     expect(caught).toBeInstanceOf(UnknownRuntimeError);
-    expect((caught as UnknownRuntimeError).available).toEqual(['juce']);
+    expect((caught as UnknownRuntimeError).available).toEqual(['vst3']);
   });
 });
 
@@ -141,7 +141,7 @@ describe('runPhase', () => {
   it('dispatches by phase and threads options + mode into the context', async () => {
     const seen: Array<{ phase: string; mode: string; options: unknown }> = [];
     const runtime: Runtime = {
-      id: 'juce',
+      id: 'vst3',
       gen: async (_c, ctx) => {
         seen.push({ phase: ctx.phase, mode: ctx.mode, options: ctx.options });
       },
@@ -153,8 +153,8 @@ describe('runPhase', () => {
         checks: [{ label: 'ok', status: 'ok' }],
       }),
     };
-    const cfg = config(descriptor('juce', runtime, { format: 'vst3' }));
-    const resolved = resolveRuntime(cfg, 'juce');
+    const cfg = config(descriptor('vst3', runtime, { format: 'vst3' }));
+    const resolved = resolveRuntime(cfg, 'vst3');
 
     await runPhase(resolved, 'gen', cfg, dispatchInput());
     await runPhase(
@@ -175,7 +175,7 @@ describe('runPhase', () => {
   it('resolves signing from the environment and the config', async () => {
     const seen: unknown[] = [];
     const runtime: Runtime = {
-      id: 'juce',
+      id: 'vst3',
       gen: async () => {},
       dev: async () => {},
       build: async (_c, ctx) => {
@@ -184,10 +184,10 @@ describe('runPhase', () => {
       doctor: async () => ({ checks: [] }),
     };
     const cfg: ResolvedSoundorConfig = {
-      ...config(descriptor('juce', runtime)),
+      ...config(descriptor('vst3', runtime)),
       signing: { macos: { identity: 'Apple Development: Me (TEAM)' } },
     };
-    const resolved = resolveRuntime(cfg, 'juce');
+    const resolved = resolveRuntime(cfg, 'vst3');
 
     await runPhase(resolved, 'build', cfg, dispatchInput());
     await runPhase(
@@ -216,7 +216,7 @@ describe('runPhase', () => {
   it('wraps a thrown error as RuntimeError tagged with id and phase', async () => {
     const boom = new Error('kaboom');
     const runtime: Runtime = {
-      id: 'juce',
+      id: 'vst3',
       gen: async () => {},
       dev: async () => {
         throw boom;
@@ -224,22 +224,22 @@ describe('runPhase', () => {
       build: async () => {},
       doctor: async () => ({ checks: [] }),
     };
-    const cfg = config(descriptor('juce', runtime));
-    const resolved = resolveRuntime(cfg, 'juce');
+    const cfg = config(descriptor('vst3', runtime));
+    const resolved = resolveRuntime(cfg, 'vst3');
 
     const err = (await runPhase(resolved, 'dev', cfg, dispatchInput()).catch(
       (error: unknown) => error,
     )) as RuntimeError;
     expect(err).toBeInstanceOf(RuntimeError);
-    expect(err.runtimeId).toBe('juce');
+    expect(err.runtimeId).toBe('vst3');
     expect(err.phase).toBe('dev');
     expect(err.cause).toBe(boom);
   });
 
   it('passes an already-typed SoundorError through unwrapped', async () => {
-    const original = new RuntimeError('explicit', { runtimeId: 'juce' });
+    const original = new RuntimeError('explicit', { runtimeId: 'vst3' });
     const runtime: Runtime = {
-      id: 'juce',
+      id: 'vst3',
       gen: async () => {
         throw original;
       },
@@ -247,8 +247,8 @@ describe('runPhase', () => {
       build: async () => {},
       doctor: async () => ({ checks: [] }),
     };
-    const cfg = config(descriptor('juce', runtime));
-    const resolved = resolveRuntime(cfg, 'juce');
+    const cfg = config(descriptor('vst3', runtime));
+    const resolved = resolveRuntime(cfg, 'vst3');
     await expect(runPhase(resolved, 'gen', cfg, dispatchInput())).rejects.toBe(
       original,
     );
@@ -257,7 +257,7 @@ describe('runPhase', () => {
   it('provides a default abort signal when none is passed', async () => {
     const signals: AbortSignal[] = [];
     const runtime: Runtime = {
-      id: 'juce',
+      id: 'vst3',
       gen: async (_c, ctx) => {
         signals.push(ctx.signal);
       },
@@ -265,8 +265,8 @@ describe('runPhase', () => {
       build: async () => {},
       doctor: async () => ({ checks: [] }),
     };
-    const cfg = config(descriptor('juce', runtime));
-    const resolved = resolveRuntime(cfg, 'juce');
+    const cfg = config(descriptor('vst3', runtime));
+    const resolved = resolveRuntime(cfg, 'vst3');
     await runPhase(resolved, 'gen', cfg, dispatchInput());
     expect(signals[0]).toBeInstanceOf(AbortSignal);
     expect(signals[0]?.aborted).toBe(false);

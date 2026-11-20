@@ -96,7 +96,7 @@ const main = defineCommand({
         label: RUNTIME_INFO[value].label,
         hint: RUNTIME_INFO[value].hint,
       })),
-      initialValues: ['juce'],
+      initialValues: ['vst3'],
       required: true,
     });
     if (isCancel(selected)) {

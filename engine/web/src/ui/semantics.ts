@@ -1,5 +1,5 @@
 /**
- * What assistive technology perceives of the view, on the DOM: the JUCE
+ * What assistive technology perceives of the view, on the DOM: the native
  * runtime's semantic tree (`a11y::SurfaceSemantics`), rule for rule, set as
  * ARIA on the elements that draw the nodes. No second, hidden DOM: the
  * browser builds its accessibility tree from these elements, and native

@@ -7,18 +7,18 @@ Source: [`tools/benchmark/`](https://github.com/soundor/soundor/tree/main/tools/
 
 Run this page’s package-local commands from `tools/benchmark/`, unless noted otherwise.
 
-Rendering scenarios for Soundor, the same code in the JUCE runtime (Hermes,
+Rendering scenarios for Soundor, the same code in the native engine (Hermes,
 Skia, WebGL 2 on ANGLE, the GPU compositor) and in the browser: WebGL through
 Three.js (the expensive way and the GPU way) and raw calls, Canvas 2D, UI
 updates through React and `soundor:ui`, and a plugin-like mix. `pnpm bench`
-measures them headless in the JUCE runtime.
+measures them headless in the native engine.
 
 ```text
 soundor.config.ts       identity, a `gain` parameter, both runtimes
 src/main.tsx            the UI: groups, scenarios, live statistics, "Run all"
 src/driver.ts           runs scenarios one at a time and measures their frames
 src/scenarios/          the scenarios, one file per kind (types.ts: what one is)
-scripts/bench.ts        `pnpm bench`: the headless benchmark in the JUCE runtime
+scripts/bench.ts        `pnpm bench`: the headless benchmark in the native engine
 lib/                   Rust processor and controller library: applies `gain`
 ```
 
@@ -56,7 +56,7 @@ uniform. Compare `particles` with `gpu-particles`.
 
 ```sh
 pnpm dev:web     # in the browser, at http://localhost:5173
-pnpm dev         # in the JUCE plugin (Standalone)
+pnpm dev         # in the VST3 plugin, in the VST3 host
 ```
 
 "Run all" runs each scenario for 120 frames after 30 frames of warm-up, then
@@ -66,7 +66,7 @@ code; `only` lists groups or scenario ids.
 
 ## Benchmarking
 
-`pnpm bench` measures the JUCE runtime headless, without building the
+`pnpm bench` measures the native engine headless, without building the
 plugin: it builds the UI bundle and `soundor_run_ui` (a Release build, the
 `bench` preset of `engine`), runs the scenarios for 600 measured frames after 30 warmup frames, 5 times
 and prints the median of each measure with its spread across runs, in two
@@ -158,7 +158,7 @@ scenario in `globalThis.soundorRunUiPhase`):
 
 ```sh
 pnpm build:web   # also bundles the UI into .soundor/ui/production
-# Lowers it into the engine's module form, as the JUCE runtime does.
+# Lowers it into the engine's module form, as the VST3 runtime does.
 node ../../engine/cmake/SoundorLowerJs.mjs \
   .soundor/ui/production/bundle.mjs .soundor/ui/production/bundle.js
 ../../engine/build/bench/tests/soundor_run_ui \

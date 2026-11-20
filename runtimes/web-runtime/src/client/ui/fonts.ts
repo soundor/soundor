@@ -1,6 +1,6 @@
 // registerFont() in the browser: a bundled font file as a FontFace of the
 // page, which the DOM and canvases set text in. Arguments are checked, and
-// errors worded, as in the JUCE runtime (ui.js).
+// errors worded, as in the native runtime (ui.js).
 
 import { assetUrl } from '../assets';
 import { isAssetId } from '../protocol';

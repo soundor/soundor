@@ -411,12 +411,12 @@ describe('source change filtering', () => {
   });
 
   it.each([
-    '.soundor/cache/juce/build-debug/generated.cpp',
+    '.soundor/cache/vst3/debug/crate/src/lib.rs',
     '.SOUNDOR\\dev\\ui.log',
     'Build\\generated.cpp',
     'DIST/bundle.mjs',
     'NODE_MODULES\\package\\index.js',
-    'Runtimes/juce/CMakeLists.txt',
+    'Runtimes/vst3/CMakeLists.txt',
   ])('ignores Windows output changes in %s', (file) => {
     expect(isSourceChange(file, 'win32')).toBe(false);
   });

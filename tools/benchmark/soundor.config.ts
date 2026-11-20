@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
@@ -7,16 +7,9 @@ export default defineSoundorConfig({
     id: 'dev.soundor.benchmark',
     name: 'Soundor Benchmark',
   },
-  // One plugin, two runtimes: the same UI (src/main.tsx) in a JUCE plugin
+  // One plugin, two runtimes: the same UI (src/main.tsx) in a VST3 plugin
   // and in the browser.
-  runtimes: [
-    juceRuntime({
-      formats: ['vst3', 'standalone'],
-      // Benchmarks measure the local engine; their Release runner supports JS source.
-      engine: { mode: 'source' },
-    }),
-    webRuntime(),
-  ],
+  runtimes: [vst3Runtime(), webRuntime()],
   parameters: {
     gain: {
       type: 'float32',

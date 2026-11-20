@@ -40,14 +40,16 @@ pnpm dev:web     # soundor dev web: the host at http://localhost:5173
 pnpm build:web   # soundor build web: a static site in .soundor/dist/web
 ```
 
-## As a JUCE plugin
+## As a VST3 plugin
 
 ```sh
-pnpm dev          # soundor dev juce: a debug build, the VST3 opened in the host
-pnpm build:juce   # soundor build juce: VST3 and Standalone in .soundor/dist/juce
+pnpm dev          # soundor dev vst3: a debug build, opened in the VST3 host
+pnpm build:vst3   # soundor build vst3: the VST3 in .soundor/dist/vst3
 ```
 
-JUCE must be installed (see `soundor doctor`).
+In Soundor's repository, build the VST3 runtime's adapter first
+(`pnpm --filter @soundor/vst3-runtime build:native`); `soundor doctor` checks
+the rest.
 
 ## Tests
 

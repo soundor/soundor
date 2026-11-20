@@ -58,7 +58,7 @@ export function SvgExamples() {
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 12, color: '#9aa7bd' }}>
-        One source for Web and JUCE. Click the status circle or toggle.
+        One source for Web and VST3. Click the status circle or toggle.
       </Text>
       <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
         <Svg

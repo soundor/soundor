@@ -501,7 +501,7 @@ export function releaseNotes(info) {
     (a) =>
       `| \`${a.file}\` | ${a.target} (${a.architectures.join(', ')}${a.minimumOsVersion ? `, macOS ${a.minimumOsVersion}+` : ''}) | ${a.variant} | ${a.toolchain.compiler} ${a.toolchain.compilerVersion}${a.toolchain.msvcRuntime ? `, ${a.toolchain.msvcRuntime}` : ''} | \`${a.sha256}\` |`,
   );
-  return `Native libraries and the WebAssembly core of \`@soundor/engine\` ${info.engineVersion}: what \`juceRuntime({ engine: { mode: "prebuilt" } })\` links, and the \`soundor-core.wasm\` the web runtime serves (\`engine({ target })\` in Node prepares either). Not an npm release: the engine's package release is separate.
+  return `Native libraries and the WebAssembly core of \`@soundor/engine\` ${info.engineVersion}: what the VST3 runtime's plugins link, and the \`soundor-core.wasm\` the web runtime serves (\`engine({ target })\` in Node prepares either). Not an npm release: the engine's package release is separate.
 
 - Engine version: \`${info.engineVersion}\`
 - ABI namespace: \`soundor::${info.abiNamespace}\`
@@ -512,7 +512,7 @@ export function releaseNotes(info) {
 | ------- | ------ | ------- | --------- | ------- |
 ${rows.join('\n')}
 
-\`build-info.json\` is the machine-readable form of this table (with each archive's input fingerprint: the native archives share one, the WebAssembly core has its own); \`SHA256SUMS\` lists the checksums for \`sha256sum -c\`. Each archive carries the license notices of everything it links in \`licenses/\`. JUCE is not part of the engine.
+\`build-info.json\` is the machine-readable form of this table (with each archive's input fingerprint: the native archives share one, the WebAssembly core has its own); \`SHA256SUMS\` lists the checksums for \`sha256sum -c\`. Each archive carries the license notices of everything it links in \`licenses/\`.
 `;
 }
 

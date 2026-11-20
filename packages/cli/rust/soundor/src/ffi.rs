@@ -1,5 +1,5 @@
 //! The C ABI between a runtime and the processor: what [`export!`](crate::export)
-//! defines in the project's crate, and what the JUCE runtime calls
+//! defines in the project's crate, and what the native runtimes call
 //! (`RustProcessor.h` declares the same structures).
 //!
 //! Its rules:

@@ -73,8 +73,8 @@ describe('runtime lifecycle', () => {
       },
     };
 
-    const juceRuntime = defineRuntime<{ format: string }>({
-      id: 'juce',
+    const vst3Runtime = defineRuntime<{ format: string }>({
+      id: 'vst3',
       gen: async (_config, ctx) => {
         calls.push('gen');
         seenOptions.push(ctx.options);
@@ -110,7 +110,7 @@ describe('runtime lifecycle', () => {
 
     const config: ResolvedSoundorConfig = {
       plugin: { id: 'com.example.test', name: 'Test' },
-      runtimes: [juceRuntime({ format: 'vst3' })],
+      runtimes: [vst3Runtime({ format: 'vst3' })],
       parameters: [],
     };
 
@@ -121,10 +121,10 @@ describe('runtime lifecycle', () => {
       paths: {
         root: '/p',
         config: '/p/soundor.config.ts',
-        dist: '/p/.soundor/dist/juce',
-        gen: '/p/.soundor/gen/juce',
-        cache: '/p/.soundor/cache/juce',
-        state: '/p/.soundor/state/juce',
+        dist: '/p/.soundor/dist/vst3',
+        gen: '/p/.soundor/gen/vst3',
+        cache: '/p/.soundor/cache/vst3',
+        state: '/p/.soundor/state/vst3',
       },
       logger: recordingLogger(logs),
       fs,
@@ -132,7 +132,7 @@ describe('runtime lifecycle', () => {
       lib,
     };
 
-    const resolved = resolveRuntime(config, 'juce');
+    const resolved = resolveRuntime(config, 'vst3');
     let report: DoctorReport | undefined;
     for (const phase of PHASES) {
       const mode = phase === 'build' ? 'production' : 'debug';
@@ -167,7 +167,7 @@ describe('runtime lifecycle', () => {
   it('surfaces a throwing phase as a RuntimeError tagged with id and phase', async () => {
     const boom = new Error('build blew up');
     const runtime = defineRuntime({
-      id: 'juce',
+      id: 'vst3',
       gen: async () => {},
       dev: async () => {},
       build: async () => {
@@ -180,7 +180,7 @@ describe('runtime lifecycle', () => {
       runtimes: [runtime()],
       parameters: [],
     };
-    const resolved = resolveRuntime(config, 'juce');
+    const resolved = resolveRuntime(config, 'vst3');
     const input: DispatchContextInput = {
       paths: {
         root: '/p',
@@ -199,7 +199,7 @@ describe('runtime lifecycle', () => {
       (error: unknown) => error,
     )) as RuntimeError;
     expect(err).toBeInstanceOf(RuntimeError);
-    expect(err.runtimeId).toBe('juce');
+    expect(err.runtimeId).toBe('vst3');
     expect(err.phase).toBe('build');
     expect(err.cause).toBe(boom);
     expect(err.exitCode).toBe(5);

@@ -69,7 +69,7 @@ export async function loadConfigModule(path: string): Promise<unknown> {
       input: absolute,
       plugins: [configShimPlugin],
       // Keep bare specifiers external so imports the config relies on — notably
-      // the runtime package in `runtimes: [juceRuntime(...)]` — are resolved by
+      // the runtime package in `runtimes: [vst3Runtime(...)]` — are resolved by
       // Node from the project's node_modules when the bundle is evaluated,
       // rather than pulled into the bundle (where they'd hit the config shim).
       // `@soundor/config` itself is handled by the shim plugin above.
@@ -92,7 +92,7 @@ export async function loadConfigModule(path: string): Promise<unknown> {
 
   // Evaluate from a temp file *next to the config* (not a data: URL) so Node
   // resolves any imports the bundle left external — e.g. the runtime package in
-  // `runtimes: [juceRuntime(...)]` — from the project's own node_modules.
+  // `runtimes: [vst3Runtime(...)]` — from the project's own node_modules.
   const tempPath = resolve(
     dirname(absolute),
     `.soundor.config.${process.pid}.${Date.now()}.mjs`,

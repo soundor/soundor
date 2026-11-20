@@ -22,7 +22,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
 #elif defined(_WIN32)
         return win32::createInput(options, failure);
 #else
-        // iOS: the framework's input (JUCE) for now.
+        // iOS: the framework's input for now.
         if (failure != nullptr)
             *failure = "no native input on this platform";
         static_cast<void>(options);

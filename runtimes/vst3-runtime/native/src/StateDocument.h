@@ -4,8 +4,7 @@
 // getState() (the host keeps it in its project) and reads back in setState(),
 // and which the controller reads in setComponentState().
 //
-// The JUCE runtime's format (its getStateInformation()), so a snapshot means
-// the same thing in every runtime:
+// One format, so a snapshot means the same thing in every runtime:
 //
 //   {"version":1,"parameters":{"gain":0.5,"mode":"warm","on":true},"state":{...}}
 //

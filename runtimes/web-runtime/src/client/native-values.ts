@@ -1,7 +1,7 @@
 /**
  * The values of `soundor:native` calls in the browser, checked and converted
- * as the JUCE runtime's generated bindings do (`js/Bindings.cpp` in the
- * engine): the same rules, the same errors, word for word.
+ * as the native runtime's bindings do (`js/Bindings.cpp` and
+ * `js/RustMethods.cpp` in the engine): the same rules, the same errors, word for word.
  *
  * - Sized numbers are never coerced: an integer of up to 32 bits is a number
  *   that is an integer within range, a 64-bit integer a bigint, a float32 a

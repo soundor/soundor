@@ -34,7 +34,7 @@ export interface DevToolsConnection {
  * The plugin UI bundle the CLI built before dispatching `dev` or `build`: a
  * directory holding `module` (the JavaScript bundle, one ES module) and its
  * assets. The CLI owns the bundler; runtimes ship or serve the files, or
- * turn them into the form they run (as the JUCE runtime does for its
+ * turn them into the form they run (as the VST3 runtime does for its
  * engine).
  */
 export interface UiBundleContext {

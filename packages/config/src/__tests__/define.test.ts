@@ -20,7 +20,7 @@ describe('defineSoundorConfig', () => {
   const config = defineSoundorConfig({
     plugin: { id: 'com.example.test', name: 'Test' },
     runtimes: [
-      { id: 'juce', options: { format: 'vst3' }, runtime: makeRuntime('juce') },
+      { id: 'vst3', options: { format: 'vst3' }, runtime: makeRuntime('vst3') },
     ],
     parameters: {
       gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
@@ -30,7 +30,7 @@ describe('defineSoundorConfig', () => {
   });
 
   it('returns the config unchanged', () => {
-    expect(config.runtimes[0]?.id).toBe('juce');
+    expect(config.runtimes[0]?.id).toBe('vst3');
     expect(Object.keys(config.parameters ?? {})).toEqual(['gain', 'bypass']);
   });
 
@@ -44,8 +44,8 @@ describe('defineSoundorConfig', () => {
     // entry were accepted, the unused directive would fail the build.
     const authored = defineSoundorConfig({
       plugin: { id: 'com.example.test', name: 'Test' },
-      // @ts-expect-error missing `runtime`; use a factory, e.g. juceRuntime({ ... })
-      runtimes: [{ id: 'juce', options: {} }],
+      // @ts-expect-error missing `runtime`; use a factory, e.g. vst3Runtime({ ... })
+      runtimes: [{ id: 'vst3', options: {} }],
     });
     expect(authored.runtimes).toHaveLength(1);
   });

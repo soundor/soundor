@@ -1,7 +1,7 @@
 /**
  * Soundor styles as CSS: how a node looks. Where it is, and how large, is the
  * engine's: its C++ core reads every style (and refuses an invalid one) and
- * lays the tree out with Yoga, as in the JUCE runtime; every node's element is
+ * lays the tree out with Yoga, as in the native runtime; every node's element is
  * placed absolutely where the engine says (`UiNode`), and nothing here
  * decides a size.
  */
@@ -14,7 +14,7 @@ import type { NodeType, Style } from './types.ts';
 export const NODE_CLASS = 'sd-node';
 
 /**
- * Defaults that make text like the JUCE runtime's text engine (14px, black,
+ * Defaults that make text like the native runtime's text engine (14px, black,
  * the platform UI font, lines 1.2× the font size, on the lines it wrapped).
  */
 export const STYLESHEET = `
@@ -25,7 +25,7 @@ export const STYLESHEET = `
   /* The view shows its own cursor (UiView.cursor()), on the surface. */
   cursor: inherit;
   -webkit-tap-highlight-color: transparent;
-  /* Every node stacks its own children, as in the JUCE runtime: zIndex
+  /* Every node stacks its own children, as in the native runtime: zIndex
      orders siblings and never reaches past their parent. */
   z-index: 0;
 }
@@ -39,7 +39,7 @@ export const STYLESHEET = `
 .sd-text-lines { position: relative; display: block; }
 .sd-image { object-fit: cover; object-position: center; }
 /* A view that scrolls (overflow-x/-y from its style). The browser's scrollbar
-   takes room and looks its own: it draws the JUCE runtime's indicators
+   takes room and looks its own: it draws the native runtime's indicators
    instead (UiNode). A wheel no scroll view can use goes on to the page, as
    natively to the host: no overscroll-behavior. */
 .sd-scroll { scrollbar-width: none; }
@@ -276,7 +276,7 @@ function text(css: Css, style: Style, type: NodeType): void {
   // '' is the platform's UI font, as natively: the default.
   if (style.fontFamily !== undefined && style.fontFamily !== '')
     css['font-family'] = fontFamilyCss(style.fontFamily);
-  // A size that is not positive is ignored, as in the JUCE runtime.
+  // A size that is not positive is ignored, as in the native runtime.
   const fontSize =
     style.fontSize !== undefined && style.fontSize > 0 ? style.fontSize : 14;
   if (fontSize !== 14) css['font-size'] = px(fontSize);
@@ -294,7 +294,7 @@ function text(css: Css, style: Style, type: NodeType): void {
   if (style.textAlign !== undefined)
     css['text-align'] = style.textAlign === 'auto' ? 'left' : style.textAlign;
   if (style.color !== undefined) css['color'] = style.color;
-  // At most that many lines, cut (not ellipsized), as in the JUCE runtime.
+  // At most that many lines, cut (not ellipsized), as in the native runtime.
   if (type === 'text' && Math.trunc(style.numberOfLines ?? 0) > 0)
     css['overflow'] = 'hidden';
 }

@@ -37,7 +37,7 @@ describe('createParameterStore', () => {
     ]).toEqual([0.5, 4, false, 'warm', 1000]);
   });
 
-  it('reports the declaration as frozen info, in the JUCE runtime shape', () => {
+  it('reports the declaration as frozen info, in the native runtime shape', () => {
     const { mode, trim } = store();
     expect(mode.info).toEqual({
       id: 'mode',

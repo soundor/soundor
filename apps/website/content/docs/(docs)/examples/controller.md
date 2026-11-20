@@ -9,7 +9,7 @@ Run this page’s package-local commands from `examples/controller/`, unless not
 
 A ring modulator whose native methods are Rust: the plugin's
 [controller](/docs/rust-controller), beside its processor, in one crate. It
-runs the same Rust controller in JUCE and web: use `pnpm dev` or
+runs the same Rust controller in VST3 and web: use `pnpm dev` or
 `pnpm dev:web`.
 
 ```text
@@ -29,7 +29,7 @@ lib/tests/                the processor and the controller, tested in Rust
 | `loadTable(shape, size)` | async | bounded cooperative work, a resource published to the separate processor, and a scheduled state update |
 
 ```sh
-pnpm dev         # the plugin, in the VST3 host or the Standalone
+pnpm dev         # the plugin, in the VST3 host
 pnpm test        # the UI, the methods mocked (mockNative)
 pnpm test:rust   # the processor and the controller (TestController)
 ```

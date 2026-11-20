@@ -1,5 +1,5 @@
 //! Tests of a processor in plain Rust, through the same lifecycle the
-//! runtimes drive: no host, no JUCE, no browser.
+//! runtimes drive: no host, no plugin format, no browser.
 //!
 //! ```ignore
 //! use soundor::testing::TestProcessor;

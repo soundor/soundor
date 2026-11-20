@@ -14,7 +14,7 @@ declare module 'soundor:host' {
       | 'android'
       | 'unknown';
     readonly arch: 'arm64' | 'x64' | 'unknown';
-    readonly format: 'vst3' | 'au' | 'standalone' | 'web' | 'unknown';
+    readonly format: 'vst3' | 'web' | 'unknown';
   }
 
   export interface Timecode {

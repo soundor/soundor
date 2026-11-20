@@ -1,5 +1,5 @@
 # The plugin's audio processing, in Rust: yours, like any crate. Soundor's
-# runtimes run it, natively in the JUCE plugin and compiled to WebAssembly on
+# runtimes run it, natively in the VST3 plugin and compiled to WebAssembly on
 # the Web; `soundor dev` and `soundor build` compile it with Cargo.
 [package]
 name = "soundor-controller"

@@ -1,6 +1,6 @@
 // The streams of soundor:native in the browser: published by the project's
 // runtimes/web code through the generated contract's `streams`, the newest
-// value delivered to the plugin UI once a frame, as the JUCE runtime does
+// value delivered to the plugin UI once a frame, as the native runtime does
 // (the engine's tests/native/NativeStreamsTests.cpp checks the same).
 
 import { streams } from 'soundor:native';

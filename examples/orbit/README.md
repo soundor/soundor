@@ -1,7 +1,7 @@
 # Orbit
 
 A playable three-voice stereo delay, built with Soundor. One React interface
-runs in a JUCE plugin and in a browser. A WebGL 2 echo map visualizes the
+runs in a VST3 plugin and in a browser. A WebGL 2 echo map visualizes the
 parameters; the handles and controls remain usable with a Canvas 2D fallback.
 
 ![Orbit’s interface](./preview.png)
@@ -13,7 +13,7 @@ pnpm --filter orbit test
 pnpm --filter orbit test:native
 pnpm --filter orbit test:e2e
 pnpm --filter orbit build:web
-pnpm --filter orbit build:juce
+pnpm --filter orbit build:vst3
 ```
 
 Press the host's Play button to hear a short, bright pluck phrase followed by
@@ -21,7 +21,7 @@ silence. Listen for Orbit's answer in those gaps. The **Original / Orbit**
 buttons compare the dry input with the current effect without changing its settings.
 Choose a different source under **Host settings → Audio → Input**: the demo
 phrase, an audio file, a microphone, an oscillator, or no input. The demo is a
-registered custom host input; the plugin needs no extra toolbar. The JUCE
+registered custom host input; the plugin needs no extra toolbar. The VST3
 version always processes the host's audio input.
 
 - Drag an echo horizontally for time, vertically for level. Tab to an echo
@@ -39,7 +39,7 @@ version always processes the host's audio input.
   identifies the starting point; parameter edits do not rename it.
 
 `src/` is portable Soundor UI: no DOM, browser audio, or platform checks.
-The managed JUCE and Web hosts run the same Rust processor from `lib/`,
+The VST3 and Web runtimes run the same Rust processor from `lib/`,
 natively and in an AudioWorklet respectively. It uses three
 filtered, saturated feedback lines, interpolated reads, smoothed delay times
 and mix/bypass. The wet signal uses the input's mono sum; the dry signal
@@ -53,8 +53,10 @@ compensation or oversampling.
 
 `e2e/` tests the built VST3 in the real VST3 host, UI and audio together, with
 [`@soundor/vitest-e2e`](https://soundor.dev/docs/testing/e2e). `test:e2e` makes a
-Debug build first and needs the host's executable, which a checkout of this
-repository builds with `pnpm --filter @soundor/vst3-host build:native`. On Linux
+Debug build first and needs the host's executable and the VST3 runtime's
+adapter, which a checkout of this repository builds with `pnpm --filter
+@soundor/vst3-host build:native` and `pnpm --filter @soundor/vst3-runtime
+build:native`. On Linux
 without a display, run it under `xvfb-run -a`. CI runs them on Linux, macOS and Windows when Orbit is affected.
 
 The homepage integration is a separate design step. This example is embedded

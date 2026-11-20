@@ -46,7 +46,7 @@ it again mounts it and reads the latest data. See the
 [analyzer example](/docs/examples/analyzer).
 
 On the Web, this follows the document's page visibility (including a background
-tab). In JUCE, it follows whether the editor is showing, sampled before each
+tab). Natively, it follows whether the editor is showing, sampled before each
 UI tick. Losing keyboard focus does not hide an editor; occlusion by another
 window and scrolling offscreen are not detected. A native editor that closes
 destroys its JavaScript context, and reopening creates a fresh one: there is
@@ -55,8 +55,8 @@ and the test runtime start visible; tests can use
 `runtime.setVisibility(false)` to exercise changes.
 
 `isFocused()` means keyboard focus is within the editor, including its controls.
-On the Web it uses `document.hasFocus()`; in JUCE it uses
-`hasKeyboardFocus(true)`, sampled before each UI tick. Moving between controls
+On the Web it uses `document.hasFocus()`; natively, whether the editor's view
+has the keyboard, sampled before each UI tick. Moving between controls
 inside the editor keeps it focused. Moving to the browser's address bar,
 elsewhere in the DAW, or another application loses focus without necessarily
 hiding the editor. `subscribeFocus(listener)` reports both focus (`true`) and
@@ -238,7 +238,7 @@ changed size), the safe area moved, or the view moved to a display of
 another density. Never
 for an unchanged size, and never every frame; a listener that throws is
 reported and the others are still called. It returns a function that
-unsubscribes. In the JUCE runtime the change arrives on the editor's next
+unsubscribes. In the VST3 runtime the change arrives on the editor's next
 tick, before the frame at the new size is laid out and drawn; a reloaded
 runtime starts with no subscribers. Before the host has sized the view,
 `width` and `height` may be 0.
@@ -259,7 +259,7 @@ interface EditorSize {
 ```
 
 `editorSize()` is the actual size of the editor the view is shown in: the
-plugin's window in a DAW or the Standalone, the plugin viewport on the web
+plugin's window in a DAW, the plugin viewport on the web
 host's page (the page itself in `?embed`). Its units are the editor's
 logical pixels, before display density: in an editor that lays out again
 they are the view's, and its size is `viewSize()`'s; in one that scales the
@@ -269,7 +269,7 @@ changes; before the host shows the editor it is 0×0.
 
 `resizable` says whether [`requestEditorSize()`](#asking-for-a-size) can ask
 for another size: true for a resizable editor whose limits allow one, in a
-DAW, the Standalone and the web host's page; false for a fixed editor, and
+DAW and the web host's page; false for a fixed editor, and
 in `?embed`, whose page owns the size. A grip the UI draws hides where it is
 false.
 
@@ -322,11 +322,10 @@ minimum:
 It returns that size, the one asked of the host, frozen, or `null` where
 none can be asked for (`editorSize().resizable` is false: a fixed editor,
 limits that allow one size, the web host's `?embed`). It is not the new
-size: the editor resizes after the calling code returns (in the JUCE
+size: the editor resizes after the calling code returns (in the VST3
 runtime, once the event or the tick that ran it is done; on the web, with
-the page's next render), to what the host gives. The JUCE editor asks its
-host with `setSize()`, which a VST3 host hears as `resizeView()`, AU and the
-Standalone's window as their own; a host may give another size, or keep the
+the page's next render), to what the host gives. The VST3 editor asks its
+host with `resizeView()`; a host may give another size, or keep the
 one it has. `subscribeEditorSize()` tells of the size it got, and
 `editorSize()` is the old one until then. Asking for the size the editor
 has changes nothing; of requests made before the editor resizes, the latest

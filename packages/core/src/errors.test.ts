@@ -34,24 +34,24 @@ describe('SoundorError', () => {
 describe('SoundorError subclasses', () => {
   it('RuntimeError has RUNTIME code and tags', () => {
     const err = new RuntimeError('phase failed', {
-      runtimeId: 'juce',
+      runtimeId: 'vst3',
       phase: 'build',
     });
     expect(err).toBeInstanceOf(SoundorError);
     expect(err.name).toBe('RuntimeError');
     expect(err.code).toBe('RUNTIME');
     expect(err.exitCode).toBe(5);
-    expect(err.runtimeId).toBe('juce');
+    expect(err.runtimeId).toBe('vst3');
     expect(err.phase).toBe('build');
   });
 
   it('UnknownRuntimeError lists available ids', () => {
-    const err = new UnknownRuntimeError('vst', ['juce', 'au']);
+    const err = new UnknownRuntimeError('au', ['vst3', 'web']);
     expect(err.code).toBe('UNKNOWN_RUNTIME');
     expect(err.exitCode).toBe(4);
-    expect(err.runtimeId).toBe('vst');
-    expect(err.available).toEqual(['juce', 'au']);
-    expect(err.message).toContain('juce, au');
+    expect(err.runtimeId).toBe('au');
+    expect(err.available).toEqual(['vst3', 'web']);
+    expect(err.message).toContain('vst3, web');
   });
 
   it('EnvError has ENV code', () => {
@@ -101,7 +101,7 @@ describe('isSoundorError', () => {
     expect(isSoundorError(new EnvError('x'))).toBe(true);
     expect(isSoundorError(new EnvError('x'), 'ENV')).toBe(true);
     expect(isSoundorError(new EnvError('x'), 'RUNTIME')).toBe(false);
-    expect(isSoundorError(new UnknownRuntimeError('juce'))).toBe(true);
+    expect(isSoundorError(new UnknownRuntimeError('vst3'))).toBe(true);
   });
 
   it('rejects look-alikes without the brand', () => {

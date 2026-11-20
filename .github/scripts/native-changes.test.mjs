@@ -58,15 +58,14 @@ const relock = (name) => (root) => {
   );
 };
 
-// [change, native, juce, benchmark, host, orbit, vst3]: the jobs testing
-// @soundor/engine, @soundor/juce-runtime, soundor-benchmark, @soundor/vst3-host,
-// the Orbit example and @soundor/vst3-runtime, from the packages they depend on.
+// [change, native, benchmark, host, orbit, vst3]: the jobs testing
+// @soundor/engine, soundor-benchmark, @soundor/vst3-host, the Orbit example
+// and @soundor/vst3-runtime, from the packages they depend on.
 const cases = [
   // None of them depends on these.
   [
     'a docs page',
     create('apps/website/content/docs/(docs)/guide.md'),
-    false,
     false,
     false,
     false,
@@ -81,12 +80,10 @@ const cases = [
     false,
     false,
     false,
-    false,
   ],
   [
     'oxfmt.config.ts',
     append('oxfmt.config.ts'),
-    false,
     false,
     false,
     false,
@@ -101,14 +98,12 @@ const cases = [
     false,
     false,
     false,
-    false,
   ],
   // The benchmark's React scenarios (and its web runtime); the test plugin's
   // UI is soundor:ui itself.
   [
     'web runtime source',
     append('runtimes/web-runtime/src/index.ts'),
-    false,
     false,
     true,
     false,
@@ -118,7 +113,6 @@ const cases = [
   [
     'packages/react source',
     append('packages/react/src/index.ts'),
-    false,
     false,
     true,
     false,
@@ -131,7 +125,6 @@ const cases = [
     append('packages/cli/src/index.ts'),
     false,
     true,
-    true,
     false,
     true,
     true,
@@ -140,7 +133,6 @@ const cases = [
     'Fastify (the CLI’s DevTools)',
     relock('fastify'),
     false,
-    true,
     true,
     false,
     true,
@@ -154,13 +146,12 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'version-only bumps (release PR)',
     (root) => {
       bump('packages/core/package.json')(root);
-      bump('runtimes/juce-runtime/package.json')(root);
+      bump('runtimes/vst3-runtime/package.json')(root);
       create('packages/core/CHANGELOG.md')(root);
     },
     false,
@@ -168,32 +159,28 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
-    'JUCE adapter',
-    create('runtimes/juce-runtime/native/backend/juce/Fixture.cpp'),
-    false,
-    true,
-    true,
+    'VST3 adapter',
+    create('runtimes/vst3-runtime/native/src/Fixture.cpp'),
     false,
     true,
     false,
+    true,
+    true,
   ],
   [
     'the test plugin',
-    append('runtimes/juce-runtime/tests/plugin/src/main.tsx'),
-    false,
-    true,
-    true,
+    append('runtimes/vst3-runtime/tests/plugin/src/main.ts'),
     false,
     true,
     false,
+    true,
+    true,
   ],
   [
     'the benchmark',
     append('tools/benchmark/scripts/bench.ts'),
-    false,
     false,
     true,
     false,
@@ -206,7 +193,6 @@ const cases = [
     append('engine/src/js/Bindings.h'),
     true,
     true,
-    true,
     false,
     true,
     true,
@@ -214,7 +200,6 @@ const cases = [
   [
     'engine lowering',
     append('engine/scripts/native-module.ts'),
-    true,
     true,
     true,
     false,
@@ -228,14 +213,12 @@ const cases = [
     false,
     false,
     false,
-    false,
     true,
     false,
   ],
   [
     'the e2e package',
     append('packages/vitest-e2e/src/index.ts'),
-    false,
     false,
     false,
     false,
@@ -251,7 +234,6 @@ const cases = [
     false,
     false,
     false,
-    false,
   ],
   [
     'host CMake and a changeset',
@@ -259,7 +241,6 @@ const cases = [
       append('hosts/vst3-host/cmake/Vst3HostDependencies.cmake', '#')(root);
       create('.changeset/native-input-fixture.md')(root);
     },
-    false,
     false,
     false,
     true,
@@ -280,12 +261,10 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'host native source',
     append('hosts/vst3-host/native/src/Plugin.cpp'),
-    false,
     false,
     false,
     true,
@@ -295,7 +274,6 @@ const cases = [
   [
     'host client',
     append('hosts/vst3-host/src/host.ts'),
-    false,
     false,
     false,
     true,
@@ -315,12 +293,10 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'host workflow',
     append('.github/workflows/vst3-host-artifacts.yml'),
-    true,
     true,
     true,
     true,
@@ -332,7 +308,6 @@ const cases = [
     append('engine/NOTICE.md'),
     true,
     true,
-    true,
     false,
     true,
     true,
@@ -342,7 +317,6 @@ const cases = [
     relock('@babel/core'),
     true,
     true,
-    true,
     false,
     true,
     true,
@@ -350,7 +324,6 @@ const cases = [
   [
     'configs/',
     append('configs/typescript-config/node.json'),
-    true,
     true,
     true,
     true,
@@ -367,7 +340,6 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'native artifact lookup',
@@ -377,12 +349,10 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'native artifact planning',
     append('.github/scripts/native-plan.mjs'),
-    true,
     true,
     true,
     true,
@@ -398,12 +368,10 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'prebuilt workflow',
     append('.github/workflows/engine-prebuilts.yml'),
-    true,
     true,
     true,
     true,
@@ -418,12 +386,10 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
-    'juce workflow',
-    append('.github/workflows/juce.yml'),
-    true,
+    'vst3 workflow',
+    append('.github/workflows/vst3.yml'),
     true,
     true,
     true,
@@ -438,12 +404,10 @@ const cases = [
     true,
     true,
     true,
-    true,
   ],
   [
     'release workflow',
     append('.github/workflows/release.yml'),
-    true,
     true,
     true,
     true,
@@ -494,16 +458,7 @@ test('native jobs follow the affected packages they test', () => {
       '--no-verify',
     );
     const base = git('rev-parse', 'HEAD');
-    for (const [
-      name,
-      change,
-      native,
-      juce,
-      benchmark,
-      host,
-      orbit,
-      vst3,
-    ] of cases) {
+    for (const [name, change, native, benchmark, host, orbit, vst3] of cases) {
       git('reset', '-q', '--hard', base);
       git('clean', '-qfd');
       change(root);
@@ -532,7 +487,7 @@ test('native jobs follow the affected packages they test', () => {
       });
       assert.equal(
         readFileSync(output, 'utf8'),
-        `native=${native}\njuce=${juce}\nbenchmark=${benchmark}\nhost=${host}\norbit=${orbit}\nvst3=${vst3}\n`,
+        `native=${native}\nbenchmark=${benchmark}\nhost=${host}\norbit=${orbit}\nvst3=${vst3}\n`,
         name,
       );
       rmSync(output);
@@ -552,7 +507,7 @@ test('an unknown base runs every native job', () => {
     });
     assert.equal(
       readFileSync(output, 'utf8'),
-      'native=true\njuce=true\nbenchmark=true\nhost=true\norbit=true\nvst3=true\n',
+      'native=true\nbenchmark=true\nhost=true\norbit=true\nvst3=true\n',
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

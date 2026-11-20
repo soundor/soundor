@@ -19,12 +19,12 @@ import {
 
 const groups = [
   { packages: ['soundor', '@soundor/config'], minimum: '0.14.0' },
-  { packages: ['@soundor/juce-runtime'], minimum: '0.12.0' },
+  { packages: ['@soundor/vst3-runtime'], minimum: '0.12.0' },
 ];
 const golden = {
   soundor: '0.15.0',
   '@soundor/config': '0.15.0',
-  '@soundor/juce-runtime': '0.14.0',
+  '@soundor/vst3-runtime': '0.14.0',
 };
 const unavailable = () =>
   new PackageManagerError(
@@ -77,10 +77,10 @@ describe('selectVersions', () => {
       ],
       resolve: async (versions) => {
         attempts.push({ ...versions });
-        if (versions['@soundor/juce-runtime'] !== '0.13.0') throw unavailable();
+        if (versions['@soundor/vst3-runtime'] !== '0.13.0') throw unavailable();
       },
     });
-    expect(result).toEqual({ ...golden, '@soundor/juce-runtime': '0.13.0' });
+    expect(result).toEqual({ ...golden, '@soundor/vst3-runtime': '0.13.0' });
     expect(attempts).toEqual([golden, result]);
   });
 
@@ -109,7 +109,7 @@ describe('selectVersions', () => {
       resolve: async (versions) => {
         if (
           versions['soundor'] !== '0.14.0' ||
-          versions['@soundor/juce-runtime'] !== '0.13.0'
+          versions['@soundor/vst3-runtime'] !== '0.13.0'
         )
           throw unavailable();
       },
@@ -117,7 +117,7 @@ describe('selectVersions', () => {
     expect(result).toEqual({
       soundor: '0.14.0',
       '@soundor/config': '0.14.0',
-      '@soundor/juce-runtime': '0.13.0',
+      '@soundor/vst3-runtime': '0.13.0',
     });
   });
 
@@ -128,14 +128,14 @@ describe('selectVersions', () => {
       published: async () => ['0.13.0', '0.14.0'],
       resolve: async (versions) => {
         if (versions['soundor'] === '0.15.0') throw unavailable();
-        if (versions['@soundor/juce-runtime'] === '0.14.0')
+        if (versions['@soundor/vst3-runtime'] === '0.14.0')
           throw new PackageManagerError('ERESOLVE incompatible runtime peer');
       },
     });
     expect(result).toEqual({
       soundor: '0.14.0',
       '@soundor/config': '0.14.0',
-      '@soundor/juce-runtime': '0.13.0',
+      '@soundor/vst3-runtime': '0.13.0',
     });
   });
 

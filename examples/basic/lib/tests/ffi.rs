@@ -1,5 +1,5 @@
 //! The gain processor through its C ABI, the functions `soundor::export!`
-//! defines and the JUCE runtime links, called with the structures it passes.
+//! defines and the VST3 runtime links, called with the structures it passes.
 
 use soundor::ffi::{SoundorBlock, SoundorProcessorInfo};
 use soundor::testing::{NativeProcessor, Status};

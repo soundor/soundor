@@ -4,9 +4,8 @@
 // C ABI (RustProcessorAbi.h): the engine's native side of processor hosting.
 // A runtime owns the audio callback and the plugin's lifecycle, and gives
 // this the block in place, as one array of channel pointers with each bus's
-// channels at known indices (how JUCE's processBlock, and VST3 buffers once
-// arranged so, hold them). No JUCE, no allocation and no lock on the audio
-// thread.
+// channels at known indices (how VST3 buffers, once arranged so, hold them).
+// No plugin SDK, no allocation and no lock on the audio thread.
 
 #include <soundor/Abi.h>
 #include <soundor/midi/Midi.h>

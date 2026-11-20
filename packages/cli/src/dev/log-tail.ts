@@ -1,7 +1,7 @@
 /**
  * Follows the log a plugin's UI runtime writes in development (one JSON object
  * per line, see the runtime's FileLog), whichever process — a DAW, the
- * Standalone — the plugin runs in.
+ * VST3 host — the plugin runs in.
  */
 
 import { open, stat } from 'node:fs/promises';

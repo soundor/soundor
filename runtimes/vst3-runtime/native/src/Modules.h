@@ -2,8 +2,8 @@
 
 // The `soundor:*` modules the VST3 runtime installs in each editor's
 // JavaScript context, beside the engine's own (ui, parameters, history,
-// midi, host, storage, fs): what the JUCE runtime generates per plugin,
-// written once here and driven by the descriptor.
+// midi, host, storage, fs): written once here and driven by the
+// descriptor, never generated per plugin.
 //
 // - soundor:state: one object per field (get, set, beginGesture, endGesture,
 //   subscribe) and onRestored, converting between JavaScript values and the

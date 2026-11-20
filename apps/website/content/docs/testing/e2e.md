@@ -40,7 +40,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [
     soundor({
-      vst3: '.soundor/debug/juce/VST3/My Plugin.vst3',
+      vst3: '.soundor/debug/vst3/My Plugin.vst3',
     }),
   ],
   test: { include: ['e2e/**/*.test.ts'] },
@@ -55,7 +55,7 @@ import { soundor as integration } from '@soundor/vitest';
 import { soundor as e2e } from '@soundor/vitest-e2e';
 import { defineConfig } from 'vitest/config';
 
-const vst3 = '.soundor/debug/juce/VST3/My Plugin.vst3';
+const vst3 = '.soundor/debug/vst3/My Plugin.vst3';
 
 export default defineConfig({
   test: {
@@ -88,12 +88,12 @@ native host process. An explicit project setting or a per-assertion
 
 Vitest does not build the plugin: tests use the bundle as it is. A test with a
 UI needs a **Debug build of a Soundor plugin**, the only kind with DevTools, which
-[`soundor build juce --debug`](/docs/cli/build#debug-builds) makes:
+[`soundor build vst3 --debug`](/docs/cli/build#debug-builds) makes:
 
 ```json
 {
   "scripts": {
-    "test:e2e": "soundor build juce --debug && vitest run --project e2e"
+    "test:e2e": "soundor build vst3 --debug && vitest run --project e2e"
   }
 }
 ```
@@ -144,8 +144,7 @@ run on all three:
 | macOS   | None                                                        |
 | Windows | None                                                        |
 
-Building the plugin on Ubuntu also needs the packages JUCE needs, which that
-workflow lists. A self-hosted runner needs the same as any machine: one that runs as
+Building the plugin on Ubuntu needs a C++ compiler driver, which runners have. A self-hosted runner needs the same as any machine: one that runs as
 a background service may have no desktop session to open windows in.
 
 ## launchPlugin

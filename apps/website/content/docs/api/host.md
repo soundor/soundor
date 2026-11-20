@@ -12,7 +12,7 @@ import {
 } from 'soundor:host';
 
 plugin.version; // plugin.version in soundor.config; 0.1.0 by default
-environment.format; // 'vst3', 'au', 'standalone', 'web', or 'unknown'
+environment.format; // 'vst3', 'web', or 'unknown'
 getHostState().sampleRate;
 const stop = subscribeHostState(({ transport }) =>
   drawPlayhead(transport?.ppqPosition),
@@ -36,28 +36,28 @@ reads them.
 
 | Field            | Values                                                                                  |
 | ---------------- | --------------------------------------------------------------------------------------- |
-| `runtime`        | Runtime identifier: `juce`, `vst3`, or `web` (the simulator uses `test`).               |
+| `runtime`        | Runtime identifier: `vst3` or `web` (the simulator uses `test`).                        |
 | `runtimeVersion` | Version of the runtime package that generated this plugin.                              |
 | `platform`       | `macos`, `windows`, `linux`, `ios`, `android`, or `unknown`.                            |
 | `arch`           | Native binary architecture: `arm64`, `x64`, or `unknown`. Always `unknown` in browsers. |
-| `format`         | `vst3`, `au`, `standalone`, `web`, or `unknown`.                                        |
+| `format`         | `vst3`, `web`, or `unknown`.                                                            |
 
-The JUCE runtime reports the binary's target OS and architecture, not the
+The VST3 runtime reports the binary's target OS and architecture, not the
 physical CPU's capabilities. Browser OS detection is best effort and may
 return `unknown`. No `window`, `document` or `process` global is added by this API.
 
 ## HostSnapshot
 
-| Field             | Type                                         | Meaning                                                                                         |
-| ----------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `sampleRate`      | `number`                                     | Sample rate in Hz.                                                                              |
-| `blockSize`       | `number`                                     | Configured maximum block size in samples; actual blocks may be smaller.                         |
-| `hostName`        | `string`                                     | Host identification. JUCE uses its detector, VST3 asks the host, and web reports `Soundor Web`. |
-| `hostVersion`     | `string \| undefined`                        | Host version when supplied. Currently unavailable in JUCE, VST3, and web.                       |
-| `samplePrecision` | `float32 \| float64 \| unknown`              | Processing sample representation.                                                               |
-| `processingMode`  | `realtime \| prefetch \| offline \| unknown` | JUCE exposes realtime and offline, VST3 also exposes prefetch, and web uses realtime.           |
-| `track`           | `TrackInfo \| undefined`                     | Host-provided track metadata.                                                                   |
-| `transport`       | `Transport \| null`                          | Transport; null until the native host supplies a position.                                      |
+| Field             | Type                                         | Meaning                                                                 |
+| ----------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
+| `sampleRate`      | `number`                                     | Sample rate in Hz.                                                      |
+| `blockSize`       | `number`                                     | Configured maximum block size in samples; actual blocks may be smaller. |
+| `hostName`        | `string`                                     | Host identification. VST3 asks the host, and web reports `Soundor Web`. |
+| `hostVersion`     | `string \| undefined`                        | Host version when supplied. Currently unavailable in VST3 and web.      |
+| `samplePrecision` | `float32 \| float64 \| unknown`              | Processing sample representation.                                       |
+| `processingMode`  | `realtime \| prefetch \| offline \| unknown` | VST3 exposes realtime, prefetch and offline, and web uses realtime.     |
+| `track`           | `TrackInfo \| undefined`                     | Host-provided track metadata.                                           |
+| `transport`       | `Transport \| null`                          | Transport; null until the native host supplies a position.              |
 
 ## Transport
 
@@ -75,7 +75,7 @@ return `unknown`. No `window`, `document` or `process` global is added by this A
 
 The basic transport fields retain their default or previous value if the native
 host omits an individual field. Loop bounds and timecode are present when the
-latest captured block provides them. JUCE and VST3 capture transport on the
+latest captured block provides them. VST3 captures transport on the
 audio thread without locking. These snapshots are for UI display. In the VST3
 runtime, sample rate, block size, processing mode, and transport are available
 to the editor when the processor and controller share a process. In web,
@@ -90,9 +90,7 @@ transport belongs to the host page, which supplies its loop region.
 | `index` | `number \| undefined` | One-based index within the host's channel namespace.    |
 | `id`    | `string \| undefined` | Host-defined identifier; stability depends on the host. |
 
-JUCE exposes name and colour through `updateTrackProperties`. An override of
-the generated processor's `updateTrackProperties` must call the base
-implementation. The VST3 runtime reads name, colour, index and ID from hosts
+The VST3 runtime reads name, colour, index and ID from hosts
 that report channel context. Fields can disappear when the host withdraws them.
 Web has no track metadata.
 

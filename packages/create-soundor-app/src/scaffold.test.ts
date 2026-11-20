@@ -27,21 +27,21 @@ import {
 describe('tokenReplace', () => {
   it('replaces __PROJECT_ID__ with a reverse-DNS segment', () => {
     expect(
-      tokenReplace('com.example.__PROJECT_ID__', 'My Synth', ['juce']),
+      tokenReplace('com.example.__PROJECT_ID__', 'My Synth', ['vst3']),
     ).toBe('com.example.my-synth');
   });
 
   it('replaces __PROJECT_NAME__ with the project name', () => {
-    expect(tokenReplace('name: __PROJECT_NAME__', 'my-app', ['juce'])).toBe(
+    expect(tokenReplace('name: __PROJECT_NAME__', 'my-app', ['vst3'])).toBe(
       'name: my-app',
     );
   });
 
   it('imports and configures a single runtime', () => {
     const input = '__RUNTIME_IMPORTS__;\n  runtimes: __RUNTIMES__,';
-    expect(tokenReplace(input, 'my-app', ['juce'])).toBe(
-      "import { juceRuntime } from '@soundor/juce-runtime';\n" +
-        "  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] })],",
+    expect(tokenReplace(input, 'my-app', ['vst3'])).toBe(
+      "import { vst3Runtime } from '@soundor/vst3-runtime';\n" +
+        '  runtimes: [vst3Runtime()],',
     );
     expect(tokenReplace(input, 'my-app', ['web'])).toBe(
       "import { webRuntime } from '@soundor/web-runtime';\n" +
@@ -51,23 +51,23 @@ describe('tokenReplace', () => {
 
   it('imports and configures several runtimes', () => {
     const input = '__RUNTIME_IMPORTS__;\n  runtimes: __RUNTIMES__,';
-    expect(tokenReplace(input, 'my-app', ['juce', 'web'])).toBe(
-      "import { juceRuntime } from '@soundor/juce-runtime';\n" +
+    expect(tokenReplace(input, 'my-app', ['vst3', 'web'])).toBe(
+      "import { vst3Runtime } from '@soundor/vst3-runtime';\n" +
         "import { webRuntime } from '@soundor/web-runtime';\n" +
-        "  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] }), webRuntime()],",
+        '  runtimes: [vst3Runtime(), webRuntime()],',
     );
   });
 
   it('replaces all occurrences', () => {
     const input = '<title>__PROJECT_NAME__</title><h1>__PROJECT_NAME__</h1>';
-    expect(tokenReplace(input, 'my-app', ['juce'])).toBe(
+    expect(tokenReplace(input, 'my-app', ['vst3'])).toBe(
       '<title>my-app</title><h1>my-app</h1>',
     );
   });
 
   it('returns content unchanged when no tokens present', () => {
     const input = 'no tokens here';
-    expect(tokenReplace(input, 'my-app', ['juce'])).toBe('no tokens here');
+    expect(tokenReplace(input, 'my-app', ['vst3'])).toBe('no tokens here');
   });
 });
 
@@ -128,10 +128,10 @@ describe('projectIdSegment', () => {
 
 describe('devScripts', () => {
   it('gives the first runtime `dev` and the others `dev:<runtime>`', () => {
-    expect(devScripts(['juce'])).toEqual({ dev: 'soundor dev juce' });
+    expect(devScripts(['vst3'])).toEqual({ dev: 'soundor dev vst3' });
     expect(devScripts(['web'])).toEqual({ dev: 'soundor dev web' });
-    expect(devScripts(['juce', 'web'])).toEqual({
-      dev: 'soundor dev juce',
+    expect(devScripts(['vst3', 'web'])).toEqual({
+      dev: 'soundor dev vst3',
       'dev:web': 'soundor dev web',
     });
   });
@@ -139,10 +139,10 @@ describe('devScripts', () => {
 
 describe('buildScripts', () => {
   it('builds every runtime, and each one alone when there are several', () => {
-    expect(buildScripts(['juce'])).toEqual({ build: 'soundor build' });
-    expect(buildScripts(['juce', 'web'])).toEqual({
+    expect(buildScripts(['vst3'])).toEqual({ build: 'soundor build' });
+    expect(buildScripts(['vst3', 'web'])).toEqual({
       build: 'soundor build',
-      'build:juce': 'soundor build juce',
+      'build:vst3': 'soundor build vst3',
       'build:web': 'soundor build web',
     });
   });
@@ -153,39 +153,39 @@ describe('projectManifest', () => {
     name: '__PROJECT_NAME__',
     scripts: {
       build: 'soundor build',
-      dev: 'soundor dev juce',
+      dev: 'soundor dev vst3',
       gen: 'soundor gen',
       typecheck: 'soundor gen && tsc -b',
     },
     dependencies: {
-      '@soundor/juce-runtime': 'workspace:*',
+      '@soundor/vst3-runtime': 'workspace:*',
       '@soundor/web-runtime': 'workspace:*',
       react: 'catalog:',
     },
   };
   const versions = {
-    '@soundor/juce-runtime': '1.0.0',
+    '@soundor/vst3-runtime': '1.0.0',
     '@soundor/web-runtime': '1.0.0',
     react: '^19.0.0',
   };
 
   it('keeps only the chosen runtime packages', () => {
     expect(
-      projectManifest(template, 'my-app', ['juce'], versions).dependencies,
-    ).toEqual({ '@soundor/juce-runtime': '1.0.0', react: '^19.0.0' });
+      projectManifest(template, 'my-app', ['vst3'], versions).dependencies,
+    ).toEqual({ '@soundor/vst3-runtime': '1.0.0', react: '^19.0.0' });
     expect(
       projectManifest(template, 'my-app', ['web'], versions).dependencies,
     ).toEqual({ '@soundor/web-runtime': '1.0.0', react: '^19.0.0' });
   });
 
-  it('adds the VST3 host only to a project with the JUCE runtime', () => {
+  it('adds the VST3 host only to a project with the VST3 runtime', () => {
     const manifest = {
       ...template,
       devDependencies: { '@soundor/vst3-host': 'workspace:*' },
     };
     const pinned = { ...versions, '@soundor/vst3-host': '1.0.0' };
     expect(
-      projectManifest(manifest, 'my-app', ['juce'], pinned).devDependencies,
+      projectManifest(manifest, 'my-app', ['vst3'], pinned).devDependencies,
     ).toEqual({ '@soundor/vst3-host': '1.0.0' });
     expect(
       projectManifest(manifest, 'my-app', ['web'], pinned).devDependencies,
@@ -193,13 +193,13 @@ describe('projectManifest', () => {
   });
 
   it('runs dev with the first runtime and typechecks the Web host', () => {
-    const pkg = projectManifest(template, 'my-app', ['juce', 'web'], versions);
+    const pkg = projectManifest(template, 'my-app', ['vst3', 'web'], versions);
     expect(pkg.name).toBe('my-app');
     expect(pkg.scripts).toEqual({
       build: 'soundor build',
-      'build:juce': 'soundor build juce',
+      'build:vst3': 'soundor build vst3',
       'build:web': 'soundor build web',
-      dev: 'soundor dev juce',
+      dev: 'soundor dev vst3',
       'dev:web': 'soundor dev web',
       gen: 'soundor gen',
       typecheck: 'soundor gen && tsc -b',
@@ -208,7 +208,7 @@ describe('projectManifest', () => {
 
   it('leaves the typecheck alone without the web runtime', () => {
     expect(
-      projectManifest(template, 'my-app', ['juce'], versions).scripts?.[
+      projectManifest(template, 'my-app', ['vst3'], versions).scripts?.[
         'typecheck'
       ],
     ).toBe('soundor gen && tsc -b');
@@ -217,8 +217,8 @@ describe('projectManifest', () => {
 
 it.each<{ runtimes: Runtime[] }>([
   { runtimes: ['web'] },
-  { runtimes: ['juce', 'web'] },
-  { runtimes: ['juce'] },
+  { runtimes: ['vst3', 'web'] },
+  { runtimes: ['vst3'] },
 ])('keeps solution references valid for %j projects', async ({ runtimes }) => {
   const root = await mkdtemp(join(tmpdir(), 'soundor-template-'));
   try {

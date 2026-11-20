@@ -1,6 +1,6 @@
 /**
  * `UiNode.accessibility`: what a node is to assistive technology. Checked
- * as the JUCE runtime checks it, with the same errors.
+ * as the native runtime checks it, with the same errors.
  */
 
 import type { Accessibility, AccessibilityRole } from './types.ts';

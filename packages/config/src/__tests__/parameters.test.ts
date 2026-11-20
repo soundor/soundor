@@ -355,7 +355,7 @@ describe('steps', () => {
     expect(p.constrain(3)).toBe(4);
     expect(p.constrain(-100)).toBe(-10);
     expect(p.toNormalized(4)).toBeCloseTo(0.7, 12);
-    // As JUCE's AudioParameterInt: min + round(t · span).
+    // min + round(t · span), as hosts expect of an integer parameter.
     const voices = behavior({ type: 'uint8', min: 1, max: 16, default: 4 });
     expect(steps(100).map((t) => voices.toValue(t))).toEqual(
       steps(100).map((t) => 1 + Math.floor(t * 15 + 0.5)),

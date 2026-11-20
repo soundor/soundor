@@ -88,14 +88,16 @@ Press ▶ to play the host's input. The same Rust analysis runs in the
 browser, compiled to WebAssembly in an AudioWorklet, and its streams reach
 the UI through the same `soundor:native` streams, about 60 times a second.
 
-## As a JUCE plugin
+## As a VST3 plugin
 
 ```sh
-pnpm dev          # soundor dev juce: a debug build, the VST3 opened in the host
-pnpm build:juce   # soundor build juce: VST3 and Standalone in .soundor/dist/juce
+pnpm dev          # soundor dev vst3: a debug build, opened in the VST3 host
+pnpm build:vst3   # soundor build vst3: the VST3 in .soundor/dist/vst3
 ```
 
-JUCE must be installed (see `soundor doctor`).
+In Soundor's repository, build the VST3 runtime's adapter first
+(`pnpm --filter @soundor/vst3-runtime build:native`); `soundor doctor` checks
+the rest.
 
 ## Tests
 

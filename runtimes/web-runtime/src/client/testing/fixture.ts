@@ -74,9 +74,9 @@ export const fixtureConfig = {
       access: 'readOnly',
     },
   },
-  // Every kind of native type, sync and async: close to the JUCE runtime's
-  // fixture (juce-runtime/src/native-codegen.test.ts), so the two runtimes'
-  // tests can check the same behaviour.
+  // Every kind of native type, sync and async: close to the engine's
+  // soundor:native fixture (engine/tests/generated), so the engine's tests and
+  // these can check the same behaviour.
   native: {
     types: {
       Analysis: { struct: { rms: 'float32', peaks: 'float32[]' } },
@@ -149,7 +149,7 @@ export const fixtureConfig = {
       fail: {},
       failLater: { async: true },
     },
-    // The JUCE runtime's fixture's events.
+    // The engine fixture's events.
     events: {
       presetLoaded: { path: 'string', preset: 'Preset?' },
       levels: { values: 'buffer<float32>', curve: 'Curve' },

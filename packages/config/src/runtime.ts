@@ -82,7 +82,7 @@ export interface Runtime<Options extends object = object> {
  * A live, typed entry for `config.runtimes[]`. It carries the declarative
  * `{ id, options }` (assignable to {@link RuntimeConfig}) plus the concrete
  * {@link Runtime} implementation the CLI dispatches. This is what a runtime
- * factory (e.g. `juceRuntime({ ... })`) returns.
+ * factory (e.g. `vst3Runtime({ ... })`) returns.
  */
 export interface RuntimeDescriptor<Options extends object = object> {
   readonly id: string;
@@ -91,7 +91,7 @@ export interface RuntimeDescriptor<Options extends object = object> {
 }
 
 /**
- * The config-callable factory a runtime package exports (e.g. `juceRuntime`).
+ * The config-callable factory a runtime package exports (e.g. `vst3Runtime`).
  * Calling it yields a {@link RuntimeDescriptor} to drop into `runtimes[]`.
  */
 export interface RuntimeFactory<Options extends object = object> {

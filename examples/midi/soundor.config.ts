@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
@@ -16,7 +16,7 @@ export default defineSoundorConfig({
     defaultLayout: 'stereo',
   },
   editor: { width: 680, height: 600 },
-  runtimes: [juceRuntime({ formats: ['vst3'] }), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
   native: {
     types: { MidiStats: { struct: { events: 'uint32', resets: 'uint32' } } },
     methods: {

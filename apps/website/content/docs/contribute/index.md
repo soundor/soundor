@@ -16,9 +16,9 @@ purpose, source, operation, invariants and tests, and how to change them.
 flowchart TD
     project["Plugin project"] --> toolchain["packages/: config, CLI, codegen"]
     toolchain --> contract["Generated contract and UI bundle"]
-    contract --> juce["runtimes/juce-runtime: native host"]
+    contract --> vst3["runtimes/vst3-runtime: VST3 plugin"]
     contract --> web["runtimes/web-runtime: browser host"]
-    juce --> engine["engine: C++ engine"]
+    vst3 --> engine["engine: C++ engine"]
     react["packages/react: UI renderer"] --> contract
     tests["packages/: simulated runtime and testing tools"] --> react
     examples["examples/: plugins and snippets"] --> site["apps/website: docs and playground"]
@@ -37,7 +37,7 @@ ownership. `configs/` contains private TypeScript and bundler presets;
 | A new runtime                         | [Build a runtime](/docs/contribute/build-runtime)                                                                                      | `packages/config/src/runtime.ts`, `packages/runtime-sdk/src/`          |
 | A shared UI or service behavior       | [Cross-runtime contract](/docs/contribute/contract)                                                                                    | Engine, web runtime, test runtime and React                            |
 | Native layout, painting or JavaScript | [Engine reference](/docs/contribute/engine-reference)                                                                                  | `engine/include/`, `engine/src/`                                       |
-| Native host integration               | [Embedding API](/docs/contribute/engine-reference#embedding-api)                                                                       | `runtimes/juce-runtime/native/backend/juce/`                           |
+| Native host integration               | [Embedding API](/docs/contribute/engine-reference#embedding-api), [VST3 runtime](/docs/contribute/vst3-runtime)                        | `runtimes/vst3-runtime/native/`                                        |
 | Accessibility                         | [Contract](/docs/contribute/contract), [Apple bridges](/docs/contribute/apple-accessibility)                                           | Engine `src/a11y/`, web client `ui/semantics.ts`                       |
 | React or application tests            | [React tests](/docs/contribute/react-tests), [test runtime](/docs/contribute/test-runtime)                                             | `packages/react/`, `packages/react/testing/`, `packages/test-runtime/` |
 | DevTools                              | [Protocol](/docs/contribute/devtools-protocol), [server](/docs/contribute/devtools-server), [client](/docs/contribute/devtools-client) | `packages/devtools-*/`                                                 |

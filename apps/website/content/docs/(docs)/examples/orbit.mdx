@@ -46,8 +46,8 @@ WebGL 2 shader shows an echo map of the current parameters, with a Canvas 2D
 fallback. It is a visual explanation of timing and level, not an audio analyser.
 React handles remain interactive in either rendering mode.
 
-The browser processes audio in an AudioWorklet. The JUCE processor implements
-the same three delay lines in C++, with no JavaScript on the audio thread.
+Both runtimes run the same Rust processor from `lib/`: the browser in an
+AudioWorklet, the VST3 natively, with no JavaScript on the audio thread.
 Soundor shares the interface and parameter contract; the example owns its DSP.
 The browser's demo loop is a registered custom host input outside the
 portable plugin interface; there is no extra toolbar around the plugin.
@@ -55,7 +55,7 @@ portable plugin interface; there is no extra toolbar around the plugin.
 ## Factory presets
 
 The four sounds are declared in `soundor.config.ts`. The UI loads them through
-[`soundor:presets`](/docs/api/presets), and the generated JUCE processor exposes
+[`soundor:presets`](/docs/api/presets), and the VST3 plugin exposes
 the same catalog to host program selectors. Previous/Next loads one complete
 snapshot, including releasing Hold and resetting bypass, as one undoable edit.
 Preset descriptions are declared state and are restored with the sound.
@@ -87,7 +87,7 @@ pnpm --filter orbit test
 pnpm --filter orbit test:native
 pnpm --filter orbit typecheck
 pnpm --filter orbit build:web
-pnpm --filter orbit build:juce
+pnpm --filter orbit build:vst3
 ```
 
-The JUCE build needs [the native prerequisites](/docs/contribute/setup).
+The VST3 build needs [the native prerequisites](/docs/vst3-runtime#requirements).

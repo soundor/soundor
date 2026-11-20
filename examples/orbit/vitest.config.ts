@@ -14,7 +14,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [e2e({ vst3: '.soundor/debug/juce/VST3/Orbit.vst3' })],
+        plugins: [e2e({ vst3: '.soundor/debug/vst3/Orbit.vst3' })],
         test: { name: 'e2e', include: ['e2e/**/*.test.ts'] },
       },
     ],

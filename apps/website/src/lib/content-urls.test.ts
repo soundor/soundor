@@ -7,11 +7,11 @@ describe('content URLs', () => {
     expect(getContentUrl([])).toBe('/docs');
     expect(getContentUrl(['getting-started'])).toBe('/docs/getting-started');
     expect(getContentUrl(['changelog'])).toBe('/changelog');
-    expect(getContentUrl(['changelog', 'juce-runtime'])).toBe(
-      '/changelog/juce-runtime',
+    expect(getContentUrl(['changelog', 'vst3-runtime'])).toBe(
+      '/changelog/vst3-runtime',
     );
-    expect(getContentUrl(['changelog', 'juce-runtime', '0.14.0'])).toBe(
-      '/changelog/juce-runtime/0.14.0',
+    expect(getContentUrl(['changelog', 'vst3-runtime', '0.14.0'])).toBe(
+      '/changelog/vst3-runtime/0.14.0',
     );
   });
 
@@ -20,11 +20,11 @@ describe('content URLs', () => {
     expect(getContentMarkdownUrl(['changelog']).url).toBe(
       '/changelog/index.md',
     );
-    expect(getContentMarkdownUrl(['changelog', 'juce-runtime']).url).toBe(
-      '/changelog/juce-runtime.md',
+    expect(getContentMarkdownUrl(['changelog', 'vst3-runtime']).url).toBe(
+      '/changelog/vst3-runtime.md',
     );
     expect(
-      getContentMarkdownUrl(['changelog', 'juce-runtime', '0.14.0']).url,
-    ).toBe('/changelog/juce-runtime/0.14.0.md');
+      getContentMarkdownUrl(['changelog', 'vst3-runtime', '0.14.0']).url,
+    ).toBe('/changelog/vst3-runtime/0.14.0.md');
   });
 });

@@ -1,6 +1,5 @@
-// The `streams` of the generated `soundor:native` (tests/generated, from the
-// fixture in src/native-codegen.test.ts): latest values published by native
-// code on any one thread, taken by js::deliverStreams() on the context's.
+// The `streams` of the fixture's `soundor:native` (tests/generated): latest
+// values published by native code on any one thread, taken by js::deliverStreams() on the context's.
 
 #include "../support/Modules.h"
 

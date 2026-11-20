@@ -7,11 +7,10 @@ Source: [`hosts/vst3-host/`](https://github.com/soundor/soundor/tree/main/hosts/
 User guide: [VST3 host](/docs/testing/vst3-host).
 
 `@soundor/vst3-host` is an independently versioned package outside the
-Changesets fixed group. It depends on no other Soundor package, on no JUCE
-code and on no Soundor engine. `@soundor/driver` has it as an optional peer,
-for [its `vst3` entry](/docs/driver/vst3), and `@soundor/juce-runtime` for
-[`soundor dev`](/docs/cli/dev#what-soundor-dev-juce-opens), which looks for it
-in the project and not as Node would. Its normal `build` compiles the Node
+Changesets fixed group. It depends on no plugin framework and on no Soundor engine. `@soundor/driver`
+has it as an optional peer, for [its `vst3` entry](/docs/driver/vst3), and
+`@soundor/vst3-runtime` as a required one, for
+[`soundor dev`](/docs/cli/dev#what-soundor-dev-vst3-opens). Its normal `build` compiles the Node
 client only.
 
 ## Purpose
@@ -21,7 +20,7 @@ can drive: load a plugin from its bundle path, process audio offline, open
 its editor. The dependency direction:
 
 ```text
-@soundor/juce-runtime          @soundor/driver/vst3
+@soundor/vst3-runtime          @soundor/driver/vst3
           |                            |
           +-------------+--------------+
                         |
@@ -214,7 +213,7 @@ Host changes never run the engine's suites, and engine changes never run the
 host's. A change only under `hosts/vst3-host/`, optionally accompanied by
 `.changeset/*.md` release notes, runs this job and Orbit's alone. Changeset
 configuration is still considered. The package
-graph has it reach the JUCE and benchmark packages through `@soundor/driver`, but
+graph has it reach the benchmark package through `@soundor/driver`, but
 only that package's optional `vst3` entry uses the host.
 
 Orbit's job is the one that runs `@soundor/driver/vst3` against a real plugin

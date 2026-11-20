@@ -7,7 +7,7 @@ name: Engine
 # analysis and tests on Clang, the GCC, sanitizer and no-GPU builds.
 #
 # The engine's own checks only. A package that uses the engine tests itself
-# against these artifacts in its own workflow (juce.yml), which waits for all
+# against these artifacts in its own workflow (vst3.yml), which waits for all
 # of this, so that it starts from an engine that passed.
 on:
   workflow_call:

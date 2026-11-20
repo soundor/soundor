@@ -1,6 +1,6 @@
 /**
  * `@soundor/vst3-runtime`: Soundor plugins as VST3 plugins for Linux, macOS
- * and Windows, without JUCE.
+ * and Windows.
  *
  * A plugin is linked from parts built once, never compiled per plugin: the
  * prebuilt VST3 adapter (`libsoundor_vst3.a`: Steinberg's SDK and a generic
@@ -610,7 +610,8 @@ export async function vst3Doctor(
           label: 'Platform',
           status: 'fail',
           detail: `${platform} ${arch}: the VST3 runtime builds on Linux x86_64, macOS and Windows x64`,
-          suggestion: 'Use the JUCE runtime here.',
+          suggestion:
+            'Build the plugin on Linux x86_64, macOS or Windows x64; the web runtime runs anywhere.',
         },
   );
   for (const [label, cmd, suggestion] of [

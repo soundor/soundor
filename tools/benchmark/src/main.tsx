@@ -1,8 +1,8 @@
 // Soundor's rendering benchmark: scenarios for WebGL (Three.js, the expensive
 // way and the GPU way, and raw calls), Canvas 2D, UI updates and a mixed
-// plugin view, the same code in the JUCE runtime and in the browser. Pick a
+// plugin view, the same code in the native engine and in the browser. Pick a
 // scenario to watch it with live statistics, or run them all for a table of
-// results; `pnpm bench` runs them headless in the JUCE runtime.
+// results; `pnpm bench` runs them headless in the native engine.
 
 import {
   Pressable,

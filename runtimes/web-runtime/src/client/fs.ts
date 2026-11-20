@@ -1,6 +1,6 @@
 /**
  * `soundor:fs` over the plugin's database: a private file tree, never the
- * user's files. Paths and errors follow the JUCE runtime: relative,
+ * user's files. Paths and errors follow the native runtime: relative,
  * '/'-separated paths that cannot leave the plugin's directory; failures are
  * DOMExceptions named as there (NotFoundError, TypeMismatchError, …). Each
  * operation is one transaction, so a write lands whole or not at all.

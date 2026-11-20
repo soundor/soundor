@@ -1,6 +1,5 @@
-# C++ style for Soundor-owned native code. It follows the JUCE conventions the
-# generated `soundor::` base classes and the scaffolded plugin host already use:
-# Allman braces, four-space indent, indented namespaces, `! value`.
+# C++ style for Soundor-owned native code: Allman braces, four-space indent,
+# indented namespaces, `! value`.
 #
 # `pnpm format` checks the runtime's native sources with clang-format 18.
 # User-owned scaffolds under examples/ are not reformatted.

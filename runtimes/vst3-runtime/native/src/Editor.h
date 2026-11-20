@@ -1,15 +1,11 @@
 #pragma once
 
 // The VST3 view (IPlugView): the plugin's UI, as the engine runs it. Its
-// part is what a plugin framework's is in the JUCE runtime: a window in the
-// host's (NativeWindow: an X11 child window on Linux, an NSView on macOS, a
-// child HWND on Windows), a run loop (the one the host lends on Linux,
-// IRunLoop: a 60 Hz timer and the connections' descriptors; a timer of the UI
-// thread's run loop elsewhere), sizes, and the host's calls. The engine's
-// editor::Editor does the rest, as for the JUCE runtime's editor: the
-// runtime, placing the UI, the compositor (on the GPU in the window where
-// there is one, else on the CPU, whose frames the window shows), native
-// input, the pointer lock, the cursor and accessibility.
+// part is a plugin framework's: a window in the host's (NativeWindow: an X11 child window on Linux, an NSView on macOS,
+// a child HWND on Windows), a run loop (the one the host lends on Linux, IRunLoop: a 60 Hz timer and the connections'
+// descriptors; a timer of the UI thread's run loop elsewhere), sizes, and the host's calls. The engine's editor::Editor
+// does the rest: the runtime, placing the UI, the compositor (on the GPU in the window where there is one, else on the
+// CPU, whose frames the window shows), native input, the pointer lock, the cursor and accessibility.
 
 #include "Controller.h"
 #include "NativeWindow.h"

@@ -9,7 +9,7 @@ export function report(error: unknown): void {
  * A listener list for values that change often (the view's size): notifying
  * allocates nothing. Subscribing and unsubscribing replace the array instead,
  * so a notification in progress keeps the listeners it began with, whoever
- * (un)subscribes meanwhile, as in the JUCE runtime.
+ * (un)subscribes meanwhile, as in the native runtime.
  */
 export class Listeners<Value> {
   #entries: readonly { readonly listener: (value: Value) => void }[] = [];

@@ -16,7 +16,7 @@ automation, a preset, another view, the audio side, or this UI.
 - **The parameter stays the source of truth.** Show its value and change it
   with `set()`; do not copy it into React state, or the host's automation
   and presets will not show.
-- **Notification timing follows the runtime.** JUCE delivers parameter
+- **Notification timing follows the runtime.** VST3 delivers parameter
   changes on its UI tick, coalescing a burst of audio-thread automation to
   the latest value. Web and simulated parameters notify subscribers
   synchronously from `set()`. The hook reads the latest value through React's

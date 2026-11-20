@@ -1,10 +1,10 @@
 // processor::RustController and the generic `soundor:native` bindings it
-// backs (js/RustMethods.h), through the generated installController() of the
-// soundor:native fixture (tests/generated, from src/native-codegen.test.ts),
+// backs (js/RustMethods.h), through the installController() of the
+// soundor:native fixture (tests/generated),
 // on a C++ controller that keeps the controller ABI's rules
 // (RustControllerAbi.h) behind its function table: the engine's own work
-// without a Rust library. The JUCE runtime's JuceRustControllerTests.cpp runs
-// the same on a real Rust controller.
+// without a Rust library. The VST3 runtime's plugin tests run a real Rust
+// controller.
 
 #include "../support/Modules.h"
 
@@ -473,7 +473,7 @@ TEST_SUITE("Rust controller")
                  R"("samples":null})");
     }
 
-    TEST_CASE("arguments are checked as the generated C++ bindings check them, with their messages")
+    TEST_CASE("arguments are checked as the typed C++ bindings check them, with their messages")
     {
         Fixture f;
         CHECK(f.error("n.add(1, '2');") == "TypeError: add(): b: expected int32, got string");

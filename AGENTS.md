@@ -10,25 +10,23 @@ run by several **runtimes**. A project declares its plugin in
 the `soundor` CLI bundles `src/main.tsx` and drives each runtime through the
 same lifecycle phases. Two runtimes exist:
 
-- `@soundor/juce-runtime` (the reference): a JUCE plugin (VST3/AU/Standalone)
-  hosting an embedded Hermes runtime (interpreted, bytecode compiled at build
-  time) that runs the UI bundle, and the project's Rust crate: its processor
-  on the audio thread and its required controller (the Rust behind
-  `soundor:native`'s methods) on the control thread. The UI is laid out with
-  Yoga and drawn with Skia Ganesh on macOS, Windows and Linux, with CPU drawing
-  as a fallback. Soundor's own compositor
-  puts the layers together on the GPU (ANGLE: Metal, Direct3D 11, Vulkan) where it
-  can, and on the CPU otherwise. Linux presents in an input-transparent X11
-  child window, including through XWayland. Canvas nodes have a 2D
-  context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
-  shows without copies; Three.js runs on it unmodified.
-- `@soundor/vst3-runtime`: the same plugin as a VST3 without JUCE, for
-  Linux x86_64, macOS and Windows x64 (each building for itself): a generic
-  VST3 adapter (Steinberg's SDK), prebuilt per platform and engine variant
-  and shipped in the package, hosting the engine and the project's Rust
-  crate, which Cargo compiles with the runtime's `soundor-vst3` crate (the
-  plugin's descriptor and UI) and the platform's linker links (`c++`, MSVC's
-  `link.exe`). No C++ per plugin.
+- `@soundor/vst3-runtime` (the reference): a VST3 plugin for Linux x86_64,
+  macOS and Windows x64 (each building for itself), with no JUCE and no C++
+  compiled per plugin: a generic VST3 adapter (Steinberg's SDK), prebuilt per
+  platform and engine variant and shipped in the package, hosting the engine
+  and the project's Rust crate, which Cargo compiles with the runtime's
+  `soundor-vst3` crate (the plugin's descriptor and UI) and the platform's
+  linker links (`c++`, MSVC's `link.exe`). The engine runs the UI bundle in an
+  embedded Hermes runtime (interpreted, bytecode compiled at build time); the
+  crate's processor runs on the audio thread and its required controller (the
+  Rust behind `soundor:native`'s methods) on the control thread. The UI is
+  laid out with Yoga and drawn with Skia Ganesh, with CPU drawing as a
+  fallback. Soundor's own compositor puts the layers together on the GPU
+  (ANGLE: Metal, Direct3D 11, Vulkan) where it can, and on the CPU otherwise.
+  The editor is a child window of the host's (X11, including through
+  XWayland; NSView; HWND). Canvas nodes have a 2D context (Skia) and a WebGL 2
+  context (ANGLE), which the GPU compositor shows without copies; Three.js
+  runs on it unmodified.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
   Audio, without Hermes or Skia. Its `soundor:ui` is the engine itself
   (`@soundor/engine/web`): the engine's C++ core (node tree, styles, Yoga,
@@ -37,7 +35,7 @@ same lifecycle phases. Two runtimes exist:
 
 The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
-(especially `juce-runtime.md`, `web-runtime.md`, `react.mdx`), `components/`
+(especially `vst3-runtime.md`, `web-runtime.md`, `react.mdx`), `components/`
 (a page per `@soundor/react` component, its props table generated from its
 type and doc comments), `hooks/`, `api/` (a page per `soundor:*` module),
 `testing/`, `cli/` (commands, config, create-soundor-app), and `contribute/`
@@ -92,10 +90,19 @@ pnpm build:wasm && pnpm test:wasm && pnpm test:browser  # the same, staged in bu
 cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -release; needs
                                             # SOUNDOR_ENGINE_SOURCE_COMMIT) → build/prebuilt-*/stage
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
-(cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
-pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (automatic engine selection)
-pnpm --filter @soundor/juce-runtime test:plugin:debug  # its Debug build with DevTools, for the real-plugin suites
+```
+
+The VST3 runtime (`runtimes/vst3-runtime`; its `build` and `test` never compile
+native code). A workspace builds its own prebuilt adapter, which every VST3
+build (examples included) links; build it again after an engine edit:
+
+```sh
+pnpm --filter @soundor/vst3-runtime build:native   # the prebuilt adapter, both variants, against engine()
+pnpm --filter @soundor/vst3-runtime test:native    # its native tests
+pnpm --filter @soundor/vst3-runtime lint:native    # clang-tidy
+xvfb-run -a pnpm --filter @soundor/vst3-runtime test:plugin  # its test plugin in the VST3 host
+pnpm --filter @soundor/vst3-runtime exec soundor build vst3 --debug --config tests/plugin/soundor.config.ts  # the Debug build the real-plugin suites load
 ```
 
 The VST3 host (`hosts/vst3-host`; its `build` and `test` never compile it):
@@ -116,12 +123,12 @@ tests' Three.js) are lowered with the engine's module-lowering source while buil
 Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, `examples/analyzer`,
 `examples/controller` (the same Rust controller in native and web), and
 `examples/snippets`) are real projects using the workspace packages. The docs'
-live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
-`build:juce` or `build:web`. CI's Workspace job runs their tests, typecheck and web
+live snippets are web-only. Run `pnpm --filter <example> dev` (VST3) or `dev:web`,
+`build:vst3` or `build:web`. CI's Workspace job runs their tests, typecheck and web
 builds, and the website embeds those web builds. Orbit also has end-to-end tests
 of its Debug VST3 (`pnpm --filter orbit test:e2e`), the one example a native CI
 job builds. Tests have their own fixtures, inside the package they test:
-`runtimes/juce-runtime/tests/plugin`.
+`runtimes/vst3-runtime/tests/plugin`.
 
 The website (`apps/website`) embeds the examples' web builds:
 
@@ -133,7 +140,7 @@ pnpm --filter website test:e2e          # browser tests of the built site (Playw
 ```
 
 It depends on the examples' `build:web` only (`website#build` in `turbo.json`),
-never their `build`, which would build the JUCE plugin and the native engine.
+never their `build`, which would build the VST3 plugin.
 Its build fails on a broken internal link or anchor, or an incomplete page
 (`scripts/links.ts`). Its unit tests need nothing built (`website#test` has no
 dependencies), so the root `test` runs them. `.github/workflows/website.yml` deploys it: called
@@ -142,26 +149,25 @@ by the release workflow after npm publishing, or run by hand.
 Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`). Each group is a reusable
 workflow called from `verify.yml`, so its jobs show as `<group> / <job>`: Engine
-(`engine.yml`; its suites ← `@soundor/engine`), JUCE 8 (juce-runtime) and JUCE 9 (juce-runtime) (`juce.yml`) ←
-`@soundor/juce-runtime`, VST3 (vst3-runtime) (`vst3.yml`) ← `@soundor/vst3-runtime`, VST3 (host) (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
+(`engine.yml`; its suites ← `@soundor/engine`), VST3 (vst3-runtime) (`vst3.yml`) ← `@soundor/vst3-runtime`, VST3 (host) (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
 Orbit E2E (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`. A change
 only under `hosts/vst3-host/` runs VST3 (host) and Orbit E2E alone. The engine and the host
 share one pattern: `engine-plan` and `host-plan` select, one group builds and
 checks (Engine, VST3 (host)), and jobs wait for it and consume the artifact or the release. What a job
 builds must therefore be a dependency of its package. A package's workflow
 runs that package's checks only: the engine's never builds or tests a runtime
-(JUCE is tested in `juce.yml`, against the engine's artifacts), and a new
+(the VST3 runtime is tested in `vst3.yml`, against the engine's artifacts), and a new
 runtime gets its own workflow rather than steps in another's.
 
 The release (`release.yml`) builds, then tests, then publishes: each released
 package's own build and checks (the engine in `engine-prebuilts.yml`'s
 `build` phase, the host in `vst3-host-artifacts.yml`), then what uses them
-(`juce.yml` when the engine or the JUCE runtime is released, on the archives
-to be published), and only when all of it passed the engine's prebuilt
+(`vst3.yml` when the engine or the VST3 runtime is released, its adapters
+built against the archives to be published), and only when all of it passed the engine's prebuilt
 release (`release` phase), npm and the website.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
-UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved
+UI updates in the native engine, headless; see `contribute/benchmark.md`). Measure an optimization against a saved
 build run alternately in the same session, not against an old report:
 machines drift by several percent between sessions. The "work per frame"
 counts (native calls, style changes, layouts, uploads) do not depend on
@@ -175,18 +181,18 @@ pnpm --filter soundor-benchmark bench --only ui,canvas # some groups or scenario
 
 Regenerating checked-in generated files:
 
-- `UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test` — the golden
-  `soundor:native` C++ output in `engine/tests/generated`, and the
-  generated parameters (`TestParameters.cpp`) with their JavaScript-computed
-  parity table (`ParameterParity.h`) in
-  `runtimes/juce-runtime/native/backend/juce/tests/generated`, compiled by the
-  native tests.
+- `UPDATE_GOLDEN=1 pnpm --filter @soundor/vst3-runtime test` — the test
+  plugin's descriptor and the expression corpus in
+  `runtimes/vst3-runtime/native/tests/generated`, read by its native tests;
+  `pnpm --filter @soundor/vst3-runtime gen:expression` also rewrites the
+  adapter's copy of the expression helpers. (`engine/tests/generated`, the
+  native tests' `soundor:native` fixture, is maintained by hand.)
 - `UPDATE_FIXTURES=1 pnpm --filter @soundor/web-runtime exec vitest run src/fixtures.test.ts`
   — the Web runtime's generated client fixtures in `src/client/testing/`.
 - `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
   (from `engine`, after a dev build) — the engine's frames in
   `tests/layout/corpus.json`, for a change meant to change layout.
-- `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
+- `pnpm --filter @soundor/engine gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
   `packages/environment/*.d.ts` are written by hand.
 
@@ -209,7 +215,7 @@ read the docs bundled with the installed package
   `contribute/expression.md`.
 - `packages/runtime-sdk` — `defineRuntime()`, which turns a runtime definition
   (`gen`, `dev`, `build`, `doctor`) into the factory a config calls
-  (`juceRuntime({...})`).
+  (`vst3Runtime({...})`).
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (`@soundor/environment`'s declarations copied, plus `soundor:parameters`
   and `soundor:native` from the config), paths, logger, errors, command
@@ -222,8 +228,8 @@ read the docs bundled with the installed package
 - `packages/cli` (`soundor`) — `gen`, `dev`, `build`, `doctor`. Loads
   the config, bundles the UI with tsdown (`src/ui/bundle.ts`: npm deps inlined,
   `soundor:*` left as imports) into one ES module, `bundle.mjs`, then calls
-  each runtime's phase. A runtime that runs another form makes it: the JUCE
-  runtime lowers the bundle for Hermes (`src/native-ui.ts`) with the
+  each runtime's phase. A runtime that runs another form makes it: the VST3
+  runtime lowers the bundle for Hermes (`src/ui.ts`) with the
   `toNativeModule()` of the engine it links (`@soundor/engine/native-module`). `dev` tails
   the plugin's log file and maps stack frames back through source maps.
   It ships the Rust SDK (`rust/soundor`), which `gen` copies into each
@@ -285,7 +291,6 @@ read the docs bundled with the installed package
   content-addressed cache; `SOUNDOR_ENGINE_WASM`), following the VST3 host's
   rules: integrity or network failures are errors, never a reason to build.
   See `contribute/web-engine.md` and the docs' `engine.md`.
-- `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, the managed host in `native/plugin/` and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/vst3-runtime` — the VST3 runtime (Linux, macOS, Windows): `native/` the adapter
   (`libsoundor_vst3.a`: component, controller, editor, descriptor, expression
   interpreter, generic `soundor:state`/`presets`/`native`), `rust/` the
@@ -304,8 +309,8 @@ read the docs bundled with the installed package
   protocol (`protocol.json`). Independently versioned; its executables ship as
   generated platform packages (`targets.json`, `scripts/release.ts`), never
   committed. `@soundor/driver` has it as an optional peer, for its `vst3` entry, and
-  `@soundor/juce-runtime` for `soundor dev`, which opens the VST3 in it when the
-  project installs it. See `contribute/vst3-host.md`.
+  `@soundor/vst3-runtime` as a required one, for `soundor dev`, which opens
+  the plugin in it. See `contribute/vst3-host.md`.
 - `configs/*` — private shared tsconfig and tsdown presets.
 - `apps/website` — soundor.dev (private, never published): Fumadocs on
   TanStack Start, prerendered to static files for GitHub Pages. Content in
@@ -327,7 +332,7 @@ read the docs bundled with the installed package
 `soundor.config.ts` → generated contract → each runtime implements the same
 `soundor:*` modules (`parameters`, `host`, `ui`, `native`, `storage`, `fs`)
 and the same subset of Web globals. The web runtime deliberately reproduces
-the JUCE runtime's semantics (parameter behavior, compiled from the same
+the VST3 runtime's semantics (parameter behavior, from the same
 expressions, and gestures, event routing, error
 messages), so a behavior change in one runtime usually needs the matching change
 in the other. Layout is the same C++ in both: styles are read by
@@ -361,7 +366,7 @@ Soundor owns its accessibility semantics: React props → `node.accessibility`
 (`soundor:ui`) → the semantic tree (`a11y::SurfaceSemantics` natively; the
 same rules in `engine/web/src/ui/semantics.ts`) → a platform backend.
 The backends are ARIA (web), native AT-SPI over system GDBus (Linux), native UI Automation
-(Windows) and Soundor's own Apple bridges (macOS, iOS). JUCE only supplies the native view; UI Automation
+(Windows) and Soundor's own Apple bridges (macOS, iOS). The plugin's editor only supplies the native view; UI Automation
 types never leave `src/a11y/windows/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
 swizzle (see `contribute/apple-accessibility.md`).
@@ -377,8 +382,8 @@ framework or runtime package, rather than user-owned starter templates.
 
 ### Native runtime invariants (`engine`)
 
-- The core library is backend-independent and never includes JUCE; JUCE
-  adapters live in `backend/juce/`. A third-party header (Hermes, Yoga, Skia,
+- The core library is backend-independent and never includes a plugin
+  format's SDK; the VST3 adapter lives in `runtimes/vst3-runtime/native/`. A third-party header (Hermes, Yoga, Skia,
   ANGLE) is included only by the directory that wraps it (Hermes's
   `hermes.h` only in `src/js/`, JSI through `src/js/Bindings.h`, EGL/GLES only
   in `src/gpu/`).
@@ -388,14 +393,14 @@ framework or runtime package, rather than user-owned starter templates.
   callbacks and completions run only from `pump()` on the control thread.
 - Threading: JavaScript runs only on the UI/message thread. Audio-thread
   listeners only set lock-free flags; `RuntimeHost::tick()` (60 Hz from the
-  generated editor) drains them, fires timers and settles async work.
+  editor) drains them, fires timers and settles async work.
   Background I/O hands back only plain C++ results plus an operation id.
 - Only `jsi::JSError` (JSI's way of throwing into JavaScript) crosses into the
   engine: bindings run their bodies through `bind::invoke`, which turns any
   other C++ exception into one; engine errors come back as `Result<T>`.
 - JavaScript the runtime runs is in its module form (a CommonJS module
   function, lowered for Hermes by the engine's `toNativeModule()`,
-  `scripts/native-module.ts`): the plugin's `bundle.js` (the JUCE runtime
+  `scripts/native-module.ts`): the plugin's `bundle.js` (the VST3 runtime
   lowers the CLI's `bundle.mjs`), and the runtime's own modules, lowered from
   `engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
@@ -423,8 +428,9 @@ framework or runtime package, rather than user-owned starter templates.
   every frame; nothing waits for the GPU on the CPU (no `glFinish`); all of
   a device's contexts share textures, so WebGL contexts delete their own
   when they go; Apple code adds no Objective-C classes or categories.
-- `juceRuntime({ engine: { mode } })`: `prebuilt` (default) compares native
-  build-input fingerprints and selects matching binaries or local sources.
+- `engine({ target, mode })`, which the VST3 runtime calls: `prebuilt`
+  (default) compares native build-input fingerprints and selects matching
+  binaries or local sources.
   Release metadata comes from the published engine's `artifacts/manifest.json`
   (written by the release workflow, never committed); the workspace resolves
   the exact published npm manifest. Examples use the default prebuilt mode.
@@ -440,11 +446,13 @@ framework or runtime package, rather than user-owned starter templates.
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug builds assert that no JSI
   value outlives its context).
-- Plugin builds (`soundor dev`/`build`) use Ninja on macOS and Linux and
+- Plugin builds (`soundor dev`/`build`) compile no C++: Cargo, then the
+  platform's linker (`c++` on Linux and macOS, `link.exe` on Windows). The
+  adapter's own build (`build:native`) uses Ninja on macOS and Linux and
   Visual Studio on Windows; the supported platforms are these three.
 - macOS signing comes from `ctx.signing` (`SOUNDOR_MACOS_SIGNING_IDENTITY`,
   then `signing.macos.identity`, then ad-hoc) and is always the last build
-  step (`soundor_finalize_plugin`); nothing may write into a bundle after it.
+  step; nothing may write into a bundle after it.
   Soundor never handles key material or notarization.
 
 ## Conventions
@@ -461,7 +469,7 @@ framework or runtime package, rather than user-owned starter templates.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
 - Releases are Changesets; the seventeen packages under `packages/` are a fixed version group;
-  `@soundor/engine`, `@soundor/juce-runtime`,
+  `@soundor/engine`, `@soundor/vst3-runtime`,
   `@soundor/web-runtime` and `@soundor/vst3-host` are versioned on their own.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

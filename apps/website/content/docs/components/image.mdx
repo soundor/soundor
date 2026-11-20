@@ -58,7 +58,7 @@ export function Logo() {
 }
 ```
 
-The JUCE runtime caches a parsed Skia SVG document and draws it directly into
+The VST3 runtime caches a parsed Skia SVG document and draws it directly into
 its current render target. It does not keep a small bitmap and enlarge it.
 Layout resizing changes the image's box; editor `resize: 'scale'` changes the
 physical rendering resolution, including device-pixel ratio, without changing

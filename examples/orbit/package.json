@@ -5,21 +5,21 @@
   "type": "module",
   "scripts": {
     "build": "soundor build",
-    "build:juce": "soundor build juce",
+    "build:vst3": "soundor build vst3",
     "build:web": "soundor build web",
-    "dev": "soundor dev juce",
+    "dev": "soundor dev vst3",
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "test": "vitest run --project integration",
-    "test:e2e": "soundor build juce --debug && soundor gen && vitest run --project e2e",
+    "test:e2e": "soundor build vst3 --debug && soundor gen && vitest run --project e2e",
     "test:rust": "soundor gen && cargo test --manifest-path lib/Cargo.toml",
     "test:watch": "vitest watch --project integration",
     "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
     "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },

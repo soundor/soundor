@@ -57,7 +57,7 @@ describe('registerFont', () => {
     expect(faces[1]!.descriptors).toEqual({ weight: '400', style: 'normal' });
   });
 
-  it('rejects what is not a bundled font, as the JUCE runtime does', async () => {
+  it('rejects what is not a bundled font, as the native runtime does', async () => {
     const { faces, added } = stubFonts(false);
     await expect(registerFont('Brand', FONT)).rejects.toThrow(
       `registerFont(): '${FONT}' is not a bundled font (TrueType or OpenType)`,

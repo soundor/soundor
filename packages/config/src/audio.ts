@@ -15,7 +15,7 @@ export interface AudioBus {
   optional?: boolean;
 }
 
-/** A constant latency, or latency reported by DSP through JUCE's setLatencySamples(). */
+/** A constant latency, or latency the processor reports while it runs. */
 export type AudioLatency =
   | { mode: 'fixed'; samples: number }
   | { mode: 'dynamic' };

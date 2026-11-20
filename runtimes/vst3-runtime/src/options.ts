@@ -14,8 +14,8 @@ export interface Vst3Options {
   classIds?: { processor: string; controller: string };
   /**
    * How long one call into the UI's JavaScript may run, in milliseconds,
-   * before the runtime stops it (`false`: no limit). Default 5000, as the
-   * JUCE runtime's.
+   * before the runtime stops it (`false`: no limit). Default 5000, about when an
+   * operating system shows a window as not responding.
    */
   timeLimit?: number | false;
 }

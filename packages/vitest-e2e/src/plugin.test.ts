@@ -1,9 +1,10 @@
-// The package with the real pieces: the Debug build of the JUCE test plugin in
-// the real VST3 host, under a display. Runs only when told where it is:
+// The package with the real pieces: the Debug build of the VST3 runtime's test
+// plugin in the real VST3 host, under a display. Runs only when told where it is:
 //
 //   pnpm --filter @soundor/vst3-host build:native
-//   pnpm --filter @soundor/juce-runtime test:plugin:debug
-//   SOUNDOR_VITEST_E2E_PLUGIN=<runtimes/juce-runtime/tests/plugin/.soundor/debug/juce/VST3/Soundor Test Plugin.vst3> \
+//   pnpm --filter @soundor/vst3-runtime build:native debug
+//   pnpm --filter @soundor/vst3-runtime exec soundor build vst3 --debug --config tests/plugin/soundor.config.ts
+//   SOUNDOR_VITEST_E2E_PLUGIN=<runtimes/vst3-runtime/tests/plugin/.soundor/debug/vst3/Soundor VST3 Test.vst3> \
 //     xvfb-run -a pnpm --filter @soundor/vitest-e2e exec vitest run src/plugin.test.ts
 import { rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -35,8 +36,9 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
 
   test('a parameter set through the host shows in the UI', async () => {
     const plugin = await started();
+    // Normalized: the test plugin's gain is 0 to 2.
     await plugin.parameter('Gain').set(0.25);
-    await expect(plugin.getByText('Gain: 0.25')).toHaveText(/Gain: 0\.25/);
+    await expect(plugin.getByText('Gain 0.50')).toHaveText(/Gain 0\.50/);
   }, 30_000);
 
   test('locators keep working when the editor is reopened', async () => {
@@ -56,10 +58,10 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
 
   test('screenshots show the current editor', async () => {
     const plugin = await started();
-    expect((await plugin.screenshot()).width).toBe(640);
+    expect((await plugin.screenshot()).width).toBe(320);
     await plugin.host.closeEditor();
     await plugin.openEditor();
-    expect((await plugin.screenshot()).width).toBe(640);
+    expect((await plugin.screenshot()).width).toBe(320);
   }, 30_000);
 
   test('two plugins are separate instances', async () => {
@@ -101,10 +103,10 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
     test('of another size say so', async () => {
       const plugin = await started();
       await expect(plugin).toMatchScreenshot('view');
-      await plugin.host.resizeEditor(700, 500);
+      await plugin.host.resizeEditor(400, 300);
       await expect(
         expect(plugin).toMatchScreenshot('view', { timeout: 200 }),
-      ).rejects.toThrow('the size is 700x500, not 640x480');
+      ).rejects.toThrow('the size is 400x300, not 320x240');
     }, 30_000);
   });
 

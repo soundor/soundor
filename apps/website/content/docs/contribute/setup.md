@@ -24,7 +24,7 @@ Skia, ANGLE, and Hermes and caches them in the user cache directory;
 
 ## Native checks
 
-The engine builds without JUCE. From `engine/`:
+The engine builds on its own. From `engine/`:
 
 ```sh
 cmake --workflow --preset dev        # Debug, warnings as errors, doctest suites
@@ -39,18 +39,18 @@ the installed Node dependencies because JavaScript runtime modules and test
 fixtures are lowered during the build. GPU-dependent tests skip without a
 device unless `SOUNDOR_REQUIRE_GPU=1`, which makes its absence a failure.
 
-JUCE adapter tests require an existing JUCE checkout. From
-`runtimes/juce-runtime/native/`:
+The VST3 runtime's adapter is built against the engine the runtime depends
+on (the prebuilt one, or the checkout's after an engine edit). From the
+repository root:
 
 ```sh
-cmake --workflow --preset juce
+pnpm --filter @soundor/vst3-runtime build:native   # the prebuilt adapter, both variants
+pnpm --filter @soundor/vst3-runtime test:native    # its native tests
+pnpm --filter @soundor/vst3-runtime test:plugin    # its test plugin in the VST3 host
 ```
 
-From the repository root, build the JUCE test plugin with the automatically selected engine:
-
-```sh
-pnpm --filter @soundor/juce-runtime test:plugin
-```
+On Linux without a display, run `test:plugin` under `xvfb-run -a`. See
+[the VST3 runtime's internals](/docs/contribute/vst3-runtime).
 
 See the [engine reference](/docs/contribute/engine-reference#building-and-testing) for
 embedding checks, and [Soundor Engine](/docs/engine) for source/prebuilt modes and
@@ -62,15 +62,16 @@ From the repository root, after `pnpm build`:
 
 ```sh
 pnpm --filter basic dev:web
-pnpm --filter basic dev        # JUCE
+pnpm --filter basic dev        # VST3
 pnpm --filter primitives dev:web
 pnpm --filter basic test
 pnpm --filter basic typecheck
 pnpm --filter basic build:web
 ```
 
-The native command needs JUCE and a display to open the VST3 in the host.
-Both examples install the host and use automatic engine selection: matching
+The native command needs the VST3 runtime's adapter (`build:native`, above)
+and a display to open the plugin in the host. The examples install the host
+and use automatic engine selection: matching
 releases use prebuilts; local engine changes or unpublished versions build
 from source. The examples are real applications; native CI uses the runtime's own
 test plugin fixtures, and builds only Orbit, for its end-to-end tests. See [Basic](/docs/examples/basic) and
@@ -85,7 +86,7 @@ pnpm turbo run dev --filter=website
 This builds dependencies and the examples' web versions, synchronizes embedded
 examples, builds the playground script and starts Vite. Open the URL it prints.
 Docs content reloads as you edit it. The website depends on `build:web`, which
-does not compile JUCE plugins.
+does not build native plugins.
 
 ```sh
 pnpm turbo run build --filter=website

@@ -62,8 +62,9 @@ env: {
 | `name` | The display name hosts show.                                                                                                                                                               |
 
 `plugin.version` is an optional `major.minor.patch` string (for example `1.2.0`),
-defaulting to `0.1.0`. Every runtime exposes it through `soundor:host`; JUCE
-also uses it as the plugin bundle version.
+defaulting to `0.1.0`. Every runtime exposes it through `soundor:host`; the VST3
+runtime also uses it as the plugin's version (`moduleinfo.json`, macOS's
+`Info.plist`).
 
 ### Plugin classification and vendor
 
@@ -74,13 +75,13 @@ reject that kind. No MIDI routing or controller mappings are implemented here.
 
 `plugin.categories` is a list of `'eq'`, `'dynamics'`, `'delay'`, `'reverb'`,
 `'modulation'`, `'distortion'`, `'filter'`, `'utility'`, `'analyzer'`, `'synth'`,
-`'sampler'`, or `'generator'`. JUCE maps these to VST3 categories and maps kind
-to the Audio Unit type. A DAW decides how to display the metadata.
+`'sampler'`, or `'generator'`. The VST3 runtime maps these and the kind to VST3
+subcategories. A DAW decides how to display the metadata.
 
 `plugin.vendor` declares `name`, optional `website` (a URL), and optional
 `supportEmail`. `plugin.copyright` supplies a copyright notice. These are
-shared metadata; `juceRuntime({ companyName })` remains an explicit override
-of the vendor display name for existing projects.
+shared metadata: the vendor's name is what hosts show (the vendor part of
+`plugin.id` without one).
 
 ### `audio`
 
@@ -119,20 +120,16 @@ A stereo-only plugin declares only its stereo layout and rejects mono requests.
 `defaultBuses` selects the initial arrangement for every bus whose default layout
 offers several alternatives; it is required for those buses.
 
-Latency defaults to `{ mode: 'fixed', samples: 0 }`. Use `{ mode: 'dynamic' }`
-when native DSP reports latency with JUCE's `setLatencySamples()` on the control
-thread. Tail defaults to `{ mode: 'fixed', seconds: 0 }`. With
+Latency defaults to `{ mode: 'fixed', samples: 0 }`. `{ mode: 'dynamic' }` declares
+latency that changes while the plugin runs; the VST3 runtime reports it as
+zero for now. Tail defaults to `{ mode: 'fixed', seconds: 0 }`. With
 `{ mode: 'dynamic' }`, the VST3 runtime reads the duration published by
 `ctx.report_tail_seconds(seconds)` in the [Rust processor](/docs/rust-processor).
-The JUCE runtime uses the generated C++ `setTailLengthSeconds(seconds)`.
 These declarations report processing behavior to hosts; they do not implement
 DSP, buffering, or tail rendering.
 
-JUCE generates bus construction and final layout/tail overrides in the processor
-base. For an existing project adopting `audio`, use the base's default constructor
-and remove handwritten `isBusesLayoutSupported()` and `getTailLengthSeconds()`
-overrides. `gen` preserves existing Rust starter files. With `audio` omitted,
-existing handwritten buses and overrides retain ownership.
+With `audio` omitted, a plugin has a stereo input and output (mono with
+mono), or none for a MIDI effect.
 
 The Web runtime supports one main output, at most one main input, and mono/stereo
 arrangements. It uses `defaultLayout` with explicit Web Audio channel counts and
@@ -144,13 +141,13 @@ into the device's speaker arrangement.
 ### Parameter groups and bypass
 
 `parameterGroups` declares groups by stable key, each with a `label`.
-A parameter's optional `group` references that key. JUCE creates host parameter
-groups; the Web host groups its parameter controls. Grouping may change the
+A parameter's optional `group` references that key. The VST3 runtime makes them
+VST3 units; the Web host groups its parameter controls. Grouping may change the
 host's flattened parameter order; saved parameter identities remain their keys.
 `parameter.info.group` exposes the group key in every runtime.
 
-A single writable boolean parameter may declare `role: 'bypass'`. JUCE exposes
-it as the host bypass parameter, and `parameter.info.role` reports the role.
+A single writable boolean parameter may declare `role: 'bypass'`. The VST3 runtime exposes
+it as VST3's bypass parameter, and `parameter.info.role` reports the role.
 The declaration identifies the parameter; implement bypass audio processing,
 transitions, latency handling, and tails in DSP.
 
@@ -168,15 +165,15 @@ presets: [
 ],
 ```
 
-The same catalog powers [`soundor:presets`](/docs/api/presets), the generated C++
-processor's `presets()` API, and JUCE host program lists. Loading is synchronous
+The same catalog powers [`soundor:presets`](/docs/api/presets), the Rust
+controller's presets and the VST3 runtime's program list. Loading is synchronous
 with opt-in History; it does not change the project's state snapshot format.
 Host preset-file storage and user preset saving are separate features.
 
 ### `editor`
 
 The plugin editor's size in logical pixels, and whether it can be resized.
-It is the same in every runtime: the JUCE editor and the Web host's plugin
+It is the same in every runtime: the VST3 editor and the Web host's plugin
 view open at this size and resize within these limits.
 
 ```ts
@@ -191,7 +188,7 @@ export default defineSoundorConfig({
     maxHeight: 1000,
     resizable: true,
   },
-  runtimes: [juceRuntime(), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
   parameters: {},
 });
 ```
@@ -235,8 +232,7 @@ never do.
 
 The limits, and the aspect ratio of an editor that scales, are what the
 editor **asks for**: it offers them to its host (VST3's
-`checkSizeConstraint`), the Standalone's window keeps to them, and so does
-the web host's resize handle. Most hosts follow them. Some set a window of
+`checkSizeConstraint`), and the web host's resize handle keeps to them. Most hosts follow them. Some set a window of
 any size or shape regardless (Ardour, for one, lets a plugin window grow
 past its maximum and take any shape), and a web page that embeds the
 editor (`?embed`) makes it the size of its iframe. The editor then takes
@@ -353,8 +349,7 @@ path, custom mappings and `format`/`parse` round trips included. See
 ### `native`
 
 The plugin's typed native API, implemented by the plugin's
-[Rust controller](/docs/rust-controller) (or a runtime's own implementation:
-C++ in the JUCE runtime, TypeScript in the Web runtime) and imported by
+[Rust controller](/docs/rust-controller) (or, in the Web runtime, TypeScript of its own) and imported by
 JavaScript from `soundor:native`:
 
 ```ts
@@ -517,7 +512,7 @@ An identity is only a name: `codesign` finds the private key in the keychain,
 so key material never goes in the config or these variables, and validation
 rejects anything that looks like it. Ad-hoc signing is enough to use a plugin
 on the Mac that built it; distributing one needs a Developer ID identity and
-notarization (see the [JUCE signing guide](/docs/juce-runtime#signing-and-distributing-on-macos)).
+notarization (see [signing and distributing on macOS](/docs/vst3-runtime#signing-and-distributing-on-macos)).
 
 ## License
 

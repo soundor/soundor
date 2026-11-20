@@ -6,14 +6,14 @@ description: 'Embed the Soundor engine or implement the contract on another plat
 ## Purpose
 
 A runtime can reuse Soundor's C++ execution engine or implement the contract on
-another platform. The JUCE and web runtimes show these two approaches.
+another platform. The VST3 and web runtimes show these two approaches.
 
 ## Where the code is
 
 The engine's public API is under `engine/include/soundor/`, especially
 `runtime/RuntimeHost.h`, `ui/Surface.h`, `platform/Platform.h` and the compositor
-headers. JUCE adapters live in
-`runtimes/juce-runtime/native/backend/juce/`. The independent browser
+headers, and `editor/Editor.h`, the editor every native runtime shares. The
+VST3 adapter lives in `runtimes/vst3-runtime/native/`. The independent browser
 implementation is `runtimes/web-runtime/src/client/`.
 
 ## How it works
@@ -32,7 +32,8 @@ flowchart TD
 Create one `RuntimeHost` per plugin view on the UI/message thread. Supply its
 options: identity, UI resources and entry, parameter and host adapters, HTTP,
 private data directory, and an `installModules` callback for generated native
-bindings. Optional services have explicit failure behavior; for example,
+bindings (the VST3 adapter's generic `soundor:*` modules, driven by its
+descriptor). Optional services have explicit failure behavior; for example,
 without a data directory, storage and filesystem operations reject.
 
 Size the surface and feed it input through the public surface API. Call
@@ -43,8 +44,8 @@ presentation backend supports it. Connect the surface's semantic tree to a
 platform accessibility backend.
 
 The engine owns Hermes, Yoga, Skia, modules and UI state. The backend owns the
-native view, platform integration and presentation. Keep JUCE and other
-framework headers out of the engine. See the
+native view, platform integration and presentation. Keep plugin
+format and framework headers out of the engine. See the
 [embedding reference](/docs/contribute/engine-reference#embedding-api) for the
 API and [threading rules](/docs/contribute/engine-reference#threading-and-lifetime).
 
@@ -69,13 +70,16 @@ This route avoids the engine ABI, but it owns every semantic adaptation. DOM
 defaults alone do not establish conformance. Compare invalid values, event
 ordering, private persistence and teardown as carefully as successful rendering.
 
-### Case study: JUCE
+### Case study: VST3
 
-The Node package generates C++ interfaces, native marshalling and CMake setup.
-The user owns the processor and other starter host files. JUCE adapters connect
-parameters, HTTP, host information and editor integration to `RuntimeHost`.
-The engine supplies the UI execution and rendering layers. The runtime builds
-the requested formats and makes signing the final macOS bundle step.
+Nothing is compiled per plugin. The Node package writes the plugin's
+descriptor (the config as JSON) and a Cargo crate that embeds it and the UI
+beside the project's own crate, and links the result with the prebuilt
+adapter (Steinberg's SDK, a generic component, controller and view) and the
+prebuilt engine. The adapter connects parameters, state, presets, host
+information and the editor (`editor::Editor`) to the engine. The runtime
+makes signing the final macOS bundle step. See
+[the VST3 runtime's internals](/docs/contribute/vst3-runtime).
 
 ### Case study: web
 
@@ -89,7 +93,8 @@ loading. See [the web runtime](/docs/web-runtime).
 
 Engine integrations must preserve UI-thread ownership, clean reload, symbol
 isolation and GPU lifetime. The engine's native tests exercise these contracts;
-JUCE's adapter and test-plugin suites check its embedding. A different backend
+The VST3 runtime's native tests, test plugin and pluginval check its
+embedding. A different backend
 needs its own view/input/presentation integration tests too.
 
 Independent implementations must prove the same observable API semantics.

@@ -565,9 +565,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
                         return std::nullopt;
                     case WM_MOUSEMOVE:
                         static_cast<void>(mouse(message, wParam, lParam));
-                        // JUCE still maintains its component-under-mouse and
-                        // cursor state. Its Soundor callbacks are suppressed;
-                        // normalized input comes only from our native queue.
+                        // The window's own procedure still sees moves (its
+                        // cursor); normalized input comes only from our
+                        // native queue.
                         return std::nullopt;
                     case WM_LBUTTONDOWN:
                     case WM_LBUTTONUP:
@@ -694,8 +694,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
                             }
                         }
                         // Windows manages native preedit UI; IMEs using
-                        // WM_IME_CHAR directly remain supported. JUCE's handler
-                        // would suppress this UI without a JUCE TextInputTarget.
+                        // WM_IME_CHAR directly remain supported.
                         return DefWindowProcW(window, message, wParam, lParam);
                     default:
                         return std::nullopt;

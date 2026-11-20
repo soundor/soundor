@@ -39,7 +39,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(soundor_prebuilt_archs ${CMAKE_SYSTEM_PROCESSOR})
 else()
   message(FATAL_ERROR "There is no prebuilt engine for ${CMAKE_SYSTEM_NAME}; build it from source "
-                      "(juceRuntime({ engine: { mode: 'source' } }))")
+                      "(-DSOUNDOR_ENGINE_MODE=source)")
 endif()
 function(soundor_prebuilt_cpus out)
   set(cpus "")
@@ -155,7 +155,7 @@ function(soundor_prebuilt_read variant)
     if(this_msvc VERSION_LESS needed_msvc)
       message(FATAL_ERROR "${where} needs MSVC ${needed_msvc} or newer, and this build uses ${this_msvc}: "
                           "update Visual Studio, or build the engine from source "
-                          "(juceRuntime({ engine: { mode: 'source' } }))")
+                          "(-DSOUNDOR_ENGINE_MODE=source)")
     endif()
   endif()
 
