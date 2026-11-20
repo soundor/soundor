@@ -258,6 +258,65 @@ describe('publishing', () => {
     expect(attempt.published).toEqual([]);
   });
 
+  test('resumes when npm has metadata but the tarball is still propagating', async () => {
+    registry.versions.clear();
+    const tarballs = checkTarballs(packed(), { version: '0.3.0' });
+    await publisherInto(registry).publisher(tarballs[0]!.path);
+    const attempt = publisherInto(registry);
+    let linuxMetadataReads = 0;
+    let linuxTarballReads = 0;
+    const outcomes = await publish(tarballs, {
+      registry: registry.url,
+      publisher: attempt.publisher,
+      timeoutMs: 5_000,
+      pollIntervalMs: 1,
+      log: quiet,
+      fetcher: async (url, options) => {
+        const address = String(url);
+        if (address.includes('linux-x64-gnu')) {
+          if (address.includes('/tarballs/')) {
+            if (++linuxTarballReads === 1)
+              return new Response(null, { status: 404 });
+          } else if (++linuxMetadataReads === 2) {
+            // A stale metadata response must not make this version publishable.
+            return new Response(null, { status: 404 });
+          }
+        }
+        return fetch(url, options);
+      },
+    });
+    expect(outcomes).toEqual({
+      '@soundor/vst3-host-linux-x64-gnu': 'verified',
+      '@soundor/vst3-host-darwin-universal': 'published',
+      '@soundor/vst3-host-win32-x64': 'published',
+    });
+    expect(attempt.published).toEqual([
+      '@soundor/vst3-host-darwin-universal',
+      '@soundor/vst3-host-win32-x64',
+    ]);
+  });
+
+  test('an unavailable tarball blocks publishing and is identified in the timeout', async () => {
+    registry.versions.clear();
+    const tarballs = checkTarballs(packed(), { version: '0.3.0' });
+    await publisherInto(registry).publisher(tarballs[0]!.path);
+    const publisher = vi.fn<() => Promise<void>>(async () => {});
+    await expect(
+      publish(tarballs, {
+        registry: registry.url,
+        publisher,
+        timeoutMs: 0,
+        fetcher: async (url, options) =>
+          String(url).includes('/tarballs/')
+            ? new Response(null, { status: 404 })
+            : fetch(url, options),
+      }),
+    ).rejects.toThrow(
+      /linux-x64-gnu@0\.3\.0 \(tarball unavailable after HTTP 404\)/,
+    );
+    expect(publisher).not.toHaveBeenCalled();
+  });
+
   test('waits for published package visibility and verifies each visible build', async () => {
     registry.versions.clear();
     const tarballs = checkTarballs(packed(), { version: '0.3.0' });
@@ -276,19 +335,25 @@ describe('publishing', () => {
         const count = (requests.get(address) ?? 0) + 1;
         requests.set(address, count);
         if (
+          address.includes('win32-x64') &&
           !address.includes('/tarballs/') &&
-          !address.includes('linux-x64-gnu') &&
           count <= 2
+        )
+          return new Response(null, { status: 404 });
+        if (
+          address.includes('darwin-universal') &&
+          address.includes('/tarballs/') &&
+          count === 1
         )
           return new Response(null, { status: 404 });
         return fetch(url, options);
       },
     });
     expect([...requests.values()].filter((count) => count === 3)).toHaveLength(
-      2,
+      1,
     );
     expect([...requests.values()].filter((count) => count === 1)).toHaveLength(
-      4,
+      3,
     );
   });
 
