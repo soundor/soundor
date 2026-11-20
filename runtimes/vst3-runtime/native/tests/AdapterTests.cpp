@@ -162,7 +162,16 @@ TEST_CASE("descriptor: parameters' behaviour, ids, buses, state and presets")
     const auto plugin = parseDescriptor(descriptor());
     REQUIRE(plugin->parameters.size() == 2);
     CHECK(plugin->name == "Test");
-    CHECK(plugin->processorCid[0] == 0x01);
+    // 0102030405060708090A0B0C0D0E0F10: on Windows, a GUID's layout (the
+    // first three groups little-endian), as the SDK keeps it there.
+#ifdef _WIN32
+    const ClassId processor { 0x04, 0x03, 0x02, 0x01, 0x06, 0x05, 0x08, 0x07,
+                              0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
+#else
+    const ClassId processor { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                              0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
+#endif
+    CHECK(plugin->processorCid == processor);
     CHECK(plugin->controllerCid[15] == 0xAB);
     CHECK(plugin->inputs.size() == 1);
     CHECK(plugin->layouts.size() == 2);
