@@ -88,14 +88,18 @@ On **Windows**:
 
 - **Visual Studio 2022 (17.14) or later, or its Build Tools**, with
   "Desktop development with C++", which Rust needs too: its `link.exe` links
-  the plugin, found with `vswhere` (or the developer prompt's). Rust's
-  `x86_64-pc-windows-msvc` toolchain, the default there.
+  the plugin, found with `vswhere` (or the developer prompt's), and a
+  **Windows SDK** (Windows 11 or 10; part of that workload by default, but it
+  can be unticked), whose libraries every plugin links. Rust's
+  `x86_64-pc-windows-msvc` toolchain, the default there. Nothing is compiled
+  in the default mode: these only link.
 - Plugins link the static C runtime: users need no Visual C++
   Redistributable.
 
-`soundor doctor` checks the platform, Rust, the linker (and on Linux the
-static C++ runtime and libcurl) and the prebuilt adapters, or in source mode
-CMake and Ninja.
+`soundor doctor` checks the platform, Rust, the linker (on Windows also the
+Windows SDK and the static C runtimes it links, on Linux the static C++
+runtime and libcurl) and the prebuilt adapters, or in source mode CMake and
+Ninja.
 
 ## Options
 

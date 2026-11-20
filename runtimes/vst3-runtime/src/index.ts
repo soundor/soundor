@@ -50,6 +50,7 @@ import {
   compilerDriver,
   environmentLinkFlags,
   findMsvcLinker,
+  windowsLibraryProblem,
   linkArguments,
   MAC_EXPORTS,
   macLinkArguments,
@@ -397,6 +398,13 @@ async function linkPlugin(options: {
     case 'windows-x64': {
       const msvc = (options.deps.msvc ?? findMsvcLinker)();
       ctx.logger.info(`MSVC: ${msvc.source}`);
+      // Before link.exe's own "cannot open file 'kernel32.lib'".
+      const missing = windowsLibraryProblem(
+        msvc.libraryPaths,
+        options.deps.exists,
+      );
+      if (missing !== undefined)
+        throw new EnvError(`The plugin cannot be linked: ${missing}`);
       // LDFLAGS are the GNU drivers'; link.exe reads its own LINK variable.
       const args = windowsLinkArguments({
         ...inputs,
@@ -650,6 +658,25 @@ export async function vst3Doctor(
         status: 'ok',
         detail: `${msvc.linker} (${msvc.source})`,
       });
+      const missing = windowsLibraryProblem(
+        msvc.libraryPaths,
+        deps.exists ?? existsSync,
+      );
+      checks.push(
+        missing === undefined
+          ? {
+              label: 'Windows SDK and C runtime',
+              status: 'ok',
+              detail: 'kernel32.lib, libucrt.lib and libcmt.lib found',
+            }
+          : {
+              label: 'Windows SDK and C runtime',
+              status: 'fail',
+              detail: missing,
+              suggestion:
+                'Open the Visual Studio Installer, choose Modify, and add a Windows 11 SDK (or Windows 10 SDK) under "Desktop development with C++".',
+            },
+      );
     } catch (error) {
       checks.push({
         label: 'Linker (MSVC link.exe)',
