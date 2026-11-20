@@ -10,10 +10,19 @@
 # archive's library is linked into the plugin, never into this one.
 
 cmake_minimum_required(VERSION 3.22)
-project(SoundorVst3Adapter VERSION 0.0.0 LANGUAGES C CXX)
+# One adapter per engine target: linux-x64 (Clang or GCC), macos-universal
+# (Apple Clang, arm64 and x86_64 in one archive, as the engine's) and
+# windows-x64 (MSVC, with the static C runtime: the engine's -static
+# archives; scripts/adapter.ts sets CMAKE_MSVC_RUNTIME_LIBRARY).
+if(APPLE)
+  set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "The adapter's architectures, as the engine's")
+  project(SoundorVst3Adapter VERSION 0.0.0 LANGUAGES C CXX OBJCXX)
+else()
+  project(SoundorVst3Adapter VERSION 0.0.0 LANGUAGES C CXX)
+endif()
 
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  message(FATAL_ERROR "The VST3 runtime's adapter builds for Linux only")
+if(NOT CMAKE_SYSTEM_NAME MATCHES "^(Linux|Darwin|Windows)$")
+  message(FATAL_ERROR "The VST3 runtime's adapter builds for Linux, macOS and Windows")
 endif()
 if(NOT SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR AND NOT SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR)
   message(FATAL_ERROR "The adapter is built against an engine archive: set SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR or "
@@ -60,8 +69,14 @@ set(soundor_vst3_sources
   src/Processor.cpp
   src/State.cpp
   src/StateDocument.cpp
-  src/Strings.cpp
-  src/X11.cpp)
+  src/Strings.cpp)
+if(APPLE)
+  list(APPEND soundor_vst3_sources src/NativeWindowMac.mm src/TimerMac.cpp)
+elseif(WIN32)
+  list(APPEND soundor_vst3_sources src/NativeWindowWindows.cpp src/TimerWindows.cpp)
+else()
+  list(APPEND soundor_vst3_sources src/NativeWindowLinux.cpp src/X11.cpp)
+endif()
 
 add_library(soundor_vst3 STATIC ${soundor_vst3_sources} ${SOUNDOR_VST3_SDK_SOURCES})
 target_include_directories(soundor_vst3 PRIVATE include src)
@@ -72,19 +87,30 @@ target_link_libraries(soundor_vst3 PRIVATE soundor::runtime_internal)
 target_compile_definitions(soundor_vst3 PRIVATE $<IF:$<CONFIG:Debug>,DEVELOPMENT=1,RELEASE=1>)
 set(SOUNDOR_VST3_RUNTIME_VERSION "0.0.0" CACHE STRING "The @soundor/vst3-runtime version the adapter is built for")
 target_compile_definitions(soundor_vst3 PRIVATE "SOUNDOR_VST3_RUNTIME_VERSION=\"${SOUNDOR_VST3_RUNTIME_VERSION}\"")
-# Reproducible: no build paths in what it compiles.
-target_compile_options(soundor_vst3 PRIVATE "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=soundor-vst3"
-                                            "-ffile-prefix-map=${CMAKE_BINARY_DIR}=soundor-vst3-build")
+# Reproducible: no build paths in what it compiles (Clang, GCC).
+if(NOT MSVC)
+  target_compile_options(soundor_vst3 PRIVATE "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=soundor-vst3"
+                                              "-ffile-prefix-map=${CMAKE_BINARY_DIR}=soundor-vst3-build")
+endif()
 soundor_configure_target(soundor_vst3)
+if(APPLE)
+  # As the engine's Objective-C++.
+  target_compile_options(soundor_vst3 PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
+endif()
 # Upstream code: compiled with the adapter, linted and warned about by nobody.
-set_source_files_properties(${SOUNDOR_VST3_SDK_SOURCES} PROPERTIES SKIP_LINTING ON COMPILE_OPTIONS "-w")
-# The X11 headers, for types only: the editor loads libX11 at run time.
-find_path(SOUNDOR_X11_INCLUDE_DIR X11/Xlib.h REQUIRED)
-target_include_directories(soundor_vst3 SYSTEM PRIVATE "${SOUNDOR_X11_INCLUDE_DIR}")
+set_source_files_properties(${SOUNDOR_VST3_SDK_SOURCES} PROPERTIES SKIP_LINTING ON
+                                                                COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # The X11 headers, for types only: the editor loads libX11 at run time.
+  find_path(SOUNDOR_X11_INCLUDE_DIR X11/Xlib.h REQUIRED)
+  target_include_directories(soundor_vst3 SYSTEM PRIVATE "${SOUNDOR_X11_INCLUDE_DIR}")
+endif()
 
 # The archive as `soundor build vst3` finds it in the published package:
-# prebuilt/linux-x64-<variant>/ (scripts/adapter.ts stages it).
-set_target_properties(soundor_vst3 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+# prebuilt/<target>-<variant>/ (scripts/adapter.ts stages it). lib/ for
+# every configuration (the generator expression keeps Visual Studio from
+# adding one of its own).
+set_target_properties(soundor_vst3 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib$<0:>")
 configure_file("${SOUNDOR_VST3_SDK_LICENSE}" "${CMAKE_BINARY_DIR}/licenses/vst3sdk/LICENSE.txt" COPYONLY)
 
 if(SOUNDOR_VST3_TESTS)

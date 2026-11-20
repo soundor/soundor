@@ -22,11 +22,13 @@ same lifecycle phases. Two runtimes exist:
   child window, including through XWayland. Canvas nodes have a 2D
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
   shows without copies; Three.js runs on it unmodified.
-- `@soundor/vst3-runtime`: the same plugin as a Linux x86_64 VST3 without
-  JUCE: a generic VST3 adapter (Steinberg's SDK), prebuilt per engine
-  variant and shipped in the package, hosting the engine and the project's
-  Rust crate, which Cargo compiles with the runtime's `soundor-vst3` crate
-  (the plugin's descriptor and UI) and `c++` links. No C++ per plugin.
+- `@soundor/vst3-runtime`: the same plugin as a VST3 without JUCE, for
+  Linux x86_64, macOS and Windows x64 (each building for itself): a generic
+  VST3 adapter (Steinberg's SDK), prebuilt per platform and engine variant
+  and shipped in the package, hosting the engine and the project's Rust
+  crate, which Cargo compiles with the runtime's `soundor-vst3` crate (the
+  plugin's descriptor and UI) and the platform's linker links (`c++`, MSVC's
+  `link.exe`). No C++ per plugin.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
   Audio, without Hermes or Skia. Its `soundor:ui` is the engine itself
   (`@soundor/engine/web`): the engine's C++ core (node tree, styles, Yoga,
@@ -284,7 +286,7 @@ read the docs bundled with the installed package
   rules: integrity or network failures are errors, never a reason to build.
   See `contribute/web-engine.md` and the docs' `engine.md`.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, the managed host in `native/plugin/` and the JUCE adapters in `native/backend/juce/`.
-- `runtimes/vst3-runtime` — the Linux VST3 runtime: `native/` the adapter
+- `runtimes/vst3-runtime` — the VST3 runtime (Linux, macOS, Windows): `native/` the adapter
   (`libsoundor_vst3.a`: component, controller, editor, descriptor, expression
   interpreter, generic `soundor:state`/`presets`/`native`), `rust/` the
   private ABI's Rust side, `src/` descriptor, generated crate, link and

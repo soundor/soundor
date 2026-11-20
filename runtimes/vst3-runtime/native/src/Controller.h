@@ -17,6 +17,7 @@
 #include "ParameterHost.h"
 #include "Presets.h"
 #include "State.h"
+#include "Timer.h"
 
 #include <soundor/midi/Midi.h>
 #include <soundor/platform/Platform.h>
@@ -148,6 +149,8 @@ namespace soundor::vst3
         std::shared_ptr<processor::RustController> controller;
         std::shared_ptr<midi::Host> midi;
         Steinberg::IPtr<Steinberg::Linux::IRunLoop> runLoop;
+        // macOS and Windows: a timer of the UI thread's run loop instead.
+        std::unique_ptr<Timer> timer;
         std::atomic<bool> woken { false };
         bool restoring = false;
         bool loadingProgram = false;

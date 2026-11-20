@@ -8,7 +8,8 @@
 #
 # The same pins as @soundor/vst3-host's (hosts/vst3-host/cmake/Vst3HostDependencies.cmake):
 # each part fetched from its repository's v3.8.1_build_84 commit, verified by
-# SHA-256, and kept in the user cache (SOUNDOR_CACHE, else ~/.cache/soundor),
+# SHA-256, and kept in the user cache (SOUNDOR_CACHE, else ~/.cache/soundor,
+# ~/Library/Caches/Soundor or %LOCALAPPDATA%\Soundor\cache),
 # so a new build directory downloads nothing. VST3 SDK 3.8 is the first
 # release under the MIT license; its notice ships with the adapter
 # (licenses/vst3sdk/LICENSE.txt). Offline:
@@ -31,6 +32,10 @@ set(SOUNDOR_VST3_BASE_SHA256 "3753d45a79b5e324c2843d74a18c8f1117fe0b1118fa931265
 
 if(DEFINED ENV{SOUNDOR_CACHE} AND NOT "$ENV{SOUNDOR_CACHE}" STREQUAL "")
   set(soundor_vst3_cache "$ENV{SOUNDOR_CACHE}")
+elseif(WIN32)
+  set(soundor_vst3_cache "$ENV{LOCALAPPDATA}/Soundor/cache")
+elseif(APPLE)
+  set(soundor_vst3_cache "$ENV{HOME}/Library/Caches/Soundor")
 elseif(DEFINED ENV{XDG_CACHE_HOME} AND NOT "$ENV{XDG_CACHE_HOME}" STREQUAL "")
   set(soundor_vst3_cache "$ENV{XDG_CACHE_HOME}/soundor")
 else()
@@ -65,7 +70,7 @@ soundor_vst3_sdk_part(soundor_vst3_public_sdk vst3_public_sdk public.sdk
 
 set(sdk "${SOUNDOR_VST3_SDK_DIR}")
 # What a plugin made of the SDK's base classes compiles (as the SDK's own
-# sdk and sdk_common targets, on Linux), the module entry points included.
+# sdk and sdk_common targets).
 set(SOUNDOR_VST3_SDK_SOURCES
   "${sdk}/pluginterfaces/base/conststringtable.cpp"
   "${sdk}/pluginterfaces/base/coreiids.cpp"
@@ -85,7 +90,6 @@ set(SOUNDOR_VST3_SDK_SOURCES
   "${sdk}/public.sdk/source/common/commonstringconvert.cpp"
   "${sdk}/public.sdk/source/common/pluginview.cpp"
   "${sdk}/public.sdk/source/main/pluginfactory.cpp"
-  "${sdk}/public.sdk/source/main/linuxmain.cpp"
   "${sdk}/public.sdk/source/main/moduleinit.cpp"
   "${sdk}/public.sdk/source/vst/vstaudioeffect.cpp"
   "${sdk}/public.sdk/source/vst/vstbus.cpp"
@@ -94,4 +98,12 @@ set(SOUNDOR_VST3_SDK_SOURCES
   "${sdk}/public.sdk/source/vst/vsteditcontroller.cpp"
   "${sdk}/public.sdk/source/vst/vstinitiids.cpp"
   "${sdk}/public.sdk/source/vst/vstparameters.cpp")
+# The module's entry points, the platform's (moduleinit.cpp's on every one).
+if(APPLE)
+  list(APPEND SOUNDOR_VST3_SDK_SOURCES "${sdk}/public.sdk/source/main/macmain.cpp")
+elseif(WIN32)
+  list(APPEND SOUNDOR_VST3_SDK_SOURCES "${sdk}/public.sdk/source/main/dllmain.cpp")
+else()
+  list(APPEND SOUNDOR_VST3_SDK_SOURCES "${sdk}/public.sdk/source/main/linuxmain.cpp")
+endif()
 set(SOUNDOR_VST3_SDK_LICENSE "${sdk}/pluginterfaces/LICENSE.txt")

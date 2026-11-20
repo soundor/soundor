@@ -154,28 +154,53 @@ export async function writeCrate(
   await write('controller.bin', sources.controllerDescriptor);
 }
 
+/**
+ * Cargo's arguments for the crate. On Windows, the static C runtime, as the
+ * adapter and the engine archives it links with.
+ */
+export function crateBuildArguments(
+  manifest: string,
+  options: {
+    readonly targetDir: string;
+    readonly profile: 'debug' | 'release';
+    readonly target: string;
+  },
+): string[] {
+  const staticCrt = options.target.endsWith('-windows-msvc');
+  return [
+    'build',
+    '--manifest-path',
+    manifest,
+    '--lib',
+    '--target',
+    options.target,
+    '--target-dir',
+    options.targetDir,
+    '--message-format=json-render-diagnostics',
+    ...(options.profile === 'release' ? ['--release'] : []),
+    ...(staticCrt
+      ? [
+          '--config',
+          `target.${options.target}.rustflags=["-C", "target-feature=+crt-static"]`,
+        ]
+      : []),
+  ];
+}
+
 /** Compiles the crate in `dir`: the static library's path. */
 export async function buildCrate(options: {
   readonly dir: string;
   readonly projectRoot: string;
   readonly targetDir: string;
   readonly profile: 'debug' | 'release';
+  /** The Rust target triple (targets.ts's rustTarget()). */
+  readonly target: string;
   readonly logger: Logger;
   readonly signal?: AbortSignal;
 }): Promise<string> {
   const manifest = join(options.dir, 'Cargo.toml');
-  const args = [
-    'build',
-    '--manifest-path',
-    manifest,
-    '--lib',
-    '--target',
-    'x86_64-unknown-linux-gnu',
-    '--target-dir',
-    options.targetDir,
-    '--message-format=json-render-diagnostics',
-    ...(options.profile === 'release' ? ['--release'] : []),
-  ];
+  const args = crateBuildArguments(manifest, options);
+
   const libraries: string[] = [];
   const code = await new Promise<number | null>((resolvePromise, reject) => {
     // From the project: its rust-toolchain.toml chooses the toolchain.
@@ -232,7 +257,7 @@ export async function buildCrate(options: {
     throw new RuntimeError(
       "The plugin's Rust library failed to compile; Cargo's errors are above.",
     );
-  const library = libraries.find((file) => file.endsWith('.a'));
+  const library = libraries.find((file) => /\.(a|lib)$/.test(file));
   if (library === undefined)
     throw new RuntimeError(
       'Cargo built the plugin crate without a static library.',

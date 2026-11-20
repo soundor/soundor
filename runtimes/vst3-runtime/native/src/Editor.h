@@ -1,18 +1,19 @@
 #pragma once
 
-// The VST3 view (IPlugView, X11EmbedWindowID): the plugin's UI, as the
-// engine runs it. Its part is what a plugin framework's is in the JUCE
-// runtime: a window in the host's (its own X11 child window, on a
-// connection of its own), the run loop the host lends (IRunLoop: a 60 Hz
-// timer and the connections' descriptors), sizes, and the host's calls. The
-// engine's editor::Editor does the rest, as for the JUCE runtime's editor:
-// the runtime, placing the UI, the compositor (on the GPU in the window
-// where there is one, else on the CPU, whose frames this shows with
-// XPutImage), native input (XInput 2), the pointer lock, the cursor and
-// accessibility (AT-SPI).
+// The VST3 view (IPlugView): the plugin's UI, as the engine runs it. Its
+// part is what a plugin framework's is in the JUCE runtime: a window in the
+// host's (NativeWindow: an X11 child window on Linux, an NSView on macOS, a
+// child HWND on Windows), a run loop (the one the host lends on Linux,
+// IRunLoop: a 60 Hz timer and the connections' descriptors; a timer of the UI
+// thread's run loop elsewhere), sizes, and the host's calls. The engine's
+// editor::Editor does the rest, as for the JUCE runtime's editor: the
+// runtime, placing the UI, the compositor (on the GPU in the window where
+// there is one, else on the CPU, whose frames the window shows), native
+// input, the pointer lock, the cursor and accessibility.
 
 #include "Controller.h"
-#include "X11.h"
+#include "NativeWindow.h"
+#include "Timer.h"
 
 #include <soundor/editor/Editor.h>
 #include <soundor/render/Compositor.h>
@@ -30,35 +31,6 @@ namespace soundor::vst3
     namespace input = soundor::input;
     namespace ui = soundor::ui;
     namespace editor = soundor::editor;
-
-    // A CPU compositor's frames, shown in the editor's window.
-    class WindowTarget final : public render::RasterTarget
-    {
-    public:
-        void attach(x11::Window* window)
-        {
-            target = window;
-            imageWidth = imageHeight = 0;
-        }
-        Pixels acquire(int width, int height) override;
-        void present(const render::Region& damage) override;
-        // Where the frame goes in the window (physical pixels), and the
-        // colour of the bands around it.
-        void setPlacement(int x, int y, std::uint32_t background);
-        // Shows the last frame again, and the bands (an Expose, a resize).
-        void repaint();
-
-    private:
-        void put(int x, int y, int width, int height);
-
-        x11::Window* target = nullptr;
-        std::vector<std::uint32_t> pixels;
-        int imageWidth = 0;
-        int imageHeight = 0;
-        int left = 0;
-        int top = 0;
-        std::uint32_t fill = 0xFF000000;
-    };
 
     class Editor final : public Steinberg::CPluginView,
                          public Steinberg::IPlugViewContentScaleSupport,
@@ -106,7 +78,8 @@ namespace soundor::vst3
         [[nodiscard]] editor::Editor::Options editorOptions();
         // The view's logical size, from its physical rect.
         [[nodiscard]] ui::Size logicalSize() const;
-        [[nodiscard]] void* nativeWindow() const noexcept;
+        // Native units (the window's: ViewRect's) per logical pixel.
+        [[nodiscard]] float nativeScale() const noexcept;
         void readWindowEvents();
         void tick();
         [[nodiscard]] Steinberg::ViewRect constrained(Steinberg::ViewRect wanted) const;
@@ -118,18 +91,20 @@ namespace soundor::vst3
         ui::Size holdSize(ui::Size wanted) override;
         void requestSize(ui::Size wanted) override;
         void placed(const editor::Placement& placement) override;
+        void pressed() override;
         void inputStarted(input::PlatformInput& input) override;
         void inputFailed(const std::string& why) override;
 
         Controller* controller;
         const Plugin& definition;
-        std::unique_ptr<x11::Window> window;
+        std::unique_ptr<NativeWindow> window;
+        // Linux: the host's run loop; elsewhere, a timer of the UI thread's.
         Steinberg::IPtr<Steinberg::Linux::IRunLoop> runLoop;
+        std::unique_ptr<Timer> timer;
         float contentScale = 1;
         std::shared_ptr<UiParameters> uiParameters;
         js::LogSink logSink;
-        WindowTarget image;
-        // After the window and the image it shows frames in, so it goes first.
+        // After the window it shows frames in, so it goes first.
         std::unique_ptr<editor::Editor> engineEditor;
         bool focusedByHost = false;
         bool attachedToHost = false;

@@ -2,19 +2,33 @@
 // component (Processor) and its controller, described from the plugin's
 // descriptor. The component is not distributable: it and its controller
 // share memory when they share a process (Link.h), so hosts are not invited
-// to run them apart. ModuleEntry and ModuleExit are the SDK's (linuxmain.cpp,
-// moduleinit.cpp); with this, they are the only symbols a plugin exports.
+// to run them apart. The other entry points are the SDK's (linuxmain.cpp,
+// macmain.cpp or dllmain.cpp, and moduleinit.cpp); with this, they are the
+// only symbols a plugin exports.
 
 #include "Controller.h"
 #include "Descriptor.h"
 #include "Processor.h"
 
+#include <pluginterfaces/gui/iplugview.h>
 #include <pluginterfaces/vst/ivstaudioprocessor.h>
 #include <pluginterfaces/vst/ivsteditcontroller.h>
 #include <pluginterfaces/vst/vsttypes.h>
 #include <public.sdk/source/main/pluginfactory.h>
 
 using namespace Steinberg;
+
+#if ! SMTG_OS_LINUX
+// The editor and the controller implement Linux's run loop interfaces on
+// every platform (they are only queried for on Linux), whose ids the SDK
+// defines on Linux alone (coreiids.cpp).
+namespace Steinberg
+{
+    DEF_CLASS_IID(Linux::IEventHandler)
+    DEF_CLASS_IID(Linux::ITimerHandler)
+    DEF_CLASS_IID(Linux::IRunLoop)
+} // namespace Steinberg
+#endif
 
 extern "C" SMTG_EXPORT_SYMBOL IPluginFactory* PLUGIN_API GetPluginFactory()
 {

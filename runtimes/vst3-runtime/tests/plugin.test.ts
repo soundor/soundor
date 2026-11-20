@@ -1,7 +1,7 @@
 // The test plugin (tests/plugin), built by the VST3 runtime, in a real VST3
 // host (@soundor/vst3-host): what a DAW does with it, checked by what comes
-// out. `pnpm test:plugin` builds it first; the editor tests need an X
-// display (CI runs them under xvfb-run).
+// out. `pnpm test:plugin` builds it first; on Linux, the editor tests need
+// an X display (CI runs them under xvfb-run).
 
 import { spawnSync } from 'node:child_process';
 import {
@@ -34,9 +34,34 @@ const plugin = fileURLToPath(
     import.meta.url,
   ),
 );
+// Linux needs an X server; macOS and Windows runners have a desktop.
 const display =
-  process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '';
+  process.platform !== 'linux' ||
+  (process.env['DISPLAY'] !== undefined && process.env['DISPLAY'] !== '');
 // Instances.cpp, which `pnpm test:native` builds.
+/**
+ * A class id as the VST3 host reports it: its bytes in order. On Windows the
+ * SDK keeps an id as a GUID, whose first three groups are little-endian, so
+ * the bytes of the id hosts write (FUID::toString, moduleinfo.json) differ.
+ */
+function hostClassId(id: string): string {
+  if (process.platform !== 'win32') return id;
+  const swap = (hex: string) => hex.match(/../g)!.reverse().join('');
+  return (
+    swap(id.slice(0, 8)) +
+    swap(id.slice(8, 12)) +
+    swap(id.slice(12, 16)) +
+    id.slice(16)
+  );
+}
+
+/** The view the host gives the editor (VST3's platform type strings). */
+function platformType(): string {
+  if (process.platform === 'darwin') return 'NSView';
+  if (process.platform === 'win32') return 'HWND';
+  return 'X11EmbedWindowID';
+}
+
 const instances = fileURLToPath(
   new URL(
     '../native/build/tests/tests/soundor_vst3_instances',
@@ -103,7 +128,7 @@ describe('the VST3 test plugin', () => {
       name: 'Soundor VST3 Test',
       vendor: 'Soundor',
       version: '1.2.3',
-      classId: ids.processor,
+      classId: hostClassId(ids.processor),
       separateController: true,
       hasController: true,
       latencySamples: 32,
@@ -346,29 +371,34 @@ describe('the VST3 test plugin', () => {
     expect(await output(second!)).toBeCloseTo(0.25);
   });
 
-  it('exports only its three VST3 entry points', () => {
-    const result = spawnSync(
-      'nm',
-      [
-        '-D',
-        '--defined-only',
-        `${plugin}/Contents/x86_64-linux/Soundor VST3 Test.so`,
-      ],
-      {
-        encoding: 'utf8',
-      },
-    );
-    expect(result.status, result.stderr).toBe(0);
-    const symbols = result.stdout
-      .trim()
-      .split('\n')
-      .map((line) => line.split(' ').pop());
-    expect(symbols.sort()).toEqual([
-      'GetPluginFactory',
-      'ModuleEntry',
-      'ModuleExit',
-    ]);
-  });
+  // Windows exports what the adapter dllexports (link.ts), checked by pluginval loading it.
+  it.runIf(process.platform === 'linux' || process.platform === 'darwin')(
+    'exports only its three VST3 entry points',
+    () => {
+      const linux = process.platform === 'linux';
+      const result = spawnSync(
+        'nm',
+        linux
+          ? [
+              '-D',
+              '--defined-only',
+              `${plugin}/Contents/x86_64-linux/Soundor VST3 Test.so`,
+            ]
+          : ['-gU', `${plugin}/Contents/MacOS/Soundor VST3 Test`],
+        { encoding: 'utf8' },
+      );
+      expect(result.status, result.stderr).toBe(0);
+      const symbols = result.stdout
+        .trim()
+        .split('\n')
+        .map((line) => line.split(' ').pop());
+      expect(symbols.sort()).toEqual(
+        linux
+          ? ['GetPluginFactory', 'ModuleEntry', 'ModuleExit']
+          : ['_GetPluginFactory', '_bundleEntry', '_bundleExit'],
+      );
+    },
+  );
 
   it.runIf(existsSync(instances))(
     'shares one process with its other instances and another build of itself',
@@ -483,7 +513,7 @@ describe('the VST3 test plugin', () => {
           width: 320,
           height: 240,
           resizable: true,
-          platformType: 'X11EmbedWindowID',
+          platformType: platformType(),
         });
         await expect
           .poll(

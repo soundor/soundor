@@ -1,14 +1,15 @@
-// node windows-plugin-check.mjs <plugin.dll>: fails if a Windows plugin built
-// with the static C runtime imports the C or C++ runtime DLLs after all, as users
-// would then need the Redistributable that juceRuntime({ windows: { crt: 'MT' } })
-// is there to avoid.
+// node windows-plugin-check.mjs <plugin.dll> [--exports=A,B,C]: fails if a
+// Windows plugin built with the static C runtime imports the C or C++ runtime
+// DLLs after all, as users would then need the Redistributable that
+// juceRuntime({ windows: { crt: 'MT' } }) and the VST3 runtime are there to
+// avoid; with --exports, also unless it exports exactly those names.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const RUNTIME = /^(vcruntime|msvcp|concrt|ucrtbase|api-ms-win-crt-)/i;
 
-/** The DLLs a 64-bit PE file imports, from its import directory. */
-export function importsOf(file) {
+/** A 64-bit PE file's data directory `index`'s RVA, and a file offset for any RVA. */
+function image(file, index) {
   if (file.toString('latin1', 0, 2) !== 'MZ') throw new Error('Not a PE file');
   const pe = file.readUInt32LE(0x3c);
   if (file.toString('latin1', pe, pe + 4) !== 'PE\0\0')
@@ -18,8 +19,8 @@ export function importsOf(file) {
   const optional = pe + 24;
   if (file.readUInt16LE(optional) !== 0x20b)
     throw new Error('Not a 64-bit PE file');
-  // The second entry of the data directories, at 112 in a PE32+ header.
-  const importRva = file.readUInt32LE(optional + 112 + 8);
+  // The data directories, at 112 in a PE32+ header: 8 bytes each.
+  const directoryRva = file.readUInt32LE(optional + 112 + index * 8);
   const sections = [];
   for (let index = 0; index < sectionCount; index += 1) {
     const section = optional + optionalSize + index * 40;
@@ -39,15 +40,40 @@ export function importsOf(file) {
     if (section === undefined) throw new Error(`No section holds RVA ${rva}`);
     return rva - section.rva + section.raw;
   };
+  return { directoryRva, offset };
+}
+
+/** A NUL-terminated name at `rva`. */
+function nameAt(file, offset, rva) {
+  const start = offset(rva);
+  return file.toString('latin1', start, file.indexOf(0, start));
+}
+
+/** The DLLs a 64-bit PE file imports, from its import directory (the second). */
+export function importsOf(file) {
+  const { directoryRva: importRva, offset } = image(file, 1);
   const names = [];
   if (importRva === 0) return names;
   // IMAGE_IMPORT_DESCRIPTOR: 20 bytes, the name's RVA at 12; all zero ends it.
   for (let entry = offset(importRva); ; entry += 20) {
     const nameRva = file.readUInt32LE(entry + 12);
     if (nameRva === 0) return names;
-    const start = offset(nameRva);
-    names.push(file.toString('latin1', start, file.indexOf(0, start)));
+    names.push(nameAt(file, offset, nameRva));
   }
+}
+
+/** The names a 64-bit PE file exports, from its export directory (the first). */
+export function exportsOf(file) {
+  const { directoryRva: exportRva, offset } = image(file, 0);
+  if (exportRva === 0) return [];
+  // IMAGE_EXPORT_DIRECTORY: NumberOfNames at 24, AddressOfNames at 32.
+  const directory = offset(exportRva);
+  const count = file.readUInt32LE(directory + 24);
+  const table = offset(file.readUInt32LE(directory + 32));
+  const names = [];
+  for (let index = 0; index < count; index += 1)
+    names.push(nameAt(file, offset, file.readUInt32LE(table + index * 4)));
+  return names;
 }
 
 export function runtimeImports(file) {
@@ -56,6 +82,11 @@ export function runtimeImports(file) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const path = process.argv[2];
+  const expected = process.argv
+    .slice(3)
+    .find((arg) => arg.startsWith('--exports='))
+    ?.slice('--exports='.length)
+    .split(',');
   const file = readFileSync(path);
   const found = runtimeImports(file);
   if (found.length > 0) {
@@ -63,4 +94,14 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     process.exit(1);
   }
   console.log(`${path} imports: ${importsOf(file).join(', ')}`);
+  if (expected !== undefined) {
+    const exported = exportsOf(file).sort();
+    if (exported.join(',') !== [...expected].sort().join(',')) {
+      console.error(
+        `::error::${path} exports ${exported.join(', ') || 'nothing'}, not ${expected.join(', ')}`,
+      );
+      process.exit(1);
+    }
+    console.log(`${path} exports: ${exported.join(', ')}`);
+  }
 }

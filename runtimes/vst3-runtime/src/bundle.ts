@@ -1,9 +1,11 @@
 /**
- * The Linux VST3 bundle, as the VST3 specification lays it out:
+ * The VST3 bundle, as the VST3 specification lays it out:
  *
  *   <Name>.vst3/
  *     Contents/
- *       x86_64-linux/<Name>.so
+ *       x86_64-linux/<Name>.so      Linux
+ *       MacOS/<Name>                macOS, with Info.plist and PkgInfo
+ *       x86_64-win/<Name>.vst3      Windows (a DLL)
  *       Resources/
  *         moduleinfo.json      the module's classes, for hosts that scan without loading
  *         licenses/            the notices of what the binary contains
@@ -18,6 +20,7 @@ import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { describePlugin } from './descriptor';
+import type { Vst3Target } from './targets';
 
 type Description = ReturnType<typeof describePlugin>;
 
@@ -27,15 +30,64 @@ export function bundleName(pluginName: string): string {
 }
 
 /** The bundle's paths under `dist`. */
-export function bundlePaths(dist: string, pluginName: string) {
+export function bundlePaths(
+  dist: string,
+  pluginName: string,
+  target: Vst3Target = 'linux-x64',
+) {
   const name = bundleName(pluginName);
   const bundle = join(dist, `${name}.vst3`);
+  const contents = join(bundle, 'Contents');
+  const [directory, file] =
+    target === 'macos-universal'
+      ? ['MacOS', name]
+      : target === 'windows-x64'
+        ? ['x86_64-win', `${name}.vst3`]
+        : ['x86_64-linux', `${name}.so`];
   return {
     bundle,
-    binaryDir: join(bundle, 'Contents', 'x86_64-linux'),
-    binary: join(bundle, 'Contents', 'x86_64-linux', `${name}.so`),
-    resources: join(bundle, 'Contents', 'Resources'),
+    contents,
+    binaryDir: join(contents, directory),
+    binary: join(contents, directory, file),
+    resources: join(contents, 'Resources'),
   };
+}
+
+/** A string as an XML property list holds it. */
+function plistString(value: string): string {
+  return `<string>${value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')}</string>`;
+}
+
+/** A macOS bundle's Info.plist: the bundle's identity, for the system and hosts. */
+export function infoPlist(
+  description: Description,
+  executable: string,
+  minimumOs: string,
+): string {
+  const { plugin } = description;
+  const entries: [string, string][] = [
+    ['CFBundleDevelopmentRegion', 'English'],
+    ['CFBundleExecutable', executable],
+    ['CFBundleIdentifier', plugin.id],
+    ['CFBundleInfoDictionaryVersion', '6.0'],
+    ['CFBundleName', plugin.name],
+    ['CFBundlePackageType', 'BNDL'],
+    ['CFBundleShortVersionString', plugin.version],
+    ['CFBundleSignature', '????'],
+    ['CFBundleVersion', plugin.version],
+    ['LSMinimumSystemVersion', minimumOs],
+  ];
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+${entries.map(([key, value]) => `\t<key>${key}</key>\n\t${plistString(value)}`).join('\n')}
+</dict>
+</plist>
+`;
 }
 
 /** What `moduleinfotool` writes for the module: its factory and classes. */
@@ -89,6 +141,8 @@ export function moduleInfo(description: Description, sdkVersion = 'VST 3.8.1') {
 export async function writeBundleResources(options: {
   readonly paths: ReturnType<typeof bundlePaths>;
   readonly description: Description;
+  /** macOS: the bundle's Info.plist and PkgInfo, for this minimum version. */
+  readonly macos?: { readonly minimumOs: string };
   readonly licenses: readonly {
     readonly name: string;
     readonly directory: string;
@@ -101,6 +155,17 @@ export async function writeBundleResources(options: {
     join(paths.resources, 'moduleinfo.json'),
     `${JSON.stringify(moduleInfo(options.description), null, 2)}\n`,
   );
+  if (options.macos !== undefined) {
+    await writeFile(
+      join(paths.contents, 'Info.plist'),
+      infoPlist(
+        options.description,
+        bundleName(options.description.plugin.name),
+        options.macos.minimumOs,
+      ),
+    );
+    await writeFile(join(paths.contents, 'PkgInfo'), 'BNDL????');
+  }
   for (const license of options.licenses)
     if (existsSync(license.directory))
       await cp(

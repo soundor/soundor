@@ -30,7 +30,11 @@ soundor_configure_target(soundor_vst3_tests)
 add_test(NAME soundor_vst3_tests COMMAND soundor_vst3_tests)
 
 # Plugins in one process (Instances.cpp): a host of the SDK's hosting helpers,
-# run by tests/plugin.test.ts on the built test plugin.
+# run by tests/plugin.test.ts on the built test plugin (Linux: it loads them
+# with dlopen).
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  return()
+endif()
 set(sdk "${SOUNDOR_VST3_SDK_DIR}")
 add_executable(soundor_vst3_instances
   Instances.cpp
