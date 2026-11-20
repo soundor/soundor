@@ -10,7 +10,7 @@ User guide: [VST3 runtime](/docs/vst3-runtime).
 
 A VST3 runtime for Linux, macOS and Windows in which nothing is
 compiled per plugin: a generic C++ adapter is prebuilt once per platform and
-engine variant and shipped in the npm package, and each plugin is its Rust crate and that adapter, linked with
+engine variant and released beside the npm package, and each plugin is its Rust crate and that adapter, linked with
 the prebuilt engine. What makes a plugin itself is data, read at run time.
 
 ## Where the code is
@@ -200,6 +200,32 @@ engines), with `adapter.json` naming the engine
 version and source fingerprint it was built against. A build refuses an
 adapter of another engine. The package depends on the exact engine version.
 
+### Releasing the adapters
+
+They are released as the engine's archives are, and found by the same
+cache (`src/adapter.ts`, over `@soundor/engine/archives`):
+
+- **The release.** `vst3-adapters-v<version>-<short sha>-r<revision>` on
+  GitHub: the six archives
+  (`soundor-vst3-adapter-<version>-<target>-<variant>.tar.gz`, each
+  `prebuilt/<target>-<variant>/` packed deterministically),
+  `build-info.json` and `SHA256SUMS`. `.github/scripts/vst3-adapters.mjs`
+  packs, assembles, releases and verifies it, with the engine's release code
+  (`engine-prebuilts.mjs`). A published release is never replaced: a rerun
+  of the same version and commit verifies and reuses it.
+- **The package** carries `artifacts/manifest.json` (written by the release
+  workflow from the verified public release, never committed) and no
+  adapter: each archive's URL, SHA-256 and size, and the engine it was built
+  against.
+- **A build** in an installed package takes its target's and variant's
+  archive from the manifest, downloads it once into
+  `<cache>/vst3-adapters/<sha256>/`, checks it and its `adapter.json`
+  (runtime version, target, variant, engine), and links it. In Soundor's
+  workspace (where `native/` exists) it uses `prebuilt/` instead.
+  `SOUNDOR_VST3_ADAPTER_MANIFEST` names another manifest for either: for
+  example one of archives on disk (`vst3-adapters.mjs local-manifest`), to
+  build plugins with CI's archives before they are released.
+
 ## Invariants and tests
 
 - No plugin-specific C++; no plugin framework; the engine's own input, pointer lock,
@@ -226,7 +252,9 @@ adapter of another engine. The package depends on the exact engine version.
   by SHA-256) at strictness 10 on both plugins. macOS checks the plugin's
   minimum macOS, Windows its imports (no C runtime DLL) and exports. Release
   builds the adapters in the same workflow, against the engine to be
-  published, and packs all six into the package.
+  published, packs each target's as release archives, releases all six once
+  every check has passed (`vst3-release`), and writes the package's manifest
+  from that release (`pack`).
 
 ## How to change it
 

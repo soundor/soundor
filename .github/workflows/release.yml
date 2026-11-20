@@ -23,15 +23,18 @@ name: Release
 #   vst3      when @soundor/engine or @soundor/vst3-runtime is to be
 #             published: the VST3 runtime's prebuilt adapters (Linux, macOS,
 #             Windows), built against the engine to be published, its test
-#             plugin in the VST3 host and pluginval (vst3.yml); pack puts the
-#             adapters in the package
+#             plugin in the VST3 host and pluginval (vst3.yml), packed as the
+#             archives of their release
 #
 # Publish, once all of the above passed:
 #
 #   engine-release  the engine's prebuilt release, from the archives tested
 #             above (engine-prebuilts.yml, phase release)
-#   pack      build, write the engine's artifacts/manifest.json from the
-#             verified public release, generate and pack the VST3 host's
+#   vst3-release  the VST3 runtime's adapter release, from the archives
+#             tested above (vst3-adapters.mjs), when it is to be published
+#   pack      build, write the engine's and the VST3 runtime's
+#             artifacts/manifest.json from their verified public releases,
+#             generate and pack the VST3 host's
 #             platform packages from those executables and pin them in the
 #             host's manifest, pack the planned packages, and check the packed
 #             engine and host
@@ -42,7 +45,8 @@ name: Release
 #   website   deploy soundor.dev from the released commit (website.yml), so
 #             the docs describe what npm has
 #
-# npm is published only once the engine's binaries are publicly downloadable.
+# npm is published only once the engine's binaries and the VST3 runtime's
+# adapters are publicly downloadable.
 # A failed run is safe to repeat: a published prebuilt release is reused,
 # npm never republishes a version, and versions already published leave the
 # plan.
@@ -203,11 +207,11 @@ jobs:
   # prebuilt release it reuses; the released engine when only the VST3
   # runtime is published.
 
-  # The VST3 runtime's prebuilt adapter, which its package carries: built
-  # against the engine it pins (this run's archives, or the published
-  # release), tested, validated by pluginval, and kept for pack. An engine
-  # release runs it too: the engine is tested in a real plugin before it is
-  # published.
+  # The VST3 runtime's prebuilt adapters, which its package's manifest
+  # names: built against the engine it pins (this run's archives, or the
+  # published release), tested, validated by pluginval, and packed for
+  # vst3-release. An engine release runs it too: the engine is tested in a
+  # real plugin before it is published.
   vst3:
     name: VST3 runtime
     needs: [select, validate, engine, host-artifacts]
@@ -253,15 +257,90 @@ jobs:
       phase: release
       revision: ${{ inputs.engine-revision || '' }}
 
+  # The adapters every VST3 job built and tested, as one GitHub release
+  # (vst3-adapters-v<version>-<short sha>-r<revision>), from main only. A
+  # published release of this version and commit is verified and reused,
+  # never replaced; a draft left by an interrupted run is finished.
+  vst3-release:
+    name: VST3 adapter release
+    needs: [select, validate, engine, host-artifacts, engine-release, vst3]
+    if: >-
+      always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
+      needs.select.outputs.vst3 == 'true' &&
+      needs.validate.result == 'success' && needs.vst3.result == 'success' &&
+      (needs.select.outputs.engine != 'true' || needs.engine-release.result == 'success') &&
+      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Only main's commits are released
+        run: |
+          git fetch --quiet origin main
+          if [ "$GITHUB_REF" != "refs/heads/main" ] || ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::VST3 adapters are released from main only ($GITHUB_REF, $GITHUB_SHA)"
+            exit 1
+          fi
+      - name: Plan
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/vst3-adapters.mjs plan --commit "$GITHUB_SHA"
+      - name: Download the adapters
+        if: steps.plan.outputs.action == 'build'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: vst3-adapter-${{ github.sha }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/vst3-adapters
+      - name: Assemble and release
+        if: steps.plan.outputs.action == 'build'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          DRAFT: ${{ steps.plan.outputs.draft }}
+        run: |
+          set -eo pipefail
+          revision=${TAG##*-r}
+          assets="$RUNNER_TEMP/assets"
+          node .github/scripts/vst3-adapters.mjs assemble "$RUNNER_TEMP/vst3-adapters" "$assets" --commit "$GITHUB_SHA" --revision "$revision"
+          cp "$RUNNER_TEMP"/vst3-adapters/*.tar.gz "$assets/"
+          node .github/scripts/vst3-adapters.mjs release "$assets" --commit "$GITHUB_SHA" --revision "$revision" --mode publish ${DRAFT:+--draft "$DRAFT"} | tee "$RUNNER_TEMP/release.txt"
+          {
+            echo "### VST3 adapters"
+            echo
+            echo "\`$TAG\`"
+            echo
+            cat "$assets/release-notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '^immutable=false$' "$RUNNER_TEMP/release.txt"; then
+            echo "::warning::$TAG is published but not immutable: enable release immutability in the repository settings"
+          fi
+
   pack:
     name: Pack
-    needs: [select, validate, engine, host-artifacts, engine-release, vst3]
+    needs:
+      [
+        select,
+        validate,
+        engine,
+        host-artifacts,
+        engine-release,
+        vst3,
+        vst3-release,
+      ]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
       needs.validate.result == 'success' &&
       (needs.select.outputs.vst3 != 'true' && needs.select.outputs.engine != 'true' ||
         needs.vst3.result == 'success') &&
       (needs.select.outputs.engine != 'true' || needs.engine-release.result == 'success') &&
+      (needs.select.outputs.vst3 != 'true' || needs.vst3-release.result == 'success') &&
       (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     runs-on: ubuntu-24.04
     permissions:
@@ -321,15 +400,14 @@ jobs:
           path: ${{ runner.temp }}/vst3-host-tarballs
           if-no-files-found: error
 
-      # The adapters the VST3 jobs built and tested, one per target, into the
-      # package (prebuilt/<target>-<variant>/, never committed).
-      - name: Download the VST3 runtime's adapters
+      # Never committed: the adapters' release, downloaded anonymously and
+      # checked against build-info.json first. The package carries no adapter.
+      - name: The VST3 runtime's adapter manifest
         if: needs.select.outputs.vst3 == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: vst3-adapter-${{ github.sha }}-*
-          merge-multiple: true
-          path: runtimes/vst3-runtime/prebuilt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.vst3-release.outputs.tag }}
+        run: node .github/scripts/vst3-adapters.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out runtimes/vst3-runtime/artifacts/manifest.json
 
       - name: Pack
         id: pack
@@ -348,18 +426,9 @@ jobs:
         if: needs.select.outputs.engine == 'true'
         run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" engine/artifacts/manifest.json
 
-      - name: The packed VST3 runtime carries its adapter
+      - name: The packed VST3 runtime carries the adapter manifest
         if: needs.select.outputs.vst3 == 'true'
-        run: |
-          set -eo pipefail
-          tarball=$(find "$RUNNER_TEMP/packed" -name 'soundor-vst3-runtime-*.tgz' | head -1)
-          [ -n "$tarball" ] || { echo "::error::No packed @soundor/vst3-runtime"; exit 1; }
-          for adapter in linux-x64-{debug,release}/lib/libsoundor_vst3.a \
-                         macos-universal-{debug,release}/lib/libsoundor_vst3.a \
-                         windows-x64-{debug,release}/lib/soundor_vst3.lib; do
-            tar -tzf "$tarball" | grep -qx "package/prebuilt/$adapter" ||
-              { echo "::error::$tarball has no prebuilt/$adapter"; exit 1; }
-          done
+        run: node .github/scripts/vst3-adapters.mjs check-pack "$RUNNER_TEMP/packed" runtimes/vst3-runtime/artifacts/manifest.json
 
       - name: The packed VST3 host pins its platform packages
         if: needs.select.outputs.host == 'true'

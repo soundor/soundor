@@ -279,7 +279,7 @@ function checkWebStage(stage, metadata, expected) {
   return metadata;
 }
 
-function exists(path) {
+export function exists(path) {
   try {
     lstatSync(path);
     return true;
@@ -289,7 +289,7 @@ function exists(path) {
 }
 
 /** Every file under <directory>, sorted, as paths relative to it ("/"). */
-function files(directory, base = directory) {
+export function files(directory, base = directory) {
   if (!exists(directory)) return [];
   return readdirSync(directory)
     .sort()
@@ -359,9 +359,25 @@ export async function pack(stage, out, expected) {
     metadata.target.name,
     metadata.variant,
   );
+  const executable = new Set(metadata.hermes ? [metadata.hermes.compiler] : []);
+  return packDirectory(stage, out, file, metadata, executable);
+}
+
+/**
+ * Packs every file of <stage> as <out>/<file> (a .tar.gz whose one top
+ * directory is its name without the extension), deterministically, and
+ * writes its sidecar <file>.json: <metadata> with the file, SHA-256 and size.
+ * The VST3 runtime's adapter archives are packed the same way.
+ */
+export async function packDirectory(
+  stage,
+  out,
+  file,
+  metadata,
+  executable = new Set(),
+) {
   const top = file.replace(/\.tar\.gz$/, '');
   mkdirSync(out, { recursive: true });
-  const executable = new Set(metadata.hermes ? [metadata.hermes.compiler] : []);
   async function* tar() {
     for (const path of files(stage)) {
       const contents = readFileSync(join(stage, path));
@@ -582,12 +598,27 @@ async function download(client, release, asset) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+/** What a release's build-info.json must say as its plan does. */
+const engineIdentity = [
+  'engineVersion',
+  'abiNamespace',
+  'sourceCommit',
+  'revision',
+  'tag',
+];
+
 /**
  * Verifies a release against <planned>: exactly the planned assets, a
- * build-info.json that names the same engine, commit and revision, and every
- * archive's SHA-256 (downloaded, and GitHub's own digest where it has one).
+ * build-info.json that names the same <identity> (engine, commit and
+ * revision), and every archive's SHA-256 (downloaded, and GitHub's own
+ * digest where it has one).
  */
-export async function verifyRelease(client, release, planned) {
+export async function verifyRelease(
+  client,
+  release,
+  planned,
+  identity = engineIdentity,
+) {
   const names = release.assets.map((a) => a.name).sort();
   const wanted = [...planned.assets].sort();
   if (names.join('\n') !== wanted.join('\n'))
@@ -600,13 +631,7 @@ export async function verifyRelease(client, release, planned) {
       'utf8',
     ),
   );
-  for (const key of [
-    'engineVersion',
-    'abiNamespace',
-    'sourceCommit',
-    'revision',
-    'tag',
-  ])
+  for (const key of identity)
     if (info[key] !== planned[key])
       throw new Error(
         `${release.tag_name}: build-info.json says ${key} ${info[key]}, not ${planned[key]}`,
@@ -635,10 +660,20 @@ export async function verifyRelease(client, release, planned) {
 /**
  * What a run has to do for <commit>: reuse its published release (verified),
  * finish a draft of it, or build. Without an explicit revision, the highest
- * published revision is reused, else revision 1 is built.
+ * published revision is reused, else revision 1 is built. <kind> names
+ * another kind of release (the VST3 runtime's adapters): its tag prefix,
+ * plan and build-info identity.
  */
-export async function decide(client, { version, commit, revision }) {
-  const prefix = `engine-prebuilts-v${version}-${commit.slice(0, 8)}-r`;
+export async function decide(
+  client,
+  { version, commit, revision },
+  kind = {
+    prefix: `engine-prebuilts-v${version}-${commit.slice(0, 8)}-r`,
+    plan,
+    identity: engineIdentity,
+  },
+) {
+  const { prefix } = kind;
   const releases = (await client.releases()).filter((r) =>
     r.tag_name?.startsWith(prefix),
   );
@@ -648,14 +683,14 @@ export async function decide(client, { version, commit, revision }) {
     const published = releases.filter((r) => !r.draft).map(revisionOf);
     chosen = published.length ? Math.max(...published) : 1;
   }
-  const planned = plan({ version, commit, revision: chosen });
+  const planned = kind.plan({ version, commit, revision: chosen });
   const release = releases.find((r) => r.tag_name === planned.tag);
   if (!release) return { action: 'build', plan: planned };
   if (release.draft)
     return { action: 'build', plan: planned, draft: release.id };
   // Published releases are immutable: never rebuilt over. A wrong one needs a
   // higher revision.
-  await verifyRelease(client, release, planned);
+  await verifyRelease(client, release, planned, kind.identity);
   return { action: 'reuse', plan: planned, url: release.html_url };
 }
 
@@ -664,8 +699,19 @@ export async function decide(client, { version, commit, revision }) {
  * draft's assets are ever replaced), verifies it, and in "publish" mode
  * publishes it (never as the repository's latest release) and verifies the
  * public assets anonymously. "stage" mode deletes the verified draft.
+ * <title> and <identity> name another kind of release.
  */
-export async function release(client, directory, planned, { mode, draft }) {
+export async function release(
+  client,
+  directory,
+  planned,
+  {
+    mode,
+    draft,
+    title = `Engine prebuilts ${planned.engineVersion} (${planned.sourceCommit.slice(0, 8)}, r${planned.revision})`,
+    identity = engineIdentity,
+  },
+) {
   if (!['stage', 'publish'].includes(mode))
     throw new Error(`Unknown release mode ${mode}`);
   const notes = readFileSync(join(directory, 'release-notes.md'), 'utf8');
@@ -677,7 +723,7 @@ export async function release(client, directory, planned, { mode, draft }) {
       body: {
         tag_name: planned.tag,
         target_commitish: planned.sourceCommit,
-        name: `Engine prebuilts ${planned.engineVersion} (${planned.sourceCommit.slice(0, 8)}, r${planned.revision})`,
+        name: title,
         body: notes,
         draft: true,
         prerelease: false,
@@ -702,7 +748,7 @@ export async function release(client, directory, planned, { mode, draft }) {
     });
   }
   current = await client.call('GET', `/releases/${current.id}`);
-  await verifyRelease(client, current, planned);
+  await verifyRelease(client, current, planned, identity);
   if (mode === 'stage') {
     await client.call('DELETE', `/releases/${current.id}`);
     return { staged: true };
@@ -716,7 +762,7 @@ export async function release(client, directory, planned, { mode, draft }) {
   );
   if (!published || published.draft)
     throw new Error(`${planned.tag} did not publish`);
-  await verifyRelease(client, published, planned);
+  await verifyRelease(client, published, planned, identity);
   return {
     published: true,
     url: published.html_url,
@@ -882,17 +928,17 @@ export function checkPack(directory, expected) {
 
 // ── Command line ──────────────────────────────────────────────────────────
 
-function option(args, name) {
+export function option(args, name) {
   const index = args.indexOf(`--${name}`);
   return index === -1 ? undefined : args[index + 1];
 }
 
-function write(path, text) {
+export function write(path, text) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, text);
 }
 
-function output(values) {
+export function output(values) {
   const lines = Object.entries(values).map(([key, value]) => `${key}=${value}`);
   if (process.env.GITHUB_OUTPUT)
     writeFileSync(process.env.GITHUB_OUTPUT, `${lines.join('\n')}\n`, {

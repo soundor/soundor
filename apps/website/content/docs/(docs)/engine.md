@@ -15,7 +15,7 @@ prebuilt archive.
 | -------------- | -------------------------------------------------- | ----------------------------------------------- |
 | What           | the C++ runtime, its headers, dependency recipes   | the VST3 adapter, the plugin build, `dev/build` |
 | Versioned      | independently (outside the Changesets fixed group) | independently (outside the fixed group)         |
-| Ships binaries | as a separate prebuilt release (native and wasm)   | its prebuilt adapters, in the npm package       |
+| Ships binaries | as a separate prebuilt release (native and wasm)   | its prebuilt adapters, as a separate release    |
 
 The [engine reference](/docs/contribute/engine-reference) documents its API, its
 modules and its internals; this page is about getting it into a plugin.

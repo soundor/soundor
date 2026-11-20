@@ -72,5 +72,6 @@ playwright-report/
 __pycache__/
 *.pyc
 
-# Written when @soundor/engine is published (.github/workflows/release.yml), never committed
+# Written when @soundor/engine and @soundor/vst3-runtime are published (.github/workflows/release.yml), never committed
 engine/artifacts/manifest.json
+runtimes/vst3-runtime/artifacts/manifest.json

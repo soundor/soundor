@@ -27,6 +27,10 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./archives": {
+      "types": "./dist/archives.d.mts",
+      "import": "./dist/archives.mjs"
+    },
     "./native-module": {
       "types": "./dist/native-module.d.mts",
       "import": "./dist/native-module.mjs"

@@ -14,7 +14,7 @@
     "dist",
     "rust/Cargo.toml",
     "rust/src",
-    "prebuilt"
+    "artifacts/manifest.json"
   ],
   "type": "module",
   "sideEffects": false,

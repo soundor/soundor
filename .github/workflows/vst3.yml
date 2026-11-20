@@ -5,8 +5,8 @@ name: VST3 runtime
 # Release selected, its native tests (and on Linux clang-tidy and the Rust
 # crate's checks), its test plugin and the controller example built as VST3s,
 # tested in the VST3 host (UI and audio) and validated by pluginval. Release
-# keeps the adapters (the artifacts the npm package carries); Verify keeps
-# only failure reports.
+# keeps the adapters, packed as the archives of their GitHub release
+# (vst3-adapters.mjs); Verify keeps only failure reports.
 on:
   workflow_call:
     inputs:
@@ -43,7 +43,7 @@ on:
         type: string
         default: ''
       keep-adapter:
-        description: Upload the staged adapters as vst3-adapter-<sha>-<target> (Release packs them)
+        description: Pack the adapters and upload them as vst3-adapter-<sha>-<target> (Release publishes them)
         type: boolean
         default: false
       msvc-toolset:
@@ -162,12 +162,18 @@ jobs:
               --strictness-level 10 --validate-in-process --output-dir "$RUNNER_TEMP/pluginval-logs" \
               --validate "$plugin"
           done
-      - name: Keep the adapter
+      # The release archives of the adapters tested above, with their
+      # sidecars (.github/scripts/vst3-adapters.mjs); Release publishes them.
+      - name: Pack the adapters
+        if: inputs.keep-adapter
+        shell: bash
+        run: node .github/scripts/vst3-adapters.mjs pack runtimes/vst3-runtime/prebuilt "$RUNNER_TEMP/vst3-adapters" --commit "$GITHUB_SHA"
+      - name: Keep the adapters
         if: inputs.keep-adapter
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vst3-adapter-${{ github.sha }}-linux-x64
-          path: runtimes/vst3-runtime/prebuilt
+          path: ${{ runner.temp }}/vst3-adapters
           if-no-files-found: error
       - name: Keep the failure reports
         if: failure()
@@ -318,12 +324,18 @@ jobs:
             "$pluginval" --strictness-level 10 --validate-in-process --output-dir "$RUNNER_TEMP/pluginval-logs" \
               --validate "$plugin"
           done
-      - name: Keep the adapter
+      # The release archives of the adapters tested above, with their
+      # sidecars (.github/scripts/vst3-adapters.mjs); Release publishes them.
+      - name: Pack the adapters
+        if: inputs.keep-adapter
+        shell: bash
+        run: node .github/scripts/vst3-adapters.mjs pack runtimes/vst3-runtime/prebuilt "$RUNNER_TEMP/vst3-adapters" --commit "$GITHUB_SHA"
+      - name: Keep the adapters
         if: inputs.keep-adapter
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vst3-adapter-${{ github.sha }}-${{ matrix.target }}
-          path: runtimes/vst3-runtime/prebuilt
+          path: ${{ runner.temp }}/vst3-adapters
           if-no-files-found: error
       - name: Keep the failure reports
         if: failure()

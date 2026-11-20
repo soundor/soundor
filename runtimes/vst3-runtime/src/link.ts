@@ -29,12 +29,9 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { EnvError } from '@soundor/runtime-sdk';
-
-import { adapterArchiveName, type Variant, type Vst3Target } from './targets';
 
 /** What a plugin binary exports: VST3's entry points, nothing else. */
 export const VERSION_SCRIPT = `{
@@ -379,72 +376,4 @@ export function findMsvcLinker(
     libraryPaths: libraryPathsOf(variables.get('LIB')),
     source: installation,
   };
-}
-
-// ── Prebuilt adapters ──────────────────────────────────────────────────────
-
-/** What `adapter.json` says of a prebuilt adapter. */
-export interface AdapterMetadata {
-  readonly format: number;
-  readonly runtimeVersion: string;
-  readonly target: string;
-  readonly variant: Variant;
-  readonly engine: {
-    readonly version: string;
-    readonly sourceFingerprint?: string;
-    readonly abiNamespace?: string;
-  };
-}
-
-/** A prebuilt adapter's directory: `prebuilt/<target>-<variant>`. */
-export function adapterDirectory(
-  packageRoot: string,
-  target: Vst3Target,
-  variant: Variant,
-): string {
-  return join(packageRoot, 'prebuilt', `${target}-${variant}`);
-}
-
-/**
- * The prebuilt adapter for `variant`: the archive, checked against the
- * engine the plugin links (an adapter compiled against other engine headers
- * would misread its classes).
- */
-export async function findAdapter(
-  packageRoot: string,
-  target: Vst3Target,
-  variant: Variant,
-  engine: {
-    readonly version: string;
-    readonly sourceFingerprint: string | undefined;
-  },
-): Promise<string> {
-  const directory = adapterDirectory(packageRoot, target, variant);
-  const archive = join(directory, 'lib', adapterArchiveName(target));
-  const metadataFile = join(directory, 'adapter.json');
-  if (!existsSync(archive) || !existsSync(metadataFile))
-    throw new EnvError(
-      `The VST3 runtime's prebuilt ${variant} adapter is missing (${archive}). An installed @soundor/vst3-runtime ships it; in Soundor's workspace, build it with \`pnpm --filter @soundor/vst3-runtime build:native\`.`,
-    );
-  const metadata = JSON.parse(
-    await readFile(metadataFile, 'utf8'),
-  ) as AdapterMetadata;
-  if (
-    metadata.format !== 1 ||
-    metadata.target !== target ||
-    metadata.variant !== variant
-  )
-    throw new EnvError(
-      `${metadataFile} is not a ${target} ${variant} adapter this runtime reads.`,
-    );
-  if (
-    metadata.engine.version !== engine.version ||
-    (metadata.engine.sourceFingerprint !== undefined &&
-      engine.sourceFingerprint !== undefined &&
-      metadata.engine.sourceFingerprint !== engine.sourceFingerprint)
-  )
-    throw new EnvError(
-      `The VST3 runtime's ${variant} adapter was built against another engine (${metadata.engine.version}, ${metadata.engine.sourceFingerprint ?? 'unknown inputs'}) than the one this plugin links (${engine.version}, ${engine.sourceFingerprint ?? 'unknown inputs'}). In Soundor's workspace, build it again with \`pnpm --filter @soundor/vst3-runtime build:native\`.`,
-    );
-  return archive;
 }

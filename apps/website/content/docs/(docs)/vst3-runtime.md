@@ -36,8 +36,8 @@ soundor dev vst3             # opens the Debug build in the VST3 host
 A project lists it beside the web runtime, as every
 [example](https://github.com/soundor/soundor/tree/main/examples) does
 (`pnpm --filter controller build:vst3`). In Soundor's own repository, build
-the runtime's prebuilt adapter first, which the published package carries:
-`pnpm --filter @soundor/vst3-runtime build:native`.
+the runtime's prebuilt adapter first, which an installed package downloads
+instead: `pnpm --filter @soundor/vst3-runtime build:native`.
 
 ## Requirements
 
@@ -125,17 +125,23 @@ soundor.config.ts ── descriptor (JSON) ─┐
 src/ ── UI bundle ── bytecode ──────────┤ generated crate ── Cargo ──> libplugin.a ─┐
 lib/ (your crate) ──────────────────────┘ (+ soundor-vst3)                          │
                                                                                      ├─ the linker ──> Name.vst3
-@soundor/vst3-runtime: prebuilt/<target>-<variant>/lib/libsoundor_vst3.a ──────────┤
+@soundor/vst3-runtime: the prebuilt adapter (its release) ─────────────────────────┤
 @soundor/engine: the prebuilt engine archive (engine()) ────────────────────────────┘
 ```
 
 - **The VST3 adapter** (`libsoundor_vst3.a`, `soundor_vst3.lib` on Windows,
-  in the package for each platform): Steinberg's
+  one per platform and variant): Steinberg's
   [VST3 SDK](https://github.com/steinbergmedia/vst3sdk) 3.8.1 and a generic
   component (`IComponent`, `IAudioProcessor`), edit controller
   (`IEditController`, `IUnitInfo`, `IMidiMapping`) and view (`IPlugView`). It
   is the same for every plugin of a runtime version, compiled once, against
-  the exact engine the package depends on.
+  the exact engine the package depends on. The adapters are a GitHub release
+  of their own (`vst3-adapters-v<version>-…`), not in the npm package: the
+  package's `artifacts/manifest.json` names each archive with its URL,
+  SHA-256 and size, and the first build that needs one downloads it into
+  Soundor's cache (`vst3-adapters/` beside the engine's archives, under
+  `SOUNDOR_CACHE` if set), checks it, and reuses it from then on. A download
+  or checksum failure fails the build; nothing is built instead.
 - **The plugin's descriptor**: the config as JSON (identity and class ids,
   buses and layouts, MIDI, editor, parameters with their behaviour as
   [expressions](/docs/contribute/expression), state, presets, streams). The
