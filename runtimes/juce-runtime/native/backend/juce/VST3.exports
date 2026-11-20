@@ -1,8 +1,0 @@
-{
-    global:
-        GetPluginFactory;
-        ModuleEntry;
-        ModuleExit;
-    local:
-        *;
-};

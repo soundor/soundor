@@ -172,7 +172,7 @@ export async function resolveProjectDependencies(options: {
   }
 }
 
-/** Prefer the fixed group, then JUCE, Web and host, newest first in each. */
+/** Prefer the fixed group, then the VST3 runtime, Web and host, newest first in each. */
 export async function selectVersions(options: {
   golden: Readonly<Record<string, string>>;
   groups: readonly ReleaseGroup[];

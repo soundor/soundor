@@ -20,7 +20,7 @@ add_test(NAME soundor_svg_image_tests COMMAND soundor_svg_image_tests)
 set_tests_properties(soundor_svg_image_tests PROPERTIES TIMEOUT 30)
 
 # The Rust processor bridge, on a C++ processor behind its function table (the
-# JUCE runtime's tests run it on a real Rust one). Installed headers only.
+# VST3 runtime's plugin tests run it on a real Rust one). Installed headers only.
 add_executable(soundor_processor_tests main.cpp processor/RustProcessorTests.cpp processor/AudioStateTests.cpp
                                        support/AllocationCounter.cpp)
 target_link_libraries(soundor_processor_tests PRIVATE Soundor::Engine soundor_doctest)
@@ -137,7 +137,7 @@ if(SOUNDOR_JS_SOURCE)
     web/PlatformModulesTests.cpp
     web/UrlTests.cpp
     web/WebApiTests.cpp
-    # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
+    # The soundor:native fixture: typed bindings, maintained by hand.
     generated/soundor/native/SoundorNative.cpp)
   target_include_directories(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
   target_compile_definitions(soundor_runtime_tests PRIVATE
@@ -398,7 +398,7 @@ if(NOT WIN32)
     PASS_REGULAR_EXPRESSION "defined in more than one archive(.|\n)*soundor_duplicate_probe ")
 
   # Skia's copies of libjpeg-turbo, libpng and libwebp define only soundor_*
-  # names (cmake/skia/SoundorSkiaPrefix.h), so a plugin can contain JUCE's
+  # names (cmake/skia/SoundorSkiaPrefix.h), so a plugin can contain its own
   # copies too.
   set(soundor_skia_library_members "^lib(jpeg|jpeg12|jpeg16|png|webp|expat)(_[a-z0-9]+)?\\.")
   if(TARGET soundor_skia)

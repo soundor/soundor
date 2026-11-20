@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
@@ -13,5 +13,5 @@ export default defineSoundorConfig({
   // A MIDI effect defaults to no audio buses. The browser supplies a silent
   // clock connection, so the same Rust processor still runs in AudioWorklet.
   editor: { width: 680, height: 560 },
-  runtimes: [juceRuntime({ formats: ['vst3'] }), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
 });

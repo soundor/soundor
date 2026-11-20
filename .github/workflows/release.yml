@@ -17,16 +17,14 @@ name: Release
 #             release, verified and reused
 #   host-artifacts  when @soundor/vst3-host is to be published: its executables
 #             for this commit, built and tested (vst3-host-artifacts.yml)
-#   vst3      when @soundor/vst3-runtime is to be published: its prebuilt
-#             adapters (Linux, macOS, Windows), built against the engine it
-#             pins, its test plugin in the VST3 host and pluginval (vst3.yml);
-#             pack puts them in the package
 #
 # Test what uses them:
 #
-#   juce, juce9  when @soundor/engine or @soundor/juce-runtime is to be
-#             published: the JUCE adapters and a real plugin on each JUCE
-#             version, linked to the engine to be published (juce.yml)
+#   vst3      when @soundor/engine or @soundor/vst3-runtime is to be
+#             published: the VST3 runtime's prebuilt adapters (Linux, macOS,
+#             Windows), built against the engine to be published, its test
+#             plugin in the VST3 host and pluginval (vst3.yml); pack puts the
+#             adapters in the package
 #
 # Publish, once all of the above passed:
 #
@@ -78,7 +76,6 @@ jobs:
       mode: ${{ steps.mode.outputs.mode }}
       publish-plan: ${{ steps.mode.outputs.publish-plan-artifact-id }}
       engine: ${{ steps.engine.outputs.engine || 'false' }}
-      juce: ${{ steps.juce.outputs.juce || 'false' }}
       host: ${{ steps.host.outputs.host || 'false' }}
       vst3: ${{ steps.vst3.outputs.vst3 || 'false' }}
     steps:
@@ -101,19 +98,6 @@ jobs:
         run: |
           pnpm changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
           node .github/scripts/engine-prebuilts.mjs planned-engine "$RUNNER_TEMP/publish-plan.json"
-
-      # The same plan: does it publish @soundor/juce-runtime?
-      - name: Is the JUCE runtime released
-        id: juce
-        if: steps.mode.outputs.mode == 'publish'
-        run: |
-          node --input-type=module -e "
-            import { appendFileSync, readFileSync } from 'node:fs';
-            const { version, plan } = JSON.parse(readFileSync(process.argv[1], 'utf8'));
-            if (version !== 1 || !Array.isArray(plan)) throw new Error('Unknown Changesets publish plan format');
-            const juce = plan.flat().some((e) => e.kind === 'publish' && e.name === '@soundor/juce-runtime');
-            appendFileSync(process.env.GITHUB_OUTPUT, 'juce=' + juce + '\\n');
-            console.log('juce=' + juce);" "$RUNNER_TEMP/publish-plan.json"
 
       # The same plan: does it publish @soundor/vst3-runtime?
       - name: Is the VST3 runtime released
@@ -216,59 +200,21 @@ jobs:
 
   # ── Test what uses them ────────────────────────────────────────────────
   # The engine to be published: this run's archives, or the published
-  # prebuilt release it reuses; the released engine when only the JUCE
-  # runtime is published. The JUCE versions are Verify's.
-
-  juce:
-    name: JUCE 8
-    needs: [select, validate, engine, host-artifacts]
-    if: >-
-      always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
-      needs.validate.result == 'success' &&
-      (needs.select.outputs.engine == 'true' || needs.select.outputs.juce == 'true') &&
-      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success') &&
-      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/juce.yml
-    with:
-      juce: 2cdfca8feb300fb424002ba2c2751569e5bacb64 # 8.0.14
-      msvc-toolset: v143,version=14.44
-      cache: false
-      build-engine: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'build' }}
-      engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
-      build-host: ${{ needs.select.outputs.host == 'true' }}
-
-  juce9:
-    name: JUCE 9
-    needs: [select, validate, engine, host-artifacts]
-    if: >-
-      always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
-      needs.validate.result == 'success' &&
-      (needs.select.outputs.engine == 'true' || needs.select.outputs.juce == 'true') &&
-      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success') &&
-      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/juce.yml
-    with:
-      juce: 3fb5cbc0340758596dac39f7c8de47d562b4896e # 9.0.4
-      cache: false
-      build-engine: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'build' }}
-      engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
-      build-host: ${{ needs.select.outputs.host == 'true' }}
+  # prebuilt release it reuses; the released engine when only the VST3
+  # runtime is published.
 
   # The VST3 runtime's prebuilt adapter, which its package carries: built
   # against the engine it pins (this run's archives, or the published
-  # release), tested, validated by pluginval, and kept for pack.
+  # release), tested, validated by pluginval, and kept for pack. An engine
+  # release runs it too: the engine is tested in a real plugin before it is
+  # published.
   vst3:
     name: VST3 runtime
     needs: [select, validate, engine, host-artifacts]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
-      needs.select.outputs.vst3 == 'true' && needs.validate.result == 'success' &&
+      (needs.select.outputs.vst3 == 'true' || needs.select.outputs.engine == 'true') &&
+      needs.validate.result == 'success' &&
       (needs.select.outputs.engine != 'true' || needs.engine.result == 'success') &&
       (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     permissions:
@@ -281,7 +227,7 @@ jobs:
       engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
       build-host: ${{ needs.select.outputs.host == 'true' }}
       keep-adapter: true
-      # An author on Visual Studio 2022 links the Windows adapter (as the JUCE 8 group's).
+      # An author on Visual Studio 2022 links the Windows adapter.
       msvc-toolset: v143,version=14.44
 
   # ── Publish ────────────────────────────────────────────────────────────
@@ -289,12 +235,12 @@ jobs:
 
   engine-release:
     name: Engine prebuilt release
-    needs: [select, validate, engine, host-artifacts, juce, juce9]
+    needs: [select, validate, engine, host-artifacts, vst3]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
       needs.select.outputs.engine == 'true' &&
       needs.validate.result == 'success' && needs.engine.result == 'success' &&
-      needs.juce.result == 'success' && needs.juce9.result == 'success' &&
+      needs.vst3.result == 'success' &&
       (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     permissions:
       contents: write
@@ -309,24 +255,13 @@ jobs:
 
   pack:
     name: Pack
-    needs:
-      [
-        select,
-        validate,
-        engine,
-        host-artifacts,
-        juce,
-        juce9,
-        engine-release,
-        vst3,
-      ]
+    needs: [select, validate, engine, host-artifacts, engine-release, vst3]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
       needs.validate.result == 'success' &&
-      (needs.select.outputs.vst3 != 'true' || needs.vst3.result == 'success') &&
+      (needs.select.outputs.vst3 != 'true' && needs.select.outputs.engine != 'true' ||
+        needs.vst3.result == 'success') &&
       (needs.select.outputs.engine != 'true' || needs.engine-release.result == 'success') &&
-      (needs.select.outputs.engine != 'true' && needs.select.outputs.juce != 'true' ||
-        needs.juce.result == 'success' && needs.juce9.result == 'success') &&
       (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     runs-on: ubuntu-24.04
     permissions:

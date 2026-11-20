@@ -29,11 +29,11 @@
   "devDependencies": {
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
-    "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@soundor/vst3-host": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
     "@soundor/web-runtime": "workspace:*",
     "@types/node": "catalog:",
     "soundor": "workspace:*",

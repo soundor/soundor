@@ -1,22 +1,20 @@
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
-
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const webgl = join(root, '../../engine/src/gpu/webgl');
+const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
+const webgl = join(root, 'src/gpu/webgl');
 
 describe('WebGL codegen', () => {
   it('has generated files matching the IDL (pnpm gen:webgl regenerates them)', () => {
-    expect(() =>
-      execFileSync(
-        process.execPath,
-        [join(root, 'scripts/webgl-codegen.mjs'), '--check'],
-        { stdio: 'pipe' },
-      ),
-    ).not.toThrow();
+    execFileSync(
+      process.execPath,
+      [join(root, 'tools/webgl-codegen.mjs'), '--check'],
+      { stdio: 'pipe' },
+    );
   });
 
   it('numbers the hand-written operations the same in webgl.js and WebGLModule.cpp', () => {
@@ -30,7 +28,7 @@ describe('WebGL codegen', () => {
     const cppNames = [...handOp.matchAll(/(\w+),/g)].map(([, name = '']) =>
       name.toLowerCase(),
     );
-    expect(jsNames.length).toBeGreaterThan(50);
-    expect(jsNames).toEqual(cppNames);
+    assert.ok(jsNames.length > 50);
+    assert.deepEqual(jsNames, cppNames);
   });
 });

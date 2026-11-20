@@ -45,24 +45,18 @@ jobs:
           - {
               name: linux,
               os: ubuntu-24.04,
-              cc: clang,
-              cxx: clang++,
               target: linux-x64,
               host-target: linux-x64-gnu,
             }
           - {
               name: macos,
               os: macos-15,
-              cc: clang,
-              cxx: clang++,
               target: macos-universal,
               host-target: darwin-universal,
             }
           - {
               name: windows,
               os: windows-2025,
-              cc: cl,
-              cxx: cl,
               target: windows-x64,
               host-target: win32-x64,
             }
@@ -72,12 +66,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-    env:
-      CC: ${{ matrix.cc }}
-      CXX: ${{ matrix.cxx }}
-      # Match the Clang 18 bitcode emitted by JUCE's flags.
-      LDFLAGS: ${{ matrix.name == 'linux' && '-fuse-ld=lld-18' || '' }}
-      JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
@@ -125,22 +113,27 @@ jobs:
         env:
           HOST_COMMIT: ${{ inputs.host-commit || github.sha }}
         run: node hosts/vst3-host/src/cli.ts prepare --mode published --commit "$HOST_COMMIT"
-      # CI-only checkout, outside either npm package; never distributed.
-      - name: Checkout JUCE
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: juce-framework/JUCE
-          ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
-          path: .soundor/ci-juce
+      # The adapter's X11 headers (types only: plugins load libX11 at run
+      # time), and Xvfb for the editor.
       - name: Platform dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libxtst-dev libxcomposite-dev libxdamage-dev libxfixes-dev libgl-dev libgl1-mesa-dev xvfb
+        run: sudo apt-get install -y --no-install-recommends libx11-dev xvfb
       - name: Use Ninja
         if: runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+      # Linux builds with the installed Clang 18 and its linker, as vst3.yml.
+      - name: Use Clang
+        if: runner.os == 'Linux'
+        run: |
+          echo "CC=clang" >> "$GITHUB_ENV"
+          echo "CXX=clang++" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-fuse-ld=lld-18" >> "$GITHUB_ENV"
       - name: Build workspace
         run: pnpm turbo run build --filter=orbit^...
+      # The VST3 runtime's prebuilt adapter, which a workspace builds itself:
+      # the Debug one, against the selected engine.
+      - name: Build the VST3 adapter
+        run: pnpm --filter @soundor/vst3-runtime build:native debug
       # Linux has no display here; the macOS and Windows runners have a desktop.
       - name: Test
         run: |
@@ -152,7 +145,7 @@ jobs:
       - name: The plugin names the oldest macOS it supports
         if: runner.os == 'macOS'
         run: |
-          plugin=$(find examples/orbit/.soundor/debug/juce -path '*.vst3/Contents/MacOS/*' -type f | head -1)
+          plugin=$(find examples/orbit/.soundor/dist/vst3 -path '*.vst3/Contents/MacOS/*' -type f | head -1)
           [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
           .github/scripts/macos-minimum.sh 12.0 "$plugin"
       - name: Keep the failure reports

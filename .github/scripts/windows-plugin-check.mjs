@@ -1,8 +1,7 @@
 // node windows-plugin-check.mjs <plugin.dll> [--exports=A,B,C]: fails if a
 // Windows plugin built with the static C runtime imports the C or C++ runtime
-// DLLs after all, as users would then need the Redistributable that
-// juceRuntime({ windows: { crt: 'MT' } }) and the VST3 runtime are there to
-// avoid; with --exports, also unless it exports exactly those names.
+// DLLs after all, as users would then need the Redistributable that the
+// VST3 runtime's static C runtime is there to avoid; with --exports, also unless it exports exactly those names.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 

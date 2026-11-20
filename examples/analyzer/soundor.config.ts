@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
@@ -8,7 +8,7 @@ export default defineSoundorConfig({
     name: 'Soundor Analyzer',
   },
   editor: { width: 720, height: 400 },
-  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] }), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
   native: {
     // What the plugin's audio code keeps publishing and the UI draws: the
     // latest only, once a frame, never a queue (soundor:native `streams`).

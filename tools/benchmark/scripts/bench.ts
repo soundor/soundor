@@ -1,4 +1,4 @@
-// The benchmark in the JUCE runtime, headless: builds the UI bundle and
+// The benchmark in the native engine, headless: builds the UI bundle and
 // soundor_run_ui (the native `bench` preset, Release), runs the scenarios
 // several times, and prints the median of each measure with its spread
 // across runs: what a frame cost (time), and what it did (work: native calls,
@@ -724,7 +724,7 @@ if (!options['no-build']) {
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }
 const ui = path.join(benchmark, '.soundor/ui/production');
-// The bundle in the engine's module form, as the JUCE runtime makes it.
+// The bundle in the engine's module form, as the native runtimes make it.
 run(
   process.execPath,
   [

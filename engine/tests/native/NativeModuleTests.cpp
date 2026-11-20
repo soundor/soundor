@@ -1,5 +1,5 @@
-// Drives the generated `soundor:native` bindings (tests/generated, produced from
-// the fixture in src/native-codegen.test.ts) from JavaScript.
+// Drives the fixture's typed `soundor:native` bindings (tests/generated) from
+// JavaScript.
 
 #include "../support/Modules.h"
 

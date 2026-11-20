@@ -9,7 +9,6 @@ function jobs(flags = {}) {
       result: 'success',
       outputs: {
         native: 'false',
-        juce: 'false',
         benchmark: 'false',
         host: 'false',
         orbit: 'false',
@@ -23,8 +22,6 @@ function jobs(flags = {}) {
         'engine-plan',
         'engine',
         'benchmark',
-        'juce8',
-        'juce9',
         'host-plan',
         'host',
         'orbit',
@@ -56,9 +53,9 @@ test('missing decisions and affected engines using a release fail', () => {
   assert.throws(() => verifyResults(needs), /input detection/);
 });
 test('consumer checks require engine planning and the chosen artifacts', () => {
-  const needs = jobs({ juce: 'true' });
-  needs.juce8.result = 'success';
-  needs.juce9.result = 'success';
+  const needs = jobs({ vst3: 'true' });
+  needs.vst3.result = 'success';
+  needs['host-plan'] = { result: 'success', outputs: { build: 'false' } };
   needs['engine-plan'] = { result: 'success', outputs: { build: 'true' } };
   assert.throws(() => verifyResults(needs), /engine=skipped/);
   needs.engine.result = 'success';
@@ -86,7 +83,7 @@ test('an affected VST3 host requires its native checks', () => {
   needs.host.result = 'success';
   verifyResults(needs);
   // Host changes alone never require the engine's suites.
-  for (const name of ['engine', 'juce8', 'juce9'])
+  for (const name of ['engine', 'vst3'])
     assert.equal(needs[name].result, 'skipped');
 });
 test('affected Orbit tests require their job and what they use', () => {
@@ -105,17 +102,6 @@ test('affected Orbit tests require their job and what they use', () => {
   needs.host.result = 'skipped';
   verifyResults(needs);
 });
-test('an affected JUCE runtime requires both versions of JUCE', () => {
-  const needs = jobs({ juce: 'true' });
-  needs['engine-plan'] = { result: 'success', outputs: { build: 'false' } };
-  needs.juce8.result = 'success';
-  assert.throws(() => verifyResults(needs), /juce9=skipped/);
-  needs.juce9.result = 'failure';
-  assert.throws(() => verifyResults(needs), /juce9=failure/);
-  needs.juce9.result = 'success';
-  verifyResults(needs);
-});
-
 test('unchanged native packages can use validated main artifacts with their build jobs skipped', () => {
   const needs = jobs({ orbit: 'true' });
   needs.orbit.result = 'success';

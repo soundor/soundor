@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
@@ -17,12 +17,7 @@ export default defineSoundorConfig({
     maxWidth: 1600,
     maxHeight: 1200,
   },
-  runtimes: [
-    juceRuntime({
-      formats: ['vst3', 'standalone'],
-    }),
-    webRuntime({ inputs: './web/inputs.ts' }),
-  ],
+  runtimes: [vst3Runtime(), webRuntime({ inputs: './web/inputs.ts' })],
   state: {
     presetDescription: {
       type: 'string',

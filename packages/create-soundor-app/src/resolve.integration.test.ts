@@ -27,7 +27,7 @@ async function registryFixture() {
         ? ['0.7.0', '0.8.0']
         : ['0.12.0', '0.13.0', '0.14.0', '0.15.0'];
     response.setHeader('Content-Type', 'application/json');
-    if (!['@soundor/juce-runtime', '@soundor/engine'].includes(name)) {
+    if (!['@soundor/vst3-runtime', '@soundor/engine'].includes(name)) {
       response.statusCode = 404;
       response.end(JSON.stringify({ error: 'Not found' }));
       return;
@@ -51,7 +51,7 @@ async function registryFixture() {
             {
               name,
               version,
-              ...(name === '@soundor/juce-runtime'
+              ...(name === '@soundor/vst3-runtime'
                 ? {
                     dependencies: {
                       '@soundor/engine':
@@ -126,14 +126,14 @@ describe('package-manager resolution', () => {
             // Corepack otherwise selects its default pnpm and may try to
             // bootstrap a newer version through this fixture's registry.
             ...(pm === 'pnpm' ? { packageManager } : {}),
-            dependencies: { '@soundor/juce-runtime': '0.15.0' },
+            dependencies: { '@soundor/vst3-runtime': '0.15.0' },
           },
-          golden: { '@soundor/juce-runtime': '0.15.0' },
-          groups: [{ packages: ['@soundor/juce-runtime'], minimum: '0.12.0' }],
+          golden: { '@soundor/vst3-runtime': '0.15.0' },
+          groups: [{ packages: ['@soundor/vst3-runtime'], minimum: '0.12.0' }],
         });
         // 0.15.0 pins the missing engine; 0.14.0 is too young;
         // 0.13.0 itself is old enough but pins an engine that is too young.
-        expect(result.versions).toEqual({ '@soundor/juce-runtime': '0.12.0' });
+        expect(result.versions).toEqual({ '@soundor/vst3-runtime': '0.12.0' });
         expect(result.lockfile).toContain('0.7.0');
         expect(registry.requests).toContain('@soundor/engine');
         expect(await readdir(dir)).not.toContain('node_modules');

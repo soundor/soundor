@@ -48,7 +48,8 @@ try {
     'packages/devtools-server',
     'packages/devtools-client',
     'packages/driver',
-    'runtimes/juce-runtime',
+    'hosts/vst3-host',
+    'runtimes/vst3-runtime',
     'runtimes/web-runtime',
   ]) {
     const path = resolve(repository, folder);
@@ -66,7 +67,8 @@ try {
   const project = {
     soundor: tarballs.soundor,
     '@soundor/config': tarballs['@soundor/config'],
-    '@soundor/juce-runtime': tarballs['@soundor/juce-runtime'],
+    '@soundor/vst3-host': tarballs['@soundor/vst3-host'],
+    '@soundor/vst3-runtime': tarballs['@soundor/vst3-runtime'],
     '@soundor/web-runtime': tarballs['@soundor/web-runtime'],
   };
   await writeFile(
@@ -94,13 +96,13 @@ try {
     resolve(temporary, 'soundor.config.ts'),
     `
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+import { vst3Runtime } from '@soundor/vst3-runtime';
 import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
   plugin: { id: 'com.soundor.packed-runtimes', name: 'Packed runtimes' },
   parameters: { gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 } },
-  runtimes: [juceRuntime(), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
 });
 `,
   );
@@ -140,7 +142,7 @@ export default defineSoundorConfig({
   assert.doesNotMatch(help, /\binit\b/);
   for (const phase of ['gen', 'dev', 'build', 'doctor'])
     assert.match(help, new RegExp(`\\b${phase}\\b`));
-  for (const args of [['init'], ['init', 'web'], ['init', 'juce']]) {
+  for (const args of [['init'], ['init', 'web'], ['init', 'vst3']]) {
     assert.match(run(soundor, args, { status: 2 }), /Unknown command/i);
   }
   assert.ok(existsSync(resolve(temporary, 'lib/Cargo.toml')));
@@ -150,15 +152,16 @@ export default defineSoundorConfig({
     'web gen must not create a host',
   );
   assert.ok(
-    !existsSync(resolve(temporary, 'runtimes/juce')),
-    'juce gen must not create a host',
+    !existsSync(resolve(temporary, 'runtimes/vst3')),
+    'vst3 gen must not create a host',
   );
-  const juceHost = resolve(
+  // The VST3 runtime's crate, which Cargo compiles with the project's.
+  const vst3Crate = resolve(
     temporary,
-    'node_modules/@soundor/juce-runtime/native/plugin',
+    'node_modules/@soundor/vst3-runtime/rust',
   );
-  assert.ok(existsSync(resolve(juceHost, 'CMakeLists.txt')));
-  assert.ok(existsSync(resolve(juceHost, 'Plugin.cpp')));
+  assert.ok(existsSync(resolve(vst3Crate, 'Cargo.toml')));
+  assert.ok(existsSync(resolve(vst3Crate, 'src')));
   run('cargo', ['fmt', '--check', '--manifest-path', 'lib/Cargo.toml']);
   // Its tests: the controller, the processor, and allocation-free processing.
   const tested = run('cargo', ['test', '--manifest-path', 'lib/Cargo.toml']);
@@ -454,13 +457,13 @@ void bad; void broken;
 
   // The same installed project can select Web alone with default inputs;
   // no web initialization is introduced for either runtime selection.
-  await writeFile(configPath, originalConfig.replace('juceRuntime(), ', ''));
+  await writeFile(configPath, originalConfig.replace('vst3Runtime(), ', ''));
   run(soundor, ['gen']);
   run(soundor, ['build', 'web']);
   assert.ok(!existsSync(resolve(temporary, 'runtimes/web')));
 
   // The SDK is a regular dependency; the CLI is the runtime's host peer.
-  for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {
+  for (const runtime of ['@soundor/vst3-runtime', '@soundor/web-runtime']) {
     const manifest = JSON.parse(
       await readFile(
         resolve(temporary, 'node_modules', runtime, 'package.json'),

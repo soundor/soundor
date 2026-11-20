@@ -9,7 +9,7 @@ export const TEMPLATE_RELEASE_GROUPS: readonly ReleaseGroup[] = [
     packages: ['soundor', '@soundor/config', '@soundor/react'],
     minimum: '0.15.0',
   },
-  { packages: ['@soundor/juce-runtime'], minimum: '0.14.0' },
+  { packages: ['@soundor/vst3-runtime'], minimum: '0.0.0' },
   { packages: ['@soundor/web-runtime'], minimum: '0.11.0' },
   { packages: ['@soundor/vst3-host'], minimum: '0.0.0' },
 ];
