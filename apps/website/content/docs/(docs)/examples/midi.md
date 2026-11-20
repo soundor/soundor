@@ -15,7 +15,7 @@ pnpm test:rust    # sample offsets, reset, controller transport, allocation coun
 pnpm typecheck
 pnpm build:web
 pnpm test:web    # Chromium, also needs midi-arpeggiator build:web
-pnpm build:juce
+pnpm build:vst3
 ```
 
 The UI sends Note On/Off via `soundor:midi`. The same `PluginProcessor` in

@@ -14,7 +14,7 @@
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
 {
     // A platform's own input for one plugin view, read by Soundor rather than
-    // through the plugin framework (JUCE). The framework still owns the
+    // through the plugin framework. The framework still owns the
     // native view; this reads what the user does in it and hands it over in
     // ui/Input.h's normalized form, for the backend to give its Surface as
     // it gives the framework's input.
@@ -96,7 +96,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input
 
         virtual void setGeometry(const ViewGeometry& geometry) = 0;
         // While the framework shows something of its own over the view (a
-        // menu, a modal dialog: JUCE's in a Standalone), the view's input is
+        // menu, a modal dialog), the view's input is
         // the framework's, as that expects (a press outside a menu closes
         // it): a press in progress is cancelled and held keys go up (into
         // `events`), and nothing is read until it is gone.

@@ -134,7 +134,7 @@ describe('persistent state', () => {
   });
 });
 
-it('uses the JUCE logical snapshot corpus', () => {
+it('uses the logical snapshot corpus', () => {
   const schema = describeState(
     {
       selectedPreset: { type: 'string?', default: null },

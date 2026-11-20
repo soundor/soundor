@@ -145,7 +145,7 @@ jobs:
       - name: The plugin names the oldest macOS it supports
         if: runner.os == 'macOS'
         run: |
-          plugin=$(find examples/orbit/.soundor/dist/vst3 -path '*.vst3/Contents/MacOS/*' -type f | head -1)
+          plugin=$(find examples/orbit/.soundor/debug/vst3 -path '*.vst3/Contents/MacOS/*' -type f | head -1)
           [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
           .github/scripts/macos-minimum.sh 12.0 "$plugin"
       - name: Keep the failure reports

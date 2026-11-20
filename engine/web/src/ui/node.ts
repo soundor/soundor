@@ -1,7 +1,7 @@
 /**
  * `UiNode`: a node of the plugin view, drawn by one DOM element. Plugin code
  * only ever sees UiNodes; the element is this module's business. The tree,
- * its rules and errors follow the JUCE runtime (`soundor:ui` there). The
+ * its rules and errors follow the native runtime (`soundor:ui` there). The
  * engine's C++ core holds the same tree: it reads the styles and lays the
  * tree out (Yoga, and its text engine), and the view hands each node what
  * changed (`UiNode.placed()` and the like); the element is placed there.
@@ -203,7 +203,7 @@ function describe(value: unknown): string {
   return typeof value;
 }
 
-/** A drawing buffer side as the JUCE runtime takes it: negative is the default. */
+/** A drawing buffer side as the native runtime takes it: negative is the default. */
 function canvasSize(value: number, fallback: number): number {
   const size = Math.trunc(Number(value));
   return size >= 0 ? size : fallback;
@@ -413,7 +413,7 @@ export class UiNode extends TreeEventTarget {
    * The node's style. Setting it replaces the whole style; setting one of its
    * properties (`node.style.width = 120`, as on the Web) restyles the node
    * with that property changed, and '' or null removes it. Lengths may be
-   * written as CSS pixels ('120px'), like in the JUCE runtime.
+   * written as CSS pixels ('120px'), like in the native runtime.
    */
   get style(): Style {
     this.#styleView ??= new Proxy({} as Style, {
@@ -638,7 +638,7 @@ export class UiNode extends TreeEventTarget {
 
   /**
    * The canvas's context: the browser's own, as `<canvas>.getContext()`
-   * gives, for the types the JUCE runtime has too ('2d' and 'webgl2'; null
+   * gives, for the types the native runtime has too ('2d' and 'webgl2'; null
    * for others). Its methods taking an image also take canvas and image nodes.
    */
   getContext(type: string, options?: unknown): unknown {
@@ -1084,7 +1084,7 @@ export class UiNode extends TreeEventTarget {
 
   /**
    * Whether it has focus and should show it, as CSS's :focus-visible (by
-   * the JUCE runtime's rules, not the browser's): focus a pointer press
+   * the native runtime's rules, not the browser's): focus a pointer press
    * moved is not shown, unless a key is pressed after.
    */
   get focusVisible(): boolean {

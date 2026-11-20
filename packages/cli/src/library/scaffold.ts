@@ -94,7 +94,7 @@ channel = "stable"
 
 function manifest(name: string): string {
   return `# The plugin's processor and controller library, in Rust: yours, like any crate.
-# Soundor's runtimes run it, natively in JUCE and compiled to WebAssembly on
+# Soundor's runtimes run it, natively in the VST3 plugin and compiled to WebAssembly on
 # the Web; \`soundor dev\` and \`soundor build\` compile it with Cargo.
 [package]
 name = ${JSON.stringify(name)}
@@ -119,7 +119,7 @@ opt-level = 1
 }
 
 function gainProcessor(): string {
-  return `//! The plugin's audio processing. Soundor's runtimes run it: the JUCE
+  return `//! The plugin's audio processing. Soundor's runtimes run it: the VST3
 //! plugin natively, the Web host compiled to WebAssembly, in an AudioWorklet.
 //! Its parameters are soundor.config.ts's, typed: \`ctx.params.gain\`.
 
@@ -162,7 +162,7 @@ impl Processor for PluginProcessor {
 }
 
 function passThrough(): string {
-  return `//! The plugin's audio processing. Soundor's runtimes run it: the JUCE
+  return `//! The plugin's audio processing. Soundor's runtimes run it: the VST3
 //! plugin natively, the Web host compiled to WebAssembly, in an AudioWorklet.
 //! Its parameters are soundor.config.ts's, typed, in \`ctx.params\`.
 

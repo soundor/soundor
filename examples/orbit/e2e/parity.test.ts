@@ -1,4 +1,4 @@
-// Cross-runtime parity: the same lib/ crate, run as the JUCE runtime runs
+// Cross-runtime parity: the same lib/ crate, run as the VST3 runtime runs
 // it (the Debug VST3, in the VST3 host) and as the Web runtime runs it (built
 // for wasm32-unknown-unknown, driven by the worklet's WasmProcessor in
 // Node), given the same input, parameters, transport and blocks, gives the
@@ -77,8 +77,8 @@ async function throughVst3(stretches: readonly Stretch[], tempo: number) {
     for (const [title, value] of Object.entries(stretch.set))
       await host.parameter(title).set(value);
     const values: number[] = [];
-    // The host's `plain` is JUCE's normalizedParamToPlain, which is the
-    // normalized value: mapped as the plugin maps it instead.
+    // From the normalized value, mapped as the plugin maps it, as the web
+    // runtime's values are.
     for (const [index, parameter] of manifest.parameters.entries()) {
       const { normalized } = await host.parameter(parameter.label).get();
       values.push(behaviors[index]!.toValue(normalized));

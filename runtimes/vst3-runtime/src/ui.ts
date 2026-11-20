@@ -1,6 +1,5 @@
 /**
- * The plugin UI in the form the engine runs, as the JUCE runtime prepares it
- * (its native-ui.ts): the CLI's bundle lowered by the engine's own
+ * The plugin UI in the form the engine runs: the CLI's bundle lowered by the engine's own
  * toNativeModule(), so the lowering always matches the engine the plugin
  * links, in a directory laid out as the engine reads it:
  *

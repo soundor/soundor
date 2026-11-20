@@ -36,7 +36,7 @@ function HostStatus() {
 
 ## In each runtime
 
-- **JUCE:** captured on the audio thread without locking and delivered on the
+- **VST3:** captured on the audio thread without locking and delivered on the
   editor's UI tick; fine for display, not for sample-accurate scheduling.
 - **Web:** the host page's state; its sample rate and transport come from the
   page.

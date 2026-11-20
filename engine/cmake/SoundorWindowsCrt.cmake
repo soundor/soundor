@@ -5,7 +5,7 @@
 #   static                 /MT, /MTd  dependency flavours mt, mtd; archives debug-static, release-static
 #
 # Skia, ANGLE and Hermes are built for the two flavours of the one in use. The
-# JUCE runtime sets it from juceRuntime({ windows: { crt } }).
+# VST3 runtime's plugins link the static one.
 
 include_guard(GLOBAL)
 

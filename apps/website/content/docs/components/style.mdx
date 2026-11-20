@@ -106,7 +106,7 @@ moves how the node is drawn and hit, not its layout;
 
 `willChange: 'transform'` asks the renderer to prepare a view for transform
 changes. The web runtime passes it to CSS as `will-change: transform`. The
-JUCE runtime can reuse the view's cached pixels while its transform changes.
+VST3 runtime can reuse the view's cached pixels while its transform changes.
 Use the hint on individual views where it helps, since cached layers take
 memory. Omit it or use `'auto'` for the default.
 
@@ -131,7 +131,7 @@ anything: a focus ring
 ```
 
 Leave room for it: an ancestor with `overflow: 'hidden'` clips it, and in
-the JUCE runtime a later sibling drawn over the same place covers it (a
+the VST3 runtime a later sibling drawn over the same place covers it (a
 browser draws outlines above).
 
 ## Shadows

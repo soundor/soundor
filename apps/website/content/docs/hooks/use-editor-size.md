@@ -14,7 +14,7 @@ interface EditorSize {
 ```
 
 `useEditorSize()` returns the size of the editor the view is shown in (the
-plugin's window in a DAW or the Standalone, the plugin viewport on the web
+plugin's window in a DAW, the plugin viewport on the web
 host's page) and re-renders the component when it changes, whoever resized
 it: the user, the DAW, the page, or a
 [`requestEditorSize()`](/docs/api/ui#asking-for-a-size). It does not
@@ -45,7 +45,7 @@ either.
 
 ## In each runtime
 
-- **JUCE and Web:** as above; before the host shows the editor, `width` and
+- **VST3 and Web:** as above; before the host shows the editor, `width` and
   `height` are 0, and `resizable` is false for a fixed editor and in the web
   host's `?embed`, whose page owns the size.
 - **Tests:** the editor's size from the project's config (800×600 without

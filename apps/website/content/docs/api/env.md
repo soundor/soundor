@@ -18,7 +18,7 @@ env.API_BASE_URL; // a custom key declared in soundor.config.ts
 // soundor.config.ts (runs in Node)
 export default defineSoundorConfig({
   plugin: { id: 'com.acme.analyzer', name: 'Analyzer' },
-  runtimes: [juceRuntime(), webRuntime()],
+  runtimes: [vst3Runtime(), webRuntime()],
   env: {
     API_BASE_URL: process.env.API_BASE_URL ?? 'https://api.example.com',
     ENABLE_EXPERIMENTAL_UI: false,
@@ -54,7 +54,7 @@ unconfigured own key as undefined. All configured values are public and
 readable from shipped bundles: do not include secrets.
 
 The CLI embeds this module in the shared UI bundle before any runtime consumes
-it, so JUCE and web see the same values. The web runtime also resolves it for
+it, so VST3 and web see the same values. The web runtime also resolves it for
 host code such as `native.ts` and the playground. Native module lowering and
 bytecode compilation need no extra platform service.
 

@@ -75,7 +75,7 @@ export async function runBuild(
   if (options.runtime === undefined && (debug || options.out !== undefined))
     throw new ConfigError(
       'validation',
-      `${debug ? '--debug' : '--out'} needs a runtime: soundor build juce ${debug ? '--debug' : '--out <dir>'}`,
+      `${debug ? '--debug' : '--out'} needs a runtime: soundor build vst3 ${debug ? '--debug' : '--out <dir>'}`,
     );
   const config = await parseConfig({ path: configPath });
   if (

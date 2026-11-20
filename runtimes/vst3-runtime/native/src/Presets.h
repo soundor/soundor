@@ -51,12 +51,14 @@ namespace soundor::vst3
         // Called when the selection changes (a load, undo, redo), after the
         // whole change is installed; it must not throw.
         void onSelected(std::function<void()> listener);
-        // A restored project: no factory preset is selected.
+        // A restored project: the first factory preset its content matches is
+        // selected (none: custom), as a new instance's is.
         void restored();
 
     private:
         struct SelectionField;
         [[nodiscard]] bool matches(std::size_t index) const;
+        void infer();
 
         const Plugin& definition;
         std::span<const std::unique_ptr<ParameterEditor>> parameters;

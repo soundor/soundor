@@ -97,9 +97,9 @@ describe('generateChangelog', () => {
         ['packages/core', '@soundor/core', 'CLI change'],
         ['runtimes/web-runtime', '@soundor/web-runtime', 'Web runtime change'],
         [
-          'runtimes/juce-runtime',
-          '@soundor/juce-runtime',
-          'JUCE runtime change',
+          'runtimes/vst3-runtime',
+          '@soundor/vst3-runtime',
+          'VST3 runtime change',
         ],
         ['engine', '@soundor/engine', 'Engine change'],
         ['packages/yoga-wasm', '@soundor/yoga-wasm', 'Yoga WASM change'],
@@ -145,8 +145,8 @@ describe('generateChangelog', () => {
         'Web Runtime 1.0.0',
       );
       expect(
-        readFileSync(join(out, 'juce-runtime/1.0.0.md'), 'utf8'),
-      ).toContain('JUCE Runtime 1.0.0');
+        readFileSync(join(out, 'vst3-runtime/1.0.0.md'), 'utf8'),
+      ).toContain('VST3 Runtime 1.0.0');
       const sidebar = JSON.parse(
         readFileSync(join(out, 'web-runtime/meta.json'), 'utf8'),
       );
@@ -166,7 +166,7 @@ describe('generateChangelog', () => {
         '---Packages---',
         'soundor',
         '---Runtimes---',
-        'juce-runtime',
+        'vst3-runtime',
         'web-runtime',
         '---Engines---',
         'engine',
@@ -182,7 +182,7 @@ describe('generateChangelog', () => {
       expect(readFileSync(join(out, 'soundor/index.mdx'), 'utf8')).toContain(
         '| [1.0.0](/changelog/soundor/1.0.0) | 1 | 1 | 0 | 0 |',
       );
-      expect(index).toContain('/changelog/juce-runtime');
+      expect(index).toContain('/changelog/vst3-runtime');
       expect(index).toContain('/changelog/yoga-wasm');
       expect(index).toContain('/changelog/vst3-host');
       rmSync(join(root, 'packages/yoga-wasm/CHANGELOG.md'));

@@ -113,7 +113,7 @@ test('a missing bundle fails once, naming how to build it', async () => {
   const { code, stderr } = await run(['--config', 'missing.config.ts']);
   expect(code).not.toBe(0);
   expect(stderr).toContain('Missing.vst3');
-  expect(stderr).toContain('soundor build juce --debug');
+  expect(stderr).toContain('soundor build vst3 --debug');
   expect(stderr.match(/does not exist/g)).toHaveLength(1);
 }, 35_000);
 

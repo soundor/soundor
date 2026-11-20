@@ -20,7 +20,7 @@ describe('siteValues', () => {
       ['soundor', 'packages/cli'],
       ['create-soundor-app', 'packages/create-soundor-app'],
       ['@soundor/react', 'packages/react'],
-      ['@soundor/juce-runtime', 'runtimes/juce-runtime'],
+      ['@soundor/vst3-runtime', 'runtimes/vst3-runtime'],
       ['@soundor/web-runtime', 'runtimes/web-runtime'],
       ['@soundor/engine', 'engine'],
       ['@soundor/vst3-host', 'hosts/vst3-host'],

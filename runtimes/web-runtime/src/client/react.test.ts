@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // The real @soundor/react renderer on the browser's soundor:ui: the same
-// components a plugin renders in the JUCE runtime, with no ReactDOM.
+// components a plugin renders in the native runtime, with no ReactDOM.
 
 import { UiNode } from '@soundor/engine/web';
 import {

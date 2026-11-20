@@ -22,17 +22,17 @@ describe('createConsoleLogger', () => {
   it('prefixes the scope and nests child scopes', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    createConsoleLogger('juce').warn('a');
-    createConsoleLogger('juce').child('build').warn('b');
+    createConsoleLogger('vst3').warn('a');
+    createConsoleLogger('vst3').child('build').warn('b');
 
-    expect(warn).toHaveBeenNthCalledWith(1, '[juce] a');
-    expect(warn).toHaveBeenNthCalledWith(2, '[juce:build] b');
+    expect(warn).toHaveBeenNthCalledWith(1, '[vst3] a');
+    expect(warn).toHaveBeenNthCalledWith(2, '[vst3:build] b');
   });
 
   it('pipes process output without scope prefixes', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const logger = createConsoleLogger('juce');
+    const logger = createConsoleLogger('vst3');
 
     logger.pipe('-- Configuring done', 'stdout');
     logger.pipe('CMake Warning', 'stderr');

@@ -6,7 +6,7 @@
 // semantics of the expression compilers: every operation calls the same
 // helpers the C++ compiler's output calls (ExpressionRuntime.h, generated
 // from @soundor/expression's cppRuntime()), so the adapter computes the bits
-// the JUCE runtime's generated C++ and the web runtime's JavaScript compute.
+// the expression language's C++ and the web runtime's JavaScript compute.
 //
 // A tree is checked and compiled once (Expression::compile); evaluating it
 // takes no lock, and allocates only for strings: a numeric expression (a

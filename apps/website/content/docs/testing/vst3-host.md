@@ -44,8 +44,8 @@ To work with a Soundor plugin's UI beside its audio, see
 pnpm add -D @soundor/vst3-host
 ```
 
-With it installed, [`soundor dev juce`](/docs/cli/dev#what-soundor-dev-juce-opens)
-opens the plugin here too.
+With it installed, [`soundor dev vst3`](/docs/cli/dev#what-soundor-dev-vst3-opens)
+opens the plugin here.
 
 The package carries the Node API. Its executable comes in a platform package
 that npm or pnpm installs with it, the one matching the machine, at exactly

@@ -34,7 +34,7 @@ function FocusHint() {
 ## In each runtime
 
 - **Web:** `document.hasFocus()`.
-- **JUCE:** `hasKeyboardFocus(true)`, sampled before each UI tick. A closing
+- **VST3:** whether the editor's view has the keyboard, sampled before each UI tick. A closing
   native editor destroys its context without a final notification.
 - **Tests:** unfocused at the start; [`testEditor.setFocused()`](/docs/testing/test-editor)
   changes it. It does not clear the last focused control.

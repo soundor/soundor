@@ -22,7 +22,7 @@ const RUNTIME_METHODS = ['gen', 'dev', 'build', 'doctor'] as const;
 /**
  * Structural check that a value is a live {@link Runtime}: a `string` id plus
  * the five lifecycle methods. Runtimes are registered by passing the object a
- * runtime factory returns (e.g. `juceRuntime({ ... })`) into `runtimes[]`.
+ * runtime factory returns (e.g. `vst3Runtime({ ... })`) into `runtimes[]`.
  */
 function isRuntime(value: unknown): value is Runtime {
   if (typeof value !== 'object' || value === null) return false;
@@ -40,7 +40,7 @@ const runtimeSchema = z.object({
   options: z.record(z.string(), z.unknown()).optional(),
   runtime: z.custom<Runtime>(isRuntime, {
     message:
-      'missing runtime implementation; register it with a runtime factory, e.g. `runtimes: [juceRuntime({ ... })]`, not a bare `{ id }`',
+      'missing runtime implementation; register it with a runtime factory, e.g. `runtimes: [vst3Runtime({ ... })]`, not a bare `{ id }`',
   }),
 });
 

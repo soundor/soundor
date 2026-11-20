@@ -5,8 +5,8 @@ import type { Plugin } from 'vitest/config';
 
 export interface SoundorE2EOptions {
   /** The `.vst3` bundle the tests load, from the project root. Nothing here
-      builds it: `soundor build juce --debug` makes a Debug build of a Soundor
-      plugin, in `.soundor/debug/juce/`. */
+      builds it: `soundor build vst3 --debug` makes a Debug build of a Soundor
+      plugin, in `.soundor/debug/vst3/`. */
   vst3: string;
 }
 

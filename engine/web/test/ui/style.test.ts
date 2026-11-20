@@ -100,7 +100,7 @@ describe('cssFor', () => {
     });
   });
 
-  it('sets a family by its name alone, as the JUCE runtime does', () => {
+  it('sets a family by its name alone, as the native runtime does', () => {
     const family = (fontFamily: string) =>
       cssFor({ fontFamily }, 'text')['font-family'];
     expect(family('Inter 18pt')).toBe('"Inter 18pt", system-ui, sans-serif');
@@ -201,7 +201,7 @@ describe('zIndex', () => {
     expect(STYLESHEET).toMatch(/\.sd-node \{[^}]*z-index: 0;/);
   });
 
-  it('must be an integer, as in the JUCE runtime', () => {
+  it('must be an integer, as in the native runtime', () => {
     expect(readStyle({ zIndex: 2 })).toEqual({ zIndex: 2 });
     expect(() => readStyle({ zIndex: 1.5 })).toThrow(
       new TypeError('style.zIndex: expected an integer, got 1.5'),
@@ -280,7 +280,7 @@ describe('the engine reads styles', () => {
       { boxShadow: [{ inset: 1 }] },
       'style.boxShadow[0].inset: expected a boolean, got 1',
     ],
-  ])('rejects %j as the JUCE runtime does', (style, message) => {
+  ])('rejects %j as the native runtime does', (style, message) => {
     expect(() => readStyle(style)).toThrow(new TypeError(message));
   });
 

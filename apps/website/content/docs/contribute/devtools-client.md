@@ -22,7 +22,7 @@ with a one-use bootstrap ticket; the normal frontend exchanges it for a cookie
 and removes it from history. Bootstrap links opened through localhost redirect
 to the explicitly trusted 127.0.0.1 origin before authentication. The command
 starts Vite HMR, the production server
-in headless mode, and a simulated runtime. It needs no JUCE, plugin, or DAW.
+in headless mode, and a simulated runtime. It needs no plugin or DAW.
 The default port is 5173 with strict binding. The backend trusts only the
 frontend origin derived from the bound port; tests use port 0 for isolation.
 Closing Vite closes the runtime, poller and backend together.
@@ -100,7 +100,7 @@ For an existing native integration launched by the CLI, opt into that exact
 frontend origin before starting development:
 
 ```sh
-SOUNDOR_DEVTOOLS_ORIGIN=http://127.0.0.1:5173 soundor dev juce
+SOUNDOR_DEVTOOLS_ORIGIN=http://127.0.0.1:5173 soundor dev vst3
 ```
 
 Use the backend port from the CLI's credential-free DevTools URL in

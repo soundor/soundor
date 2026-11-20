@@ -6,8 +6,8 @@ description: 'Embedding API, JavaScript language support, modules, graphics, acc
 Source: [`engine/`](https://github.com/soundor/soundor/tree/main/engine).
 
 The independently versioned C++ engine owns the native UI runtime, its public
-headers, embedded resources and dependency recipes. JUCE integration lives in
-`@soundor/juce-runtime`; JUCE itself is not included here.
+headers, embedded resources and dependency recipes. The VST3 integration lives
+in `@soundor/vst3-runtime`.
 
 The engine exports its Hermes module-lowering tool from
 `@soundor/engine/native-module`.
@@ -17,11 +17,9 @@ package build compiles this small JavaScript tool only, never native libraries.
 
 Consumers `add_subdirectory()` the installed engine package and link
 `Soundor::Engine`, built from its sources (`SOUNDOR_ENGINE_MODE=source`) or
-taken from its verified prebuilt release (`prebuilt`, the JUCE runtime's
-default; see [Prebuilt engines](#prebuilt-engines) and
-[Soundor Engine](/docs/engine)). JUCE resolves that package normally,
-so pnpm workspace source changes are immediately available to source-mode
-plugin builds.
+taken from an extracted prebuilt archive (`SOUNDOR_ENGINE_PREBUILT_*_DIR`, as
+the VST3 runtime's adapter build does with the archive `engine()` prepares;
+see [Prebuilt engines](#prebuilt-engines) and [Soundor Engine](/docs/engine)).
 
 ## Native runtime
 
@@ -29,9 +27,9 @@ The C++ side of Soundor's embedded JavaScript runtime: the engine that runs
 a plugin's UI JavaScript on the UI/message thread. DSP stays native and never
 touches JavaScript.
 
-This library is **backend-independent**: it does not include JUCE, so it builds
-and tests without a plugin host. JUCE adapters live in separate targets in
-`runtimes/juce-runtime/native/backend/juce/`.
+This library is **backend-independent**: it includes no plugin format's SDK,
+so it builds and tests without a plugin host. The VST3 adapter lives in
+`runtimes/vst3-runtime/native/`.
 
 Each plugin view loads its UI bundle into a separate runtime. Development loads
 source for reloading; production embeds compiled Hermes bytecode. The engine
@@ -64,7 +62,7 @@ Commands arrive as JSON text: `debug::Value::parse` (the engine's
 in the engine, so a bridge only moves bytes. `UI.hitTest` and the
 `Input.*` commands (`src/debug/Input.cpp`) dispatch synthetic input through
 `Surface::pointer`, `wheel`, `key` and `text`, the same entry points a
-platform's input uses, then run pending jobs as the JUCE editor does after
+platform's input uses, then run pending jobs as the editor does after
 real input. `Surface::key(input, typed)` is the shared key entry: the key
 event, then its text when the UI leaves a press unhandled. The Inspector
 keeps each client's state apart, by the `client` of its commands (at most
@@ -120,32 +118,15 @@ appends a Skia raster layer after normal content for CPU or GPU composition,
 with ancestor clipping and world transforms. Static highlights keep their
 rasterization even when unrelated UI styles change; no WebGL readback is added.
 
-The JUCE adapter supplies authenticated asynchronous HTTP IPC on worker threads;
-it reads a protected descriptor provided by the launcher, never discovers ports.
-Commands carry a server-stamped target generation, including commands without
-node references. Cancellation removes queued work; host replacement rejects
-old-generation commands. Network results contain no JSI values or native node
-references. Worker failures cannot perform engine mutations or stop audio.
-
-From `runtimes/juce-runtime/native/`, `cmake --preset juce`, then the JUCE build/test presets,
-add a headless real-engine test against the actual Node server. It covers tree
-and accessibility details, highlighting, Canvas picking without application
-events, host replacement, disconnection, protected session handoff and bounded
-worker teardown. Actual cross-window interaction still needs a graphical desktop.
-
-The JUCE `soundor_debug_session` test also has optional real-browser coverage.
-With Playwright and its Chromium already installed, run from
-`runtimes/juce-runtime/native/`:
-
-```sh
-SOUNDOR_PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs ctest --test-dir build/juce -R soundor_debug_session --output-on-failure
-```
-
-This exercises the shipped inspector against the real headless native bridge:
-native picker synchronization, control ownership across tabs, runtime reload and
-mapped logs. It does not replace manual native-window overlay validation.
-`SOUNDOR_DEVTOOLS_SCREENSHOT=/tmp/inspector.png` optionally saves the browser view.
-The normal test workflow has no browser dependency and downloads no browser.
+The bridge's HTTP runs on worker threads, authenticated; it reads a protected
+descriptor provided by the launcher, never discovers ports. Commands carry a
+server-stamped target generation, including commands without node references.
+Cancellation removes queued work; host replacement rejects old-generation
+commands. Network results contain no JSI values or native node references.
+Worker failures cannot perform engine mutations or stop audio. The engine's
+`debug/BridgeTests.cpp` and `debug/InspectorTests.cpp` cover these; the
+[Driver](/docs/driver) and [`@soundor/vitest-e2e`](/docs/testing/e2e) suites
+drive a real VST3 plugin through them.
 
 ## The system's HTTP stack
 
@@ -205,9 +186,9 @@ engine/
     runtime/              RuntimeHost
     ui/                   the Surface (Yoga layout, input routing)
     web/                  the Web-compatible globals (C++ + embedded JavaScript)
-  # JUCE adapters are in ../../runtimes/juce-runtime/native/backend/juce
+  # the VST3 adapter is in ../runtimes/vst3-runtime/native
   tests/                  doctest suites + the exported-symbol check
-    generated/            golden soundor:native output, compiled by the tests
+    generated/            the soundor:native fixture (typed bindings, by hand)
   cmake/                  pinned dependencies, compiler policy, JS embedding,
     hermes/               building Hermes: the project, Soundor's additions
     angle/                building ANGLE: DEPS checkout, gn → CMake, its project
@@ -257,8 +238,8 @@ runtime.runPendingJobs();
   instead of taking the host down: Hermes cannot go on in that heap, so the
   context has to be recreated (a reload).
 - **Time**: a call into JavaScript that runs longer than
-  `RuntimeOptions::timeLimit` (0, the default: no limit; the generated editor
-  sets `juceRuntime({ timeLimit })`, 5 s by default) is stopped by the engine
+  `RuntimeOptions::timeLimit` (0, the default: no limit; the VST3 editor
+  sets `vst3Runtime({ timeLimit })`, 5 s by default) is stopped by the engine
   with a `TimeoutError` JavaScript cannot catch: it fails with that error and
   its stack, and so does every later call, as after running out of memory (a
   script stopped anywhere may have left its state half updated). The clock
@@ -285,7 +266,7 @@ it:
   JavaScript source: what `soundor dev` (it reloads the UI's source), the
   tests and `soundor_run_ui` link (`SOUNDOR_JS_SOURCE=ON`, the default);
 - **without it** (`soundor_hermes_lean`), bytecode only: what a production
-  plugin links (the generated `setup.cmake` sets `SOUNDOR_JS_SOURCE=OFF`).
+  plugin links (the release prebuilt engine, built with `SOUNDOR_JS_SOURCE=OFF`).
 
 `hermesc`, the bytecode compiler, is a build tool of the same build and is
 never linked into a plugin. Soundor's additions to Hermes (`cmake/hermes/`,
@@ -348,7 +329,7 @@ visible to `Object.getOwnPropertySymbols()`, and reading one on an object
 without it gives `undefined` instead of throwing a TypeError. `let` and
 `const` become `var` without their temporal dead zone: a variable read before
 its declaration is `undefined`, where an engine running the ES module (the
-Web runtime) throws a ReferenceError. The JUCE runtime makes a plugin's bundle
+Web runtime) throws a ReferenceError. The VST3 runtime makes a plugin's bundle
 so (`bundle.js`, from the CLI's `bundle.mjs`); the runtime's own modules (`src/**/*.js`) are lowered
 while building, into the build directory (`soundor_embed_module()`, with
 `cmake/SoundorLowerJs.mjs`), each statement on the line it has in `src/`, so
@@ -403,23 +384,15 @@ source.
 
 ### `soundor:native`
 
-The JUCE runtime's `gen` turns the config's `native` API into a C++ interface
-(`soundor::native::NativeApi`) plus bindings. The plugin implements the
-interface and installs it into each context:
-
-```cpp
-#include <soundor/native/SoundorNative.h>
-
-class Api final : public soundor::native::NativeApi
-{
-    soundor::native::Analysis analyze(std::span<const float> samples) override;
-    std::vector<float> getSpectrum() override;
-    void loadPreset(std::string path, soundor::js::Promise<std::optional<soundor::native::Preset>> promise) override;
-    void setSolo(std::optional<std::int32_t> slot) override;
-};
-
-soundor::native::install(context, std::make_shared<Api>());
-```
+The config's `native` API is implemented by the plugin's
+[Rust controller](#rust-controller-hosting). Its methods are bound
+generically (`js/RustMethods.h`): one binding per method of the controller's
+contract, which the controller descriptor (`describeController()`) gives, so
+nothing is generated per plugin. The engine's typed C++ bindings
+(`js/Bindings.h`: `bind::read`, `bind::write`, `bind::invoke`) apply the same
+rules to C++ types; the native tests' fixture (`tests/generated`) binds a
+native API with every supported shape through them, and the generic bindings
+match it, error messages included:
 
 - **Validation.** Every argument is type-checked before C++ runs, and a mismatch
   is a `TypeError` naming the path, e.g. `centroid(): points[1].y: expected
@@ -521,12 +494,11 @@ audio callback:
   `back` and `middle`; nothing is queued, so a closed, hidden or stalled UI
   costs nothing and holds three slots. `Stream::statistics()` counts what
   was published and taken; JavaScript sees the gaps in sequence numbers.
-- **Runtime-independent.** Nothing here knows JUCE: the generated
-  `native::Streams` and `native::Events` and `install()` are the engine's,
-  and a runtime only owns them (the JUCE processor's `nativeStreams`) and
-  installs them into each context it creates. Another plugin framework's
-  runtime, iPlug2's for instance, would do the same from its own processor
-  and editor, publishing from its own audio callback.
+- **Runtime-independent.** Nothing here knows a plugin format: the streams,
+  the events and their installation are the engine's, and a runtime only owns
+  them (the VST3 adapter's, from the descriptor) and installs them into each
+  context it creates. The Rust processor publishes to them from the audio
+  callback through its ABI.
 
 `tests/native/NativeStreamsTests.cpp` checks the semantics, and has a
 producer thread publishing values that carry their own number and length
@@ -561,10 +533,8 @@ Release build on a 4-core laptop CPU (Linux, 2 s per row):
   the one taken. A UI slower than the producer, or a subscriber that takes
   30 ms, only skips more values; the producer's cost is unchanged.
 
-The generator's output for a fixture covering every type is checked in under
-`tests/generated` and compiled by the native tests. A TypeScript test fails if
-it ever drifts from the generator (`UPDATE_GOLDEN=1 pnpm --filter
-@soundor/juce-runtime test` regenerates it).
+The fixture covering every type is checked in under `tests/generated` and
+compiled by the native tests; it is maintained by hand.
 
 ### `soundor:parameters`
 
@@ -581,7 +551,8 @@ parameters.gain.info; // { id, label, type, min, max, default, unit }
 ```
 
 - **One parameter store.** A backend implements `parameters::Host` over its own
-  parameter system: `JuceParameterHost` wraps the `AudioProcessorValueTreeState`.
+  parameter system: the VST3 adapter's `UiParameters` over its edit controller's
+  parameters.
   Values pass in plain units; `set()` validates the JavaScript type, then clamps
   (and rounds, for discrete kinds). Functional updaters run once on the UI thread
   against the current host value. After constraining, an unchanged value is skipped;
@@ -659,8 +630,8 @@ await writeText('presets/warm.json', JSON.stringify(preset));
   Writes are atomic. Errors are `DOMException`s (`NotFoundError`,
   `NotAllowedError`, …).
 
-`<data>` is the plugin's private data directory, chosen by the backend (JUCE:
-`<user application data>/Soundor/<plugin.id>`).
+`<data>` is the plugin's private data directory, chosen by the backend (the
+VST3 adapter's: `<user application data>/Soundor/<plugin.id>`).
 
 ### `soundor:ui`
 
@@ -712,27 +683,23 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     down (1 a single press, 2 the second of a series), which the click
     carries as `detail`; the second is followed by a `DoubleClick`
     (`dblclick`) to the same node, unless the click's listeners removed it.
-    The JUCE adapter reports `MouseEvent::getNumberOfClicks()`, JUCE's count
-    by its double-click timeout, which the editor sets to the platform's
-    (`backend::useDoubleClickTime()`: macOS's and Windows' setting, else
-    JUCE's 400 ms). On Linux Soundor counts them itself
-    (`input::ClickCounter`, by the XSETTINGS `Net/DoubleClickTime`; see
-    [native input](#native-input)); synthetic input says its count
+    The native input reports it: AppKit's `clickCount` on macOS, and
+    elsewhere Soundor's own count (`input::ClickCounter`), by Windows'
+    double-click time, or on Linux the XSETTINGS `Net/DoubleClickTime`, else
+    400 ms (see [native input](#native-input)); synthetic input says its count
     (`clickCount`).
   - **Movement:** each pointer event's `movement` is how far the pointer moved
     since its previous input (`movementX`/`movementY`).
   - **Screen:** `PointerInput::screen` is where the pointer is on the screen
-    in the editor's logical pixels (`screenX`/`screenY`); the JUCE adapter
-    divides JUCE's screen position by the editor's scale. Without one, the
-    position is reported.
+    in the editor's logical pixels (`screenX`/`screenY`), which the native
+    input reports. Without one, the position is reported.
   - **Pointer lock:** `Surface::requestPointerLock()` moves a mouse or pen
     press to the node asking (it or a node in it must be pressed). Until the
     release, a cancel, `exitPointerLock()` or the node leaving the tree, its
     events carry the position the lock began with, only `movement` changing.
     The backend reads `Surface::pointerLock()` after input and every tick:
     `input::PointerLock` (`include/soundor/input/PointerLock.h`, moving the
-    native input's pointer through `input::pointerSource()`, or in the JUCE
-    runtime JUCE's mouse where its input is JUCE's) keeps the locked pointer
+    native input's pointer through `input::pointerSource()`) keeps the locked pointer
     in the view, where
     the editor shows no cursor: when it strays from where the lock began it is
     moved back, and drags carry on past the view's edges as if nothing stopped
@@ -748,9 +715,9 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     `pointermove`.
   - **Cursor:** `Surface::cursor()` is the style's `cursor` of the pressed
     node, or else of the deepest hovered one, or of their nearest ancestor
-    with one (a text input's I-beam, the arrow where none has one). The JUCE
-    editor reads it after input and every tick and sets it with
-    `setMouseCursor` when it changed.
+    with one (a text input's I-beam, the arrow where none has one). `editor::Editor`
+    reads it after input and every tick and sets it through its platform
+    (`editor::Platform::setCursor()`) when it changed.
   - **Clicks:** a `click` goes to the deepest node common to press and release.
   - **Focus:** a press focuses the nearest `focusable` node unless
     `pointerdown` is prevented. Tab and Shift+Tab cycle through focusable
@@ -800,8 +767,8 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   (`takeEditorSizeRequest()`) after the input or the tick that ran the
   code, and resizes the editor, which tells the surface the new size as
   any resize does. `editor::Editor::frame()` takes it once a frame, after the
-  tick, and hands it to the editor (`editor::Platform::requestSize()`: JUCE's
-  `setSize()`, a VST3 view's `IPlugFrame::resizeView()`).
+  tick, and hands it to the editor (`editor::Platform::requestSize()`: a VST3
+  view's `IPlugFrame::resizeView()`).
 - **Events:** capture and bubble as in the DOM, as `PointerEvent`,
   `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
   `preventDefault()` tells the backend the input was handled; unhandled keys
@@ -838,8 +805,8 @@ Beyond views and text there are the primitives a plugin UI is made of:
   - **Editing:** it edits itself as the default action of its events, so a
     listener's `preventDefault()` takes over. That covers typing, selection
     with the mouse and Shift, word-wise moves and deletes, Home/End, and
-    copy/cut/paste through the system clipboard. The JUCE and VST3 editors
-    supply the engine's `platform::systemClipboard()` implementation. On
+    copy/cut/paste through the system clipboard. The VST3 editor
+    supplies the engine's `platform::systemClipboard()` implementation. On
     X11, clipboard transfers run on a separate connection and thread so
     a host on the plugin's UI thread can respond to paste requests.
   - **Events:** it fires `input`, and `change` on Enter and on blur.
@@ -938,16 +905,16 @@ A frame goes through three stages, each with its own owner:
      `render::RasterTarget` (pixels the platform shows). It is the fallback
      that always works.
 
-The generated JUCE editor renders a frame from its 60 Hz timer when
-`RuntimeHost::needsRender()` says the picture changed (a blinking caret
+`editor::Editor` (see "`editor::Editor`") renders a frame from the editor's
+60 Hz tick when `RuntimeHost::needsRender()` says the picture changed (a blinking caret
 counts, twice a second). It makes its GPU device first
 (`GpuCompositor::createDevice()`) and gives it to the `RuntimeHost`, so that
 WebGL and the compositor share it. Once it has a native view, it asks for a
 `GpuCompositor` on that device and logs which renderer it got, and why when it is the CPU
 (`renderer: GPU compositor, ANGLE / Metal (…)`). Otherwise, and if the GPU is
-lost later, it composites on the CPU into a `backend::JuceImageTarget`: a
-`juce::Image` at device resolution, of which only the damaged parts are
-repainted. `SOUNDOR_RENDERER=cpu` forces the CPU. `RuntimeHost::render(bitmap)`
+lost later, it composites on the CPU into the platform's `render::RasterTarget`
+(the VST3 editor's window shows it), at device resolution, of which only the
+damaged parts are repainted. `SOUNDOR_RENDERER=cpu` forces the CPU. `RuntimeHost::render(bitmap)`
 still draws the whole view in one go, for tests and tools.
 
 `ui::Renderer` draws nodes with [Skia](https://skia.org). macOS, Windows and Linux builds
@@ -978,7 +945,7 @@ state on its next native operation, while retained layers repaint on the CPU.
 Drawing behavior:
 
 - **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere
-  (`render::Bitmap`), which is `juce::Image::ARGB`'s layout.
+  (`render::Bitmap`).
 - **Boxes:** backgrounds, borders, per-corner radii, outlines, shadows, opacity,
   overflow clipping, scrolling, text, images, and inputs with selection and a
   caret.
@@ -1174,7 +1141,7 @@ its headers.
 ### Accessibility
 
 Soundor owns its accessibility semantics: what a screen reader perceives of
-the view is decided here, from the node tree, not by JUCE or any other plugin
+the view is decided here, from the node tree, not by a plugin
 framework. A platform adapter (Linux AT-SPI, Windows UIA, or an Apple bridge) only translates
 the result.
 
@@ -1243,8 +1210,8 @@ knob.addEventListener('accessibilityaction', (event) => {
 `a11y::createPlatformAccessibility({ view, name })` presents a view's
 semantic tree to the platform. A plugin framework only says where: the
 native view (`NativeView`: the HWND on Windows), the surface's place and
-scale in it (`ViewGeometry`), and whether its window has focus. The
-generated JUCE editor does this from its peer; another framework (iPlug2)
+scale in it (`ViewGeometry`), and whether its window has focus.
+`editor::Editor` does this from its platform's native view; another framework
 would pass its own view the same way. Call `tick(host)` after every
 `RuntimeHost::tick()`.
 
@@ -1253,7 +1220,7 @@ would pass its own view the same way. Call `tick(host)` after every
 | Web      | DOM / ARIA (`@soundor/web-runtime`) | built in                                                                      |
 | Windows  | Native UI Automation                | built in                                                                      |
 | Linux    | Native AT-SPI over GDBus            | system shared GIO; x64 and source builds on arm64                             |
-| macOS    | Native NSAccessibility              | implemented; attached by the JUCE editor                                      |
+| macOS    | Native NSAccessibility              | implemented                                                                   |
 | iOS      | Soundor's Apple bridge              | implemented; simulator build checked, no iOS runtime or device validation yet |
 
 Linux uses [`src/a11y/linux/`](/docs/contribute/linux-accessibility), a native C++
@@ -1280,19 +1247,22 @@ attachment, lifecycle and the manual VoiceOver checklist are in
 
 ### Native input
 
-The view's input is Soundor's own where the engine has a backend for the
-platform, and the plugin framework's (JUCE's) elsewhere. Either way it ends
+The view's input is Soundor's own, where the engine has a backend for the
+platform (Linux, macOS and Windows; iOS has none yet). It ends
 in the same `ui::Surface` calls (`ui/Input.h`'s normalized input), so hit
 testing, capture, hover, clicks, focus, keyboard navigation, scrolling and
 every `soundor:ui` and React event are the same, and plugin code cannot tell
 where input came from.
 
-| Platform                    | Pointer, wheel, keys, text, focus      | The native view        |
-| --------------------------- | -------------------------------------- | ---------------------- |
-| Linux (X11, XWayland)       | Soundor (`src/input/linux/`, XInput 2) | JUCE's peer window     |
-| macOS                       | Soundor (`src/input/apple/`, AppKit)   | Child of JUCE's NSView |
-| Windows                     | Soundor (`src/input/windows/`, Win32)  | JUCE's existing HWND   |
-| Linux without X11 libraries | JUCE, with a warning in the log        | JUCE's peer window     |
+| Platform              | Pointer, wheel, keys, text, focus      | The native view (the VST3 editor's) |
+| --------------------- | -------------------------------------- | ----------------------------------- |
+| Linux (X11, XWayland) | Soundor (`src/input/linux/`, XInput 2) | An X11 child of the host's window   |
+| macOS                 | Soundor (`src/input/apple/`, AppKit)   | An NSView in the host's             |
+| Windows               | Soundor (`src/input/windows/`, Win32)  | A child HWND of the host's          |
+
+Without a backend that can start (on Linux, an X server without XInput 2, or
+no X11 libraries), the view shows its UI but takes no input, and the log says
+why (`editor::Platform::inputFailed()`).
 
 `input::createPlatformInput()` (`include/soundor/input/Platform.h`) makes
 one `input::PlatformInput` for one native view, as
@@ -1300,32 +1270,17 @@ one `input::PlatformInput` for one native view, as
 null where there is no backend (or it cannot start, saying why). The backend
 reads its events (`read()`, into `input::Event`s: pointer, wheel, key with
 the text it types, committed text, focus) and the framework adapter gives
-them to the surface the way it gives the framework's: the generated JUCE
-editor's `deliverNative()` uses the same `deliver()` (zoom, DevTools,
-pointer lock, cursor), wheel, key and text paths as its JUCE callbacks.
+them to the surface: `editor::Editor` delivers them with the editor's zoom,
+DevTools, pointer lock and cursor.
 
-**Event ownership (Windows).** The prebuilt engine subclasses JUCE's existing
-Unicode `HWND` with `SetWindowSubclass`, using per-instance reference data.
-It creates no window, message loop, worker thread or global hook. The UI
-thread's window callback appends normalized input; the generated editor
-drains it before each runtime tick. Pointer messages outside the editor's
-geometry, non-input messages and system shortcuts continue through
-`DefSubclassProc`. Hover moves also continue for JUCE's cursor and
-component-under-mouse bookkeeping; its translated Soundor callbacks remain
-suppressed, so they do not provide a second input path. The accessibility
-subclass still handles `WM_GETOBJECT`.
-JUCE retains embedding, window ownership, resize, painting and host integration.
-Its translated Soundor callbacks are suppressed while native input is attached;
-JUCE modal menus/dialogs suspend the adapter and take their own input.
-
-JUCE's Windows keyboard hook can translate a message before dispatching it
-to the window procedure, even when `keyPressed` returns false. The generated
-editor therefore gives away its JUCE logical component focus while native
-input owns it, including after programmatic focus requests. The same HWND
-keeps native focus. JUCE's hook then leaves these raw key messages alone.
-Other JUCE controls retain their normal focus; Soundor's navigation and
-accessibility use the adapter's native focus and the surface's semantic focus.
-Soundor neither installs another hook nor modifies JUCE's hook.
+**Event ownership (Windows).** The prebuilt engine subclasses the editor's
+existing Unicode `HWND` with `SetWindowSubclass`, using per-instance reference
+data. It creates no window, message loop, worker thread or global hook. The UI
+thread's window callback appends normalized input; the editor drains it before
+each runtime tick. Pointer messages outside the editor's geometry, non-input
+messages and system shortcuts continue through `DefSubclassProc`. The
+accessibility subclass still handles `WM_GETOBJECT`. The editor's platform
+keeps embedding, window ownership, resize, painting and host integration.
 
 **Windows pointer, capture and DPI.** `WM_MOUSEMOVE`, button messages (including
 double-click variants and both X buttons), `WM_MOUSELEAVE` and
@@ -1336,8 +1291,8 @@ Chording follows the shared pointer contract: the first press is Down, the
 last release is Up, and intermediate changes are Move events with updated
 button bits. X buttons use Web button numbers 3/4 and masks 8/16.
 
-Signed client coordinates are relative to the HWND. Geometry from JUCE
-already includes its platform DPI factor and editor/host scaling; subtract
+Signed client coordinates are relative to the HWND. The editor's geometry
+already includes the platform DPI factor and editor/host scaling; subtract
 the editor origin and divide by that scale once. Wheel coordinates are
 screen coordinates and go through `ScreenToClient` first. No additional
 `GetDpiForWindow()/96` factor is applied. Event screen positions use
@@ -1388,7 +1343,7 @@ that later character is a separate text commit, like an IME result.
 Each adapter owns an IMM context, associates it only while text input is
 focused and native input is enabled, and restores the HWND's previous
 context on detach. Native `WM_IME_*` processing goes to `DefWindowProcW`
-instead of JUCE's text-target handler: Windows keeps its composition and
+so Windows keeps its composition and
 candidate UI. Soundor reads each complete `GCS_RESULTSTR` commit as one
 `TextInput` and suppresses duplicate default character generation; direct
 `WM_IME_CHAR` commits are also supported. Composition is
@@ -1414,31 +1369,25 @@ Input and UIA have independent subclass entries and clean up independently.
 Portable normalization tests cover fractions, axes, coordinate scaling,
 physical pairing and UTF-16. Windows HWND tests cover messages, capture,
 focus, IME commit callbacks, reentrant destruction, repeated attach/detach,
-multiple editors and UIA coexistence. Generated-editor tests check native
-selection and suppression of duplicate JUCE dispatch. Windows JUCE peer tests
-also exercise queued key translation through JUCE's existing message hook,
-programmatic focus handoff and independent pointer delivery. These protocol tests
+multiple editors and UIA coexistence. These protocol tests
 do not establish DAW compatibility or validate a physical precision touchpad
 or a complete IME session. Windows builds and runtime tests must run on a
-Windows machine; manually verify host shortcuts, standalone menus, mixed DPI,
+Windows machine; manually verify host shortcuts, mixed DPI,
 accessibility and repeated editor open/close with multiple plugins.
 
 **Event ownership (macOS).** The prebuilt engine adds a transparent,
-flipped child `NSView` over the editor's area of JUCE's native view.
+flipped child `NSView` over the editor's area of its native view.
 AppKit hit testing delivers `NSEvent`s directly to its `NSResponder`
-methods; the view draws nothing, and JUCE still owns the window, embedding,
-rendering and accessibility attachment. There are no event monitors,
-swizzles or per-plugin Objective-C++ sources. Controls around the editor
-keep JUCE's events. The generated editor suppresses its translated JUCE
-callbacks while native input is attached, avoiding duplicate delivery.
-The child is hidden while JUCE shows a modal component or menu, restoring
-JUCE hit testing and cancelling pressed input.
+methods; the view draws nothing, and the editor's platform still owns the
+window, embedding, rendering and accessibility attachment. There are no event
+monitors, swizzles or per-plugin Objective-C++ sources. The child is hidden
+while input is suspended (`setSuspended()`), cancelling pressed input.
 
 AppKit callbacks append normalized `input::Event`s on the main thread.
 The editor drains them before each runtime tick, in arrival order; there is
 no file descriptor, worker thread or call into JavaScript from an AppKit
-method. JUCE's component focus and the child's native first-responder
-status are coordinated by `requestFocus()`. Window key notifications and
+method. The child's native first-responder status follows
+`requestFocus()`. Window key notifications and
 responder changes release held keys and cancel an active pointer before
 reporting lost focus. Notifications belong to that view's window, never a
 process-wide event monitor. Geometry and window changes are sampled each
@@ -1526,38 +1475,28 @@ not external accessibility clients. They cannot prove host compatibility
 or safe physical unloading. Before release, test real trackpads (natural
 scrolling on/off, diagonal and momentum scrolling), Retina and mixed-scale
 displays, drag capture, keyboard layouts/dead keys and Japanese/Chinese/
-Korean IMEs, host menu shortcuts, Standalone menus, VoiceOver, and repeated
-VST3/AU editor open/close in DAWs with multiple plugin instances and versions.
+Korean IMEs, host menu shortcuts, VoiceOver, and repeated VST3 editor
+open/close in DAWs with multiple plugin instances and versions.
 
-**Event ownership (Linux).** JUCE keeps its window, and its own X11
-connection, which JUCE's event loop reads. Soundor opens a connection of its
-own per view. On it, it puts an input-only window of its own over the
-editor's area of JUCE's window (`ViewGeometry`, following the editor's
-place and size) and selects that window's pointer, button and crossing
-events with XInput 2, and the view's key and focus events (keys go to the
-focused window, the view, wherever the pointer is). The X server delivers a
-device event to the deepest window that takes it, as XInput 2 events where
-a client selected those, and then not as the core events another client
-selected there, so JUCE's connection no longer receives the editor's
-presses, motion or keys (`X11InputTests.cpp` checks it against a client
-selecting what JUCE's peers select), each reaches Soundor once, and what
-JUCE draws around the editor (a Standalone's title bar and buttons) keeps
-JUCE's input. The input window has no cursor of its own, so it shows the one
-JUCE sets on its window. While JUCE shows a menu or a modal dialog of its own
-(`ModalComponentManager`, which JUCE's menus are shown through too: a
-Standalone's options), the input is suspended (`setSuspended()`): what was in progress
-ends, the input window is unmapped and the view's keys deselected, so JUCE
-has the view's input as its menus expect (a press beside one closes it). Nothing intercepts JUCE or its connection, and two consumers
-never read one queue. The editor registers the connection's descriptor with
-`juce::LinuxEventLoop::registerFdCallback()`, which in a plugin is the
-host's run loop (VST3 `IRunLoop`) on its UI thread, and also reads every
-tick; there is no thread of its own, and nothing reaches the audio thread.
-JUCE's callbacks give way while the native input runs, so what JUCE
-synthesizes (moves when components change) is not delivered twice. Each
-editor's input selects only its own view's events. Enter, leave and
-focus still also reach JUCE, which manages the window; keyboard focus is
-requested through JUCE (`grabKeyboardFocus()`, as a press did with JUCE's
-input), so embedding and XEmbed keep working as JUCE does them.
+**Event ownership (Linux).** The editor's window is an X11 child of the
+host's, on the editor's own connection. Soundor opens a connection of its own
+per view for input. On it, it puts an input-only window of its own over the
+editor's area (`ViewGeometry`, following the editor's place and size) and
+selects that window's pointer, button and crossing events with XInput 2, and
+the view's key and focus events (keys go to the focused window, the view,
+wherever the pointer is). The X server delivers a device event to the deepest
+window that takes it, as XInput 2 events where a client selected those, and
+then not as the core events another client selected there, so another client
+selecting core events on the view (`X11InputTests.cpp` stands one in) no
+longer receives the editor's presses, motion or keys, and each reaches Soundor
+once. The input window has no cursor of its own, so it shows the one the
+editor sets on its window. While input is suspended (`setSuspended()`), what
+was in progress ends, the input window is unmapped and the view's keys
+deselected. Two consumers never read one queue. The editor registers the
+connection's descriptor with the host's run loop (VST3 `IRunLoop`) on its UI
+thread, and also reads every tick; there is no thread of its own, and nothing
+reaches the audio thread. Each editor's input selects only its own view's
+events.
 
 **Isolation.** Each editor's input has its own connection, selections,
 device state and input context, gone with it: closing the connection
@@ -1576,8 +1515,8 @@ release.
 **Pointer.** Positions are the event's in the view (physical pixels,
 fractional), converted to the editor's logical pixels with the geometry the
 editor gives every tick and resize (`ViewGeometry`: its place and scale in
-the native window, so a host's `setScaleFactor()` and high-density displays
-convert as JUCE's did); `screen` is the root position over the same scale.
+the native window, so a host's content scale and high-density displays
+convert); `screen` is the root position over the same scale.
 The first button pressed is the `Down`; others pressed or released while one
 is held are moves with `button` set, and the last release the `Up`, as Web
 pointer events chord them. The implicit grab carries moves and the release
@@ -1602,7 +1541,7 @@ fractions are kept (`double`, then `float` pixels). XInput 2.1 also sends
 older clients wheel buttons (4 to 7) emulated from those valuators, flagged
 `XIPointerEmulated`; those are ignored, and only a wheel without scroll axes
 scrolls by its buttons, so nothing scrolls twice. Whole notches are
-`WheelInput::Unit::Line`s (three a notch, as JUCE reported a wheel's), and
+`WheelInput::Unit::Line`s (three a notch), and
 fractions (touchpads, high-resolution wheels) are pixels at the same
 distance a notch (`3 × ui::pixelsPerLine`), so a device scrolls as far
 however its scrolling comes. What was read together, at one place with the
@@ -1624,8 +1563,8 @@ changing (`MappingNotify`, XKB's included) refreshes Xlib's map. Key events
 sent to the view (an XEmbed embedder forwards keys so) arrive as core
 events and are read the same. Losing the focus releases held keys first.
 An unhandled key goes nowhere else: the X server delivered it to this
-window alone, as it did to JUCE's (which dropped it too); Soundor never
-grabs the keyboard or sees keys while the host has the focus.
+window alone; Soundor never grabs the keyboard or sees keys while the host
+has the focus.
 
 **Text and composition.** Text is an X input method's (XIM) on the same
 connection: Xlib's own (dead keys and Compose sequences, by the locale's
@@ -1647,8 +1586,7 @@ keyboard grab by another client counts as lost). It is what the surface
 the surface's, as before.
 
 **Where to add others.** Another platform adds `src/input/<platform>/` and
-a case in `src/input/Platform.cpp`, and its framework adapter stops
-delivering what it replaces, as the JUCE editor does with `nativeInput`.
+a case in `src/input/Platform.cpp`.
 Native Wayland (a `wl_seat` on the compositor's surface) would be the next
 on Linux; macOS uses AppKit responder methods and Windows uses the
 existing HWND's subclass chain.
@@ -1673,12 +1611,11 @@ and `tick()` shows what they drew.
 
 ### `editor::Editor`
 
-`editor::Editor` (`include/soundor/editor/Editor.h`) is what every runtime's editor
-does with the engine, in one place: the JUCE runtime's generated
-`AudioProcessorEditor` and the VST3 runtime's `IPlugView` both make one and
-give it an `editor::Platform`, their side of it. The editor owns the native view
-and what drives it (a 60 Hz `juce::Timer`, a VST3 host's `IRunLoop`); the
-Editor owns the rest:
+`editor::Editor` (`include/soundor/editor/Editor.h`) is what a runtime's editor
+does with the engine, in one place: the VST3 runtime's `IPlugView` makes one
+and gives it an `editor::Platform`, its side of it. The editor owns the native
+view and what drives it (a VST3 host's `IRunLoop` on Linux, a timer of the UI
+thread elsewhere); the Editor owns the rest:
 
 - **The runtime:** a `RuntimeHost`, or a `DevSession` that reloads it when
   `Options::bundleDirectory` is set, and the GPU device it shares with the
@@ -1721,8 +1658,7 @@ native units per logical pixel (physical pixels; AppKit points on macOS),
 its pixel density, its top-left on the screen for accessibility, whether it
 is shown and focused, and whether the framework's own menus suspend native
 input. The rest of `Platform` is hooks with defaults: holding and asking for
-an editor size, the CPU pixel density during a resize (JUCE keeps its raster
-while the size changes), where the UI now is (for the editor's
+an editor size, the CPU pixel density during a resize, where the UI now is (for the editor's
 `RasterTarget`), a press, the native input starting and stopping (to watch
 its descriptor), the framework's pointer for a lock, and the accessibility
 object's parent.
@@ -1762,8 +1698,8 @@ instead: it loads the bundle directory `soundor dev` keeps rebuilding, polls its
 the host and creates a fresh one. Nothing of the old UI survives a reload. A
 build whose entry fails is logged; the next good build recovers.
 `platform::fileLogSink()` appends the log as JSON lines to a file that
-`soundor dev` shows in its terminal. The generated JUCE editor uses both when
-`setup.cmake` receives `SOUNDOR_UI_DEV_DIR`.
+`soundor dev` shows in its terminal. The VST3 editor uses both in a
+`soundor dev` build, which names the UI's directory and the log file.
 
 ### Threading and lifetime
 
@@ -1800,7 +1736,7 @@ configuration, and where its audio comes from and goes.
 | The Rust SDK (`packages/cli/rust/soundor`)                              | The processor traits, the processing context, parameters, transport, streams, state, resources, and both ABIs it exports: the C ABI natively, `soundor_wasm_*` in WebAssembly                                                                                                           |
 | The engine, native (`include/soundor/processor/`, `src/processor/`)     | `RustProcessorAbi.h`, the C ABI's declaration, and `processor::RustProcessor`, the bridge: contract and ABI checks, preparing, blocks longer than prepared in parts, in-place channels with copies only where an input shares an output's channel, published values, silence on failure |
 | The engine, Web (`web/src/processor/`, `@soundor/engine/web/processor`) | `WasmProcessor` (the module's memory, views and calls) and the AudioWorklet that runs it, `createProcessorNode()`: registering the worklet once per context, instances, parameters and transport in, published values and streams out, errors, disposal                                 |
-| A runtime (`juce-runtime`, `web-runtime`)                               | The audio callback or the AudioContext, the plugin's lifecycle, its configuration (the contract, the buses, the parameters' values), host automation, state, and where published values and streams go                                                                                  |
+| A runtime (`vst3-runtime`, `web-runtime`)                               | The audio callback or the AudioContext, the plugin's lifecycle, its configuration (the contract, the buses, the parameters' values), host automation, state, and where published values and streams go                                                                                  |
 
 The plugin's processor is never part of the engine: natively its static
 library is linked into the plugin, and the bridge reaches it through a table
@@ -1819,15 +1755,13 @@ rust.process(channelPointers, frames, values, publishedValues,        // the aud
 ```
 
 `RustBusLayout` says, for each bus, which channel of the callback's channel
-array holds each of its channels, as JUCE's `processBlock` buffer does
-(`backend::rustBusLayout()` in the JUCE runtime reads it from the
-`AudioProcessor`; `backend::processRust()` passes its buffer).
+array holds each of its channels (the VST3 adapter arranges the host's
+buffers so, inputs copied into the outputs' channels first).
 
 **Threading.** Construct, prepare and destroy off the audio thread; process
 and reset on it, never at once. `process()` and `reset()` neither allocate
 nor lock (`soundor_processor_tests` counts allocations across preparing
-again; the JUCE runtime's `soundor_juce_rust_tests` does on a real Rust
-processor), and a failure is a status that the runtime reports off the audio
+again), and a failure is a status that the runtime reports off the audio
 thread (`lastStatus()`). Published streams go through the sink the runtime
 passes (`native::Streams`), never a callback into the UI. In the browser the
 main thread posts and the worklet processes: no DOM, no UI engine, no
@@ -1850,13 +1784,11 @@ with no lock, allocation or copy, and what it returns stays unchanged until
 the next `acquire()`: so a block sees one snapshot from start to end, and
 snapshots in between are coalesced. The three slots are allocated with it and
 freed with it, after audio stops, so nothing is reclaimed on the audio thread.
-The JUCE runtime's generated `PersistentState` owns one: each change of an
-audio field (a set, History, a restore, a preset) encodes every audio field's
-committed value under the store's lock, so a snapshot is coherent across the
-fields of one commit and snapshots are published in commit order
-(`tests/processor/AudioStateTests.cpp` checks tearing and order with
-concurrent writers; `JuceStateTests.cpp` every path, on the generated
-processor). In the browser the page encodes the same layout
+The VST3 adapter's processor owns one: each change of an audio field (a set,
+History, a restore, a preset) is encoded with every audio field's committed
+value, so a snapshot is coherent across the fields of one commit, and
+snapshots are published in commit order (`tests/processor/AudioStateTests.cpp`
+checks tearing and order with concurrent writers). In the browser the page encodes the same layout
 (`writeAudioState()`) once per batch of changes and posts it; the worklet's
 `WasmProcessor.setState()` copies it, and writes it into the module before
 the next block.
@@ -1888,29 +1820,28 @@ own source, as a Blob URL), not another WebAssembly module.
 
 **Tests.** The engine's own (`tests/processor/`) run the bridge on a C++
 processor behind the function table. What needs a real Rust processor stays
-with the runtimes, which reach the SDK: the JUCE runtime's
-`soundor_juce_rust_tests` (its fixture crate, through `juce::AudioBuffer`s),
-the web runtime's `wasm-processor.test.ts` (Node) and
+with the runtimes, which reach the SDK: the VST3 runtime's test plugin
+(`tests/plugin.test.ts`, in the VST3 host), the web runtime's `wasm-processor.test.ts` (Node) and
 `worklet.browser.test.ts` (Chromium), and the examples' native/WASM parity
 tests (Orbit's `e2e/parity.test.ts`).
 
 ## Rust controller hosting
 
 A plugin's [controller](/docs/rust-controller) is the Rust behind its
-`soundor:native` methods. The engine hosts it natively; the JUCE runtime owns
+`soundor:native` methods. The engine hosts it natively; the VST3 runtime owns
 its lifecycle.
 
-|                                                                     | Owns                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The Rust SDK (`controller.rs`, `schedule.rs`, `executor.rs`, …)     | `Controller`, the contexts, the stores, `schedule()`'s state machine, the per-instance worker, the value encoding (`wire.rs`), state JSON (`json.rs`), and the controller's C ABI (`controller_ffi.rs`, `host.rs`), which `export!` defines                          |
-| `soundor gen` (`packages/cli/src/library/controller-codegen.ts`)    | the generated `NativeMethods` trait and its dispatch (by method number, arguments decoded, results encoded), the native types, typed `ParameterAccess` and `StateAccess`, and the descriptor (`describeController()` in `@soundor/core`)                             |
-| The engine (`processor/RustController.h`, `src/js/RustMethods.cpp`) | `RustControllerAbi.h`; `processor::RustController`: the descriptor check, create and destroy, calls, operations and their completions, the bounded `pump()`, the services as C callbacks; the generic bindings: one JavaScript function per described method         |
-| A runtime (`juce-runtime`)                                          | when it is created and destroyed (with the plugin instance), its services (`ControllerServices`: parameter editors, the state store, History, presets), waking (`wake()` → an `AsyncUpdater` → `pump()`), and installing it into each editor (`installController()`) |
+|                                                                     | Owns                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The Rust SDK (`controller.rs`, `schedule.rs`, `executor.rs`, …)     | `Controller`, the contexts, the stores, `schedule()`'s state machine, the per-instance worker, the value encoding (`wire.rs`), state JSON (`json.rs`), and the controller's C ABI (`controller_ffi.rs`, `host.rs`), which `export!` defines                  |
+| `soundor gen` (`packages/cli/src/library/controller-codegen.ts`)    | the generated `NativeMethods` trait and its dispatch (by method number, arguments decoded, results encoded), the native types, typed `ParameterAccess` and `StateAccess`, and the descriptor (`describeController()` in `@soundor/core`)                     |
+| The engine (`processor/RustController.h`, `src/js/RustMethods.cpp`) | `RustControllerAbi.h`; `processor::RustController`: the descriptor check, create and destroy, calls, operations and their completions, the bounded `pump()`, the services as C callbacks; the generic bindings: one JavaScript function per described method |
+| A runtime (`vst3-runtime`)                                          | when it is created and destroyed (with the plugin instance), its services (`ControllerServices`: parameter editors, the state store, History, presets), waking (`wake()` → its UI-thread timer or run loop → `pump()`), and installing it into each editor   |
 
 **The descriptor** is the contract's bytes: the parameter count, the
 declared types, the state fields and the methods with their argument and
-result types, in the value encoding. `gen` writes the same bytes into the
-runtime's `SoundorNative.h` (`native::controllerDescriptor`) and the SDK's
+result types, in the value encoding. The VST3 runtime embeds the same bytes in
+the plugin's generated crate, and `gen` writes them into the SDK's
 `plugin.rs`; `RustController` compares them with what
 `soundor_controller_info` reports, so a crate built from another config is
 refused (`present()` but not `active()`), never misread. The engine reads the
@@ -1955,9 +1886,7 @@ controller behind the function table, through the generated
 `installController()` of the `soundor:native` fixture: every type both ways,
 the generated bindings' error messages, completions and the microtask
 checkpoint, cancellation when a context goes, the pump's budget, shutdown.
-The JUCE runtime's `soundor_juce_controller_tests` runs JavaScript against a
-real Rust controller (its fixture crate), including a resource reaching the
-processor's next block; the SDK's own tests (`tests/controller.rs`, and the
+The VST3 runtime's test plugin runs a real Rust controller in the VST3 host; the SDK's own tests (`tests/controller.rs`, and the
 `compile_fail` examples of `src/compile_tests.rs`) cover the stores,
 `schedule()`'s races, shutdown and what the compiler refuses.
 
@@ -2071,12 +2000,12 @@ build excludes PDF, ICU and HarfBuzz.
   unless `WEBP_EXTERN` is redefined, which the build does; the symbol test
   catches it otherwise.
 - **Renamed image libraries:** Skia bundles libjpeg-turbo, libpng and libwebp
-  with plain C names, and so does JUCE 9 (JUCE 8 compiles its copies inside a
-  C++ namespace). Linked into one plugin, two definitions of `jpeg_read_header`
+  with plain C names, and so do plugin frameworks (JUCE 9's copies, for
+  one). Linked into one plugin, two definitions of `jpeg_read_header`
   fail the link whatever their visibility. So every file of Skia's build is
   compiled with `cmake/skia/SoundorSkiaPrefix.h` forced in, which renames each
   of the libraries' symbols to `soundor_<name>`; Skia's own callers see the
-  same header, and JUCE keeps its own copies. A `#define` cannot rename a
+  same header, and anything else linked keeps its own copies. A `#define` cannot rename a
   name the library itself defines as a function-like macro: the header turns
   off libpng's read macros (`PNG_NO_USE_READ_MACROS`; the functions are built
   either way), and `SoundorSkiaBuild.cmake` patches libwebp's
@@ -2243,10 +2172,10 @@ compositor and WebGL (see "The GPU").
 Linux builds need the X11 and XInput 2 headers (`libx11-dev` and
 `libxi-dev` on Debian and Ubuntu, `libX11-devel` and `libXi-devel` on
 Fedora); nothing is linked. At run time the input loads `libX11.so.6` and
-`libXi.so.6`, which every X11 and XWayland desktop has (JUCE's windows need
-libX11 already), and `libxkbcommon.so.0` for keysyms' characters where it
-is there (GTK and Qt require it); without libX11 or libXi the editor keeps
-JUCE's input and says so in the log. The native tests also link XTest
+`libXi.so.6`, which every X11 and XWayland desktop has (the editor's window
+needs libX11 already), and `libxkbcommon.so.0` for keysyms' characters where
+it is there (GTK and Qt require it); without libX11 or libXi the editor takes
+no input and says so in the log. The native tests also link XTest
 (`libxtst-dev`) and run under `xvfb-run`. All three libraries are MIT
 licensed system libraries, not shipped with a plugin.
 
@@ -2272,7 +2201,7 @@ or its dependencies define may be exported from a plugin binary:
   `-fvisibility-inlines-hidden`) and linked statically.
 - Every Soundor C++ symbol lives in the inline namespace
   `soundor::SOUNDOR_ABI_NAMESPACE`. The namespace is generated from the exact engine npm version (for example,
-  `0.1.0` gives `v0_1_0`); consumers cannot override it. The JUCE integration
+  `0.1.0` gives `v0_1_0`); consumers cannot override it. The VST3 adapter
   references an out-of-line ABI anchor that also checks Debug/Release, DevTools
   layout, standard-library ABI and iterator debugging. Source code keeps writing
   `soundor::js::Context`; plugin copies of the same engine remain isolated by
@@ -2310,16 +2239,10 @@ with its own copy of the runtime. Two tests prove it:
   color on the GPU with a device of its own, through its own module's ANGLE
   (shader compiler included), and must keep doing so while instances of
   either plugin come and go. The two modules' exports are checked as well.
-- **`soundor_juce_coexistence` (JUCE adapter tests, local).** It loads two real
-  VST3s built from different plugin ids through JUCE's plugin hosting.
-  - **Audio and parameters:** it processes audio in both and moves one
-    plugin's parameter; the other's must stay put.
-  - **Editors:** it opens both side by side and reads them back from the
-    screen, so both React UIs must really have rendered. It closes one; the
-    other must keep running and follow its parameter.
-  - **Running it:** give it the plugins with
-    `-DSOUNDOR_COEXISTENCE_PLUGINS="a.vst3;b.vst3"`. On Linux it needs a
-    display; `xvfb-run` works.
+- **The VST3 runtime's `soundor_vst3_instances`.** A native test executable
+  the runtime builds, which its plugin tests (`tests/plugin.test.ts`) run: it
+  loads the test plugin and another build of it into one process, and their
+  instances must stay independent while either comes and goes.
 
 ## Footprint
 
@@ -2339,8 +2262,8 @@ the same build with QuickJS-NG before it (both linked with `--gc-sections`):
 compiler) costs about 0.78 MB more than QuickJS-NG; the rest is bytecode,
 which is larger for Hermes, and for the runtime's modules also the lowered
 syntax and the language layer.
-`--gc-sections` (`-dead_strip` on macOS), which the generated `setup.cmake`
-adds to Release plugins, takes about 1.8 MB off a plugin (Skia and ANGLE
+`--gc-sections` (`-dead_strip` on macOS, `/OPT:REF` on Windows), which the
+VST3 runtime passes when it links a Release plugin, takes about 1.8 MB off a plugin (Skia and ANGLE
 included); Hermes is compiled with a section per function for it. ThinLTO of
 Hermes (`-DSOUNDOR_HERMES_LTO=ON`) made the plugin 84 KB larger, not smaller.
 Unstripped, the binary also carries about 28 MB of symbol tables (no debug
@@ -2365,67 +2288,20 @@ cmake --workflow --preset dev        # Debug, -Werror, tests
 cmake --workflow --preset sanitize   # + AddressSanitizer / UBSan / LeakSanitizer
 cmake --workflow --preset tidy       # + clang-tidy (build only)
 cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
-cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 
-The JUCE runtime has its own native checks, from `runtimes/juce-runtime/native/`:
+The VST3 runtime has its own native checks, against the engine it depends on
+(see [its internals](/docs/contribute/vst3-runtime)):
 
 ```sh
-cmake --workflow --preset juce   # JUCE adapter, state and DevTools tests
-cmake --workflow --preset tidy   # clang-tidy over adapters and tests (needs clang-tools 18)
-cmake --workflow --preset nogpu  # source engine without ANGLE, and JUCE tests
-xvfb-run -a cmake --workflow --preset sanitize # Linux: ASan, UBSan and leaks
+pnpm --filter @soundor/vst3-runtime build:native   # the prebuilt adapter
+pnpm --filter @soundor/vst3-runtime test:native    # its native tests
+pnpm --filter @soundor/vst3-runtime lint:native    # clang-tidy
+xvfb-run -a pnpm --filter @soundor/vst3-runtime test:plugin  # its test plugin in the VST3 host
 ```
 
-`pnpm --filter @soundor/juce-runtime lint:native` runs the `tidy` workflow.
-It uses a prebuilt engine and analyzes Soundor's JUCE sources, excluding
-JUCE's modules, generated fixtures and engine sources. CI checks each supported
-JUCE version with Clang and GCC on Linux, Apple Clang on macOS and MSVC on
-Windows. Separate Linux jobs run clang-tidy, sanitizers and the no-GPU
-configuration. The no-GPU job also builds and resizes the test plugin with
-`SOUNDOR_ENABLE_GPU=OFF`, exercising CPU rendering.
-
-The sanitizer preset builds the engine from source and instruments the JUCE
-adapters, JUCE modules, generated persistent-state fixtures and test
-executables with ASan and UBSan. Leak detection is enabled at process exit.
-It runs the parameter, platform, persistent-state and DevTools suites; the
-plugin build and resize checks run in the other jobs. Hermes and ANGLE remain
-cached, uninstrumented dependencies; Skia uses its ASan variant.
-Linux needs Clang's sanitizer runtime (`libclang-rt-18-dev` for Clang 18).
-
-The JUCE adapter tests need a JUCE checkout. JUCE is never part of either
-package; CI checks out a pinned JUCE for them, outside both. Run them wherever
-JUCE is installed, for example the two-plugin host test:
-
-```sh
-cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
-  -DSOUNDOR_COEXISTENCE_PLUGINS="/path/A.vst3;/path/B.vst3"
-cmake --build build/juce && (cd build/juce && xvfb-run -a ctest -R coexistence)
-```
-
-`soundor_juce_editor_resize` hosts the JUCE runtime's test plugin
-(`tests/plugin`, whose editor is resizable) the same way and resizes its
-editor as a host does: it must open at its configured size, keep to its
-limits, lay its UI out again at every size (the UI stays centred and keeps
-its size), open again after being closed, and draw at a display scale of 2.
-CI's Linux JUCE jobs run it after building the test plugin; locally, give it
-the built plugin:
-
-```sh
-pnpm --filter @soundor/juce-runtime test:plugin
-cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
-  -DSOUNDOR_RESIZE_PLUGIN="$PWD/../tests/plugin/.soundor/dist/juce/SoundorTestPlugin_artefacts/Release/VST3/Soundor Test Plugin.vst3"
-cmake --build build/juce --target soundor_juce_editor_resize
-(cd build/juce && xvfb-run -a -s "-screen 0 1920x1200x24" ctest -R editor_resize)
-```
-
-On Linux, `soundor_juce_editor_input` uses the same plugin with real X11
-input (XTest): each editor must read its input natively (the plugin's log
-says `input: native`, never JUCE's fallback), a press must toggle the plugin's bypass once and take the keyboard focus,
-land where it is drawn under a host's scale of 1.5, keep working across
-editors closed and opened again, and stay with the instance it was made in
-when two are open. CI's Linux JUCE job runs it next to the resize test
-(`-DSOUNDOR_INPUT_PLUGIN=…`, `ctest -R editor_input`).
+CI runs them on Linux, macOS and Windows, and validates the test plugin and
+the controller example with pluginval.
 
 Requires CMake ≥ 3.25 for the presets (the library itself needs 3.22) and a
 C++20 compiler. CI builds with Clang 18 and GCC on Linux, Apple Clang on macOS,
@@ -2514,9 +2390,11 @@ fingerprints first and builds when they differ (`engine.md`, "In Node").
 
 ### Using one
 
-`juceRuntime()` passes `-DSOUNDOR_ENGINE_MODE=prebuilt` by default. It compares
-build-input fingerprints before selecting a released prebuilt or local source
-build (see [Soundor Engine](/docs/engine)). A matching engine uses the release this package names in
+Plugin builds get their archive from `engine()` in Node (see
+[Soundor Engine](/docs/engine)). A project that adds the engine's CMake can
+also pass `-DSOUNDOR_ENGINE_MODE=prebuilt`: it compares build-input
+fingerprints before selecting a released prebuilt or local source build. A
+matching engine uses the release this package names in
 `artifacts/manifest.json`; workspaces can resolve that manifest from the exact
 published npm version: `cmake/SoundorEngineResolve.cmake` picks the
 archive for the build's target and configuration (Debug: debug; any other:
@@ -2586,8 +2464,8 @@ DevTools code, ABI rejection).
 runners (the WebAssembly core with the pinned Emscripten, its Node and
 Chromium suites run against the packed archive as `engine()` prepares it). The Windows dynamic and static C runtime families build on separate
 runners with separate dependency caches. It tests the extracted archives with
-the engine's own native tests (what uses the engine, such as the JUCE
-adapters, is tested by its own workflow), and releases them as one set, named
+the engine's own native tests (what uses the engine, such as the VST3
+runtime's adapter, is tested by its own workflow), and releases them as one set, named
 after the engine version, the commit and a build revision:
 
 ```text
@@ -2601,7 +2479,7 @@ engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
 
 The release notes are generated from the same data. Verify builds the same
 archives through `engine.yml` as run artifacts, with no release; by hand,
-`engine-prebuilts.yml`'s `validate` mode does too. JUCE integration jobs download these
+`engine-prebuilts.yml`'s `validate` mode does too. The VST3 runtime's and Orbit's jobs download these
 same-commit artifacts and set `SOUNDOR_ENGINE_MANIFEST` to a generated local
 manifest. When the engine is unchanged and no published engine matches, PR
 consumers can instead download complete artifacts from a successful `main` push
@@ -2639,10 +2517,9 @@ engine's own npm release and its Changesets GitHub release.
 includes `@soundor/engine`, in three stages. It builds: `engine-prebuilts.yml`
 in `publish` mode, phase `build`, verifies and reuses the commit's published
 release if it exists, or builds and tests its own engine artifacts. It tests
-what uses them: `juce.yml`, on each JUCE version Verify uses, builds the JUCE
-adapters and a real plugin against exactly those archives (or that published
-release), and checks that the plugin linked them rather than compiling the
-engine. Only when these and the checks of every other package it releases
+what uses them: `vst3.yml` builds the VST3 runtime's adapters and its test
+plugin against exactly those archives (or that published release), and tests
+the plugin in the VST3 host and with pluginval. Only when these and the checks of every other package it releases
 have passed does it publish: phase `release` releases the same artifacts. It
 then writes
 `artifacts/manifest.json` from the release, downloaded anonymously and checked
@@ -2659,7 +2536,7 @@ Every archive carries `licenses/`: the notices that ship with each linked
 dependency (Skia, Hermes and ANGLE per third-party library), plus those
 in this package's `licenses/` for what they leave out: Skia's image libraries,
 Hermes's LLVM support and dtoa, QuickJS-NG's Unicode tables, ada and Yoga. Staging fails
-when a linked component has no notice. JUCE is never part of an archive.
+when a linked component has no notice.
 Distributing a plugin means distributing these notices with it. Linux uses
 the dynamically linked system GIO/GLib libraries (LGPL-2.1-or-later); they
 are not copied into the engine archive. See the [Linux adapter notes](/docs/contribute/linux-accessibility).
@@ -2861,8 +2738,8 @@ foundation adds no UI node or public React API.
 
 ## History ownership and publication
 
-The generated JUCE processor owns `history::StateHistory` independently of its
-editor. Typed parameter controls and persistent-state fields register stable
+The plugin instance (the VST3 adapter's controller) owns
+`history::StateHistory` independently of its editor. Typed parameter controls and persistent-state fields register stable
 identifiers and storage adapters; entries store before/after values rather
 than JavaScript callbacks. Parameter `load()` and host automation still use
 the existing atomics directly. Control-thread `get()` checks the transaction
@@ -2907,11 +2784,10 @@ the cheapest that keeps its contract, and none is built on another.
   subscriber exists. Unchanged, apart from the two points below.
 - **Delivered inside the tick.** A runtime's own modules deliver their
   queues through `RuntimeHost::Options::dispatchModules`, which `tick()` calls
-  right after the parameter changes: under the tick's one time limit (before,
-  the JUCE editor delivered them before the tick, each callback with a time
-  limit of its own, so a burst of slow subscribers could take several limits),
+  right after the parameter changes: under the tick's one time limit (so a
+  burst of slow subscribers takes one limit, not one each),
   timed as `TickStatistics::modules`, and in every runtime a dev reload makes.
   A runtime for another framework passes its own the same way.
-- **Converted only when someone listens.** The JUCE state bridge converts a
+- **Converted only when someone listens.** The state bridge converts a
   queued value to JavaScript only when the field has a subscriber; reads
   convert on demand (and cache) as before.

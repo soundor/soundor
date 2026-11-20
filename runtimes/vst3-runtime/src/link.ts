@@ -24,8 +24,7 @@
  *   only VST3's three entry points: several Soundor plugins, of any
  *   versions, share a host.
  * - System libraries by soname (fontconfig, FreeType, GIO), so linking needs
- *   no development packages: those the engine needs at run time, as the
- *   JUCE runtime's plugins do; X11 and the GPU's are loaded at run time.
+ *   no development packages: those the engine needs at run time; X11 and the GPU's are loaded at run time.
  */
 
 import { spawnSync } from 'node:child_process';

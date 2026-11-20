@@ -594,7 +594,7 @@ namespace soundor::vst3
     {
         // The host's program selector follows a preset the UI, the Rust
         // controller or History selected; the host's own choice (and a
-        // restored project, which selects none) is already shown.
+        // restored project's, inferred from its content) is already shown.
         const int index = factoryPresets->selectedIndex();
         if (index < 0 || restoring || loadingProgram || definition.presets.size() < 2)
             return;

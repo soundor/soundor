@@ -5,8 +5,9 @@ cmake_minimum_required(VERSION 3.22)
 # add_subdirectory()s it and links `Soundor::Engine`, built from these sources
 # or taken from a prebuilt archive (the same targets either way).
 #
-# This library is backend-independent: it never includes JUCE. JUCE adapters
-# live in their own targets so the core stays testable without a plugin host.
+# This library is backend-independent: it never includes a plugin format's
+# SDK. Runtime adapters (the VST3 runtime's) live in their own packages, so the
+# core stays testable without a plugin host.
 project(SoundorEngine LANGUAGES C CXX)
 
 if(PROJECT_IS_TOP_LEVEL)
@@ -50,7 +51,6 @@ set(SOUNDOR_HERMESC_FLAGS "-O -fno-inline" CACHE STRING "hermesc's options for t
 #   source    built from this package's sources
 #   prebuilt  the verified archives of the prebuilt release this package names
 #             (downloaded into the Soundor cache; SoundorEngineResolve.cmake)
-# Plugin builds pass juceRuntime({ engine: { mode } }), "prebuilt" by default.
 # Extracted archives can also be given directly, one per configuration.
 set(SOUNDOR_ENGINE_MODE source CACHE STRING "Where the engine comes from: source or prebuilt")
 set_property(CACHE SOUNDOR_ENGINE_MODE PROPERTY STRINGS source prebuilt)

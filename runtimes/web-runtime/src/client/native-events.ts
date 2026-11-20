@@ -1,5 +1,5 @@
 /**
- * The events of `soundor:native` in the browser, delivered as the JUCE
+ * The events of `soundor:native` in the browser, delivered as the native
  * runtime delivers them (`js/Events.h` in the engine): the project's
  * `runtimes/web/src/native.ts` publishes them through the generated
  * `events`, and the plugin UI's subscribers receive them later, never inside
@@ -20,7 +20,7 @@ import type { WebNativeEvent } from './manifest';
 import { nativeEventValue, nativeTypes } from './native-values';
 import { report } from './report';
 
-/** Undelivered events the page holds, as a JUCE runtime context does. */
+/** Undelivered events the page holds, as a native runtime context does. */
 export const EVENT_CAPACITY = 1024;
 
 interface Subscriber {

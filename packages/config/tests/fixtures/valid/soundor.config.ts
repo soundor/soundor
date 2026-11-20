@@ -5,7 +5,7 @@ import { fakeRuntime } from './fake-runtime';
 export default defineSoundorConfig({
   plugin: { id: 'com.example.valid', name: 'Valid' },
   runtimes: [
-    { id: 'juce', options: { format: 'vst3' }, runtime: fakeRuntime('juce') },
+    { id: 'vst3', options: { format: 'vst3' }, runtime: fakeRuntime('vst3') },
   ],
   parameters: {
     gain: {

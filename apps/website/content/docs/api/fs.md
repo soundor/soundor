@@ -35,6 +35,6 @@ Every function returns a promise.
 - **Writes are atomic:** a file is replaced whole or not at all.
 - **Errors** are `DOMException`s, as on the Web: `NotFoundError`,
   `NotAllowedError`, and the like, the same in every runtime.
-- **Where:** natively, `files/` in the plugin's private data directory (JUCE:
-  `<user application data>/Soundor/<plugin.id>`); in the browser, a private
+- **Where:** natively, `files/` in the plugin's private data directory
+  (`<user application data>/Soundor/<plugin.id>`); in the browser, a private
   file tree in IndexedDB.

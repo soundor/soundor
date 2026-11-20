@@ -14,7 +14,7 @@
 //!
 //! The processor, the controller and MIDI are not here: they are the
 //! project's own crate, through `soundor::export!`'s ABI, which the adapter
-//! calls through the engine, as the JUCE runtime does. Plugin authors never
+//! calls through the engine. Plugin authors never
 //! use this crate: it is the runtime's.
 //!
 //! Its ABI's rules (native/include/soundor/vst3/PluginAbi.h has the C side):

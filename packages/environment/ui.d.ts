@@ -982,7 +982,7 @@ declare module 'soundor:ui' {
 
   /**
    * The editor's visibility: the page's visibility on the Web, and whether
-   * the JUCE editor is showing natively. Losing keyboard focus does not hide
+   * the plugin's editor is showing natively. Losing keyboard focus does not hide
    * it. Native visibility does not detect occlusion by another window;
    * scrolling offscreen is not detected.
    * Closing a native editor destroys its JavaScript context; reopening starts
@@ -1001,7 +1001,7 @@ declare module 'soundor:ui' {
 
   /**
    * Whether keyboard focus is within the editor, including its controls.
-   * On the Web, document.hasFocus(); in JUCE, hasKeyboardFocus(true).
+   * On the Web, document.hasFocus(); natively, whether the editor's view has it.
    * Moving between controls inside the editor keeps this true. Focus is
    * independent of visibility; a shown editor can be unfocused.
    */

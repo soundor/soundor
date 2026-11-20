@@ -89,7 +89,7 @@ the same node:
   deepest node holding both its press and its release.
 - **Other events have no count:** `detail` is 0 for `pointerdown`,
   `pointerup` and the rest.
-- **The platform's time:** the JUCE runtime reads macOS's and Windows'
+- **The platform's time:** the VST3 runtime reads macOS's and Windows'
   setting, and on Linux the desktop's (`Net/DoubleClickTime`, as GNOME and
   KDE publish it), else 400 ms; in a browser it is the browser's count.
 - **In tests** there is no time: [`user.dblClick`](/docs/testing/dbl-click)

@@ -1,7 +1,7 @@
 /**
  * The parameters' behavior for the Web host: their mapping, step and text,
  * compiled to JavaScript from the expressions config resolved them into — the
- * same expressions the JUCE runtime compiles to C++. One ES module of plain
+ * same expressions the VST3 runtime interprets in C++. One ES module of plain
  * functions, with the small runtime they call inlined: it imports nothing, so
  * the page bundles it as it is and no compiler reaches the browser.
  */

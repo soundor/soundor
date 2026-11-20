@@ -1,5 +1,5 @@
-# Prebuilt mode (SOUNDOR_ENGINE_MODE=prebuilt, what juceRuntime() uses by
-# default): finds the archives this build needs in the prebuilt release this
+# Prebuilt mode (SOUNDOR_ENGINE_MODE=prebuilt, for a project that adds the
+# engine's CMake): finds the archives this build needs in the prebuilt release this
 # package names (artifacts/manifest.json, written when the package is
 # published), downloads them into the Soundor cache, verifies them and points
 # SoundorEnginePrebuilt.cmake at them. Never falls back to building the engine
@@ -22,8 +22,7 @@ if(NOT soundor_resolve_manifest)
   set(soundor_resolve_manifest "${SoundorEngine_SOURCE_DIR}/artifacts/manifest.json")
 endif()
 set(soundor_resolve_source_hint
-    "Build the engine from source instead: juceRuntime({ engine: { mode: 'source' } }) "
-    "(-DSOUNDOR_ENGINE_MODE=source).")
+    "Build the engine from source instead (-DSOUNDOR_ENGINE_MODE=source).")
 string(CONCAT soundor_resolve_source_hint ${soundor_resolve_source_hint})
 if(NOT EXISTS "${soundor_resolve_manifest}")
   message(FATAL_ERROR "This @soundor/engine (${SoundorEngine_SOURCE_DIR}) has no prebuilt engine: its exact published "

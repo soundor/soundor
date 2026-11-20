@@ -196,7 +196,7 @@ export function generateChangelog(
     { title: string; releases: Map<string, Change[]> }
   >();
   const titles: Record<string, string> = {
-    '@soundor/juce-runtime': 'JUCE Runtime',
+    '@soundor/vst3-runtime': 'VST3 Runtime',
     '@soundor/web-runtime': 'Web Runtime',
     '@soundor/engine': 'Engine',
     '@soundor/yoga-wasm': 'Yoga WASM',

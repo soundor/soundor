@@ -251,7 +251,7 @@ TEST_SUITE("soundor:host")
         auto options = withData({});
         options.hostInfo = host;
         options.pluginVersion = "1.2.3";
-        options.environment = { "juce", "0.15.1", "linux", "x64", "vst3" };
+        options.environment = { "vst3", "0.15.1", "linux", "x64", "vst3" };
         WebFixture f(options);
         CHECK(f.run("import { plugin, environment, getHostState } from 'soundor:host';"
                     "const s = getHostState(); globalThis.result = [plugin.version, environment.format,"

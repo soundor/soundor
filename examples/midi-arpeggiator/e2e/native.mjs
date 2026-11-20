@@ -1,4 +1,4 @@
-// Run after build:juce. The real plugin generates MIDI with no audio buses.
+// Run after build:vst3. The real plugin generates MIDI with no audio buses.
 import assert from 'node:assert/strict';
 import { globSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,7 @@ import { launchHost, midiInput, midiOutput } from '@soundor/vst3-host';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const plugin =
   process.argv[2] ??
-  globSync('.soundor/dist/juce/**/*.vst3', { cwd: root }).map(
+  globSync('.soundor/dist/vst3/*.vst3', { cwd: root }).map(
     (path) => `${root}/${path}`,
   )[0];
 assert.ok(plugin, 'Build the arpeggiator VST3 first');

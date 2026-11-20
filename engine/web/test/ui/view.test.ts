@@ -566,7 +566,7 @@ describe('pointer routing', () => {
     const { events } = setup();
     pointer('pointerdown', 10, { button: 0, buttons: 1 });
     pointer('pointercancel', 10);
-    // Then hover is cleared, as in the JUCE runtime.
+    // Then hover is cleared, as in the native runtime.
     expect(events.slice(-4)).toEqual([
       'pointercancel@button',
       'pointerleave@button',
@@ -1023,7 +1023,7 @@ describe('clipboard', () => {
 });
 
 describe('requestEditorSize', () => {
-  it('checks its arguments as the JUCE runtime does, then asks the host', () => {
+  it('checks its arguments as the native runtime does, then asks the host', () => {
     const asked: { width: number; height: number }[] = [];
     // A host that holds it to no more than 1000 wide.
     view.setEditorRequester((size) => {

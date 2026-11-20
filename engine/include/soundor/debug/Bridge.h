@@ -30,7 +30,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         {
             // The session file (SOUNDOR_DEVTOOLS_SESSION's value).
             std::string descriptor;
-            // The plugin's name, and its runtime's ("JUCE", "VST3"), as the
+            // The plugin's name, and its runtime's ("VST3"), as the
             // dashboard lists them.
             std::string name;
             std::string runtime;

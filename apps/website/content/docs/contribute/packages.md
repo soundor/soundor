@@ -40,13 +40,10 @@ flowchart LR
     core --> environment["@soundor/environment"]
     sdk["@soundor/runtime-sdk"] --> config
     sdk --> core
-    juce["@soundor/juce-runtime"] --> sdk
-    juce --> engine["@soundor/engine"]
     web["@soundor/web-runtime"] --> sdk
     vst3["@soundor/vst3-runtime"] --> sdk
-    vst3 --> engine
+    vst3 --> engine["@soundor/engine"]
     vst3 -. peer .-> cli
-    juce -. peer .-> cli
     web -. peer .-> cli
     vitest["@soundor/vitest"] --> config
     vitest --> core
@@ -85,8 +82,7 @@ need it.
 | New projects       | [`create-soundor-app`](/docs/cli/create-soundor-app)                                                                                                                            | Project template, dependency installation, and Rust starter files and generation                                  |
 | UI                 | [`@soundor/react`](/docs/react)                                                                                                                                                 | React reconciler, components, hooks, focus scopes, portals, and modals                                            |
 | Native engine      | [`@soundor/engine`](/docs/contribute/engine-reference)                                                                                                                          | Backend-independent C++ UI engine and Hermes module lowering                                                      |
-| Native host        | [`@soundor/juce-runtime`](/docs/juce-runtime)                                                                                                                                   | JUCE code generation, parameter and native API adapters, plugin builds                                            |
-| VST3 without JUCE  | [`@soundor/vst3-runtime`](/docs/vst3-runtime) ([internals](/docs/contribute/vst3-runtime))                                                                                      | Prebuilt generic VST3 adapter, plugin descriptor, Rust linking crate, VST3 bundles                                |
+| Native host        | [`@soundor/vst3-runtime`](/docs/vst3-runtime) ([internals](/docs/contribute/vst3-runtime))                                                                                      | Prebuilt generic VST3 adapter, plugin descriptor, Rust linking crate, VST3 bundles                                |
 | Browser host       | [`@soundor/web-runtime`](/docs/web-runtime)                                                                                                                                     | DOM-backed UI, Web Audio host, browser services, and Vite integration                                             |
 | DevTools           | [Client](/docs/contribute/devtools-client), [server](/docs/contribute/devtools-server), [protocol](/docs/contribute/devtools-protocol)                                          | Browser dashboard, authenticated session backend, and shared transport contract                                   |
 | Driver             | [`@soundor/driver`](/docs/driver)                                                                                                                                               | Connected inspection of running plugins from Node.js and `soundor driver`                                         |
@@ -100,8 +96,8 @@ compiled to WebAssembly and the DOM adapter that is the web runtime's
 
 The engine and the VST3 host are versioned independently of the shared
 package release group.
-The JUCE and VST3 runtimes depend on an exact engine version, and lower the UI
-bundle with that engine's JavaScript module-lowering tool; the VST3 runtime's
+The VST3 runtime depends on an exact engine version, and lowers the UI
+bundle with that engine's JavaScript module-lowering tool; its
 prebuilt adapter is compiled against that engine's archive. Neither the engine nor core
 depends on the other.
 
@@ -116,7 +112,7 @@ entry points.
 The React renderer compiles against portable `soundor:*` declarations; it must
 not import a concrete runtime. Its private testing workspace prevents a cycle
 between renderer and testing helpers. Engine headers and sources remain
-backend-independent, with JUCE code in the JUCE runtime.
+backend-independent, with VST3 code in the VST3 runtime.
 
 ## How to change it
 

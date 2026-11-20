@@ -1,6 +1,6 @@
 // The events of soundor:native in the browser: published by the project's
 // native.ts through the generated contract's `events`, delivered to the
-// plugin UI's subscribers afterwards, as the JUCE runtime does (the engine's
+// plugin UI's subscribers afterwards, as the native runtime does (the engine's
 // tests/native/NativeEventsTests.cpp checks the same behaviour).
 
 import { events } from 'soundor:native';

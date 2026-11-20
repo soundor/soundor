@@ -27,7 +27,7 @@ const name = await storage.get<string>('lastPreset'); // 'warm', or undefined
 Every method returns a promise.
 
 - **Where:** natively, `storage.json` in the plugin's private data directory
-  (JUCE: `<user application data>/Soundor/<plugin.id>`), safe across instances
+  (`<user application data>/Soundor/<plugin.id>`), safe across instances
   in one process; in the browser, IndexedDB, one database per `plugin.id`.
 - **For files** (presets, samples, anything large), use
   [`soundor:fs`](/docs/api/fs).

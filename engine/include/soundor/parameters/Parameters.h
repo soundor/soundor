@@ -102,7 +102,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         std::atomic<bool> pending { false };
     };
 
-    // A backend's parameter system (JUCE: the AudioProcessorValueTreeState),
+    // A backend's parameter system (the VST3 adapter's edit controller),
     // seen from the UI thread. Indices follow infos(). Values are plain units:
     // the declared range, 0/1 for booleans, the index for choices.
     //

@@ -48,6 +48,7 @@ namespace soundor::vst3
           selection(std::make_unique<SelectionField>())
     {
         manager.registerField(*selection);
+        infer();
     }
 
     FactoryPresets::~FactoryPresets() = default;
@@ -124,6 +125,20 @@ namespace soundor::vst3
 
     void FactoryPresets::restored()
     {
+        infer();
+    }
+
+    void FactoryPresets::infer()
+    {
+        // As every runtime does (@soundor/core's presets): the first factory
+        // preset the content matches, else none (custom). Not an edit: a
+        // restore clears History, and a new instance has none.
         selection->current.clear();
+        for (std::size_t i = 0; i < definition.presets.size(); ++i)
+            if (matches(i))
+            {
+                selection->current = definition.presets[i].id;
+                return;
+            }
     }
 } // namespace soundor::vst3

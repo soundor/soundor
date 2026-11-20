@@ -2,7 +2,7 @@
  * Environment probes for `soundor doctor`. These run standalone (no project
  * required) and answer "does this machine have the baseline toolchain the CLI
  * needs?" — Node, a package manager and Rust. Runtime-specific toolchains
- * (e.g. CMake/JUCE) are diagnosed by each runtime's own `doctor` hook, not here.
+ * (e.g. Cargo, a linker) are diagnosed by each runtime's own `doctor` hook, not here.
  */
 
 import type { DoctorCheck } from '@soundor/config';

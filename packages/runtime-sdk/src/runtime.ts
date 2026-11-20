@@ -10,14 +10,14 @@ export type RuntimeDefinition<Options extends object = object> =
 
 /**
  * Authors a runtime and returns the config-callable factory a runtime package
- * exports (e.g. `juceRuntime`). Calling the factory yields a live {@link
+ * exports (e.g. `vst3Runtime`). Calling the factory yields a live {@link
  * RuntimeDescriptor} to drop into a config's `runtimes[]`:
  *
  * ```ts
  * import type { RuntimeFactory } from '@soundor/config';
  *
- * export const juceRuntime: RuntimeFactory<JuceOptions> = defineRuntime({
- *   id: 'juce',
+ * export const vst3Runtime: RuntimeFactory<Vst3Options> = defineRuntime({
+ *   id: 'vst3',
  *   async gen(config, ctx) { ... },
  *   async dev(config, ctx) { ... },
  *   async build(config, ctx) { ... },
@@ -25,7 +25,7 @@ export type RuntimeDefinition<Options extends object = object> =
  * });
  *
  * // soundor.config.ts
- * runtimes: [juceRuntime({ plugin: { formats: ['vst3'] } })]
+ * runtimes: [vst3Runtime({ timeLimit: 5000 })]
  * ```
  *
  * The returned descriptor carries the declarative `{ id, options }` plus the implementation;

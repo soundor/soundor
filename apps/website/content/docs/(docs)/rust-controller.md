@@ -18,7 +18,7 @@ resources.
 | Reaches    | its block: parameters, state snapshot, I/O | parameters, persistent state, History, presets, the processor's resources |
 | Keeps      | its own fields (`&mut self`)               | two stores Soundor owns: `LocalStore` and `SharedStore`                   |
 | Exists     | once per plugin instance                   | once per plugin instance, editor open or not                              |
-| Runs where | the JUCE runtime and the Web runtime       | JUCE natively and the Web runtime through WASM                            |
+| Runs where | the VST3 runtime and the Web runtime       | VST3 natively and the Web runtime through WASM                            |
 
 The [controller example](/docs/examples/controller) is a complete plugin.
 
@@ -180,7 +180,7 @@ panics with the reason when the store refuses a value (an array beyond its
 it cannot be kept, moved to a thread, or held across an `.await` (async
 methods get the other context). A synchronous method runs inside the
 JavaScript call: it should be quick, as the UI waits for it (and the
-[time limit](/docs/juce-runtime#options) counts it). Work that takes time is
+[time limit](/docs/vst3-runtime#options) counts it). Work that takes time is
 an async method.
 
 ## `AsyncTaskContext`: async work
@@ -272,7 +272,7 @@ future at its next suspension point, never in the middle of a poll.
 ## The control thread
 
 JavaScript and the controller's synchronous code share one thread, the
-control thread: the message thread in the JUCE runtime. Its work is:
+control thread: the host's UI thread in the VST3 runtime. Its work is:
 
 1. one task at a time, run to its end: a JavaScript event or timer, a
    scheduled callback, or an async method's completion;
@@ -282,9 +282,9 @@ control thread: the message thread in the JUCE runtime. Its work is:
    usual paths, at the editor's next tick.
 
 A synchronous native call runs inside the JavaScript call that made it. A
-scheduled callback never runs inline: the runtime is woken (the JUCE runtime
-through an `AsyncUpdater`, a message posted to the message loop) and runs
-the controller's queue at the loop's next turn, one item at a time. It stops
+scheduled callback never runs inline: the runtime is woken (the VST3 runtime
+on a timer of the host's UI thread, or on Linux in the run loop the host
+lends) and runs the controller's queue at the loop's next turn, one item at a time. It stops
 after a few milliseconds of work and runs again at the next turn, so a
 controller that schedules a lot never starves input, rendering or the host.
 A call into the controller from inside one of its own calls (a service
@@ -300,8 +300,8 @@ plugin instance ─┬─ Processor           (audio thread)
                  └─ editors 0..n        (each its own JavaScript context)
 ```
 
-The JUCE runtime creates the controller with the plugin instance (the
-generated `soundor::AudioProcessor`), after its parameters, state, History
+The VST3 runtime creates the controller with the plugin instance (its edit
+controller), after its parameters, state, History
 and presets, and shuts it down first when it is destroyed. Editors come and
 go: opening one installs the controller's methods in its context, closing it
 leaves the controller and its stores as they are, and every editor of an
@@ -347,7 +347,7 @@ string`), before the controller is called.
 
 ## Runtimes
 
-The JUCE runtime links the controller into the plugin. The web runtime
+The VST3 runtime links the controller into the plugin. The web runtime
 compiles that same crate to `wasm32-unknown-unknown`, creates one controller
 on the browser main thread, and checks its generated contract before use.
 Methods and stores have the same Rust types in both runtimes.

@@ -1,8 +1,7 @@
 #pragma once
 
 // Parameters on the controller's side: edits by the UI and the Rust
-// controller go through History (ParameterEditor, the JUCE backend's, with
-// VST3's beginEdit/performEdit/endEdit for the host), and the UI's
+// controller go through History (ParameterEditor, with VST3's beginEdit/performEdit/endEdit for the host), and the UI's
 // `soundor:parameters` reads and writes them (UiParameters).
 //
 // Everything here runs on the controller's (UI) thread. The host's own

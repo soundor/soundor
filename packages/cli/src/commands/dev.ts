@@ -343,7 +343,7 @@ export const devCommand = defineCommand({
   args: {
     runtime: {
       type: 'positional',
-      description: 'Runtime to use (e.g. juce)',
+      description: 'Runtime to use (e.g. vst3)',
       required: true,
     },
     config: {

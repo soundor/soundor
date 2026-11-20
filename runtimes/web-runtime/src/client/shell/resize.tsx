@@ -133,7 +133,7 @@ export interface Rect extends Size {
   readonly y: number;
 }
 
-/** How an editor of `size` shows its UI, as the JUCE editor does. */
+/** How an editor of `size` shows its UI, as the native editor does. */
 export interface ViewLayout {
   /** CSS pixels per layout pixel, before the stage's own scaling. */
   readonly zoom: number;

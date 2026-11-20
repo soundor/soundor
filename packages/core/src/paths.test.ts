@@ -7,15 +7,15 @@ describe('createProjectPaths', () => {
     const paths = createProjectPaths({
       root: '/proj',
       config: '/proj/soundor.config.ts',
-      runtimeId: 'juce',
+      runtimeId: 'vst3',
     });
     expect(paths).toEqual({
       root: '/proj',
       config: '/proj/soundor.config.ts',
-      dist: '/proj/.soundor/dist/juce',
-      gen: '/proj/.soundor/generated/runtimes/juce',
-      cache: '/proj/.soundor/cache/juce',
-      state: '/proj/.soundor/state/juce',
+      dist: '/proj/.soundor/dist/vst3',
+      gen: '/proj/.soundor/generated/runtimes/vst3',
+      cache: '/proj/.soundor/cache/vst3',
+      state: '/proj/.soundor/state/vst3',
     });
   });
 
@@ -23,7 +23,7 @@ describe('createProjectPaths', () => {
     const paths = createProjectPaths({
       root: '/proj',
       config: 'soundor.config.ts',
-      runtimeId: 'juce',
+      runtimeId: 'vst3',
     });
     expect(paths.config).toBe('/proj/soundor.config.ts');
   });

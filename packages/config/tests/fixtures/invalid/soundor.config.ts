@@ -3,7 +3,7 @@
 // the runtime is structurally valid so validation reaches the parameter issues.
 const noop = async () => {};
 const runtime = {
-  id: 'juce',
+  id: 'vst3',
   gen: noop,
   dev: noop,
   build: noop,
@@ -12,7 +12,7 @@ const runtime = {
 
 export default {
   plugin: { id: 'com.example.invalid', name: 'Invalid' },
-  runtimes: [{ id: 'juce', runtime }],
+  runtimes: [{ id: 'vst3', runtime }],
   parameters: {
     gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 5 },
     mode: {

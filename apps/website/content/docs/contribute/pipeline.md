@@ -31,7 +31,7 @@ flowchart TD
     esm --> phases["Selected runtimes: dev or build"]
 ```
 
-Config imports live runtime factories, such as `juceRuntime()`; their
+Config imports live runtime factories, such as `vst3Runtime()`; their
 descriptors carry an ID, options and the implementation. Resolution uses these
 descriptors. The CLI does not import a concrete runtime to dispatch a command.
 
@@ -46,7 +46,7 @@ and reports an aggregate error after attempting the runtime builds.
 
 The bundler inlines npm dependencies and leaves `soundor:*` imports for the
 runtime. `bundle.mjs` is an ES2023 module. A runtime that runs another form
-makes it: the JUCE runtime lowers it into a CommonJS module function for
+makes it: the VST3 runtime lowers it into a CommonJS module function for
 Hermes with the engine's `toNativeModule()` (`@soundor/engine/native-module`),
 so the lowering matches the engine it links. Assets travel with the bundle. A project with
 no `src/main.ts[x]` has no `ctx.ui`; runtimes must handle that case.

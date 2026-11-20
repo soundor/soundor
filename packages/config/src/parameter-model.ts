@@ -4,7 +4,7 @@
  *
  * Every rule of a parameter's behavior is written here once — mappings,
  * snapping to the step, the default text — as expressions that every
- * runtime compiles, so a JUCE plugin and its Web version agree by
+ * runtime compiles, so a VST3 plugin and its Web version agree by
  * construction. Runtimes never re-implement a mapping.
  */
 

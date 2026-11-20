@@ -175,7 +175,7 @@ describe('the dock', () => {
     expect(audio.status.volume).toBe(0.3);
   });
 
-  it('shows the plugin viewport at the JUCE editor size', () => {
+  it('shows the plugin viewport at the native editor size', () => {
     const { shell } = setup();
     expect(shell.viewport.style.width).toBe('800px');
     expect(shell.viewport.style.height).toBe('600px');

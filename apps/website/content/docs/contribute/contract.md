@@ -16,7 +16,7 @@ lifetime are observable too.
 | -------------------------------- | ---------------------------------------------------------------- |
 | Contract declarations            | `packages/environment/`, `packages/core/src/*-dts.ts`            |
 | React mapping                    | `packages/react/src/`                                            |
-| Native implementation            | `engine/src/`, JUCE host adapters                                |
+| Native implementation            | `engine/src/`, the VST3 adapter                                  |
 | Browser implementation           | `runtimes/web-runtime/src/client/`                               |
 | Simulated implementation         | `packages/test-runtime/src/`                                     |
 | Application-facing specification | [API](/docs/api), [React](/docs/react), [testing](/docs/testing) |
@@ -62,7 +62,7 @@ layout, native execution or audio processing. Those need platform tests.
 An implementation must preserve the contract's observable behavior, including
 invalid input and teardown. Accessibility roles and visibility belong to
 Soundor's semantic tree; native bridges and web ARIA consume those semantics.
-JUCE provides a host view, rather than defining control semantics.
+The plugin format provides a host view, rather than defining control semantics.
 
 Tests live with each implementation: engine module and UI suites, browser
 client module and UI tests, test-runtime suites, and the React testing

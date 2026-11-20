@@ -1,5 +1,5 @@
 /**
- * The streams of `soundor:native` in the browser, with the JUCE runtime's
+ * The streams of `soundor:native` in the browser, with the native runtime's
  * latest-value semantics (`js/Streams.h` in the engine): the project's
  * `runtimes/web` code publishes through the generated `streams`, and the
  * plugin UI receives the newest value once a frame.

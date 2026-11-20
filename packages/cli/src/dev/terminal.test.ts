@@ -37,7 +37,7 @@ it('collapses child-process output into one progress line, keeping all of it in 
     collapse: true,
     output: output as never,
   });
-  const logger = terminal.logger.child('juce');
+  const logger = terminal.logger.child('vst3');
 
   logger.pipe('[1/2] Building CXX object with a rather long name.o');
   logger.pipe('[2/2] Linking');
@@ -52,7 +52,7 @@ it('collapses child-process output into one progress line, keeping all of it in 
       '\r\x1b[2K… [2/2] Linking' +
       '\r\x1b[2K',
   );
-  expect(info).toHaveBeenCalledWith('[soundor:juce] Debug build ready.');
+  expect(info).toHaveBeenCalledWith('[soundor:vst3] Debug build ready.');
   // Settled output is not printed again when something fails later.
   expect(error).not.toHaveBeenCalled();
   expect(await readFile(buildLog, 'utf8')).toBe(
@@ -98,7 +98,7 @@ it('formats the summary with aligned labels', () => {
   expect(
     formatSummary({
       version: '1.2.3',
-      runtime: 'juce',
+      runtime: 'vst3',
       readyMs: 41_830,
       rows: [
         { label: 'Plugin', value: 'Gain' },
@@ -110,7 +110,7 @@ it('formats the summary with aligned labels', () => {
   ).toBe(
     [
       '',
-      '  SOUNDOR  v1.2.3  dev · juce  ready in 41.8 s',
+      '  SOUNDOR  v1.2.3  dev · vst3  ready in 41.8 s',
       '',
       '  ➜  Plugin:    Gain',
       '  ➜  DevTools:  http://localhost:4545',

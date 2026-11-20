@@ -160,16 +160,15 @@ Soundor avoids leaving uncancellable future Note Ons on that device. Device
 latency and browser scheduling still apply. SysEx and MIDI system/realtime
 messages are unsupported in this version.
 
-## JUCE plugin and VST3 compatibility
+## VST3 compatibility
 
-`midi.input` and `midi.output` independently drive the JUCE plugin capability
-macros and the VST3 event input/output buses. `kind: 'midiEffect'` defaults to an
+`midi.input` and `midi.output` independently drive the VST3 event input and
+output buses. `kind: 'midiEffect'` defaults to an
 empty audio layout, declares the format's MIDI-effect capability and can generate
 MIDI without audio outputs. Instruments can declare only an audio output bus.
 Internal messages continue to work when both MIDI flags are false.
 
-The adapter preserves host sample offsets and translates channel messages through
-JUCE's supported format adapter. VST3 has note-on, note-off and polyphonic-pressure
+The adapter preserves host sample offsets. VST3 has note-on, note-off and polyphonic-pressure
 events; legacy CC output also represents CC, pitch bend, channel pressure and
 program output where the receiving host supports it. CC/bend/channel-pressure
 input relies on VST3 `IMidiMapping` parameter mapping. Program changes may select

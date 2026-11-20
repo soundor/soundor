@@ -20,7 +20,7 @@ needs it, and it installs a native executable.
 import { launch } from '@soundor/driver/vst3';
 
 const plugin = await launch({
-  plugin: '.soundor/debug/juce/VST3/MyPlugin.vst3',
+  plugin: '.soundor/debug/vst3/MyPlugin.vst3',
   sampleRate: 48_000,
 });
 try {
@@ -46,8 +46,8 @@ ordinary [`Vst3Host`](/docs/testing/vst3-host). The plugin also has the Driver's
 ## What it can load
 
 The plugin must be a **Debug build of a Soundor plugin**: only those have
-DevTools. [`soundor build juce --debug`](/docs/cli/build#debug-builds) makes one
-at the path above. `soundor dev juce` also builds one, among its `Plugins`; its
+DevTools. [`soundor build vst3 --debug`](/docs/cli/build#debug-builds) makes one
+at the path above. `soundor dev vst3` also builds one, the bundle it prints; its
 UI reloads when `soundor dev` rebuilds it, and the Driver follows, as with any
 [reload](/docs/driver/connecting#targets).
 

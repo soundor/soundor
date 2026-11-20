@@ -41,7 +41,7 @@ A project has three main parts:
 2. **The UI:** `src/main.tsx` mounts React components from `@soundor/react`.
    The components use Soundor nodes, events, and services.
 3. **The Rust crate:** `lib/` contains your processor and controller.
-   Both JUCE and Web hosts are managed by Soundor; optional custom Web inputs
+   Both VST3 and Web hosts are managed by Soundor; optional custom Web inputs
    live in browser modules.
 
 Soundor generates declarations and bindings from the contract. A parameter or
@@ -71,14 +71,14 @@ documents the native implementation and its limits.
 
 ## What you implement per runtime
 
-You write audio processing once in the Rust crate `lib/`. JUCE calls it
-through native FFI; Web runs its WebAssembly build in an AudioWorklet.
+You write audio processing once in the Rust crate `lib/`. The VST3 plugin
+calls it through native FFI; Web runs its WebAssembly build in an AudioWorklet.
 Soundor compiles both with Cargo and generates the parameter and layout types
 from the config. See [Rust audio processing](/docs/rust-processor).
 
-The `native` name describes the API boundary from the UI's perspective. In a
-JUCE plugin its methods call C++; in the web runtime they call your TypeScript
-implementation directly. Long-running native work needs an asynchronous method
+The `native` name describes the API boundary from the UI's perspective. Its
+methods call your [Rust controller](/docs/rust-controller): natively in the
+VST3 plugin, through WebAssembly in the browser. Long-running native work needs an asynchronous method
 and appropriate background execution.
 
 ## How the UI reaches the screen
@@ -86,7 +86,7 @@ and appropriate background execution.
 `@soundor/react` uses its own React reconciler. Components such as `View`,
 `Text`, `Pressable`, and `Canvas` update a Soundor node tree.
 
-- **JUCE:** Hermes executes JavaScript on the message thread. Yoga computes
+- **VST3:** Hermes executes JavaScript on the host's UI thread. Yoga computes
   layout, Skia draws GPU layers on macOS, Windows and Linux where available, and Soundor composes them on the GPU where
   supported, or on the CPU. Canvas WebGL uses ANGLE.
 - **Web:** the browser executes JavaScript and Soundor maps nodes to DOM

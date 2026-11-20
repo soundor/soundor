@@ -12,7 +12,7 @@ runtime runs:
   the runtime provides them.
 - Package `exports` and `imports` resolve with the `soundor` condition enabled.
   Libraries can provide Soundor implementations through the same import used
-  on other platforms. This applies to both JUCE and the web runtime.
+  on other platforms. This applies to both the VST3 and the web runtime.
 - `build` minifies and tree-shakes into `.soundor/ui/production`. `dev` keeps
   source maps, in `.soundor/ui/development`.
 - TSX uses the automatic JSX runtime (set `"jsx": "react-jsx"` in the
@@ -26,7 +26,7 @@ runtime runs:
   that the plugin never calls adds none.
 
 Each build is `bundle.mjs` (and `bundle.mjs.map` in development). The web
-runtime loads it as it is. The JUCE runtime lowers it into the module form its
+runtime loads it as it is. The VST3 runtime lowers it into the module form its
 engine runs, with that engine's own lowering, and its release builds compile
 the result to Hermes bytecode.
 

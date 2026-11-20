@@ -1,6 +1,6 @@
 # @soundor/vst3-runtime
 
-Soundor plugins as VST3 plugins for Linux, macOS and Windows, without JUCE: your React UI (`src/`)
+Soundor plugins as VST3 plugins for Linux, macOS and Windows: your React UI (`src/`)
 and Rust processor and controller (`lib/`), linked with a prebuilt, generic
 VST3 adapter (Steinberg's VST3 SDK) and the prebuilt Soundor engine. No C++ is
 compiled when you build a plugin.

@@ -234,7 +234,7 @@ export class TestNode {
     return this.runtime.focusedNode() === this;
   }
 
-  /** It has focus and should show it, as in the JUCE runtime. */
+  /** It has focus and should show it, as in the native runtime. */
   get focusVisible(): boolean {
     return this.focused && this.runtime.focusVisible();
   }

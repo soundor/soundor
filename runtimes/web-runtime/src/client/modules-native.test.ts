@@ -1,6 +1,6 @@
 // Plugin code calling soundor:native, which the runtime's Vite plugin makes
 // from the manifest, into an implementation typed by the generated contract.
-// The messages are the JUCE runtime's, word for word (the engine's
+// The messages are the native runtime's, word for word (the engine's
 // tests/native/NativeModuleTests.cpp checks the same calls).
 
 import * as native from 'soundor:native';

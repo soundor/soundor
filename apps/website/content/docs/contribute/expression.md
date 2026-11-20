@@ -18,9 +18,8 @@ soundor.config.ts ─ resolveParameters ─▶ ParameterSemantics (expression tr
                                            │
                      ┌─────────────────────┼──────────────────────┐
                      ▼                     ▼                      ▼
-               compileCpp             compileJs              compileJsFunction
-          SoundorParameters.cpp   parameters.js (Web)    the test runtime
-              (JUCE runtime)
+        the VST3 adapter's           compileJs              compileJsFunction
+     interpreter (cppRuntime())   parameters.js (Web)    the test runtime
 ```
 
 ## How parameters use it
@@ -135,11 +134,10 @@ cannot fold them at compile time: built without the pragmas and with
 
 The one thing that may differ is the last bit of `exp`, `log` and `pow`:
 V8's and the C library's are both correctly rounded nearly always, but not
-always the same. The corpus avoids those cases; the JUCE runtime's parity
-test (`runtimes/juce-runtime/native/backend/juce/tests`), which runs the
-generated C++ against values the JavaScript computed
-(`ParameterParity.h`), allows a last-bit difference for normalized positions
-and a float's ulp for values, and requires at least 99% of them to be exact.
+always the same. The corpus avoids those cases. The VST3 adapter's interpreter
+calls the same helpers compiled C++ calls (`cppRuntime()`), and its tests run
+the expression corpus (`runtimes/vst3-runtime/native/tests/generated`)
+bit for bit.
 Formatted and parsed results must match exactly.
 
 Adding an operation means adding it to the AST, the checker, the builder,

@@ -1,8 +1,8 @@
 #pragma once
 
 // A plugin's editor, as far as the engine goes: what every runtime's
-// editor does with it, in one place. The runtime's side (a JUCE
-// AudioProcessorEditor, a VST3 IPlugView) is a Platform: it owns the native
+// editor does with it, in one place. The runtime's side (a VST3
+// IPlugView) is a Platform: it owns the native
 // view and the loop that drives it, and editor::Editor owns the rest:
 //
 // - the runtime: a RuntimeHost, or a DevSession that reloads it;
@@ -169,7 +169,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
             bool nativeInput = true;
             std::chrono::milliseconds doubleClickTime { 400 };
             // The plugin's name (accessibility, DevTools) and the runtime's
-            // ("JUCE", "VST3"), as DevTools lists them.
+            // ("VST3"), as DevTools lists them.
             std::string name;
             std::string runtimeName;
         };

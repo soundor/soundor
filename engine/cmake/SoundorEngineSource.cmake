@@ -1,5 +1,5 @@
-# The engine built from this package's sources (the default, and what
-# `juceRuntime({ engine: { mode: "source" } })` uses): Hermes, Skia and ANGLE
+# The engine built from this package's sources (the default, and what the
+# prebuilt archives are staged from): Hermes, Skia and ANGLE
 # from the Soundor cache (built there once per machine), ada and Yoga, and the
 # runtime library itself. Included by CMakeLists.txt in its directory scope.
 

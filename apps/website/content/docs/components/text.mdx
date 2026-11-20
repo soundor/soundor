@@ -54,7 +54,7 @@ export const Title = () => (
   text out in the font from the first frame. Text shown before is laid out
   again; a canvas draws in it from its next `fillText()`.
 - **The promise** `registerFont` returns resolves once the font is ready (at
-  once in the JUCE runtime, after the browser loaded it in the web runtime)
+  once in the VST3 runtime, after the browser loaded it in the web runtime)
   and rejects if the file is not a font. Invalid arguments throw a
   `TypeError`.
 - **Unregistered**, `fontFamily` is a font installed on the system, which

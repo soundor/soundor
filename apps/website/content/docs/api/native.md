@@ -51,7 +51,7 @@ setSolo(null);
   (`centroid(): points[1].y: expected float64, got undefined`), a number out
   of range a `RangeError`. A native exception becomes an `Error`.
 - **Implemented** once in Rust: `impl NativeMethods for PluginController`.
-  Both the JUCE and web runtimes execute that controller. The generated Rust
+  Both the VST3 and web runtimes execute that controller. The generated Rust
   trait enforces every configured method at compile time. See the
   [Rust controller](/docs/rust-controller).
 
@@ -91,11 +91,11 @@ ctx.events.ready();
 
 Run `soundor gen` after changing an event declaration. A method with an
 `AsyncTaskContext` can publish inside `ctx.schedule(|ctx| ...).await`.
-JUCE, VST3, and the web runtime use the same Rust publishers.
+VST3 and the web runtime use the same Rust publishers.
 
 - **Delivered on the UI thread, later:** subscribers never run inside the
   call that published the event, and never on the thread that published it.
-  JUCE and VST3 deliver on an editor tick. The web runtime delivers in a
+  VST3 delivers on an editor tick. The web runtime delivers in a
   later turn of the event loop.
 - **In order:** a UI receives its events in the order they were published,
   so one thread's events keep their order.
@@ -141,14 +141,13 @@ const peak = useNativeStream(streams.peak);
 useEffect(() => streams.spectrum.subscribe((spectrum) => draw(spectrum)), []);
 ```
 
-```cpp
-// in the plugin (JUCE): the audio callback included
-nativeStreams.peak.publish(peakDecibels);
-nativeStreams.spectrum.publish(std::span<const float>(magnitudes)); // copied
-// or written in place, without a copy:
-auto bins = nativeStreams.spectrum.buffer(); // 512 floats
-fillSpectrum(bins);
-nativeStreams.spectrum.commit(bins.size());
+```rust
+// in the Rust processor, on the audio thread
+ctx.streams.peak.publish(peak_decibels);
+// a buffer, written in place, without a copy:
+let bins = ctx.streams.spectrum.buffer_mut(); // 512 floats
+fill_spectrum(bins);
+ctx.streams.spectrum.commit(bins.len());
 ```
 
 - **`get()`** returns the latest value the UI received: the same object until
@@ -163,7 +162,7 @@ nativeStreams.spectrum.commit(bins.size());
 - **Latest only:** a value replaces the one not yet delivered. A slow UI, a
   subscriber that takes long, a hidden page or a closed editor never makes
   anything pile up, and costs the publisher nothing.
-- **Realtime-safe publishing (JUCE):** `publish()`, and a buffer's `buffer()`
+- **Realtime-safe publishing:** `publish()`, and a buffer's `buffer_mut()`
   and `commit()`, take no lock, never allocate (a buffer's storage is
   allocated for `maxLength` when the plugin is made), never wait and never run
   JavaScript, so the audio callback can publish. One thread at a time
@@ -175,7 +174,7 @@ nativeStreams.spectrum.commit(bins.size());
 - **Buffers** arrive as typed arrays of the length published, up to
   `maxLength`; publishing more publishes nothing and returns `false`.
   64-bit integers arrive as `bigint`s.
-- **Delivered on the UI thread:** the JUCE runtime takes the newest value of
+- **Delivered on the UI thread:** the VST3 runtime takes the newest value of
   each stream at its tick (60 times a second), the web runtime at the next
   animation frame. A subscriber that throws is reported, and the others still
   run.

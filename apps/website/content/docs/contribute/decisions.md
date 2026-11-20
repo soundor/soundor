@@ -26,10 +26,10 @@ well as execution time.
 
 ## No JIT
 
-The native UI runs in an interpreter. The
-[JUCE runtime guide](/docs/juce-runtime#performance-what-a-frame-costs) records
-that plugin hosts do not all allow a JIT. Layout, painting and composition run
-in native code; the UI's JavaScript runs on the message thread. Portable UI
+The native UI runs in an interpreter: plugin hosts do not all allow a JIT
+(see [what a frame costs](/docs/vst3-runtime#performance-what-a-frame-costs)).
+Layout, painting and composition run in native code; the UI's JavaScript runs
+on the host's UI thread. Portable UI
 performance therefore cannot depend on a JIT becoming available.
 
 An interpreter keeps the execution model usable in those hosts, while build-time
@@ -59,7 +59,7 @@ device and avoiding readback on the GPU path are explicit tested invariants.
 ## Yoga for layout
 
 Soundor needs a layout algorithm for a custom native node tree, independent of
-JUCE widgets and browser layout. [Yoga](https://www.yogalayout.dev/) supplies a
+any plugin framework's widgets and of browser layout. [Yoga](https://www.yogalayout.dev/) supplies a
 portable engine targeting web layout standards. Its flex layout model fits
 Soundor's React component and style API, and native code can calculate layout
 without implementing that algorithm in JavaScript.
@@ -84,11 +84,11 @@ keeps the DOM drawing what Yoga sized.
 The UI exposes accessibility properties on Soundor nodes. Soundor derives a
 semantic tree, then native platform backends and web ARIA consume it. This
 keeps roles, values, modal visibility and logical ownership consistent across
-runtime implementations. JUCE supplies a view and attachment point rather
-than defining Soundor's control semantics.
+runtime implementations. The plugin's editor supplies a view and attachment
+point rather than defining Soundor's control semantics.
 
 The native UI is a custom-drawn node tree, so its controls are not individual
-JUCE widgets whose semantics can simply be reused. Soundor also knows about
+framework widgets whose semantics can simply be reused. Soundor also knows about
 logical ownership through portals and modal visibility. Deriving semantics
 where that information lives gives every platform the same meaning for a
 control, including the browser implementation.
@@ -120,21 +120,28 @@ several copies or versions and retains accessibility objects after an editor
 closes. The tradeoff is maintaining the macOS and iOS mappings and manual
 assistive-technology checks as well as the automated lifetime tests.
 
-## No DSP abstraction
+## Audio in Rust, not a DSP abstraction
 
-Soundor shares the UI and its contract. Native plugin authors implement DSP in
-their host project; web projects implement their audio with Web Audio. The
-native API is a typed bridge to that code, rather than a portable DSP language.
-See [Web runtime limitations](/docs/web-runtime#limitations).
+Soundor shares the UI, its contract and one Rust crate, `lib/`: its processor
+runs natively in the VST3 plugin and as WebAssembly in an AudioWorklet, and its
+controller implements the typed native API in both. Soundor defines no
+signal-processing language and no DSP library: the crate is ordinary Rust, with
+whatever crates the author chooses, behind a small, versioned C ABI
+(`soundor::export!`). See [Rust audio processing](/docs/rust-processor).
 
-Keeping audio in the host project lets authors use its existing processing
-model: a JUCE audio callback in C++, or browser audio nodes and routing. Sharing
-the UI does not require adopting a Soundor signal-processing language or
-translating an existing processor into one. Parameters and the typed native API
-provide the boundary the UI needs.
+The tradeoff is that plugin DSP is Rust: C++ DSP has no place to go, and the
+browser's own audio nodes are not the processing model.
 
-A shared DSP layer would also need to define processing, real-time state and
-compatibility across those backends. Keeping that responsibility with the
-plugin author keeps Soundor focused on the UI and its integration. The tradeoff
-is explicit: shared UI and API declarations do not make the audio implementation
-portable. A project targeting both runtimes supplies both audio implementations.
+## A VST3 adapter instead of JUCE
+
+Soundor once had a JUCE runtime: a JUCE project generated per plugin, compiled
+with CMake, around the engine. It is gone. The VST3 runtime builds the same
+plugins from a generic adapter on Steinberg's SDK, compiled once and shipped
+prebuilt, so building a plugin compiles no C++, needs no CMake, and does not
+bring JUCE's licence into every project. The engine already owned what JUCE had
+supplied (input, accessibility, rendering, HTTP, the clipboard, the editor
+through `editor::Editor`), so the adapter only speaks VST3.
+
+The tradeoff is the formats: VST3 only, without AU, CLAP or a standalone
+application, and only on Linux x86_64, macOS and Windows x64. Another format
+would be another adapter on the same engine.

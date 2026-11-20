@@ -1,7 +1,7 @@
 /**
  * Builds a plugin's UI — TypeScript/TSX and the packages it imports — into a
  * single JavaScript bundle, one ES module, with tsdown. A runtime that runs
- * another form makes it from this one (the JUCE runtime lowers it for its
+ * another form makes it from this one (the VST3 runtime lowers it for its
  * engine).
  *
  * Output (in `outDir`):

@@ -133,7 +133,7 @@ Nothing stays pressed:
 ## Security
 
 The engine compiles input automation with DevTools only, in Debug builds as
-made by `soundor dev` or `soundor build juce --debug`. Release builds exclude
+made by `soundor dev` or `soundor build vst3 --debug`. Release builds exclude
 it. Clients sign in to the loopback session with its browser key, and the
 runtime receives commands through its authenticated bridge. Any client signed
 in to the session can send input. Targets advertise it as the `input`

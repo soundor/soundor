@@ -1,7 +1,7 @@
 /**
  * Events along the `soundor:ui` tree. A node is an EventTarget whose events
  * run the DOM's capture, target and bubble phases along the Soundor tree, as
- * in the JUCE runtime: listeners see UiNodes as `target` and
+ * in the native runtime: listeners see UiNodes as `target` and
  * `currentTarget`, never the DOM elements that draw them.
  *
  * Events are the browser's own Event objects (and the subclasses below); a

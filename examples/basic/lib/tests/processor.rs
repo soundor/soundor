@@ -1,5 +1,5 @@
 //! The gain processor, tested in plain Rust through Soundor's testing
-//! harness: no host, no JUCE, no browser.
+//! harness: no host, no plugin format, no browser.
 //! `cargo test --manifest-path lib/Cargo.toml` (after `soundor gen`).
 
 use soundor::testing::{Status, TestProcessor};

@@ -25,7 +25,7 @@ export const Route = createRootRoute({
       {
         name: 'description',
         content:
-          'Audio plugins with a TypeScript/React UI, written once and run in a JUCE plugin and in the browser.',
+          'Audio plugins with a TypeScript/React UI, written once and run in a VST3 plugin and in the browser.',
       },
       {
         property: 'og:image',

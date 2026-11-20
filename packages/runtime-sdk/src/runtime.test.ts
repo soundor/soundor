@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { defineRuntime, type RuntimeDefinition } from './runtime';
 
-function makeRuntime(id = 'juce'): RuntimeDefinition {
+function makeRuntime(id = 'vst3'): RuntimeDefinition {
   const noop = async (): Promise<void> => {};
   return {
     id,
@@ -26,7 +26,7 @@ describe('defineRuntime', () => {
     const runtime = makeRuntime();
     const factory = defineRuntime(runtime);
     expect(typeof factory).toBe('function');
-    expect(factory.id).toBe('juce');
+    expect(factory.id).toBe('vst3');
     expect(factory.runtime).toEqual(runtime);
     expect(factory().runtime).toBe(factory.runtime);
   });
@@ -36,7 +36,7 @@ describe('defineRuntime', () => {
     const factory = defineRuntime(runtime);
     const descriptor = factory({ format: 'vst3' });
     expect(descriptor).toEqual({
-      id: 'juce',
+      id: 'vst3',
       options: { format: 'vst3' },
       runtime,
     });
@@ -53,7 +53,7 @@ describe('defineRuntime', () => {
     // The descriptor is a live object; only its declarative surface matters to
     // the serializable config view.
     expect({ id: descriptor.id, options: descriptor.options }).toEqual({
-      id: 'juce',
+      id: 'vst3',
       options: { format: 'vst3' },
     });
   });

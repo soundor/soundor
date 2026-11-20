@@ -1,7 +1,6 @@
 // Counts operator new on the threads that ask, for the Rust processor bridge's
-// tests (processor/RustProcessorTests.cpp here, and the JUCE runtime's
-// JuceRustProcessorTests.cpp): kept in a file of its own, apart from the code
-// it counts.
+// tests (processor/RustProcessorTests.cpp): kept in a file of its own, apart
+// from the code it counts.
 
 #include <atomic>
 #include <cstdint>

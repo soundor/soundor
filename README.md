@@ -4,12 +4,12 @@
 </picture>
 
 Build audio plugin UIs in TypeScript and React, and run the same UI in a native
-JUCE plugin or a browser.
+VST3 plugin or a browser.
 
 A Soundor project declares its identity, parameters, typed native API, and
 runtimes in `soundor.config.ts`. Soundor generates the shared contract, bundles
-the UI, and builds each runtime. You write the audio processing in the runtime's
-own language: C++ for JUCE, TypeScript and Web Audio for the browser.
+the UI, and builds each runtime. You write the audio processing once, in Rust:
+it runs natively in the plugin and as WebAssembly in the browser.
 
 ```tsx
 import { Pressable, Text, View, render, useParameter } from '@soundor/react';
@@ -36,20 +36,21 @@ and a working project.
 
 ## Two runtimes, one UI
 
-| Runtime                                       | UI implementation                                                                         | Audio implementation                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| [JUCE](https://soundor.dev/docs/juce-runtime) | Hermes runs the UI; Yoga lays it out; Skia draws it, with GPU composition where available | Your C++ processor; VST3, AU on macOS, and Standalone builds |
-| [Web](https://soundor.dev/docs/web-runtime)   | The browser runs the UI on DOM-backed Soundor nodes                                       | Your TypeScript and Web Audio graph                          |
+| Runtime                                       | UI implementation                                                                         | Audio implementation                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [VST3](https://soundor.dev/docs/vst3-runtime) | Hermes runs the UI; Yoga lays it out; Skia draws it, with GPU composition where available | Your Rust processor, natively; Linux, macOS and Windows |
+| [Web](https://soundor.dev/docs/web-runtime)   | The browser lays the UI out with the engine's core, as WebAssembly, and draws it in DOM   | The same Rust processor, in an AudioWorklet             |
 
 The React renderer targets Soundor's `soundor:ui` interface. The native runtime
 embeds its own UI engine; the web runtime implements the same interface with
-browser APIs. Audio processing is implemented separately for each runtime.
+browser APIs, and lays it out with the same engine core.
 
 ## Start a project
 
-Use Node.js 24 and pnpm 12; npm works too, Yarn and bun are not supported. For
-native builds, install JUCE and the platform's C++ toolchain; Soundor discovers
-an existing JUCE checkout and never downloads it.
+Use Node.js 24 and pnpm 12; npm works too, Yarn and bun are not supported. Install
+Rust stable; VST3 builds also need the platform's linker (a C++ compiler driver
+on Linux, Apple's Command Line Tools, or Visual Studio's Build Tools). No C++ is
+compiled per plugin.
 
 ```sh
 pnpm create soundor-app my-plugin
@@ -58,7 +59,7 @@ pnpm doctor
 pnpm dev
 ```
 
-The scaffolder asks for the runtimes, JUCE (the default), web or both, and
+The scaffolder asks for the runtimes, VST3 (the default), web or both, and
 `pnpm dev` runs the first of them. Both hosts are managed by their installed
 packages; neither needs a `runtimes/` directory or runtime initialization.
 It pins every Soundor package to an exact
@@ -97,5 +98,4 @@ commands.
 ## License
 
 Soundor is [MIT licensed](LICENSE). Native dependencies carry their own notices;
-see [engine attribution](https://soundor.dev/docs/engine#licenses-and-attribution). JUCE is a
-separate dependency with its own license.
+see [engine attribution](https://soundor.dev/docs/engine#licenses-and-attribution).

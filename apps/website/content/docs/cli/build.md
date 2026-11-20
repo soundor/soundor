@@ -21,24 +21,24 @@ with it.
 
 ## What each runtime makes
 
-- **JUCE:** a Release plugin (VST3, AU, Standalone: the formats the runtime
-  is given) with the UI compiled to Hermes bytecode and no DevTools bridge,
-  in `.soundor/dist/juce/`. It links the prebuilt engine for the installed
-  engine version ([Soundor Engine](/docs/engine)). On macOS it signs as its
-  last step ([signing](/docs/juce-runtime#signing-and-distributing-on-macos)).
+- **VST3:** a Release VST3 bundle, for the machine's platform, with the UI
+  compiled to Hermes bytecode and no DevTools bridge, in `.soundor/dist/vst3/`.
+  It links the prebuilt engine of the runtime's engine version
+  ([Soundor Engine](/docs/engine)). On macOS it signs as its last step
+  ([signing](/docs/vst3-runtime#signing-and-distributing-on-macos)).
 - **Web:** a static site in `.soundor/dist/web/`, with relative URLs, so it
   works from any path and in an iframe ([web runtime](/docs/web-runtime)).
 
 ## Debug builds
 
-`soundor build juce --debug` makes a Debug plugin with DevTools for
+`soundor build vst3 --debug` makes a Debug plugin with DevTools for
 [end-to-end tests](/docs/testing/e2e) and the [Driver](/docs/driver/vst3), then
 exits. **Never ship it.** Its output is apart from releases, in
-`.soundor/debug/juce/`, or in `--out`, with each format directly inside:
+`.soundor/debug/vst3/`, or in `--out`:
 
 ```sh
-soundor build juce --debug --out e2e/build
-# e2e/build/VST3/My Plugin.vst3
+soundor build vst3 --debug --out e2e/build
+# e2e/build/My Plugin.vst3
 ```
 
 Its UI is embedded, so the bundle stands alone. It has build folders of its own,
@@ -46,7 +46,7 @@ so it can run during a [`soundor dev`](/docs/cli/dev) without disturbing it. It
 is incremental: with nothing changed, it does little.
 
 `--out` replaces what the build makes there and leaves everything else, so a
-format or a plugin you have since removed stays until you delete it.
+plugin you have since renamed stays until you delete it.
 
 ## Good to know
 

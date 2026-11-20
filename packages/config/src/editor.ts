@@ -1,5 +1,5 @@
 /**
- * The plugin editor's size: shared by every runtime, so the JUCE editor and
+ * The plugin editor's size: shared by every runtime, so the VST3 editor and
  * the Web host's plugin view open at the same size and resize within the
  * same limits. Runtimes read it through {@link resolveEditor}, never with
  * defaults of their own.
@@ -27,7 +27,7 @@ interface EditorConfigBase {
   minHeight?: number;
   /**
    * Largest width a resizable editor asks for; none by default (`Infinity`).
-   * The Standalone and the Web host's handle keep to it, and a host that
+   * The Web host's handle keeps to it, and a host that
    * asks is offered it; a host that sets a wider window anyway gets it, and
    * `fit` decides what the UI does beyond it. Ignored unless `resizable`.
    */
@@ -92,8 +92,7 @@ export interface ScaleEditorConfig extends EditorConfigBase {
   /**
    * Whether the editor asks to keep the shape of `width`×`height`: `true`
    * (the default) offers that aspect ratio to the host (which may still
-   * ignore it), and keeps it in the Standalone's window and the Web host's
-   * resize handle. `false` lets the window take any shape within its limits.
+   * ignore it), and keeps it in the Web host's resize handle. `false` lets the window take any shape within its limits.
    */
   keepAspectRatio?: boolean;
 }

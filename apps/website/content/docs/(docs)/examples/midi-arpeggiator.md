@@ -13,7 +13,7 @@ pnpm test
 pnpm test:rust
 pnpm typecheck
 pnpm build:web
-pnpm build:juce
+pnpm build:vst3
 pnpm test:e2e     # requires the preceding VST3 build
 ```
 

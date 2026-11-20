@@ -13,7 +13,7 @@ plugin-facing contract. A lifecycle factory alone is the first half of that job.
 
 The lifecycle types live in `packages/config/src/runtime.ts` and `context.ts`.
 `packages/runtime-sdk/src/runtime.ts` implements `defineRuntime()`. The reference
-implementations are `runtimes/juce-runtime/` and `runtimes/web-runtime/`.
+implementations are `runtimes/vst3-runtime/` and `runtimes/web-runtime/`.
 `packages/core/src/` generates the portable declarations.
 
 ## How it works
@@ -75,6 +75,6 @@ runtime conformance.
 Choose the execution platform before designing generated sources. Map every
 portable API to a platform service, including failures when a service is
 unavailable. Establish tests for values, errors and teardown, then wire the
-lifecycle around that implementation. Follow the JUCE and web implementations
+lifecycle around that implementation. Follow the VST3 and web implementations
 as case studies, checking which behavior belongs to their platform and which
 belongs to the shared contract.

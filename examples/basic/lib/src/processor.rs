@@ -1,4 +1,4 @@
-//! The plugin's audio processing. Soundor's runtimes run it: the JUCE
+//! The plugin's audio processing. Soundor's runtimes run it: the VST3
 //! plugin natively, the Web host compiled to WebAssembly, in an AudioWorklet.
 //! Its parameters are soundor.config.ts's, typed: `ctx.params.gain`.
 

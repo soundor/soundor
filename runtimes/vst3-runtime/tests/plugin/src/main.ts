@@ -1,11 +1,12 @@
 // The test plugin's UI, on soundor:ui itself (no React): its parameters,
-// its state and the Rust controller's method, shown as text.
+// its state and the Rust controller's method, shown as text. Bypass is also a
+// button, which the Driver's and vitest-e2e's real-plugin suites press.
 import { getHostState, subscribeHostState } from 'soundor:host';
 import { events, twice } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import { presets } from 'soundor:presets';
 import { state } from 'soundor:state';
-import { createText, createView, root } from 'soundor:ui';
+import { createText, createView, pressable, root } from 'soundor:ui';
 
 const column = root.appendChild(createView());
 column.style = {
@@ -18,7 +19,8 @@ column.style = {
 const gain = column.appendChild(createText());
 const label = column.appendChild(createText());
 const native = column.appendChild(createText());
-for (const text of [gain, label, native])
+const bypass = column.appendChild(createText());
+for (const text of [gain, label, native, bypass])
   text.style = { color: '#ffffff', fontSize: 18 };
 
 const showGain = (value: number) => {
@@ -31,6 +33,14 @@ showGain(parameters.gain.get());
 showLabel(state.label.get());
 parameters.gain.subscribe(showGain);
 state.label.subscribe(showLabel);
+const showBypass = (value: boolean) => {
+  bypass.text = value ? 'Bypassed' : 'Active';
+};
+showBypass(parameters.bypass.get());
+parameters.bypass.subscribe(showBypass);
+pressable(bypass, {
+  onPress: () => parameters.bypass.set(!parameters.bypass.get()),
+});
 // Lets the host test load a factory preset from the UI: a label naming one.
 state.label.subscribe((value) => {
   if (value === 'Load quiet') presets.factory.load('quiet');

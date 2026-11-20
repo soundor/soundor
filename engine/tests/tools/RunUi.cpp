@@ -536,8 +536,8 @@ try
     }
     std::cerr << "device: " << gpu::name(device->info().backend) << ", " << device->info().renderer << "\n";
 
-    // This standalone runner owns the application's History, as a processor
-    // does in JUCE. React's public hooks import the module even when unused.
+    // This standalone runner owns the application's History, as a plugin
+    // instance does. React's public hooks import the module even when unused.
     history::StateHistory history;
     RuntimeHost::Options options;
     options.installModules = [&](js::Context& context) { history::install(context, history); };

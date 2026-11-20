@@ -7,7 +7,7 @@ transport as the DevTools dashboard,
 and works with the real engine: its node tree, bounds, styles and
 accessibility; clicks, drags, keys and text through the engine's own input
 dispatch; and PNG captures of what it renders. It does not depend on a test
-runner, JUCE or React.
+runner, plugin format or React.
 
 ```ts
 import { connect } from '@soundor/driver';

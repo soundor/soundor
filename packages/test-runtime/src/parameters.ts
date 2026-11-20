@@ -1,7 +1,7 @@
 /**
  * The simulated runtime's parameter store: one {@link TestParameter} per
  * declared parameter, as the Web runtime has them. Values are in plain units,
- * as in the JUCE runtime; their mapping, step and text are the expressions
+ * as in the native runtime; their mapping, step and text are the expressions
  * `@soundor/config` resolved, compiled to JavaScript as the Web runtime's are,
  * so a test sees what a plugin does.
  */

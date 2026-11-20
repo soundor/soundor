@@ -36,7 +36,7 @@ it again mounts it and reads the latest data. See the
 ## In each runtime
 
 - **Web:** the document's page visibility, including a background tab.
-- **JUCE:** whether the editor is showing, sampled before each UI tick.
+- **VST3:** whether the editor is showing, sampled before each UI tick.
   Losing keyboard focus does not hide an editor; occlusion by another window
   and scrolling offscreen are not detected. A native editor that closes
   destroys its JavaScript context, and reopening creates a fresh one starting

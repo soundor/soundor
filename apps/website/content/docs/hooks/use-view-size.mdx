@@ -43,7 +43,7 @@ function Controls() {
 }
 ```
 
-The same component runs in the JUCE runtime and in the browser, with no
+The same component runs in the VST3 runtime and in the browser, with no
 check for which one it is in.
 
 ## Logical and device pixels
@@ -98,7 +98,7 @@ when there is room, or a canvas's drawing buffer.
 
 ## In each runtime
 
-- **JUCE:** the size of the editor, from the moment the host gives it one
+- **VST3:** the size of the editor, from the moment the host gives it one
   (before that, briefly, 0×0). A resize reaches the hook on the next tick of
   the editor's 60 Hz timer, before the frame laid out at the new size is
   drawn. After a reload in `soundor dev`, the new runtime's hooks start at

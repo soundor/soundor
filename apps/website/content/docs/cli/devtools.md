@@ -4,7 +4,7 @@ description: "Inspect a running plugin's UI from the browser: its node tree, ani
 ---
 
 [`soundor dev`](/docs/cli/dev) starts a DevTools session for a runtime that
-supports it (the JUCE runtime): a dashboard in the browser that inspects the
+supports it (the VST3 runtime): a dashboard in the browser that inspects the
 plugin's real UI, live.
 
 ## The session
@@ -28,7 +28,7 @@ a target at once: each has its own highlight, picker and synthetic input. See th
 
 ## Inspecting the native UI
 
-For Debug JUCE plugins, select a connected target to inspect the actual
+For Debug VST3 plugins, select a connected target to inspect the actual
 native UI hierarchy. Expand nodes or search by type, text, accessibility role/name,
 or node/debug ID. Selecting a node shows its real properties, layout and bounds,
 normalized base styles, current presentation values, and accessibility metadata.

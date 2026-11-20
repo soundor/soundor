@@ -10,8 +10,8 @@ UI, and read them in each runtime's audio processing.
 
 A parameter's behavior is declared once and runs the same everywhere: how a
 knob's travel maps to a value, which values are legal, how a value is shown
-as text and how typed text is read. Soundor compiles it into C++ for the JUCE
-runtime and into JavaScript for the browser and the tests, so a DAW shows the
+as text and how typed text is read. The VST3 runtime interprets it in C++, and Soundor
+compiles it into JavaScript for the browser and the tests, so a DAW shows the
 same text as your UI, even with the plugin's editor closed.
 
 ## Declare parameters
@@ -260,7 +260,7 @@ async functions and thenables are rejected. See [the setter contract](/docs/api/
 For a drag, begin on pointer down, set values as the pointer moves, and end
 when the interaction finishes or is cancelled. Balance gestures across every
 exit path. Gestures can nest; only the outermost boundaries reach the host.
-In the JUCE runtime these map to JUCE's parameter change gestures, allowing a
+In the VST3 runtime these map to VST3's `beginEdit`/`endEdit`, allowing a
 DAW to record the interaction as automation.
 
 ## Connect parameters to audio

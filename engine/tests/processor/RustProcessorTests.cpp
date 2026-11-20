@@ -2,8 +2,8 @@
 // on a C++ processor that keeps the ABI's rules (RustProcessorAbi.h) behind
 // the function table: the bridge's own work (contract checks, block
 // splitting, in-place channels, published values, silence on failure,
-// lifecycle) without a Rust library. The JUCE runtime's
-// JuceRustProcessorTests.cpp runs the same bridge on a real Rust processor.
+// lifecycle) without a Rust library. The VST3 runtime's plugin
+// tests run the same bridge on a real Rust processor.
 
 #include <soundor/processor/AudioState.h>
 #include <soundor/processor/RustProcessor.h>

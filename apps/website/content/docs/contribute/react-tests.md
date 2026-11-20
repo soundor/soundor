@@ -58,8 +58,9 @@ and host/parameter subscriptions. `primitives` tests pointer/keyboard/accessibil
 knob changes, nested modal focus, hosted portals, and animation lifecycle.
 
 Native application builds remain separate: `pnpm --filter basic --filter primitives
-exec soundor build juce`. The JUCE integration job builds the runtime's own
-test plugin (`pnpm --filter @soundor/juce-runtime test:plugin`); Orbit is the
+exec soundor build vst3`. The VST3 runtime's job builds its own test plugin
+(`pnpm --filter @soundor/vst3-runtime test:plugin`) and the controller
+example; Orbit is the
 one example CI builds natively, for its end-to-end tests. Simulated tests
 cannot validate pixels, DSP, plugin formats or host integration. Use
 [`@soundor/vitest-e2e`](/docs/testing/e2e) to test a built VST3's real UI and

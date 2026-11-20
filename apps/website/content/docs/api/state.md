@@ -91,9 +91,9 @@ fn process(&mut self, ctx: &mut ProcessContext) {
   restore, one preset, one undo) reach the same block together.
 - **Real-time safe.** Reading `ctx.state` takes no lock, allocates nothing and
   copies nothing: the runtime hands the processor a snapshot it prepared off
-  the audio thread. In the JUCE runtime, a change of an audio field is encoded
-  on the thread that made it and handed over through a preallocated triple
-  buffer. In the Web runtime, the page posts the snapshot to the AudioWorklet,
+  the audio thread. In the VST3 runtime, a change of an audio field is encoded
+  off the audio thread and reaches the processor as a message, which it takes
+  into a preallocated buffer. In the Web runtime, the page posts the snapshot to the AudioWorklet,
   which writes it into the processor's memory between render quanta.
 - **Size.** All audio fields together may take up to 8 MiB.
 
@@ -125,8 +125,8 @@ Equality is structural: struct fields and array elements are compared by
 value, arrays in order. Writing an equivalent value does not notify.
 
 Subscriptions receive changed field values and return an unsubscribe function.
-In JUCE, notifications from both JavaScript and native writes are queued in
-write order and delivered on the editor's next message-thread tick, like
+In the VST3 runtime, notifications from both JavaScript and native writes are
+queued in write order and delivered on the editor's next tick, like
 parameter notifications. Web writes notify synchronously. Subscriber exceptions
 are reported without preventing other subscribers from running.
 
@@ -189,73 +189,27 @@ editor's gesture after restoration.
 call `state.bands.beginGesture()`, `set()` and `endGesture()` directly. No History
 options, transactions or rollback are provided yet.
 
-## Native JUCE code
+## Native code
 
-The generated `soundor::AudioProcessor` base owns `state`. It survives closing
-the editor, and two processors have independent stores:
-
-```cpp
-void MyProcessor::selectPreset()
-{
-    state.selectedPreset.set(std::optional<std::string>{"Warm Vocal"});
-    auto bands = state.bands.get();
-    bands.push_back(soundor::native::Band{1000.0f, -3.0f, 1.2f});
-    state.bands.set(std::move(bands));
-}
-```
-
-Types reuse `soundor::native`: `bool`, sized integers, `float`/`double`,
-`std::string`, `std::optional<T>`, `std::vector<T>` and generated structs/enums.
-Native fields also expose `beginGesture()` and `endGesture()`. Native and
-JavaScript calls contribute to the same processor-owned field lifecycle; each
-caller balances its own begins and ends. Native getters return independent
-copies. Setters reject invalid values.
-A native field also has `subscribe(std::function<void(T)>)`, returning an
-unsubscribe closure. Native subscribers run synchronously on the writing
-thread; unsubscribe before destroying the processor.
-
-**State access is control-thread work, never real-time safe.** It allocates and
-uses synchronization. Do not read, write, subscribe or begin/end gestures in
-`process()`. The audio processing reads the fields declared with `audio: true`
-as `ctx.state` (see [above](#state-the-audio-processor-reads)), which the
-generated processor hands it, real-time safe, from `state.audioState()`.
-Ordinary parameter handles retain their existing real-time-safe reads.
+The plugin's [Rust controller](/docs/rust-controller) reads and writes the same
+fields, on the control thread, with the same validation, gestures and History;
+the processor reads the fields declared with `audio: true` as `ctx.state` (see
+[above](#state-the-audio-processor-reads)). State access from the controller is
+control-thread work, never real-time safe.
 
 ## Saving and restoration
 
-Soundor owns `getStateInformation()` and `setStateInformation()`; do not override
-them to persist declared state. JUCE saves parameters and state as one logical
-snapshot associated with the DAW's plugin slot. A duplicated track gets an
-independent processor with copied values. No processor UUID is serialized.
+The VST3 runtime saves parameters and state as one snapshot, the component's
+state, associated with the DAW's plugin slot. A duplicated track gets an
+independent instance with copied values. No instance id is serialized.
 
-Soundor validates the complete snapshot before changing any value. On the JUCE
-message thread it then replaces APVTS parameters, replaces state, queues field
-and restoration notifications, and calls this protected native extension point:
-
-```cpp
-void MyProcessor::stateRestored()
-{
-    // All saved values are available here, even with no editor.
-    rebuildDerivedState();
-    bandHistory.stateReplaced(); // your application's own history, if any
-}
-```
-
-`stateRestored()` fires once for each successful complete host restoration,
-including a valid legacy project, and never for saving, construction, rejected
-data or ordinary writes. It always runs on the JUCE message thread. When a host
-calls `setStateInformation()` on that thread, completion is synchronous. Calls
-from other threads validate and queue the **whole restoration** to the message
-thread and return before applying it. Queued operations apply in order, each
-followed by its hook. Up to eight off-thread restorations may wait for dispatch;
-excess requests are rejected and logged. Until dispatch, audio observes the previous parameter
-values. A host must service the JUCE message loop. Destruction cancels pending
-work; as with JUCE's other message-thread objects, destroy a processor on the
-message thread or while holding the message-manager lock. Never put this
-restoration path in the audio callback.
+Soundor validates the complete snapshot before changing any value. It then
+replaces the parameters and the state, notifies the subscribers, and tells the
+host to read the parameters back. A host's restore does not mark its project
+modified; a change the UI or the controller makes does.
 
 Parameters can still change through host automation during a save or restore;
-JUCE does not provide atomic visibility across multiple host parameters.
+VST3 does not provide atomic visibility across multiple host parameters.
 Soundor does not add locks to parameter processing or the audio callback.
 
 ## Web standalone persistence
@@ -288,8 +242,7 @@ with its default. Changing a field's type or a struct's shape may reject old
 snapshots. Invalid known values, malformed data, unsupported versions and unknown
 snapshot envelope fields reject the complete operation and are reported. The
 previous live values remain intact. No automatic migration silently coerces
-incompatible data. Existing JUCE `SOUNDOR` APVTS XML snapshots remain readable;
-new saves use version 1.
+incompatible data.
 
 Snapshots are limited to 8 MiB, nesting to 64 levels and collection sizes to
 100,000 elements. Keep application state modest; use file APIs for large assets.
@@ -313,10 +266,10 @@ value captured by a React render. Sequential calls see each preceding write,
 and `get()` reflects a successful write immediately. Returned arrays and structs
 are validated, detached and deeply frozen. Equivalent values do not notify.
 Exceptions propagate without committing a value; async callbacks, thenables and
-invalid results are rejected. The native C++ setter continues taking a value.
+invalid results are rejected.
 
 State setters create no automatic gesture. State gestures remain optional,
-explicit Soundor editing boundaries and never automate the JUCE host. Subscription,
+explicit Soundor editing boundaries and never automate the host. Subscription,
 saving and restoration behavior is the same for direct and functional updates.
 
 ## Undo and redo

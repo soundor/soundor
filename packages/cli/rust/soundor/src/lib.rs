@@ -4,13 +4,13 @@
 //! the project's `lib/` crate:
 //!
 //! - its [`Processor`], on the audio thread. Soundor's runtimes run the same
-//!   one: the JUCE runtime calls it through a C ABI on the host's audio
+//!   one: the native runtimes call it through a C ABI on the host's audio
 //!   thread, and the Web runtime runs it compiled to WebAssembly in an
 //!   AudioWorklet;
 //! - its required [`Controller`], on the control thread beside the UI: the
 //!   Rust behind `soundor:native`'s methods, with the plugin's parameters,
 //!   persistent state, History and presets, and async tasks that publish
-//!   the processor's resources. The JUCE runtime runs it natively; the web runtime through WASM.
+//!   the processor's resources. The native runtimes run it natively; the web runtime through WASM.
 //!
 //! `soundor.config.ts` stays the one source of the plugin's contract: its
 //! parameters arrive here as the typed [`Parameters`], its audio layouts as

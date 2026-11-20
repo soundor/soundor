@@ -79,7 +79,7 @@ export interface ShellOptions {
   readonly presentation: Presentation;
   /**
    * The plugin view's size and resize limits: the manifest's `editor`, as
-   * the JUCE editor opens. Ignored by `embed`, which fills the page.
+   * the native editor opens. Ignored by `embed`, which fills the page.
    */
   readonly editor: WebEditor;
   /**

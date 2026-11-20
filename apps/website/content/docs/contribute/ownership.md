@@ -41,8 +41,8 @@ output directory. Checks detect missing and stale expected files; they do not
 promise to remove obsolete files.
 
 Core's codegen, generation and path tests, CLI `gen.test.ts`, and runtime phase
-tests cover safe paths, output layout and command behavior. JUCE golden files
-also compile generated native bindings in adapter tests.
+tests cover safe paths, output layout and command behavior. The VST3
+runtime's golden descriptor is compiled by its native tests.
 
 ## Changing generators
 

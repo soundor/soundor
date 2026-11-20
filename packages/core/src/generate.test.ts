@@ -15,7 +15,7 @@ import {
 
 const config: CoreSoundorConfig = {
   plugin: { id: 'com.example.plugin', name: 'Example' },
-  runtimes: [{ id: 'juce' }],
+  runtimes: [{ id: 'vst3' }],
   parameters: [
     {
       type: 'boolean',

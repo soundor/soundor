@@ -116,49 +116,22 @@ function FactoryPresets() {
 }
 ```
 
-## Native C++
+## The Rust controller
 
-The generated processor exposes `presets()`, owned by the processor and
-independent of editor recreation. All catalog loading, snapshots and
-subscriptions are message-thread operations, never audio-callback operations.
-
-```cpp
-for (const auto& preset : presets().factoryPresets()) {
-    // preset.id, preset.name
-}
-
-presets().loadFactory("warm", soundor::history::Options(true));
-const auto selection = presets().snapshot();
-// selection.factoryId: std::optional<std::string>
-// selection.modified: bool
-
-history.transaction("Load and Adjust", [&] {
-    presets().loadFactory("warm");
-    gainParameter.set(0.8f);
-});
-history.undo();
-history.redo();
-```
-
-`loadFactory()` returns `void` and throws for an unknown id. Native
-`presets().subscribe(callback)` returns an unsubscribe closure; call it before
-the processor is destroyed. Snapshot checks are invalidated by real-time-safe
-parameter flags and control-thread state changes; they do not run on the audio
-thread. DSP continues reading its ordinary generated parameter handles.
+The plugin's [Rust controller](/docs/rust-controller) reaches the same catalog:
+it can load a factory preset and read the selection, on the control thread,
+with the same History options. Snapshot checks run on the control thread,
+never in the audio callback; the processor reads its parameters as usual.
 
 ## DAW programs and saved presets
 
-When the catalog is nonempty, JUCE generates the processor's program methods
-from it. A host supporting plugin program lists can show their names and load
-them. Program order follows config order; preserve it after release where hosts
-store program indices. Existing projects adopting a factory catalog must remove
-handwritten `getNumPrograms()`, `getCurrentProgram()`, `setCurrentProgram()`,
-`getProgramName()`, and `changeProgramName()` overrides. `gen` never overwrites
-existing files. Without a catalog, existing program overrides remain supported.
+When the catalog is nonempty, the VST3 runtime makes it the root unit's
+program list. A host supporting plugin program lists can show their names and
+load them, and shows the one the UI, the controller or History selected.
+Program order follows config order; preserve it after release where hosts
+store program indices.
 
-Host program changes do not create local History entries. Off-message-thread
-requests are handed to the message thread through a coalescing atomic request;
-they are not sample-accurate MIDI program changes. Host UI presentation varies.
+Host program changes do not create local History entries. They are not sample-accurate MIDI program changes. Host UI presentation varies.
 
 A DAW can save and restore plugin state using its normal preset system,
 including VST3 preset files. The Soundor snapshot format is unchanged. Accepted

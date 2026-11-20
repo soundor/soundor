@@ -1,11 +1,11 @@
 ---
 title: 'Rust audio processing'
-description: 'One lib/ crate, run through JUCE FFI and WebAssembly in an AudioWorklet.'
+description: 'One lib/ crate, run natively in the VST3 plugin and as WebAssembly in an AudioWorklet.'
 ---
 
 Write the UI in TypeScript and React and the audio processing in Rust. Both
-runtimes execute the same `lib/` crate. JUCE supplies the plugin host
-integration; the Web runtime supplies Web Audio routing and an AudioWorklet.
+runtimes execute the same `lib/` crate. The VST3 runtime supplies the plugin
+host integration; the Web runtime supplies Web Audio routing and an AudioWorklet.
 
 ## Files and tools
 
@@ -14,7 +14,7 @@ and `rust-toolchain.toml` once. The toolchain file requests `stable`. Install
 Rust with Cargo before running the CLI; for the Web runtime also install
 `rustup target add wasm32-unknown-unknown`. `soundor doctor` checks these
 requirements and never installs them. Native plugin builds additionally need
-the [JUCE toolchain](/docs/getting-started#requirements).
+the [platform's linker](/docs/vst3-runtime#requirements).
 
 You own the crate, its `Cargo.lock`, its dependencies, and the toolchain file.
 Soundor does not publish a required crate to crates.io. The installed `soundor`
@@ -132,8 +132,8 @@ Read-only parameters are written through `ctx.publish`, and configured native
 streams through `ctx.streams`. For example, the analyzer uses
 `ctx.publish.peak(value)` to report its peak. These routes preserve Soundor's
 existing publication semantics. The UI's native methods are the
-[controller](/docs/rust-controller)'s, in the JUCE runtime, or a runtime's own
-implementation; there are no arbitrary UI/audio message queues, and the
+[controller](/docs/rust-controller)'s (or, in the web runtime, its own
+implementation); there are no arbitrary UI/audio message queues, and the
 controller never reaches the processor's fields.
 
 ## Audio resources
@@ -182,18 +182,18 @@ fn process(&mut self, ctx: &mut ProcessContext) {
 
 ## Builds and development
 
-`soundor build juce` compiles the crate to a native static library with Cargo
-and links it into the JUCE plugin with CMake. `soundor build web` compiles it to
+`soundor build vst3` compiles the crate to a native static library with Cargo
+and links it into the VST3 plugin with the platform's linker. `soundor build web` compiles it to
 a WebAssembly module and includes it in the static Web build. `soundor dev`
 watches the crate as well as the UI. Cargo's incremental cache lives under
-`.soundor/cache/lib/`; UI-only rebuilds do not recompile the crate. Restart
-development after changing the config or runtime-specific C++ host code.
+`.soundor/cache/<runtime>/`; UI-only rebuilds do not recompile the crate. Restart
+development after changing the config.
 
 The internal native ABI uses versioned, sized C structures and an opaque
 instance handle. The adapter lends explicit channel pointers and lengths for
 one call; no Rust collections cross the boundary. Main audio is borrowed in
 place, with scratch copies only where overlapping bus mappings require them.
-See [JUCE integration](/docs/juce-runtime#the-audio-processing).
+See [the VST3 runtime's audio](/docs/vst3-runtime#behaviour).
 
 Both adapters are the engine's (see
 [Rust processor hosting](/docs/contribute/engine-reference#rust-processor-hosting));
@@ -234,19 +234,17 @@ not provide a hard real-time guarantee even when Rust processing allocates nothi
 ## Migrating an existing project
 
 1. Run `soundor gen` to create the Rust crate and toolchain file, then edit the processor.
-2. Port plugin DSP from the JUCE `process` override and Web `audio.ts` to
-   `Processor` in `lib/src/processor.rs`. Move reusable allocations to `prepare`.
-3. Remove the JUCE DSP override; the generated processor now owns the JUCE
-   processing lifecycle. Keep runtime-specific native methods and editor code.
-4. Move custom Web input sources into a browser module and migrate to the
+2. Port plugin DSP from C++ and Web `audio.ts` to `Processor` in
+   `lib/src/processor.rs`. Move reusable allocations to `prepare`.
+3. Move custom Web input sources into a browser module and migrate to the
    [managed Web host](/docs/web-runtime#migration). Soundor owns audio hosting
    and routing.
-5. Add Cargo tests, verify both builds, and compare their audio under equivalent
+4. Add Cargo tests, verify both builds, and compare their audio under equivalent
    parameters, transport and layouts. Preserve the config's parameter and state
    definitions so existing automation and saved sessions retain their meaning.
 
-C++ remains inside the native runtime and engine, and TypeScript inside the Web
-host. Plugin DSP has one supported implementation: the shared Rust crate.
+C++ remains inside the VST3 adapter and the engine, and TypeScript inside the
+Web host. Plugin DSP has one supported implementation: the shared Rust crate.
 
 ## MIDI processing
 

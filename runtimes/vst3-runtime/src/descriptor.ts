@@ -170,7 +170,7 @@ function audio(config: ResolvedSoundorConfig) {
         outputs: [],
         layouts: [{ name: 'midi', inputs: [], outputs: [] }],
       };
-    // No audio configuration: stereo in and out, mono with mono, as the JUCE runtime's.
+    // No audio configuration: stereo in and out, mono with mono.
     return {
       inputs: [{ name: 'Input', initialChannels: 2, enabledChannels: 2 }],
       outputs: [{ name: 'Output', initialChannels: 2, enabledChannels: 2 }],

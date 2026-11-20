@@ -1,6 +1,6 @@
 // soundor:ui's pressable(): presses with the pointer, the keyboard or
 // assistive technology, long presses, and the state they put a node in, as
-// the JUCE runtime has them (ui.js).
+// the native runtime has them (ui.js).
 
 import type {
   AccessibilityActionEvent,
