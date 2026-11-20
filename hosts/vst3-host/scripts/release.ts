@@ -455,13 +455,24 @@ export const npmPublish: Publisher = async (tarball) => {
 
 export type Outcome = 'published' | 'verified';
 
-/** What the registry holds for a target's version: nothing (404), or a
-    version whose identity is checked against `expected`. Anything else
-    (network, authentication, server, integrity) throws. */
+type RegistryState = 'missing' | 'tarball-pending' | 'matching';
+
+interface RegistryOptions {
+  registry?: string;
+  fetcher?: Fetch;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+}
+
+function packageVersion({ target, provenance }: CheckedTarball): string {
+  return `${target.package}@${provenance.version}`;
+}
+
+/** npm can serve a version's metadata before its tarball is downloadable. */
 async function registryState(
   checked: CheckedTarball,
   context: { registry: string; fetcher: Fetch },
-): Promise<'missing' | 'matching'> {
+): Promise<RegistryState> {
   const { target, provenance } = checked;
   const metadata = await versionMetadata(
     target.package,
@@ -469,7 +480,15 @@ async function registryState(
     context,
   );
   if (metadata === null) return 'missing';
-  const entries = readTarball(await downloadTarball(metadata, context));
+  let bytes: Buffer;
+  try {
+    bytes = await downloadTarball(metadata, context);
+  } catch (error) {
+    if (error instanceof RegistryError && error.status === 404)
+      return 'tarball-pending';
+    throw error;
+  }
+  const entries = readTarball(bytes);
   const record = entries.find((entry) => entry.path === PROVENANCE_FILE);
   if (!record)
     throw new Error(
@@ -493,30 +512,73 @@ async function registryState(
   return 'matching';
 }
 
+async function waitForRegistry(
+  tarballs: CheckedTarball[],
+  waitForMissing: boolean,
+  {
+    registry = NPM_REGISTRY,
+    fetcher = fetch,
+    timeoutMs = 5 * 60_000,
+    pollIntervalMs = 5_000,
+  }: RegistryOptions,
+  log: (message: string) => void,
+): Promise<Map<CheckedTarball, RegistryState>> {
+  const deadline = Date.now() + timeoutMs;
+  const states = new Map<CheckedTarball, RegistryState>();
+  let pending = tarballs;
+  while (pending.length) {
+    const waiting: CheckedTarball[] = [];
+    for (const tarball of pending) {
+      let state = await registryState(tarball, { registry, fetcher });
+      // Once seen, a version is never a candidate for publishing, even if
+      // a subsequent registry read temporarily loses sight of its metadata.
+      if (state === 'missing' && states.get(tarball) === 'tarball-pending')
+        state = 'tarball-pending';
+      states.set(tarball, state);
+      if (
+        state === 'tarball-pending' ||
+        (waitForMissing && state === 'missing')
+      )
+        waiting.push(tarball);
+    }
+    if (!waiting.length) break;
+    const names = waiting.map((tarball) =>
+      states.get(tarball) === 'tarball-pending'
+        ? `${packageVersion(tarball)} (tarball unavailable after HTTP 404)`
+        : packageVersion(tarball),
+    );
+    const remaining = deadline - Date.now();
+    if (remaining <= 0)
+      throw new Error(
+        `Not on npm yet after ${timeoutMs}ms: ${names.join(', ')}`,
+      );
+    log(`Waiting for npm publication: ${names.join(', ')}`);
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(pollIntervalMs, remaining)),
+    );
+    pending = waiting;
+  }
+  return states;
+}
+
 /** Resumable: publishes the missing versions, verifies the present ones,
     and fails on a conflicting or unverifiable one. Publishes nothing until
     every target's state is known. */
 export async function publish(
   tarballs: CheckedTarball[],
   {
-    registry = NPM_REGISTRY,
-    fetcher = fetch,
     publisher = npmPublish,
     log = console.log,
-  }: {
-    registry?: string;
-    fetcher?: Fetch;
+    ...options
+  }: RegistryOptions & {
     publisher?: Publisher;
     log?: (message: string) => void;
   } = {},
 ): Promise<Record<string, Outcome>> {
-  const context = { registry, fetcher };
-  const states = new Map<CheckedTarball, 'missing' | 'matching'>();
-  for (const tarball of tarballs)
-    states.set(tarball, await registryState(tarball, context));
+  const states = await waitForRegistry(tarballs, false, options, log);
   const outcomes: Record<string, Outcome> = {};
   for (const tarball of tarballs) {
-    const name = `${tarball.target.package}@${tarball.provenance.version}`;
+    const name = packageVersion(tarball);
     if (states.get(tarball) === 'matching') {
       log(`${name}: already published and verified`);
       outcomes[tarball.target.package] = 'verified';
@@ -527,9 +589,9 @@ export async function publish(
     } catch (error) {
       // Another run may have published it meanwhile: success only if what
       // is there now is verifiably the same build.
-      let state: 'missing' | 'matching';
+      let recovered: Map<CheckedTarball, RegistryState>;
       try {
-        state = await registryState(tarball, context);
+        recovered = await waitForRegistry([tarball], false, options, log);
       } catch (verifyError) {
         throw new Error(
           `${name}: publishing failed (${(error as Error).message}) and ${(verifyError as Error).message}`,
@@ -538,7 +600,7 @@ export async function publish(
           },
         );
       }
-      if (state !== 'matching') throw error;
+      if (recovered.get(tarball) !== 'matching') throw error;
       log(`${name}: published concurrently; verified`);
       outcomes[tarball.target.package] = 'verified';
       continue;
@@ -553,40 +615,9 @@ export async function publish(
     every target must be on npm and verifiably the expected build. */
 export async function verify(
   tarballs: CheckedTarball[],
-  {
-    registry = NPM_REGISTRY,
-    fetcher = fetch,
-    timeoutMs = 5 * 60_000,
-    pollIntervalMs = 5_000,
-  }: {
-    registry?: string;
-    fetcher?: Fetch;
-    timeoutMs?: number;
-    pollIntervalMs?: number;
-  } = {},
+  options: RegistryOptions = {},
 ): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  let pending = tarballs;
-  while (pending.length) {
-    const missing: CheckedTarball[] = [];
-    for (const tarball of pending)
-      if ((await registryState(tarball, { registry, fetcher })) === 'missing')
-        missing.push(tarball);
-    if (!missing.length) return;
-    const names = missing.map(
-      ({ target, provenance }) => `${target.package}@${provenance.version}`,
-    );
-    const remaining = deadline - Date.now();
-    if (remaining <= 0)
-      throw new Error(
-        `Not on npm yet after ${timeoutMs}ms: ${names.join(', ')}`,
-      );
-    console.log(`Waiting for npm publication: ${names.join(', ')}`);
-    await new Promise<void>((resolve) =>
-      setTimeout(resolve, Math.min(pollIntervalMs, remaining)),
-    );
-    pending = missing;
-  }
+  await waitForRegistry(tarballs, true, options, console.log);
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────
