@@ -314,6 +314,45 @@ function libraryPathsOf(lib: string | undefined): string[] {
 }
 
 /**
+ * The libraries every Windows plugin links that Visual Studio's C++ tools
+ * alone do not guarantee: the Windows SDK's, the Universal C runtime's (both
+ * a separate component of the installer), and MSVC's static C runtime.
+ */
+const WINDOWS_TOOLCHAIN_LIBRARIES = [
+  {
+    file: 'kernel32.lib',
+    what: 'the Windows SDK',
+    fix: 'add a "Windows 11 SDK" (or Windows 10 SDK) to Visual Studio or its Build Tools, in the Visual Studio Installer',
+  },
+  {
+    file: 'libucrt.lib',
+    what: "the Universal C runtime (the Windows SDK's)",
+    fix: 'add a "Windows 11 SDK" (or Windows 10 SDK) to Visual Studio or its Build Tools, in the Visual Studio Installer',
+  },
+  {
+    file: 'libcmt.lib',
+    what: "MSVC's static C runtime",
+    fix: 'repair "Desktop development with C++" (MSVC x64/x86 build tools) in the Visual Studio Installer',
+  },
+] as const;
+
+/**
+ * What the linker's library paths lack of the Windows SDK and the C
+ * runtimes, as one message, or undefined when nothing is missing.
+ */
+export function windowsLibraryProblem(
+  libraryPaths: readonly string[],
+  exists: (path: string) => boolean = existsSync,
+): string | undefined {
+  const missing = WINDOWS_TOOLCHAIN_LIBRARIES.filter(
+    ({ file }) => !libraryPaths.some((path) => exists(join(path, file))),
+  );
+  if (missing.length === 0) return undefined;
+  const fixes = [...new Set(missing.map((library) => library.fix))];
+  return `${missing.map(({ file, what }) => `${file} (${what})`).join(', ')} not found in the linker's library paths (${libraryPaths.join('; ') || 'none'}): ${fixes.join('; ')}.`;
+}
+
+/**
  * Finds link.exe: the developer prompt's (VCToolsInstallDir and LIB set),
  * else the newest Visual Studio or Build Tools with the C++ x64 tools
  * (vswhere), whose vcvars64.bat says where the libraries are.

@@ -12,6 +12,8 @@
  *   (`pnpm --filter @soundor/vst3-runtime build:native`).
  * - `SOUNDOR_VST3_ADAPTER_MANIFEST` names a manifest to use instead of
  *   either (CI's archives, before they are released).
+ * - Source mode ({@link sourceAdapter}) builds one from `native/` against
+ *   the engine the plugin links, into `<cache>/vst3-adapter-source/`.
  *
  * Every adapter is checked against the engine the plugin links: one compiled
  * against other engine headers would misread its classes. A download or
@@ -25,9 +27,11 @@ import {
   cacheRoot,
   type Fetch,
   installArchive,
+  withLock,
 } from '@soundor/engine/archives';
 import { EnvError } from '@soundor/runtime-sdk';
 
+import { type AdapterEngine, buildAdapter } from './source';
 import { adapterArchiveName, type Variant, type Vst3Target } from './targets';
 
 /** What `adapter.json` says of a prebuilt adapter. */
@@ -107,9 +111,9 @@ export function adapterDirectory(
   return join(packageRoot, 'prebuilt', `${target}-${variant}`);
 }
 
-/** The runtime's source checkout (the adapter's sources are never published). */
+/** The runtime's source checkout (the adapter's tests are never published). */
 export function isSourceCheckout(packageRoot: string): boolean {
-  return existsSync(join(packageRoot, 'native', 'CMakeLists.txt'));
+  return existsSync(join(packageRoot, 'native', 'tests', 'CMakeLists.txt'));
 }
 
 function packageVersion(packageRoot: string): string {
@@ -302,4 +306,79 @@ export async function resolveAdapter(
       `${artifact.file} of ${value.tag} is the adapter of runtime ${metadata.runtimeVersion}, not ${value.runtimeVersion}. ${hint}`,
     );
   return { archive, directory, reason: `${artifact.file} of ${value.tag}` };
+}
+
+/** What a source build replaces in tests. */
+export interface SourceContext extends AdapterContext {
+  /** Replaces the CMake build: stages the adapter into <stage>. */
+  readonly build?: (build: string, stage: string) => void;
+}
+
+/**
+ * Source mode: the adapter built from `native/` against <engine> (the
+ * engine the plugin links, as engine() prepared it), with CMake, into
+ * `<cache>/vst3-adapter-source/<version>/<target>-<variant>-<engine inputs>/`.
+ * An installed package's stage is reused (its sources never change); the
+ * workspace's is built again, incrementally, every time.
+ */
+export async function sourceAdapter(
+  packageRoot: string,
+  target: Vst3Target,
+  variant: Variant,
+  engine: AdapterEngine,
+  context: SourceContext = {},
+): Promise<ResolvedAdapter> {
+  const env = context.env ?? process.env;
+  const version = packageVersion(packageRoot);
+  const inputs = (engine.sourceFingerprint ?? engine.version).slice(0, 16);
+  const directory = join(
+    context.cache ?? cacheRoot(env),
+    'vst3-adapter-source',
+    version,
+    `${target}-${variant}-${inputs}`,
+  );
+  const stage = join(directory, 'stage');
+  const checkout = isSourceCheckout(packageRoot);
+  const log = context.log ?? ((line: string) => console.error(line));
+  await withLock(
+    `${directory}.lock`,
+    () => {
+      if (!checkout && existsSync(join(stage, 'adapter.json'))) return;
+      log(
+        `VST3 adapter: building the ${variant} adapter from source (CMake) into ${directory}`,
+      );
+      try {
+        (
+          context.build ??
+          ((build: string, into: string) =>
+            buildAdapter(
+              { packageRoot, target, variant, engine, build, env },
+              into,
+            ))
+        )(join(directory, 'build'), stage);
+      } catch (error) {
+        throw new EnvError(
+          `Building the VST3 adapter from source failed: ${(error as Error).message}`,
+          { cause: error },
+        );
+      }
+    },
+    {
+      waiting: () =>
+        log(
+          `VST3 adapter: waiting for another process to build the ${variant} adapter`,
+        ),
+    },
+  );
+  return {
+    archive: checkAdapter(
+      stage,
+      target,
+      variant,
+      engine,
+      `Delete ${directory} to build it again.`,
+    ),
+    directory: stage,
+    reason: `built from source (${directory})`,
+  };
 }

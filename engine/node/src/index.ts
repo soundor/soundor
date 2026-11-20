@@ -17,7 +17,10 @@
  *                       (reused while they stay the same).
  *   published           the published artifact and nothing else: an error
  *                       when there is none, or the sources differ from it
- *   source              always a local build (a source checkout)
+ *   source              always a local build: of a source checkout, or
+ *                       (native targets) of an installed package's sources,
+ *                       into the cache (CMake, Ninja or Visual Studio, a
+ *                       C++20 compiler)
  *
  * A network, registry or integrity failure is an error: never taken for
  * "unpublished", never a reason to build instead. For the web target,
@@ -39,7 +42,12 @@ import {
   type ManifestArtifact,
   loadManifest,
 } from './manifest.ts';
-import { buildNative, nativeLink } from './native.ts';
+import {
+  buildInstalledNative,
+  buildNative,
+  installedBuildDirectory,
+  nativeLink,
+} from './native.ts';
 import { installArchive, metadataProblems, readMetadata } from './prebuilt.ts';
 import {
   type EngineTarget,
@@ -131,7 +139,7 @@ export interface EngineContext {
   /** Replaces the WebAssembly build. */
   buildWeb?: () => Promise<{ wasm: string; fingerprint: string }>;
   /** Replaces the native build; returns its stage. */
-  buildNative?: (variant: NativeVariant) => string;
+  buildNative?: (variant: NativeVariant, directory?: string) => string;
 }
 
 /** This package's directory: above dist/ when built, node/src/ in a checkout. */
@@ -398,22 +406,37 @@ async function native(
 ): Promise<NativeEngineArtifact> {
   const base = { target, variant, version: run.version };
   const build = async (reason: string): Promise<NativeEngineArtifact> => {
-    if (!run.checkout)
+    // An installed package builds only when asked to: a missing release is
+    // not a reason to compile for minutes.
+    if (!run.checkout && run.mode !== 'source')
       unavailable(
         reason,
-        'An installed @soundor/engine builds its native engine through its CMake (SOUNDOR_ENGINE_MODE=source), not engine().',
+        'An installed @soundor/engine builds its native engine only in mode "source".',
       );
     if (hostTarget() !== target)
       unavailable(
         reason,
         `Only the ${hostTarget() ?? 'no'} native engine can be built here.`,
       );
+    const directory = run.checkout
+      ? undefined
+      : installedBuildDirectory(run.cache, run.version, target, variant);
     const stage = await withLock(
-      join(run.root, 'build', `prebuilt-${variant}.lock`),
-      () =>
-        run.context.buildNative
-          ? run.context.buildNative(variant)
-          : buildNative(run.root, variant, { env: run.env, log: run.log }),
+      directory
+        ? `${directory}.lock`
+        : join(run.root, 'build', `prebuilt-${variant}.lock`),
+      () => {
+        if (run.context.buildNative)
+          return run.context.buildNative(variant, directory);
+        const context = { env: run.env, log: run.log };
+        return directory
+          ? buildInstalledNative(run.root, target, variant, directory, context)
+          : buildNative(run.root, variant, context);
+      },
+      {
+        waiting: () =>
+          run.log(`waiting for another process to build the ${variant} engine`),
+      },
     );
     const metadata = readMetadata(stage);
     return {

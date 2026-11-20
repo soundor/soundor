@@ -17,6 +17,7 @@ import {
   type AdapterManifest,
   adapterManifest,
   resolveAdapter,
+  sourceAdapter,
 } from './adapter';
 
 const work = mkdtempSync(join(tmpdir(), 'vst3-adapter-'));
@@ -116,8 +117,8 @@ const quiet = { env: {}, log: () => {} };
 describe('the adapter in a workspace', () => {
   function workspace(): string {
     const root = mkdtempSync(join(work, 'workspace-'));
-    mkdirSync(join(root, 'native'));
-    writeFileSync(join(root, 'native', 'CMakeLists.txt'), '');
+    mkdirSync(join(root, 'native', 'tests'), { recursive: true });
+    writeFileSync(join(root, 'native', 'tests', 'CMakeLists.txt'), '');
     writeFileSync(join(root, 'package.json'), '{"version":"0.0.0"}');
     return root;
   }
@@ -263,5 +264,75 @@ describe('the adapter of an installed package', () => {
     expect(() => adapterManifest(root, {})).toThrow(
       /it is runtime 1\.2\.4, not 1\.2\.3/,
     );
+  });
+});
+
+describe('the adapter built from source', () => {
+  const sourceEngine = { ...engine, directory: '/engine' };
+
+  /** A fake CMake build: stages what buildAdapter stages. */
+  function fakeBuild(count: { builds: number }) {
+    return (_build: string, stage: string) => {
+      count.builds++;
+      mkdirSync(join(stage, 'lib'), { recursive: true });
+      writeFileSync(join(stage, 'lib', 'libsoundor_vst3.a'), 'adapter');
+      writeFileSync(join(stage, 'adapter.json'), adapterJson());
+    };
+  }
+
+  it('is built once per version, variant and engine in an installed package', async () => {
+    const { root } = installed();
+    const cache = join(work, 'cache-source');
+    const count = { builds: 0 };
+    const options = { ...quiet, cache, build: fakeBuild(count) };
+    const first = await sourceAdapter(
+      root,
+      'linux-x64',
+      'release',
+      sourceEngine,
+      options,
+    );
+    expect(first.archive).toBe(
+      join(
+        cache,
+        'vst3-adapter-source',
+        '1.2.3',
+        `linux-x64-release-${fingerprint.slice(0, 16)}`,
+        'stage',
+        'lib',
+        'libsoundor_vst3.a',
+      ),
+    );
+    await sourceAdapter(root, 'linux-x64', 'release', sourceEngine, options);
+    expect(count.builds).toBe(1);
+  });
+
+  it('is built again in the workspace, whose sources change', async () => {
+    const root = mkdtempSync(join(work, 'workspace-source-'));
+    mkdirSync(join(root, 'native', 'tests'), { recursive: true });
+    writeFileSync(join(root, 'native', 'tests', 'CMakeLists.txt'), '');
+    writeFileSync(join(root, 'package.json'), '{"version":"1.2.3"}');
+    const count = { builds: 0 };
+    const options = {
+      ...quiet,
+      cache: join(work, 'cache-source-workspace'),
+      build: fakeBuild(count),
+    };
+    await sourceAdapter(root, 'linux-x64', 'release', sourceEngine, options);
+    await sourceAdapter(root, 'linux-x64', 'release', sourceEngine, options);
+    expect(count.builds).toBe(2);
+  });
+
+  it('reports a failed build', async () => {
+    const { root } = installed();
+    await expect(
+      sourceAdapter(root, 'linux-x64', 'release', sourceEngine, {
+        ...quiet,
+        cache: join(work, 'cache-source-failed'),
+        build: () => {
+          throw new Error('cmake failed (exit 1)');
+        },
+      }),
+    ).rejects.toThrow(/from source failed: cmake failed/);
   });
 });

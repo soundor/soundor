@@ -37,7 +37,12 @@ import {
   type Vst3Host,
 } from '@soundor/vst3-host';
 
-import { adapterDirectory, adapterManifest, resolveAdapter } from './adapter';
+import {
+  adapterDirectory,
+  adapterManifest,
+  resolveAdapter,
+  sourceAdapter,
+} from './adapter';
 import { bundlePaths, writeBundleResources } from './bundle';
 import { buildCrate, writeCrate } from './crate';
 import { describePlugin, descriptorJson } from './descriptor';
@@ -45,6 +50,7 @@ import {
   compilerDriver,
   environmentLinkFlags,
   findMsvcLinker,
+  windowsLibraryProblem,
   linkArguments,
   MAC_EXPORTS,
   macLinkArguments,
@@ -96,13 +102,18 @@ export interface Vst3PhaseDeps {
   readonly probe?: CommandProbe;
   readonly platform?: NodeJS.Platform;
   readonly arch?: string;
-  readonly engine?: (variant: Variant) => Promise<NativeEngineArtifact>;
+  readonly engine?: (
+    variant: Variant,
+    mode: 'prebuilt' | 'source',
+  ) => Promise<NativeEngineArtifact>;
   /** Whether a file exists (doctor's system library checks). */
   readonly exists?: (path: string) => boolean;
   /** Windows: finds MSVC's linker. */
   readonly msvc?: () => MsvcLinker;
   /** Finds the prebuilt adapter (adapter.ts). */
   readonly adapter?: typeof resolveAdapter;
+  /** Builds the adapter from source (adapter.ts). */
+  readonly sourceAdapter?: typeof sourceAdapter;
 }
 
 /** Where Linux distributions keep x86_64 libraries. */
@@ -180,21 +191,26 @@ async function buildPlugin(
   const options = resolveVst3Options(ctx.options);
   const run = deps.run ?? runCommand;
   const cache = join(ctx.paths.cache, build.label);
+  const mode = options.engineMode;
   const artifact = await (
     deps.engine ??
-    ((variant: Variant) =>
-      engine({ target, variant: engineVariant(target, variant) }))
-  )(build.variant);
+    ((variant: Variant, engineMode: 'prebuilt' | 'source') =>
+      engine({
+        target,
+        variant: engineVariant(target, variant),
+        mode: engineMode,
+      }))
+  )(build.variant, mode);
   ctx.logger.info(
     `Engine: ${artifact.version} ${artifact.variant} for ${target} (${artifact.mode}: ${artifact.reason})`,
   );
-  const adapter = await (deps.adapter ?? resolveAdapter)(
-    PACKAGE_ROOT,
-    target,
-    build.variant,
-    artifact,
-    { log: (message) => ctx.logger.info(message) },
-  );
+  const adapter = await (
+    mode === 'source'
+      ? (deps.sourceAdapter ?? sourceAdapter)
+      : (deps.adapter ?? resolveAdapter)
+  )(PACKAGE_ROOT, target, build.variant, artifact, {
+    log: (message) => ctx.logger.info(message),
+  });
   ctx.logger.info(
     `Adapter: ${build.variant} for ${target} (${adapter.reason})`,
   );
@@ -382,6 +398,13 @@ async function linkPlugin(options: {
     case 'windows-x64': {
       const msvc = (options.deps.msvc ?? findMsvcLinker)();
       ctx.logger.info(`MSVC: ${msvc.source}`);
+      // Before link.exe's own "cannot open file 'kernel32.lib'".
+      const missing = windowsLibraryProblem(
+        msvc.libraryPaths,
+        options.deps.exists,
+      );
+      if (missing !== undefined)
+        throw new EnvError(`The plugin cannot be linked: ${missing}`);
       // LDFLAGS are the GNU drivers'; link.exe reads its own LINK variable.
       const args = windowsLinkArguments({
         ...inputs,
@@ -592,9 +615,10 @@ async function vst3Dev(
 /** `doctor`: the platform, Rust, a linker (and on Linux the C++ runtime and libcurl), the prebuilt adapter. */
 export async function vst3Doctor(
   _config: ResolvedSoundorConfig,
-  _ctx: Ctx,
+  ctx: Pick<Ctx, 'options'>,
   deps: Vst3PhaseDeps = {},
 ): Promise<DoctorReport> {
+  const source = resolveVst3Options(ctx.options).engineMode === 'source';
   const probe = deps.probe ?? probeCommand;
   const platform = deps.platform ?? process.platform;
   const arch = deps.arch ?? process.arch;
@@ -634,6 +658,25 @@ export async function vst3Doctor(
         status: 'ok',
         detail: `${msvc.linker} (${msvc.source})`,
       });
+      const missing = windowsLibraryProblem(
+        msvc.libraryPaths,
+        deps.exists ?? existsSync,
+      );
+      checks.push(
+        missing === undefined
+          ? {
+              label: 'Windows SDK and C runtime',
+              status: 'ok',
+              detail: 'kernel32.lib, libucrt.lib and libcmt.lib found',
+            }
+          : {
+              label: 'Windows SDK and C runtime',
+              status: 'fail',
+              detail: missing,
+              suggestion:
+                'Open the Visual Studio Installer, choose Modify, and add a Windows 11 SDK (or Windows 10 SDK) under "Desktop development with C++".',
+            },
+      );
     } catch (error) {
       checks.push({
         label: 'Linker (MSVC link.exe)',
@@ -702,7 +745,36 @@ export async function vst3Doctor(
           },
     );
   }
-  if (target !== undefined) {
+  if (target !== undefined && source) {
+    // Source mode: the engine and the adapter are built with CMake.
+    const tools: [string, string, string][] = [
+      [
+        'CMake (source mode)',
+        'cmake',
+        'Install CMake 3.22 or later: https://cmake.org/download/',
+      ],
+    ];
+    if (target !== 'windows-x64')
+      tools.push([
+        'Ninja (source mode)',
+        'ninja',
+        target === 'macos-universal'
+          ? 'brew install ninja'
+          : 'Debian, Ubuntu: sudo apt install ninja-build. Fedora: sudo dnf install ninja-build.',
+      ]);
+    for (const [label, cmd, suggestion] of tools) {
+      const result = probe(cmd, ['--version']);
+      checks.push(
+        result.ok
+          ? {
+              label,
+              status: 'ok',
+              detail: (result.version ?? '').split('\n')[0] ?? '',
+            }
+          : { label, status: 'fail', detail: result.error, suggestion },
+      );
+    }
+  } else if (target !== undefined) {
     let manifest: ReturnType<typeof adapterManifest>;
     try {
       manifest = adapterManifest(PACKAGE_ROOT);

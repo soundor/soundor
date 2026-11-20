@@ -226,6 +226,20 @@ cache (`src/adapter.ts`, over `@soundor/engine/archives`):
   example one of archives on disk (`vst3-adapters.mjs local-manifest`), to
   build plugins with CI's archives before they are released.
 
+### Source mode
+
+`vst3Runtime({ engine: { mode: 'source' } })` uses no release: `engine({
+mode: 'source' })` builds the engine (in an installed package, from its
+sources into `<cache>/engine-source/`, configured as the `prebuilt-<variant>`
+presets are), and `sourceAdapter()` (`src/adapter.ts`) builds the adapter
+from the `native/` sources the package carries (its `CMakeLists.txt`,
+`cmake/`, `include/` and `src/`; never `tests/`) against it, into
+`<cache>/vst3-adapter-source/<version>/<target>-<variant>-<engine inputs>/`.
+`src/source.ts` is the one CMake driver: `build:native`
+(`scripts/adapter.ts`) stages `prebuilt/` with it too. A workspace is told
+apart by `native/tests/`, which is never published. Users' builds don't
+treat warnings as errors; Soundor's own (`build:native`, CI) do.
+
 ## Invariants and tests
 
 - No plugin-specific C++; no plugin framework; the engine's own input, pointer lock,

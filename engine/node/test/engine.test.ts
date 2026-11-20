@@ -25,6 +25,7 @@ import {
 import { webInputs } from '../../scripts/engine-inputs.mjs';
 import { withLock } from '../src/cache.ts';
 import { type EngineContext, engine } from '../src/index.ts';
+import { hostTarget } from '../src/targets.ts';
 import { PROTOCOL_VERSION } from '../src/web.ts';
 
 const work = mkdtempSync(join(tmpdir(), 'soundor-engine-node-'));
@@ -901,6 +902,85 @@ describe('native targets', () => {
     );
     assert.ok(existsSync(`${extracted}.tar.gz`));
   });
+});
+
+describe('native source builds of an installed package', () => {
+  const target = hostTarget();
+
+  /** A staged engine, as soundor_engine_stage lays one out. */
+  function stage(directory: string): string {
+    const root = join(directory, 'stage');
+    const write = (path: string, text: string) => {
+      mkdirSync(join(root, path, '..'), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    write(
+      'soundor-engine.json',
+      JSON.stringify({
+        format: 1,
+        engine: {
+          version,
+          abiNamespace: 'v',
+          sourceCommit: null,
+          sourceFingerprint: 'd'.repeat(64),
+        },
+        variant: 'release',
+        configuration: 'Release',
+        target: { name: target, os: 'x', architectures: ['x64'] },
+        toolchain: { compiler: 'Clang', compilerVersion: '18' },
+        hermes: { compiler: 'hermes/bin/hermesc' },
+        link: { engine: ['lib/libsoundor_runtime.a'], system: [] },
+      }),
+    );
+    write('lib/libsoundor_runtime.a', 'a');
+    return root;
+  }
+
+  test(
+    'build into the cache only in mode "source"',
+    {
+      skip: target === undefined,
+    },
+    async () => {
+      const built: (string | undefined)[] = [];
+      const ctx = context({
+        root: installed(),
+        buildNative: (_variant, directory) => {
+          built.push(directory);
+          return stage(directory!);
+        },
+      });
+      const artifact = await engine({ target: target!, mode: 'source' }, ctx);
+      assert.equal(artifact.mode, 'source');
+      assert.equal(artifact.sourceFingerprint, 'd'.repeat(64));
+      assert.deepEqual(built, [
+        join(ctx.cache!, 'engine-source', version, `${target}-release`),
+      ]);
+      assert.ok(
+        artifact.libraries[0]!.startsWith(join(ctx.cache!, 'engine-source')),
+      );
+    },
+  );
+
+  test(
+    'an unpublished installed version never builds by itself',
+    {
+      skip: target === undefined,
+    },
+    async () => {
+      await assert.rejects(
+        engine(
+          { target: target! },
+          context({
+            root: installed(),
+            fetch: network({}).fetch,
+            buildNative: () => assert.fail('nothing may be built'),
+          }),
+        ),
+        rejects('unavailable', /only in mode "source"/),
+      );
+    },
+  );
 });
 
 describe('locks', () => {
