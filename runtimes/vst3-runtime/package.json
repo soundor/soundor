@@ -14,6 +14,10 @@
     "dist",
     "rust/Cargo.toml",
     "rust/src",
+    "native/CMakeLists.txt",
+    "native/cmake",
+    "native/include",
+    "native/src",
     "artifacts/manifest.json"
   ],
   "type": "module",

@@ -4,6 +4,8 @@
  * archives the same way (the VST3 runtime's adapters). Not a stable API.
  *
  * - {@link cacheRoot}: SOUNDOR_CACHE, else the user cache directory.
+ * - {@link withLock}: a lock directory several processes share, for a build
+ *   into the cache.
  * - {@link installArchive}: an archive downloaded once (https: or file:),
  *   checked against its SHA-256 and size, and extracted whole into
  *   `<cache>/<directory>/<sha256>/<top>/`; concurrent callers wait for each
@@ -12,7 +14,7 @@
  * @module
  */
 
-export { cacheRoot } from './cache.ts';
+export { cacheRoot, withLock } from './cache.ts';
 export type { EngineErrorCode } from './errors.ts';
 export type { Fetch } from './manifest.ts';
 export { type ArchiveEntry, installArchive } from './prebuilt.ts';

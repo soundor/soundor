@@ -5,7 +5,22 @@
 
 import { RuntimeError } from '@soundor/runtime-sdk';
 
+/**
+ * Where the plugin's native parts come from:
+ * - `'prebuilt'` (default): the engine's and the adapter's published
+ *   archives, downloaded once into the Soundor cache (in Soundor's workspace,
+ *   its own builds of them).
+ * - `'source'`: both built from the installed packages' sources with CMake,
+ *   once per version, into the Soundor cache: the engine (Skia, ANGLE and
+ *   Hermes included, which takes minutes the first time), then the adapter
+ *   against it. Needs CMake, Ninja (on Windows, Visual Studio) and a C++20
+ *   compiler.
+ */
+export type EngineMode = 'prebuilt' | 'source';
+
 export interface Vst3Options {
+  /** Where the engine and the adapter come from. Defaults to `{ mode: 'prebuilt' }`. */
+  engine?: { mode: EngineMode };
   /**
    * The plugin's VST3 class ids, as 32 hexadecimal digits each. By default
    * they are derived from `plugin.id`, so they never change; set them only to
@@ -26,6 +41,7 @@ export interface ResolvedVst3Options {
     | undefined;
   /** Milliseconds; 0 for no limit. */
   readonly timeLimit: number;
+  readonly engineMode: EngineMode;
 }
 
 const HEX = /^[0-9A-Fa-f]{32}$/;
@@ -35,10 +51,21 @@ export function resolveVst3Options(
 ): ResolvedVst3Options {
   const given = (options ?? {}) as Record<string, unknown>;
   for (const key of Object.keys(given))
-    if (!['classIds', 'timeLimit'].includes(key))
+    if (!['classIds', 'engine', 'timeLimit'].includes(key))
       throw new RuntimeError(
-        `vst3Runtime(): unknown option '${key}' (classIds, timeLimit)`,
+        `vst3Runtime(): unknown option '${key}' (classIds, engine, timeLimit)`,
       );
+  const engine = given['engine'] as Record<string, unknown> | undefined;
+  if (
+    engine !== undefined &&
+    (typeof engine !== 'object' ||
+      engine === null ||
+      Object.keys(engine).some((key) => key !== 'mode') ||
+      (engine['mode'] !== 'prebuilt' && engine['mode'] !== 'source'))
+  )
+    throw new RuntimeError(
+      "vst3Runtime({ engine }): expected { mode: 'prebuilt' } or { mode: 'source' }",
+    );
   let classIds: ResolvedVst3Options['classIds'];
   if (given['classIds'] !== undefined) {
     const ids = given['classIds'] as Record<string, unknown>;
@@ -68,5 +95,9 @@ export function resolveVst3Options(
     throw new RuntimeError(
       'vst3Runtime({ timeLimit }): expected a positive whole number of milliseconds, or false',
     );
-  return { classIds, timeLimit: limit === false ? 0 : (limit ?? 5000) };
+  return {
+    classIds,
+    timeLimit: limit === false ? 0 : (limit ?? 5000),
+    engineMode: (engine?.['mode'] as EngineMode | undefined) ?? 'prebuilt',
+  };
 }

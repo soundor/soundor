@@ -94,14 +94,44 @@ On **Windows**:
   Redistributable.
 
 `soundor doctor` checks the platform, Rust, the linker (and on Linux the
-static C++ runtime and libcurl) and the prebuilt adapters.
+static C++ runtime and libcurl) and the prebuilt adapters, or in source mode
+CMake and Ninja.
 
 ## Options
 
 | Option      | Default                                                                                                        |
 | ----------- | -------------------------------------------------------------------------------------------------------------- |
 | `classIds`  | derived from `plugin.id`: `{ processor, controller }`, 32 hexadecimal digits each, to keep a released identity |
+| `engine`    | `{ mode: 'prebuilt' }`: the engine and the adapter from their releases; `{ mode: 'source' }`: built here       |
 | `timeLimit` | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none                                  |
+
+### Building the engine and the adapter from source
+
+```ts
+vst3Runtime({ engine: { mode: 'source' } });
+```
+
+The engine and the VST3 adapter are then compiled on your machine from the
+sources the installed packages carry, instead of being downloaded: the
+engine from `@soundor/engine` (Skia, ANGLE and Hermes included), then the
+adapter from `@soundor/vst3-runtime`'s `native/` against that engine.
+It is for a platform or toolchain the releases don't cover, for debugging
+the engine or the adapter with their sources on disk, or for building
+without downloading binaries.
+
+- **What it needs**, beyond a normal build: CMake 3.22 or later, Ninja (on
+  Windows, Visual Studio 2022 or later with "Desktop development with C++"),
+  a C++20 compiler and network access for the pinned dependencies' sources
+  (each verified by SHA-256). `soundor doctor` checks CMake and Ninja.
+- **How long:** the first build takes minutes per variant (Release, and
+  Debug for `soundor dev` or `--debug`); Skia, ANGLE and Hermes are built once
+  per machine. Both builds are kept in Soundor's cache
+  (`engine-source/` and `vst3-adapter-source/`, under `SOUNDOR_CACHE` if
+  set), per package version, and reused by every project after that.
+  Deleting them builds again.
+- In Soundor's own repository the engine is the workspace's, built in
+  `engine/build/`, and the adapter is rebuilt incrementally on every plugin
+  build, so edits to either are picked up.
 
 The plugin's name, vendor (`plugin.vendor.name`, else the vendor part of
 `plugin.id`), version, categories, buses, MIDI, editor, parameters, state and

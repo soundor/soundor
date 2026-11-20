@@ -113,7 +113,7 @@ native.hermesc; //     the Hermes compiler of the same build
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `prebuilt` (default) | The engine version's published artifact, from the cache or downloaded into it. In the engine's source checkout only if the artifact's input fingerprint matches the sources; otherwise a local build of them |
 | `published`          | The published artifact and nothing else: an error when there is none or the sources differ from it (release builds, CI)                                                                                      |
-| `source`             | Always a local build, in the engine's source checkout                                                                                                                                                        |
+| `source`             | Always a local build: in the engine's source checkout, or (native targets) of an installed package's sources into the cache (`engine-source/<version>/<target>-<variant>/`, built once), with CMake          |
 
 The result says where it came from (`mode`: `prebuilt`, `source`, or
 `override` for `SOUNDOR_ENGINE_WASM`) and why (`reason`). The VST3 runtime links a
@@ -123,7 +123,11 @@ named `SoundorEngineError`, with a `code` (`unavailable`, `manifest`,
 `download`, `artifact`, `build`, `invalid-options`).
 
 Nothing is downloaded or compiled when a package is installed: only when
-`engine()` runs, once per artifact.
+`engine()` runs, once per artifact. An installed package compiles its native
+engine only in mode `source` (the VST3 runtime's
+`vst3Runtime({ engine: { mode: 'source' } })`): a missing release is an
+error in the other modes, never a reason to compile for minutes. That build
+needs CMake, Ninja (on Windows, Visual Studio) and a C++20 compiler.
 
 ## Debug and Release
 

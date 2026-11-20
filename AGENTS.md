@@ -302,7 +302,11 @@ read the docs bundled with the installed package
   plugin. `prebuilt/` is built (`pnpm --filter @soundor/vst3-runtime
   build:native`), never committed or packed: the published package's
   `artifacts/manifest.json` (written by the release workflow) names the
-  adapter release's archives instead; see `contribute/vst3-runtime.md`.
+  adapter release's archives instead. The package carries the adapter's
+  sources (`native/` without `tests/`) for source mode
+  (`vst3Runtime({ engine: { mode: 'source' } })`): the engine and the adapter
+  built with CMake into the Soundor cache (`src/source.ts`, the one CMake
+  driver, which `build:native` uses too); see `contribute/vst3-runtime.md`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
   `engine-wasm.ts`, the one place that calls `engine({ target: 'web' })`) and the
   browser side (`src/client/`: parameter store, `WebHost`, the page's engine
@@ -452,7 +456,9 @@ framework or runtime package, rather than user-owned starter templates.
   teardown with pending jobs must be clean (debug builds assert that no JSI
   value outlives its context).
 - Plugin builds (`soundor dev`/`build`) compile no C++: Cargo, then the
-  platform's linker (`c++` on Linux and macOS, `link.exe` on Windows). The
+  platform's linker (`c++` on Linux and macOS, `link.exe` on Windows); only
+  source mode compiles the engine and the adapter, once per version, into the
+  Soundor cache (an installed `engine()` builds only in mode `source`). The
   adapter's own build (`build:native`) uses Ninja on macOS and Linux and
   Visual Studio on Windows; the supported platforms are these three.
 - macOS signing comes from `ctx.signing` (`SOUNDOR_MACOS_SIGNING_IDENTITY`,
