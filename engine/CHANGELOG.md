@@ -1,5 +1,37 @@
 # @soundor/engine
 
+## 0.10.0
+
+### Minor Changes
+
+- [#352](https://github.com/soundor/soundor/pull/352) [`e74a5cb`](https://github.com/soundor/soundor/commit/e74a5cb65971af3c00184d2c98e60911c7f347a6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Use the engine's native text clipboard on Linux, Windows and Apple platforms. The direct VST3 editor now exchanges clipboard text with the Linux desktop.
+
+- [#354](https://github.com/soundor/soundor/pull/354) [`01cc052`](https://github.com/soundor/soundor/commit/01cc0522b20fe89ad4a2ca398a23334c747c742a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `editor::Editor` (`soundor/editor/Editor.h`): what every runtime's editor does with the engine, in one place. It owns the runtime (a `RuntimeHost`, or a `DevSession` under `soundor dev`), places the UI in the editor, picks the compositor (the GPU in the native view where there is one, the CPU otherwise, and the CPU for good once the GPU is lost), reads native input or takes the framework's, and handles the pointer lock, the cursor, accessibility and, in Debug builds, DevTools. `frame()` runs a frame in one fixed order. `resized()` places the UI at once and presents it on the GPU at the new size. The editor implements `editor::Platform`: the native view, its size, scale and focus, the cursor, and editor sizes. `editor::place()` (`soundor/editor/Layout.h`) places the UI for soundor.config's `editor` (`resize`, `fit`, the maximum size).
+
+- [#348](https://github.com/soundor/soundor/pull/348) [`4c20c74`](https://github.com/soundor/soundor/commit/4c20c74c6726bb34013368ee45d3421d25da1c1b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `fetch()`, DevTools and pointer lock move into the engine, for every runtime:
+
+  - **`fetch()` goes through the system's HTTP stack** (`platform::systemHttpClient()`): `NSURLSession` on macOS and iOS, WinHTTP on Windows, and on Linux the system's libcurl, loaded when first used (`libcurl.so.4`, else `libcurl-gnutls.so.4`), never linked and never bundled, so HTTPS is as current as the system keeps it, with HTTP/3 where the system's stack has it. Where Linux has no libcurl, `fetch()` rejects, saying so.
+  - **The DevTools bridge is the engine's** (`debug::Bridge`), over the same HTTP stack, so the VST3 runtime's Debug builds connect to DevTools too, and `soundor build vst3 --debug` builds one.
+  - **Pointer lock is the engine's** (`input::PointerLock`): the VST3 runtime supports `requestPointerLock()`, and CSS's `cursor: none` hides its cursor.
+  - **The engine has one JSON implementation** (`soundor::json`, strict, numbers kept as written), which the DevTools protocol and the VST3 adapter share.
+  - The VST3 runtime's `soundor doctor` checks for libcurl.
+
+- [#349](https://github.com/soundor/soundor/pull/349) [`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish `native.events` from the Rust controller through typed `ctx.events` publishers in VST3 and the browser. UI subscriptions still use `events.name.subscribe(callback)`.
+
+  Regenerate and rebuild plugins with matching versions of the CLI and runtime for the updated controller contract.
+
+### Patch Changes
+
+- [#357](https://github.com/soundor/soundor/pull/357) [`4a8f6a1`](https://github.com/soundor/soundor/commit/4a8f6a1ecaf26e9a3c3dc54c2727dbf495eae0b2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Remove the JUCE runtime: `@soundor/vst3-runtime` builds the same plugins as VST3s on Linux, macOS and Windows, without JUCE, CMake or C++ compiled per plugin. Replace `juceRuntime({ ... })` with `vst3Runtime()` in `soundor.config.ts` and `@soundor/juce-runtime` with `@soundor/vst3-runtime` (and its peer `@soundor/vst3-host`) in `package.json`; `soundor dev vst3` and `soundor build vst3` replace their `juce` forms, and builds go to `.soundor/dist/vst3/`. There are no AU or Standalone builds.
+
+  `create-soundor-app` offers the VST3 and web runtimes. The engine's WebGL codegen is `pnpm --filter @soundor/engine gen:webgl`.
+
+- [#358](https://github.com/soundor/soundor/pull/358) [`eddafd8`](https://github.com/soundor/soundor/commit/eddafd8cc98ce028ca971bf3b467f1c721194b00) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The VST3 runtime's prebuilt adapters are a GitHub release of their own, like the engine's archives, instead of being in the npm package. The package carries `artifacts/manifest.json`, and a build downloads the adapter for its platform and variant once into the Soundor cache (`vst3-adapters/`), checking its SHA-256 and size. `SOUNDOR_VST3_ADAPTER_MANIFEST` names another manifest. `@soundor/engine/archives` exposes the engine's cache and archive installer for this.
+
+- [#359](https://github.com/soundor/soundor/pull/359) [`ded85dd`](https://github.com/soundor/soundor/commit/ded85ddb840c59b24df299a646d08a89eaff3313) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Source mode for the VST3 runtime: `vst3Runtime({ engine: { mode: 'source' } })` builds the engine and the VST3 adapter on the machine with CMake (Ninja, or Visual Studio on Windows, and a C++20 compiler) instead of downloading their releases. Both builds go into the Soundor cache once per package version (`engine-source/`, `vst3-adapter-source/`), and `soundor doctor` checks CMake and Ninja in this mode. The package now carries the adapter's sources (`native/`). `engine({ mode: 'source' })` builds an installed package's native engine, and in the other modes an installed package still never compiles. `@soundor/engine/archives` also exports `withLock`.
+
+  `soundor doctor` on Windows now also checks that the linker's library paths have the Windows SDK and the static C runtimes (`kernel32.lib`, `libucrt.lib`, `libcmt.lib`). Visual Studio can have the C++ tools without an SDK, so this tells you what to add in the Visual Studio Installer. A Windows build gives the same message before linking, instead of `link.exe`'s "cannot open file 'kernel32.lib'".
+
 ## 0.9.0
 
 ### Minor Changes

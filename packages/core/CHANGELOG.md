@@ -1,5 +1,18 @@
 # @soundor/core
 
+## 0.19.0
+
+### Minor Changes
+
+- [#349](https://github.com/soundor/soundor/pull/349) [`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish `native.events` from the Rust controller through typed `ctx.events` publishers in VST3 and the browser. UI subscriptions still use `events.name.subscribe(callback)`.
+
+  Regenerate and rebuild plugins with matching versions of the CLI and runtime for the updated controller contract.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/environment@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes

@@ -1,5 +1,20 @@
 # @soundor/web-runtime
 
+## 0.15.0
+
+### Minor Changes
+
+- [#349](https://github.com/soundor/soundor/pull/349) [`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish `native.events` from the Rust controller through typed `ctx.events` publishers in VST3 and the browser. UI subscriptions still use `events.name.subscribe(callback)`.
+
+  Regenerate and rebuild plugins with matching versions of the CLI and runtime for the updated controller contract.
+
+### Patch Changes
+
+- Updated dependencies [[`e74a5cb`](https://github.com/soundor/soundor/commit/e74a5cb65971af3c00184d2c98e60911c7f347a6), [`01cc052`](https://github.com/soundor/soundor/commit/01cc0522b20fe89ad4a2ca398a23334c747c742a), [`4c20c74`](https://github.com/soundor/soundor/commit/4c20c74c6726bb34013368ee45d3421d25da1c1b), [`4a8f6a1`](https://github.com/soundor/soundor/commit/4a8f6a1ecaf26e9a3c3dc54c2727dbf495eae0b2), [`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb), [`eddafd8`](https://github.com/soundor/soundor/commit/eddafd8cc98ce028ca971bf3b467f1c721194b00), [`2f0dd59`](https://github.com/soundor/soundor/commit/2f0dd59c87a607cb2190427ac2b50141511eba4d), [`7e64784`](https://github.com/soundor/soundor/commit/7e647849b2b552b9d111243396e4b0796149f7d0), [`ded85dd`](https://github.com/soundor/soundor/commit/ded85ddb840c59b24df299a646d08a89eaff3313)]:
+  - @soundor/engine@0.10.0
+  - soundor@0.19.0
+  - @soundor/runtime-sdk@0.19.0
+
 ## 0.14.0
 
 ### Minor Changes

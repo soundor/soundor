@@ -1,5 +1,34 @@
 # soundor
 
+## 0.19.0
+
+### Minor Changes
+
+- [#357](https://github.com/soundor/soundor/pull/357) [`4a8f6a1`](https://github.com/soundor/soundor/commit/4a8f6a1ecaf26e9a3c3dc54c2727dbf495eae0b2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Remove the JUCE runtime: `@soundor/vst3-runtime` builds the same plugins as VST3s on Linux, macOS and Windows, without JUCE, CMake or C++ compiled per plugin. Replace `juceRuntime({ ... })` with `vst3Runtime()` in `soundor.config.ts` and `@soundor/juce-runtime` with `@soundor/vst3-runtime` (and its peer `@soundor/vst3-host`) in `package.json`; `soundor dev vst3` and `soundor build vst3` replace their `juce` forms, and builds go to `.soundor/dist/vst3/`. There are no AU or Standalone builds.
+
+  `create-soundor-app` offers the VST3 and web runtimes. The engine's WebGL codegen is `pnpm --filter @soundor/engine gen:webgl`.
+
+- [#349](https://github.com/soundor/soundor/pull/349) [`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish `native.events` from the Rust controller through typed `ctx.events` publishers in VST3 and the browser. UI subscriptions still use `events.name.subscribe(callback)`.
+
+  Regenerate and rebuild plugins with matching versions of the CLI and runtime for the updated controller contract.
+
+### Patch Changes
+
+- [#346](https://github.com/soundor/soundor/pull/346) [`2f0dd59`](https://github.com/soundor/soundor/commit/2f0dd59c87a607cb2190427ac2b50141511eba4d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `@soundor/vst3-runtime`: Linux VST3 plugins without JUCE. A prebuilt,
+  generic VST3 adapter (Steinberg's VST3 SDK 3.8.1) hosts the Soundor engine
+  and the project's Rust processor and controller; `soundor build vst3` links
+  them into a `.vst3` bundle, with no C++ compiled per plugin. The Rust SDK's
+  controller now reads and edits `int8`, `uint8`, `int16`, `uint16` and
+  `uint32` parameters (they failed to compile before).
+
+- [#351](https://github.com/soundor/soundor/pull/351) [`7e64784`](https://github.com/soundor/soundor/commit/7e647849b2b552b9d111243396e4b0796149f7d0) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Report dynamic VST3 tail duration from Rust with `ctx.report_tail_seconds(seconds)` in `prepare()` or `process()`. VST3 hosts read the latest report when they query the processor. A fixed tail continues to use the configured duration.
+- Updated dependencies [[`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb)]:
+  - @soundor/core@0.19.0
+  - @soundor/config@0.19.0
+  - @soundor/driver@0.19.0
+  - @soundor/devtools-client@0.19.0
+  - @soundor/devtools-server@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes

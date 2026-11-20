@@ -1,5 +1,12 @@
 # @soundor/vst3-host
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`13a089b`](https://github.com/soundor/soundor/commit/13a089bc715071d97990f1e2c478e3d4793513bb)]:
+  - @soundor/core@0.19.0
+
 ## 0.2.0
 
 ### Minor Changes
