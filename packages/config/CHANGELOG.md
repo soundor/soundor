@@ -1,5 +1,13 @@
 # @soundor/config
 
+## 0.19.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/core@0.19.1
+  - @soundor/expression@0.19.1
+
 ## 0.19.0
 
 ### Patch Changes

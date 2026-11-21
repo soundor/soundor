@@ -1,5 +1,11 @@
 # @soundor/react
 
+## 0.19.1
+
+### Patch Changes
+
+- [#363](https://github.com/soundor/soundor/pull/363) [`885400d`](https://github.com/soundor/soundor/commit/885400dce7fa7a057428db5ea291dc4a243fc74c) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Point the README's SVG link at the renamed Primitives docs.
+
 ## 0.19.0
 
 No changes in this release.

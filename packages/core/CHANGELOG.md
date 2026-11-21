@@ -1,5 +1,12 @@
 # @soundor/core
 
+## 0.19.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/environment@0.19.1
+
 ## 0.19.0
 
 ### Minor Changes
