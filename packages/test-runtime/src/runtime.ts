@@ -468,7 +468,8 @@ export class TestRuntime {
       throw new RangeError(
         'Supported mouse buttons are primary, middle, and secondary',
       );
-    if (this.pointer.down === null) {
+    const firstPress = this.pointer.buttons === 0;
+    if (firstPress) {
       this.pointer.type = String(init['pointerType'] ?? 'mouse');
       // Which press of a series this is, as a platform counts them.
       const clicks = Number(init['detail'] ?? 1);
@@ -479,11 +480,14 @@ export class TestRuntime {
     this.pointer.down ??= node;
     this.pointer.target = node;
     this.pointer.buttons |= [1, 4, 2][button]!;
-    // Focus a press moves is not shown.
-    this.keyboardModality = false;
     const target = this.pointer.down;
     // Pointer events say no count (detail 0); the press's click does.
     const { detail: _detail, ...pointerInit } = init;
+    // Chorded button changes are moves and don't run press defaults.
+    if (!firstPress)
+      return this.fire(target, 'pointermove', { ...pointerInit, button });
+    // Focus a press moves is not shown.
+    this.keyboardModality = false;
     const event = this.fire(target, 'pointerdown', pointerInit);
     if (!event.defaultPrevented) {
       let focus: TestNode | null = target;
@@ -515,6 +519,8 @@ export class TestRuntime {
     this.pointer.buttons &= ~[1, 4, 2][button]!;
     // The count is the press's (pointerDown's detail).
     const { detail: _detail, ...pointerInit } = init;
+    if (this.pointer.buttons !== 0)
+      return this.fire(down ?? node, 'pointermove', { ...pointerInit, button });
     let event: TestEvent;
     try {
       event = this.fire(down ?? node, 'pointerup', pointerInit);

@@ -31,8 +31,11 @@ await user.pointer({ target: knob, keys: '[/MouseLeft]', clientY: 32 });
 | `[/MouseLeft]` | Releases it.                     |
 | _(none)_       | Moves only.                      |
 
-`MouseRight` (a secondary click: `onContextMenu`) and `MouseMiddle` work the
-same. A press's `detail` is its click count, as a platform counts them: a
+`MouseRight` and `MouseMiddle` use the same syntax. Only the first press fires
+`pointerdown` and only the last release fires `pointerup`. In between, button
+changes fire `pointermove` with the changed `button` and updated `buttons` mask.
+A secondary press fires `contextmenu` only if no other button is held.
+The first press's `detail` is its click count, as a platform counts them: a
 second click is `{ target, keys: '[MouseLeft]', detail: 2 }`, whose release
 fires `click` and then `dblclick` ([`dblClick`](/docs/testing/dbl-click) does
 both clicks).

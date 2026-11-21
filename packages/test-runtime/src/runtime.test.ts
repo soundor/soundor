@@ -680,7 +680,7 @@ it('requires explicit mocks even for native method names on Object.prototype', (
   runtime.dispose();
 });
 
-it('retains mouse capture until the final button release and clicks the shared ancestor', () => {
+it('routes chorded button changes to the captured node and clicks the shared ancestor', () => {
   const runtime = createTestRuntime(),
     parent = runtime.create('view'),
     a = runtime.create('view'),
@@ -690,20 +690,44 @@ it('retains mouse capture until the final button release and clicks the shared a
   parent.appendChild(b);
   const clicks: unknown[] = [],
     moves: unknown[] = [];
-  parent.addEventListener('click', (event) => clicks.push(event.target));
+  parent.addEventListener('click', (event) =>
+    clicks.push([event.target, event['detail']]),
+  );
   a.addEventListener('pointermove', (event) =>
     moves.push([event.target, event.button, event.buttons]),
   );
-  runtime.pointerDown(a);
-  runtime.pointerDown(b, { button: 1 });
+  runtime.pointerDown(a, { detail: 3 });
+  runtime.pointerDown(b, { button: 1, detail: 2 });
   expect(runtime.pointer.buttons).toBe(5);
   runtime.pointerUp(b, { button: 1 });
   expect(runtime.pointer.down).toBe(a);
   runtime.pointerMove(b);
-  expect(moves).toEqual([[a, -1, 1]]);
+  expect(moves).toEqual([
+    [a, 1, 5],
+    [a, 1, 1],
+    [a, -1, 1],
+  ]);
   runtime.pointerUp(b);
-  expect(clicks).toEqual([parent]);
+  expect(clicks).toEqual([[parent, 3]]);
   expect(runtime.pointer.down).toBeNull();
+  runtime.dispose();
+});
+
+it('keeps keyboard focus and modality on a chorded press', () => {
+  const runtime = createTestRuntime(),
+    a = runtime.create('view'),
+    b = runtime.create('view');
+  a.focusable = b.focusable = true;
+  runtime.root.appendChild(a);
+  runtime.root.appendChild(b);
+
+  runtime.pointerDown(a);
+  runtime.pressKey('Tab');
+  expect(b.focusVisible).toBe(true);
+  runtime.pointerDown(b, { button: 2 });
+  expect(b.focused).toBe(true);
+  a.focus();
+  expect(a.focusVisible).toBe(true);
   runtime.dispose();
 });
 

@@ -36,10 +36,14 @@ fireEvent.accessibilityAction(knob, { actionName: 'increment' });
 | `focus`, `blur`                                    | Move actual keyboard focus, firing the resulting focus events.             |
 | `accessibilityAction`                              | `actionName`, and `value` for `setValue`.                                  |
 
-`pointerDown` starts capture and focuses the nearest focusable node unless
-prevented; a secondary press also fires `contextmenu`. `pointerMove` follows
-capture, and `pointerUp` can fire `click` when it completes a primary press.
-A press's `detail` is its click count (1 by default), which its `click`
+The first `pointerDown` starts capture and focuses the nearest focusable node
+unless prevented; it also fires `contextmenu` if the secondary button starts
+the press. While any button stays held, additional presses and releases fire
+`pointermove` with the changed `button` and updated `buttons` mask, without
+changing focus or opening a context menu. `pointerMove` follows capture, and
+the last `pointerUp` ends it and fires `click` if it releases the primary button
+over a node that shares an ancestor with the pressed node.
+The first press's `detail` is its click count (1 by default), which its `click`
 reports: `fireEvent.pointerDown(node, { detail: 2 })` makes the second click
 of a double click, and its release fires `dblclick` after the `click`.
 `click` alone has `detail` 1 unless given another.
