@@ -247,13 +247,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         const bool readOnlyChanged = (before.state.readOnly || ! before.supports(Action::SetValue))
                                      != (after.state.readOnly || ! after.supports(Action::SetValue));
         if (after.role == Role::TextInput || ! after.value.text.empty() || ! before.value.text.empty())
-        {
             changed(readOnlyChanged, UIA_ValueIsReadOnlyPropertyId);
-            changed(before.value.text != after.value.text, UIA_ValueValuePropertyId);
-        }
         if (range(after))
-        {
             changed(readOnlyChanged, UIA_RangeValueIsReadOnlyPropertyId);
+        // Passive controls can update at DSP rates; only editable values emit value-change events.
+        if (after.supports(Action::SetValue))
+        {
+            changed(before.value.text != after.value.text, UIA_ValueValuePropertyId);
             changed(before.value.now != after.value.now, UIA_RangeValueValuePropertyId);
         }
         changed(before.value.min != after.value.min, UIA_RangeValueMinimumPropertyId);
