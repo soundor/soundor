@@ -124,6 +124,8 @@ const ROLES = new Set([
   'menu',
   'menubar',
   'menuitem',
+  'listbox',
+  'option',
   'scrollbar',
   'spinbutton',
   'tab',

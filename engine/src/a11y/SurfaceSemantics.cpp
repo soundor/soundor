@@ -190,6 +190,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             element.label = properties.label;
             element.hint = properties.hint;
             element.state = properties.state;
+            if (element.role == Role::Option && ! element.state.selected.has_value())
+                element.state.selected = false;
             element.state.disabled = node.inputDisabled();
             element.value = properties.value;
             element.actions = properties.actions;

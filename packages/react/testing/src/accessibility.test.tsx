@@ -44,6 +44,28 @@ afterEach(() => {
 });
 
 describe('accessibility props', () => {
+  it('queries a list of choices by name and selection state', async () => {
+    await show(
+      <View accessibilityRole="listbox" accessibilityLabel="Filter type">
+        <Pressable
+          accessibilityRole="option"
+          accessibilityState={{ selected: true }}
+        >
+          <Text>Low pass</Text>
+        </Pressable>
+        <Pressable accessibilityRole="option" disabled>
+          <Text>High pass</Text>
+        </Pressable>
+      </View>,
+    );
+    const list = within(screen.getByRole('listbox', { name: 'Filter type' }));
+    expect(list.getByRole('option', { selected: true })).toBe(child(0, 0));
+    expect(list.getByRole('option', { selected: false, disabled: true })).toBe(
+      child(0, 1),
+    );
+    expect(list.queryByRole('text')).toBeNull();
+  });
+
   it('become the node accessibility, by their soundor:ui names', async () => {
     await show(
       <View

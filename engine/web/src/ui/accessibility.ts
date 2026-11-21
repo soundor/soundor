@@ -23,6 +23,8 @@ const ROLES: ReadonlySet<string> = new Set<AccessibilityRole>([
   'menu',
   'menubar',
   'menuitem',
+  'listbox',
+  'option',
   'scrollbar',
   'spinbutton',
   'tab',

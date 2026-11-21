@@ -8,14 +8,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 {
     namespace
     {
-        // By Role, up to Dialog: the names plugin code uses.
-        constexpr std::array<std::string_view, 28> roleNames {
-            "none",   "text",         "image",       "button",     "link",        "adjustable", "checkbox",
-            "switch", "togglebutton", "radio",       "radiogroup", "progressbar", "search",     "combobox",
-            "menu",   "menubar",      "menuitem",    "scrollbar",  "spinbutton",  "tab",        "tablist",
-            "header", "summary",      "keyboardkey", "timer",      "toolbar",     "alert",      "dialog",
+        // By Role, up to Option: the names plugin code uses.
+        constexpr std::array<std::string_view, 30> roleNames {
+            "none",       "text",     "image",        "button",  "link",       "adjustable",
+            "checkbox",   "switch",   "togglebutton", "radio",   "radiogroup", "progressbar",
+            "search",     "combobox", "menu",         "menubar", "menuitem",   "scrollbar",
+            "spinbutton", "tab",      "tablist",      "header",  "summary",    "keyboardkey",
+            "timer",      "toolbar",  "alert",        "dialog",  "listbox",    "option",
         };
-        static_assert(roleNames.size() == static_cast<std::size_t>(Role::Dialog) + 1);
+        static_assert(roleNames.size() == static_cast<std::size_t>(Role::Option) + 1);
 
         // By Action, up to SetValue.
         constexpr std::array<std::string_view, 10> actionNames {
@@ -55,6 +56,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             case Role::ProgressBar:
             case Role::ComboBox:
             case Role::MenuItem:
+            case Role::Option:
             case Role::ScrollBar:
             case Role::SpinButton:
             case Role::Tab:
@@ -68,6 +70,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             case Role::Search:
             case Role::Menu:
             case Role::MenuBar:
+            case Role::ListBox:
             case Role::TabList:
             case Role::Summary:
             case Role::Toolbar:

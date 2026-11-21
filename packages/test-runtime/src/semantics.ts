@@ -32,6 +32,7 @@ const LEAVES = new Set([
   'progressbar',
   'combobox',
   'menuitem',
+  'option',
   'scrollbar',
   'spinbutton',
   'tab',
@@ -143,7 +144,11 @@ export function semanticSnapshot(roots: readonly TestNode[]): {
       role,
       name: a.label || (node.type === 'text' ? node.text : text(node)),
       description: a.hint ?? '',
-      state: { ...a.state, ...(node.inputDisabled ? { disabled: true } : {}) },
+      state: {
+        ...a.state,
+        ...(role === 'option' ? { selected: a.state?.selected ?? false } : {}),
+        ...(node.inputDisabled ? { disabled: true } : {}),
+      },
       value:
         node.type === 'input'
           ? { text: node.value, ...a.value }

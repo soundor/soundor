@@ -54,6 +54,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         Toolbar,
         Alert,
         Dialog,
+        ListBox,
+        Option,
 
         // Roles the runtime gives by itself.
         Group,     // an element without a role of its own

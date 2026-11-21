@@ -215,6 +215,27 @@ TEST_SUITE("a11y semantics")
         CHECK_FALSE(knob.supports(a11y::Action::Activate));
     }
 
+    TEST_CASE("a listbox retains its options and reads each choice as one element")
+    {
+        A11yFixture f;
+        f.build(R"(
+            const list = createView();
+            list.accessibility = { role: 'listbox', label: 'Filter type' };
+            for (const [label, state] of [['Low pass', { selected: true }], ['High pass', { disabled: true }]]) {
+                const option = createView();
+                option.accessibility = { role: 'option', state };
+                option.appendChild(createText(label));
+                list.appendChild(option);
+            }
+            root.appendChild(list);
+        )");
+        CHECK(f.tree() == R"(view [listbox "Filter type" [option "Low pass", option "High pass" {disabled}]])");
+        const auto& tree = f.adapter.tree;
+        const auto& options = tree.find(tree.find(tree.root())->children.at(0))->children;
+        CHECK(tree.find(options.at(0))->state.selected == true);
+        CHECK(tree.find(options.at(1))->state.selected == false);
+    }
+
     TEST_CASE("checked states")
     {
         A11yFixture f;

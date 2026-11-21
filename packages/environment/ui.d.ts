@@ -388,6 +388,8 @@ declare module 'soundor:ui' {
     | 'menu'
     | 'menubar'
     | 'menuitem'
+    | 'listbox'
+    | 'option'
     | 'scrollbar'
     | 'spinbutton'
     | 'tab'
