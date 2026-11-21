@@ -49,6 +49,8 @@ test('capture lasts through the last mouse button and uses native bit masks', as
     b = r.create('view');
   r.root.appendChild(a);
   r.root.appendChild(b);
+  const click = vi.fn<() => void>();
+  r.root.addEventListener('click', click);
   const targets: unknown[] = [];
   a.addEventListener('pointermove', (event) => targets.push(event.target));
   const user = userEvent.setup();
@@ -64,6 +66,42 @@ test('capture lasts through the last mouse button and uses native bit masks', as
   await user.pointer({ target: b, keys: '[/MouseMiddle]' });
   expect(r.pointer.down).toBeNull();
   expect(r.pointer.buttons).toBe(0);
+  expect(click).not.toHaveBeenCalled();
+});
+test('a secondary click during a primary drag fires moves instead of opening a menu', async () => {
+  const r = getTestRuntime(),
+    node = r.create('view');
+  r.root.appendChild(node);
+  const seen: unknown[] = [];
+  for (const type of [
+    'pointerdown',
+    'pointermove',
+    'pointerup',
+    'contextmenu',
+    'click',
+  ])
+    node.addEventListener(type, (event) =>
+      seen.push([event.type, event.button, event.buttons]),
+    );
+  const user = userEvent.setup();
+  await user.pointer({ target: node, keys: '[MouseLeft>]' });
+  await user.pointer({ keys: '[MouseRight]' });
+  await user.pointer({ keys: '[/MouseLeft]' });
+  expect(seen).toEqual([
+    ['pointerdown', 0, 1],
+    ['pointermove', 2, 3],
+    ['pointermove', 2, 1],
+    ['pointerup', 0, 0],
+    ['click', 0, 0],
+  ]);
+
+  seen.length = 0;
+  await user.pointer({ keys: '[MouseRight]' });
+  expect(seen).toEqual([
+    ['pointerdown', 2, 2],
+    ['contextmenu', 2, 2],
+    ['pointerup', 2, 0],
+  ]);
 });
 test('release click goes to the deepest shared ancestor and hover follows capture', async () => {
   const r = getTestRuntime(),
