@@ -82,7 +82,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         set(3, node.state.busy);
         set(4, node.state.checked == Checked::True);
         set(5, node.state.expanded == false);
-        set(7, node.role == Role::TextInput && node.supports(Action::SetValue));
+        set(7, node.role == Role::TextInput && ! node.state.readOnly && node.supports(Action::SetValue));
         set(8, ! node.state.disabled);
         set(9, node.state.expanded.has_value());
         set(10, node.state.expanded == true);
@@ -97,6 +97,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         set(30, true);
         set(32, node.state.checked == Checked::Mixed);
         set(41, node.state.checked != Checked::Unset);
+        set(43, node.state.readOnly); // ATSPI_STATE_READ_ONLY
         return result;
     }
 

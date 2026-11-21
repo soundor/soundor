@@ -220,6 +220,8 @@ function normalizeAccessibility(value) {
     state: {
       disabled:
         optional(state, 'disabled', 'boolean', 'accessibility.state') ?? false,
+      readOnly:
+        optional(state, 'readOnly', 'boolean', 'accessibility.state') ?? false,
       busy: optional(state, 'busy', 'boolean', 'accessibility.state') ?? false,
       checked,
       selected: optional(state, 'selected', 'boolean', 'accessibility.state'),
@@ -923,8 +925,9 @@ export class UiNode extends EventTarget {
   }
 
   set accessibility(value) {
-    native.setAccessibility(this.#id, normalizeAccessibility(value));
+    const normalized = normalizeAccessibility(value);
     this.#accessibility = freezeAccessibility(value ?? {});
+    native.setAccessibility(this.#id, normalized);
   }
 
   /**

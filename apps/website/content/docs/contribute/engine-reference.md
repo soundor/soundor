@@ -729,6 +729,10 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     visibility changes. The web and test runtimes keep the same rules.
   - **Keys and text:** `keydown`/`keyup` go to the focused node (else the
     root). Typed text arrives as `beforeinput`.
+  - **Disabled subtrees:** input routing checks `accessibility.state.disabled`
+    along the physical parent chain after hit testing, so hover keeps the same
+    target. Activation and wheel do not dispatch or fall through. Disabling a
+    subtree blurs its focused node and sends `pointercancel` to captured nodes.
 - **The view's size:** the backend gives the Surface its logical size
   (`Surface::setSize`, which ignores an unchanged size) and its scale
   (`Surface::setScale`); Yoga lays both roots out at that size. Every

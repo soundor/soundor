@@ -76,7 +76,8 @@ function roots(): UiNode[] {
 
 function displayed(node: UiNode): boolean {
   for (let at: UiNode | null = node; at !== null; at = at.parent)
-    if (at.style.display === 'none') return false;
+    if (at.style.display === 'none' || at.accessibility.state?.disabled)
+      return false;
   return true;
 }
 
@@ -88,7 +89,8 @@ function canFocus(node: UiNode | null): node is UiNode {
 function members(scope: Scope): UiNode[] {
   const order: UiNode[] = [];
   const collect = (node: UiNode): void => {
-    if (node.style.display === 'none') return;
+    if (node.style.display === 'none' || node.accessibility.state?.disabled)
+      return;
     if (node.focusable && within(node, scope)) order.push(node);
     for (const child of node.children) collect(child);
   };

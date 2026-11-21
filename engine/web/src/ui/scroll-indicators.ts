@@ -49,6 +49,7 @@ const scaleOf = (shown: number, laidOut: number): number =>
 export class ScrollIndicators {
   readonly #element: HTMLElement;
   readonly #onScroll: () => void;
+  readonly #inputDisabled: () => boolean;
   readonly #vertical: HTMLElement;
   readonly #horizontal: HTMLElement;
   readonly #verticalTrack: HTMLElement;
@@ -65,9 +66,14 @@ export class ScrollIndicators {
    * `onScroll` is called when a press or a drag of a bar scrolled the view:
    * for its node to tell of it at once, as the wheel does.
    */
-  constructor(element: HTMLElement, onScroll: () => void = () => {}) {
+  constructor(
+    element: HTMLElement,
+    onScroll: () => void = () => {},
+    inputDisabled: () => boolean = () => false,
+  ) {
     this.#element = element;
     this.#onScroll = onScroll;
+    this.#inputDisabled = inputDisabled;
     const document = element.ownerDocument;
     const bar = (axis: string): HTMLElement => {
       const created = document.createElement('div');
@@ -205,6 +211,7 @@ export class ScrollIndicators {
     // The view's listeners, on an ancestor, never see the drag: a track is not
     // the plugin's to press, and pressing it leaves focus where it is.
     track.addEventListener('pointerdown', (event) => {
+      if (this.#inputDisabled()) return;
       if (event.button !== 0 || event.pointerType === 'touch') return;
       event.stopPropagation();
       event.preventDefault();
@@ -222,6 +229,10 @@ export class ScrollIndicators {
     });
     track.addEventListener('pointermove', (event) => {
       if (event.pointerId !== this.#drag?.pointerId) return;
+      if (this.#inputDisabled()) {
+        this.release();
+        return;
+      }
       event.stopPropagation();
       this.#dragTo(event);
     });

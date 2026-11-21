@@ -45,7 +45,7 @@ test('wheel hovers first, dispatches held modifiers and scrolls without changing
   expect(inner.scrollTop).toBe(5);
 });
 
-test('wheel, pen and touch skip hidden or disabled targets', async () => {
+test('wheel, pen and touch skip hidden input and only hover disabled targets', async () => {
   const r = getTestRuntime();
   const hidden = r.create('view', { display: 'none' });
   const disabled = r.create('view');
@@ -53,9 +53,11 @@ test('wheel, pen and touch skip hidden or disabled targets', async () => {
   r.root.appendChild(hidden);
   r.root.appendChild(disabled);
   const listener = vi.fn<() => void>();
+  const disabledHover = vi.fn<() => void>();
+  disabled.addEventListener('pointerenter', disabledHover);
   const user = userEvent.setup();
   for (const node of [hidden, disabled]) {
-    for (const type of ['pointerenter', 'pointerdown', 'wheel'])
+    for (const type of ['pointerdown', 'pointerup', 'click', 'wheel'])
       node.addEventListener(type, listener);
     await user.wheel(node, { deltaY: 10 });
     await user.pointer({
@@ -66,6 +68,53 @@ test('wheel, pen and touch skip hidden or disabled targets', async () => {
     await user.pointer({ target: node, keys: '[TouchA]' });
   }
   expect(listener).not.toHaveBeenCalled();
+  expect(disabledHover).toHaveBeenCalled();
+});
+
+test('disabling an ancestor blurs its control and cancels a held press', async () => {
+  const runtime = getTestRuntime();
+  const panel = runtime.root.appendChild(runtime.create('view'));
+  const child = panel.appendChild(runtime.create('view'));
+  const next = runtime.root.appendChild(runtime.create('view'));
+  child.focusable = next.focusable = true;
+  child.accessibility = { role: 'adjustable', state: { readOnly: true } };
+  const childInput = vi.fn<() => void>();
+  const panelClick = vi.fn<() => void>();
+  const blur = vi.fn<() => void>();
+  const cancel = vi.fn<() => void>();
+  for (const type of [
+    'click',
+    'dblclick',
+    'wheel',
+    'contextmenu',
+    'keydown',
+    'keyup',
+  ])
+    child.addEventListener(type, childInput);
+  child.addEventListener('blur', blur);
+  child.addEventListener('pointercancel', cancel);
+  panel.addEventListener('click', panelClick);
+  const user = userEvent.setup();
+  await user.pointer({ target: child, keys: '[MouseLeft>]' });
+  expect(child.focused).toBe(true);
+  panel.accessibility = { state: { disabled: true } };
+  expect(blur).toHaveBeenCalledOnce();
+  expect(cancel).toHaveBeenCalledOnce();
+  child.focus();
+  expect(child.focused).toBe(false);
+  await user.pointer({ target: child, keys: '[/MouseLeft]' });
+  await user.dblClick(child);
+  await user.pointer({ target: child, keys: '[MouseRight]' });
+  await user.wheel(child, { deltaY: 20 });
+  await user.tab();
+  expect(next.focused).toBe(true);
+  expect(childInput).not.toHaveBeenCalled();
+  expect(panelClick).not.toHaveBeenCalled();
+  panel.accessibility = {};
+  await user.click(child);
+  expect(child.focused).toBe(true);
+  expect(childInput).toHaveBeenCalledOnce();
+  expect(panelClick).toHaveBeenCalledOnce();
 });
 
 test('two touches keep independent capture, primary status and button state', async () => {
@@ -205,6 +254,14 @@ test('screen-reader actions require a visible semantic element and an offered ac
     'Disabled',
   );
   expect(seen).toHaveBeenCalledTimes(1);
+  await expect(user.accessibilityAction(slider, 'focus')).rejects.toThrow(
+    'Disabled',
+  );
+  expect(slider.focused).toBe(false);
+  slider.accessibility = { ...slider.accessibility, state: { readOnly: true } };
+  await expect(user.accessibilityAction(slider, 'setValue')).rejects.toThrow(
+    'Read-only',
+  );
   await user.click(r.root); // Switch the simulator to pointer modality.
   await user.accessibilityAction(slider, 'focus');
   expect(slider.focusVisible).toBe(true);

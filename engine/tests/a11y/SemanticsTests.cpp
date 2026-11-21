@@ -480,7 +480,7 @@ TEST_SUITE("a11y semantics")
         CHECK(f.eval("log.length").asNumber() == 0);
     }
 
-    TEST_CASE("disabled elements refuse actions other than focus")
+    TEST_CASE("disabled elements refuse activation and keyboard focus")
     {
         A11yFixture f;
         f.build(std::string(R"(
@@ -488,12 +488,35 @@ TEST_SUITE("a11y semantics")
             const button = createView();
             button.accessibility = { role: 'button', label: 'Go', state: { disabled: true },
                                      actions: [{ name: 'activate' }] };
-            button.addEventListener('accessibilityaction', () => log.push('acted'));
+             button.addEventListener('accessibilityaction', () => log.push('acted'));
+             button.focusable = true;
             root.appendChild(button);
             globalThis.button = button;
         )"));
         CHECK_FALSE(f.perform("Go", a11y::Action::Activate));
+        CHECK_FALSE(f.perform("Go", a11y::Action::Focus));
         CHECK(f.eval("log.length").asNumber() == 0);
+    }
+
+    TEST_CASE("read-only values remain focusable and are not settable through assistive technology")
+    {
+        A11yFixture f;
+        f.build(R"(
+            const control = createView();
+            control.accessibility = {
+                role: 'adjustable', label: 'Level', state: { readOnly: true },
+                value: { now: 0.5 }, actions: [{ name: 'setValue' }, { name: 'increment' }],
+            };
+            control.focusable = true;
+            root.appendChild(control);
+        )");
+        const auto* control = f.adapter.tree.find(f.adapter.tree.find(f.adapter.tree.root())->children.at(0));
+        REQUIRE(control != nullptr);
+        CHECK(control->state.readOnly);
+        CHECK_FALSE(control->state.disabled);
+        CHECK(control->focusable);
+        CHECK_FALSE(control->supports(a11y::Action::SetValue));
+        CHECK_FALSE(control->supports(a11y::Action::Increment));
     }
 
     TEST_CASE("activate presses a pressable as a click does")

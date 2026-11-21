@@ -499,7 +499,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 { 7, "editable" },    { 8, "enabled" },        { 9, "expandable" }, { 10, "expanded" },
                 { 11, "focusable" },  { 12, "focused" },       { 16, "modal" },     { 20, "pressed" },
                 { 22, "selectable" }, { 23, "selected" },      { 24, "sensitive" }, { 25, "showing" },
-                { 30, "visible" },    { 32, "indeterminate" }, { 41, "checkable" }
+                { 30, "visible" },    { 32, "indeterminate" }, { 41, "checkable" }, { 43, "read-only" }
             };
             for (const auto& [bit, name] : names)
             {
@@ -606,7 +606,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         {
             if (closing
                 || (action == Action::Custom ? ! node.supports(std::string_view(name)) : ! node.supports(action))
-                || (node.state.disabled && action != Action::Focus && action != Action::Blur))
+                || (node.state.disabled && action != Action::Blur))
                 return false;
             const std::scoped_lock lock(mutex);
             if (closing || generation != appliedGeneration || requests.size() >= 1024)

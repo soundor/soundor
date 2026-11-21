@@ -810,10 +810,14 @@ export class UiNode extends TreeEventTarget {
     element.prepend(this.#scrollExtent);
     // A drag of its bar scrolls as the wheel does: told at once, and the end
     // of a smooth scroll.
-    this.#indicators = new ScrollIndicators(element, () => {
-      this.#cancelSmooth();
-      this.#announceScroll();
-    });
+    this.#indicators = new ScrollIndicators(
+      element,
+      () => {
+        this.#cancelSmooth();
+        this.#announceScroll();
+      },
+      () => this.inputDisabled,
+    );
     this.#indicators.setEnabled(this.#scrollIndicators);
     // Scrolling from code is told by the browser's own event, as natively
     // on the next frame, before its requestAnimationFrame callbacks.
@@ -1030,6 +1034,12 @@ export class UiNode extends TreeEventTarget {
     this.#semantics = normalizeAccessibility(value);
     this.#accessibility = freezeAccessibility(value);
     this.#view.semanticsChanged();
+  }
+
+  get inputDisabled(): boolean {
+    for (let node: UiNode | null = this; node !== null; node = node.parent)
+      if (node.#semantics.state.disabled) return true;
+    return false;
   }
 
   /** Where assistive technology reads the node, in place of its parent. */

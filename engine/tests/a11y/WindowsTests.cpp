@@ -179,6 +179,25 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(std::ranges::find(events, UIA_RangeValueValuePropertyId) == events.end());
     }
 
+    TEST_CASE("read-only transitions report UIA properties without passive value events")
+    {
+        Node slider;
+        slider.role = Role::Adjustable;
+        slider.value = { 0, 1, 0.2, "20%" };
+        slider.actions = { { Action::SetValue } };
+        Node readOnly = slider;
+        readOnly.state.readOnly = true;
+        readOnly.actions.clear();
+        readOnly.value.now = 0.3;
+        readOnly.value.text = "30%";
+
+        auto events = uia::changedProperties(slider, readOnly);
+        CHECK(std::ranges::find(events, UIA_ValueIsReadOnlyPropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_RangeValueIsReadOnlyPropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_ValueValuePropertyId) == events.end());
+        CHECK(std::ranges::find(events, UIA_RangeValueValuePropertyId) == events.end());
+    }
+
     TEST_CASE("full value snapshots do not flood structure notifications")
     {
         Tree mirror;

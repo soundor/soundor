@@ -16,6 +16,7 @@ const OWNED = [
   'aria-label',
   'aria-description',
   'aria-disabled',
+  'aria-readonly',
   'aria-selected',
   'aria-checked',
   'aria-pressed',
@@ -307,7 +308,8 @@ function attributesOf(node: UiNode, pass: Pass): Attributes {
   if (semantics.hint !== '') out['aria-description'] = semantics.hint;
 
   const { state, value } = semantics;
-  if (state.disabled) out['aria-disabled'] = 'true';
+  if (node.inputDisabled) out['aria-disabled'] = 'true';
+  if (state.readOnly) out['aria-readonly'] = 'true';
   if (state.busy) out['aria-busy'] = 'true';
   if (state.selected !== null) out['aria-selected'] = String(state.selected);
   if (state.expanded !== null) out['aria-expanded'] = String(state.expanded);

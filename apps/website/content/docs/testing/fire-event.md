@@ -9,6 +9,7 @@ fireEvent(node, eventName, options?);
 ```
 
 `fireEvent(node, eventName, options)` dispatches one event on that node.
+Direct dispatch bypasses runtime input eligibility, including disabled state.
 The named helpers also include runtime pointer and focus operations, described
 below. Prefer [`userEvent`](/docs/testing/user-event) for a complete user
 action; use these helpers for individual steps or input the session does not
@@ -36,7 +37,7 @@ fireEvent.accessibilityAction(knob, { actionName: 'increment' });
 | `focus`, `blur`                                    | Move actual keyboard focus, firing the resulting focus events.             |
 | `accessibilityAction`                              | `actionName`, and `value` for `setValue`.                                  |
 
-The first `pointerDown` starts capture and focuses the nearest focusable node
+On an enabled target, the first `pointerDown` starts capture and focuses the nearest focusable node
 unless prevented; it also fires `contextmenu` if the secondary button starts
 the press. While any button stays held, additional presses and releases fire
 `pointermove` with the changed `button` and updated `buttons` mask, without

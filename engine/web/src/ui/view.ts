@@ -631,7 +631,11 @@ export class Engine implements ViewLink {
    * not focusable or not in the tree is ignored.
    */
   focus(node: UiNode | null, moveDomFocus = true): void {
-    if (node !== null && (!node.focusable || !node.isConnected)) return;
+    if (
+      node !== null &&
+      (!node.focusable || !node.isConnected || node.inputDisabled)
+    )
+      return;
     const previous = this.focusedNode();
     if (previous === node) return;
     const wasShown = previous !== null && this.#focusShown;
@@ -702,7 +706,11 @@ export class Engine implements ViewLink {
   #moveFocus(backwards: boolean): boolean {
     const order: UiNode[] = [];
     const collect = (node: UiNode): void => {
-      if (node.style.display === 'none') return;
+      if (
+        node.style.display === 'none' ||
+        UiNode.semanticsOf(node).state.disabled
+      )
+        return;
       if (node.focusable) order.push(node);
       for (const child of node.children) collect(child);
     };
@@ -731,6 +739,18 @@ export class Engine implements ViewLink {
 
   /** Brings the ARIA up to date once the current task's changes are done. */
   semanticsChanged(): void {
+    // Focus and capture follow input eligibility immediately; ARIA can batch.
+    if (this.focusedNode()?.inputDisabled) this.focus(null);
+    for (const [id, state] of this.#pointers) {
+      const { captured, last } = state;
+      if (!captured?.inputDisabled || last === null) continue;
+      state.captured = null;
+      state.pressedElement = null;
+      this.#endLock(id);
+      captured.dispatchEvent(
+        this.#pointerEvent('pointercancel', captured, last, true, false),
+      );
+    }
     if (this.#semanticsPending) return;
     this.#semanticsPending = true;
     queueMicrotask(() => this.updateSemantics());
@@ -762,7 +782,7 @@ export class Engine implements ViewLink {
         state.last?.pointerType !== 'touch' &&
         node.contains(state.captured),
     );
-    if (pressing === undefined || !node.isConnected) {
+    if (pressing === undefined || !node.isConnected || node.inputDisabled) {
       return Promise.reject(
         new DOMException(
           'requestPointerLock(): no press of this node to lock',
@@ -935,9 +955,12 @@ export class Engine implements ViewLink {
       node !== null;
       node = node.parent
     ) {
-      const { actions, state } = UiNode.semanticsOf(node);
+      if (node.inputDisabled) {
+        event.preventDefault();
+        return;
+      }
+      const { actions } = UiNode.semanticsOf(node);
       if (!actions.some((action) => action.name === 'activate')) continue;
-      if (state.disabled) return;
       const action = new AccessibilityActionEvent('accessibilityaction', {
         bubbles: true,
         cancelable: true,
@@ -978,11 +1001,11 @@ export class Engine implements ViewLink {
     release: globalThis.PointerEvent,
     detail: number,
   ): void {
-    if (!node.isConnected) return;
+    if (!node.isConnected || node.inputDisabled) return;
     node.dispatchEvent(
       this.#pointerEvent('click', node, release, true, true, null, detail),
     );
-    if (detail === 2 && node.isConnected) {
+    if (detail === 2 && node.isConnected && !node.inputDisabled) {
       node.dispatchEvent(
         this.#pointerEvent('dblclick', node, release, true, true, null, detail),
       );
@@ -1250,6 +1273,10 @@ export class Engine implements ViewLink {
     const target = state.captured ?? hit;
     this.#nativeDown = false;
     if (target === null) return;
+    if (target.inputDisabled) {
+      event.preventDefault();
+      return;
+    }
     // Implicit capture until the last button is up, from before the
     // listeners run, so they can lock it (a node they remove lets go).
     if (state.captured === null) state.captured = target;
@@ -1257,9 +1284,9 @@ export class Engine implements ViewLink {
       this.#pointerEvent('pointerdown', target, event, true, true),
     );
     if (state.captured?.isConnected !== true) state.captured = null;
-    if (!allowed) {
+    if (!allowed || target.inputDisabled) {
       event.preventDefault();
-      this.#capture(event.pointerId);
+      if (state.captured !== null) this.#capture(event.pointerId);
       return;
     }
     // Focus goes to the nearest focusable node, or nowhere.
@@ -1307,12 +1334,13 @@ export class Engine implements ViewLink {
     const pressed = state.captured;
     const hit = this.#hitTest(event);
     const target = pressed ?? hit;
-    if (target !== null) {
+    if (target !== null && !target.inputDisabled) {
       target.dispatchEvent(
         this.#pointerEvent('pointerup', target, event, true, true),
       );
     }
     if (event.buttons !== 0) return;
+    const stillPressed = state.captured === pressed;
     state.captured = null;
     this.#endLock(event.pointerId);
     try {
@@ -1323,7 +1351,14 @@ export class Engine implements ViewLink {
     // A click goes to the deepest node holding both press and release.
     const released = this.#hitTest(event);
     let common: UiNode | null = null;
-    if (event.button === 0 && pressed !== null && released !== null) {
+    if (
+      event.button === 0 &&
+      stillPressed &&
+      pressed?.isConnected &&
+      !pressed.inputDisabled &&
+      released !== null &&
+      !released.inputDisabled
+    ) {
       const from = this.#pathTo(pressed);
       const to = this.#pathTo(released);
       for (
@@ -1379,6 +1414,10 @@ export class Engine implements ViewLink {
     const target =
       (captured?.isConnected ? captured : null) ?? this.#hitTest(event);
     if (target === null) return;
+    if (target.inputDisabled) {
+      event.preventDefault();
+      return;
+    }
     const allowed = target.dispatchEvent(
       this.#pointerEvent('contextmenu', target, event, true, true),
     );
@@ -1407,6 +1446,10 @@ export class Engine implements ViewLink {
   #wheel(event: globalThis.WheelEvent): void {
     const target = this.#hitTest(event);
     if (target === null) return;
+    if (target.inputDisabled) {
+      event.preventDefault();
+      return;
+    }
     const base = this.#pointerEvent('wheel', target, event, true, true);
     const wheel = new WheelEvent('wheel', {
       bubbles: true,
@@ -1445,7 +1488,8 @@ export class Engine implements ViewLink {
     let deltaX = event.deltaX * unit;
     let deltaY = event.deltaY * unit;
     if (event.shiftKey && deltaX === 0) [deltaX, deltaY] = [deltaY, deltaX];
-    if (this.#scrollBy(target, deltaX, deltaY)) event.preventDefault();
+    if (target.inputDisabled || this.#scrollBy(target, deltaX, deltaY))
+      event.preventDefault();
   }
 
   #scrollBy(target: UiNode, deltaX: number, deltaY: number): boolean {
@@ -1471,19 +1515,21 @@ export class Engine implements ViewLink {
       this.#showFocus();
     }
     const target = this.focusedNode() ?? this.root;
-    const allowed = target.dispatchEvent(
-      new KeyboardEvent(down ? 'keydown' : 'keyup', {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        key: event.key,
-        repeat: event.repeat,
-        shiftKey: event.shiftKey,
-        ctrlKey: event.ctrlKey,
-        altKey: event.altKey,
-        metaKey: event.metaKey,
-      }),
-    );
+    const allowed =
+      target.inputDisabled ||
+      target.dispatchEvent(
+        new KeyboardEvent(down ? 'keydown' : 'keyup', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          key: event.key,
+          repeat: event.repeat,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          metaKey: event.metaKey,
+        }),
+      );
     if (!allowed) {
       event.preventDefault();
       return;
@@ -1492,13 +1538,21 @@ export class Engine implements ViewLink {
     if (event.key === 'Tab' && !shortcut) {
       event.preventDefault();
       this.#moveFocus(event.shiftKey);
-    } else if (event.key === 'Enter' && target.type === 'input') {
+    } else if (
+      event.key === 'Enter' &&
+      target.type === 'input' &&
+      !target.inputDisabled
+    ) {
       this.#commit(target);
     }
   }
 
   #beforeInput(event: globalThis.InputEvent): void {
     const node = nodeOf(event.target as Element, this.rootElement);
+    if (node?.inputDisabled) {
+      event.preventDefault();
+      return;
+    }
     // Text arriving at an input; deletions and the like are its own edits.
     if (node?.type !== 'input' || !event.inputType.startsWith('insert')) return;
     if (event.data === null || event.data === '') return;
@@ -1517,7 +1571,7 @@ export class Engine implements ViewLink {
   #input(event: Event): void {
     event.stopPropagation();
     const node = nodeOf(event.target as Element, this.rootElement);
-    if (node?.type !== 'input') return;
+    if (node?.type !== 'input' || node.inputDisabled) return;
     const native = event as globalThis.InputEvent;
     node.dispatchEvent(
       new InputEvent('input', {
@@ -1533,6 +1587,18 @@ export class Engine implements ViewLink {
   #focusIn(event: globalThis.FocusEvent): void {
     if (this.#movingFocus) return;
     const node = nodeOf(event.target as Element, this.rootElement);
+    if (node?.inputDisabled) {
+      const previous = this.focusedNode();
+      this.#movingFocus = true;
+      try {
+        (previous === null ? this.rootElement : elementOf(previous)).focus({
+          preventScroll: true,
+        });
+      } finally {
+        this.#movingFocus = false;
+      }
+      return;
+    }
     if (node !== null && node.focusable && node !== this.focusedNode()) {
       // Not a press (the view moves that focus itself): assistive
       // technology, or the browser's keyboard. Shown.

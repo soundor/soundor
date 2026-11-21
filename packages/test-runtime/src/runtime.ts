@@ -149,7 +149,7 @@ export class TestRuntime {
   }
 
   pointerPressed(id = 0): boolean {
-    return Boolean(this.pointers.get(id)?.down);
+    return Boolean(this.pointers.get(id)?.buttons);
   }
   readonly keys = new Set<string>();
   constructor(options: RuntimeOptions = {}) {
@@ -287,6 +287,20 @@ export class TestRuntime {
   focusVisible() {
     return this.focusedNode() !== null && this.focusShown;
   }
+  reconcileDisabledInput() {
+    if (this.focusedNode()?.inputDisabled) this.moveFocus(null);
+    for (const [id, pointer] of this.pointers) {
+      const down = pointer.down;
+      if (!down?.inputDisabled) continue;
+      pointer.down = null;
+      pointer.locked = null;
+      this.fire(down, 'pointercancel', {
+        pointerId: id,
+        pointerType: pointer.type,
+        isPrimary: pointer.isPrimary ?? id === 0,
+      });
+    }
+  }
   moveFocus(node: TestNode | null) {
     this.assertActive();
     if (
@@ -362,6 +376,7 @@ export class TestRuntime {
       node.runtime === this &&
       node.isConnected &&
       node.focusable &&
+      !node.inputDisabled &&
       !hidden.has(node)
     );
   }
@@ -390,7 +405,8 @@ export class TestRuntime {
       this.showFocus();
     }
     const event = new TestEvent('keydown', { key, ...init });
-    (this.focusedNode() ?? this.root).dispatchEvent(event);
+    const target = this.focusedNode() ?? this.root;
+    if (!target.inputDisabled) target.dispatchEvent(event);
     if (
       !event.defaultPrevented &&
       key === 'Tab' &&
@@ -417,7 +433,8 @@ export class TestRuntime {
   releaseKey(key: string, init: Record<string, unknown> = {}) {
     this.keys.delete(key);
     const event = new TestEvent('keyup', { key, ...init });
-    (this.focusedNode() ?? this.root).dispatchEvent(event);
+    const target = this.focusedNode() ?? this.root;
+    if (!target.inputDisabled) target.dispatchEvent(event);
     return event;
   }
   /**
@@ -440,6 +457,15 @@ export class TestRuntime {
   }
 
   fire(node: TestNode, type: string, init: Record<string, unknown> = {}) {
+    return this.emit(node, type, init, true);
+  }
+
+  private emit(
+    node: TestNode,
+    type: string,
+    init: Record<string, unknown>,
+    deliver: boolean,
+  ) {
     this.assertNode(node);
     // Assistive technology moves focus as the keyboard does: shown.
     if (type === 'accessibilityaction') this.keyboardModality = true;
@@ -473,7 +499,7 @@ export class TestRuntime {
         'pointerleave',
       ].includes(type),
     );
-    node.dispatchEvent(event);
+    if (deliver) node.dispatchEvent(event);
     return event;
   }
   pointerDown(node: TestNode, init: Record<string, unknown> = {}) {
@@ -497,10 +523,10 @@ export class TestRuntime {
       pointer.clicks = clicks;
     }
     this.pointers.set(id, pointer);
-    pointer.down ??= node;
+    if (firstPress && !node.inputDisabled) pointer.down = node;
     pointer.target = node;
     pointer.buttons |= [1, 4, 2][button]!;
-    const target = pointer.down;
+    const target = pointer.down ?? node;
     // Pointer events say no count (detail 0); the press's click does.
     const { detail: _detail, ...data } = init;
     const pointerInit = { pointerType: pointer.type, ...data };
@@ -509,13 +535,19 @@ export class TestRuntime {
       return this.fire(target, 'pointermove', { ...pointerInit, button });
     // Focus a press moves is not shown.
     this.keyboardModality = false;
-    const event = this.fire(target, 'pointerdown', pointerInit);
-    if (!event.defaultPrevented) {
+    const event = this.emit(
+      target,
+      'pointerdown',
+      pointerInit,
+      !target.inputDisabled,
+    );
+    if (!event.defaultPrevented && !target.inputDisabled) {
       let focus: TestNode | null = target;
       while (focus && !focus.focusable) focus = focus.parent;
       this.moveFocus(focus);
     }
-    if (button === 2) this.fire(target, 'contextmenu', pointerInit);
+    if (button === 2 && !target.inputDisabled)
+      this.fire(target, 'contextmenu', pointerInit);
     return event;
   }
   pointerMove(node: TestNode, init: Record<string, unknown> = {}) {
@@ -548,8 +580,16 @@ export class TestRuntime {
     if (pointer.buttons !== 0)
       return this.fire(down ?? node, 'pointermove', { ...pointerInit, button });
     let event: TestEvent;
+    let stillPressed = false;
     try {
-      event = this.fire(down ?? node, 'pointerup', pointerInit);
+      const target = down ?? node;
+      event = this.emit(
+        target,
+        'pointerup',
+        pointerInit,
+        !target.inputDisabled,
+      );
+      stillPressed = pointer.down === down;
     } finally {
       if (pointer.buttons === 0) {
         pointer.down = null;
@@ -557,7 +597,14 @@ export class TestRuntime {
         if (id !== 0) this.pointers.delete(id);
       }
     }
-    if (pointer.buttons === 0 && button === 0 && down) {
+    if (
+      pointer.buttons === 0 &&
+      button === 0 &&
+      stillPressed &&
+      down?.isConnected &&
+      !down.inputDisabled &&
+      !node.inputDisabled
+    ) {
       // Native Surface sends click to the deepest shared physical ancestor.
       let common: TestNode | null = down;
       while (common && !common.contains(node)) common = common.parent;
@@ -565,7 +612,7 @@ export class TestRuntime {
         const detail = pointer.clicks;
         this.fire(common, 'click', { ...pointerInit, detail });
         // The second click of a series is also a double click.
-        if (detail === 2 && common.isConnected)
+        if (detail === 2 && common.isConnected && !common.inputDisabled)
           this.fire(common, 'dblclick', { ...pointerInit, detail });
       }
     }
@@ -596,7 +643,7 @@ export class TestRuntime {
       (state) =>
         state.down && state.type !== 'touch' && node.contains(state.down),
     );
-    if (!pointer || !node.isConnected) {
+    if (!pointer || !node.isConnected || node.inputDisabled) {
       return Promise.reject(
         new DOMException(
           'requestPointerLock(): no press of this node to lock',
@@ -623,15 +670,25 @@ export class TestRuntime {
   }
 
   wheel(node: TestNode, init: Record<string, unknown> = {}) {
-    const event = this.fire(node, 'wheel', {
-      deltaX: 0,
-      deltaY: 0,
-      deltaZ: 0,
-      deltaMode: 0,
-      ...init,
-    });
+    const event = this.emit(
+      node,
+      'wheel',
+      {
+        deltaX: 0,
+        deltaY: 0,
+        deltaZ: 0,
+        deltaMode: 0,
+        ...init,
+      },
+      !node.inputDisabled,
+    );
     // Page scroll has no default here: the simulator has no viewport layout.
-    if (event.defaultPrevented || init['ctrlKey'] || init['deltaMode'] === 2)
+    if (
+      node.inputDisabled ||
+      event.defaultPrevented ||
+      init['ctrlKey'] ||
+      init['deltaMode'] === 2
+    )
       return event;
     // Native wheel scrolls in pixels, or 40 pixels per line.
     const scale = init['deltaMode'] === 1 ? 40 : 1;
@@ -661,6 +718,17 @@ export class TestRuntime {
       );
     if (!node.isConnected || !contains(this.semantics()))
       throw new Error('Node is not exposed in the Soundor accessibility tree');
+    if (node.inputDisabled && actionName !== 'blur')
+      throw new Error(
+        `Disabled node cannot perform accessibility action "${actionName}"`,
+      );
+    if (
+      node.accessibility.state?.readOnly &&
+      ['setValue', 'increment', 'decrement'].includes(actionName)
+    )
+      throw new Error(
+        `Read-only node cannot perform accessibility action "${actionName}"`,
+      );
     const offered =
       node.accessibility.actions?.some(
         (action) => action.name === actionName,
@@ -671,14 +739,6 @@ export class TestRuntime {
     if (!actionName || !offered)
       throw new Error(
         `Node does not offer accessibility action "${actionName}"`,
-      );
-    if (
-      node.accessibility.state?.disabled &&
-      actionName !== 'focus' &&
-      actionName !== 'blur'
-    )
-      throw new Error(
-        `Disabled node cannot perform accessibility action "${actionName}"`,
       );
     return this.fire(node, 'accessibilityaction', {
       actionName,

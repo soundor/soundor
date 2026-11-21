@@ -190,10 +190,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             element.label = properties.label;
             element.hint = properties.hint;
             element.state = properties.state;
+            element.state.disabled = node.inputDisabled();
             element.value = properties.value;
             element.actions = properties.actions;
             element.modal = properties.modal;
-            element.focusable = node.focusable();
+            element.focusable = node.focusable() && ! element.state.disabled;
             const ui::Rect box = surface.bounds(node.id());
             element.bounds = { box.x, box.y, box.width, box.height };
             if (node.type() == ui::NodeType::Text && element.label.empty())
@@ -207,6 +208,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                 offer(element, Action::Activate);
                 offer(element, Action::SetValue);
             }
+            // AppKit exposes a read-only value via its non-settable AXValue.
+            if (element.state.readOnly)
+                std::erase_if(element.actions,
+                              [](const ActionDescriptor& action)
+                              {
+                                  return action.action == Action::SetValue || action.action == Action::Increment
+                                         || action.action == Action::Decrement;
+                              });
             if (element.focusable)
                 offer(element, Action::Focus);
 
@@ -353,7 +362,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             return false;
         if (custom ? ! element->supports(std::string_view(name)) : ! element->supports(request.action))
             return false;
-        if (element->state.disabled && request.action != Action::Focus && request.action != Action::Blur)
+        if (element->state.disabled && request.action != Action::Blur)
             return false;
         return surface.accessibilityAction(source->second, std::move(name), request.value);
     }

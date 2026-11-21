@@ -75,7 +75,7 @@ export function createUser(
     if (!node.isConnected)
       throw new Error('Cannot interact with a detached Soundor node');
     const hidden = semanticSnapshot([runtime.root, runtime.overlayRoot]).hidden;
-    return !hidden.has(node) && !node.accessibility.state?.disabled;
+    return !hidden.has(node);
   };
   async function step(action: () => void) {
     active();
@@ -97,12 +97,6 @@ export function createUser(
   async function keyDown(key: string, code = key) {
     await step(() => {
       const repeat = runtime.keys.has(key);
-      if (
-        runtime.focusedNode()?.accessibility.state?.disabled &&
-        key !== 'Tab' &&
-        !modifiers[key]
-      )
-        return;
       const event = runtime.pressKey(key, {
         ...init(),
         ...(modifiers[key] ? { [modifiers[key]]: true } : {}),
@@ -113,7 +107,7 @@ export function createUser(
       if (
         !event.defaultPrevented &&
         node?.type === 'input' &&
-        !node.accessibility.state?.disabled &&
+        !node.inputDisabled &&
         key.length > 0 &&
         [...key].length === 1 &&
         !runtime.keys.has('Control') &&
@@ -351,7 +345,7 @@ export function createUser(
     const node = resolveNode(target);
     if (node.type !== 'input')
       throw new TypeError('user.type requires a Soundor TextInput');
-    if (!eligible(node)) return;
+    if (!eligible(node) || node.inputDisabled) return;
     await click(node);
     // Literal typing never treats braces or brackets as keyboard descriptors.
     for (const character of text) {
@@ -364,7 +358,7 @@ export function createUser(
     dblClick,
     press: async (target: NodeTarget) => {
       const node = resolveNode(target);
-      if (!eligible(node)) return;
+      if (!eligible(node) || node.inputDisabled) return;
       if (!node.focusable)
         throw new Error('user.press requires a focusable Soundor control');
       await step(() => {
@@ -377,7 +371,7 @@ export function createUser(
       const node = resolveNode(target);
       if (node.type !== 'input')
         throw new TypeError('user.clear requires a Soundor TextInput');
-      if (!eligible(node)) return;
+      if (!eligible(node) || node.inputDisabled) return;
       await click(node);
       await step(() => {
         node.select();

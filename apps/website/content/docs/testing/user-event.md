@@ -49,9 +49,9 @@ Control suppresses default scrolling. Page-mode events are delivered but do
 not scroll by default because the test runtime has no layout.
 
 `accessibilityAction` rejects if the node is not exposed in the accessibility
-tree, does not offer the action, or is disabled. An offered `focus` or `blur`
-is allowed on a disabled node. Focus from assistive technology is shown as
-keyboard focus.
+tree, does not offer the action, or is disabled (except for an offered `blur`).
+Read-only controls do not offer value-changing actions. Focus from assistive
+technology is shown as keyboard focus.
 
 ## Options
 
@@ -65,8 +65,9 @@ keyboard focus.
 - **One session per test,** made in the test: it belongs to the test's
   runtime.
 - **Await every action.**
-- **Disabled and hidden nodes** are skipped by pointer and wheel actions.
-  A node from another test, or removed, throws.
+- **Hidden nodes** are skipped by pointer and wheel actions. Disabled nodes
+  still receive hover, but cannot receive activation, wheel, or focus, just as
+  in the native and web runtimes. A detached node or a node from another test throws.
 - **With fake timers,** keep the frame functions real and give the session
   a way to move time:
 
