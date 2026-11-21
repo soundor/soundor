@@ -15,7 +15,7 @@ action; use these helpers for individual steps or input the session does not
 model.
 
 ```ts
-// A pen, which a userEvent session (a mouse) does not do:
+// A single pen press with explicit event fields:
 fireEvent.pointerDown(canvas, {
   pointerType: 'pen',
   pressure: 0.5,
@@ -29,7 +29,7 @@ fireEvent.accessibilityAction(knob, { actionName: 'increment' });
 | -------------------------------------------------- | -------------------------------------------------------------------------- |
 | `pointerDown`, `pointerMove`, `pointerUp`, `click` | Pointer events: `clientX`, `button`, `pointerType`, `pressure`, modifiers… |
 | `dblClick`                                         | A `dblclick` (`detail` 2 by default), on its own.                          |
-| `pointerCancel(node)`                              | Cancels the active press; no event options.                                |
+| `pointerCancel(node, { pointerId }?)`              | Cancels the active press for a pointer (default ID 0).                     |
 | `keyDown`, `keyUp`                                 | `key`, `code`, `repeat`, modifiers.                                        |
 | `beforeInput`, `input`                             | `data`, `inputType`.                                                       |
 | `change`                                           | A change event.                                                            |
@@ -48,7 +48,8 @@ reports: `fireEvent.pointerDown(node, { detail: 2 })` makes the second click
 of a double click, and its release fires `dblclick` after the `click`.
 `click` alone has `detail` 1 unless given another.
 `pointerCancel(node)` cancels the active press, which may belong to another
-node; it takes no event options. `focus` and `blur` call the node's methods.
+node. Pass a `pointerId` to cancel a particular pen or touch contact.
+`focus` and `blur` call the node's methods.
 The other named helpers dispatch their single event.
 
 Fields and names are `soundor:ui`'s ([events](/docs/primitives/events)).

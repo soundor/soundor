@@ -34,7 +34,7 @@ export type {
   RoleOptions,
   NodeTarget,
 } from '../queries';
-export type { UserOptions, PointerAction } from '../events/user';
+export type { UserOptions, PointerAction, WheelOptions } from '../events/user';
 export type {
   PointerOptions,
   KeyOptions,

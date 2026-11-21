@@ -12,6 +12,13 @@ import type { PointerOptions } from './fire';
 export interface PointerAction extends PointerOptions {
   target?: NodeTarget;
   keys?: string;
+  /** Name of a held touch contact to move, e.g. `TouchA`. */
+  pointerName?: string;
+}
+export interface WheelOptions {
+  deltaX?: number;
+  deltaY?: number;
+  deltaMode?: 0 | 1 | 2;
 }
 export interface UserOptions {
   /** Advance a test's Node timer delay, when configured. */ advanceTimers?: (
@@ -30,14 +37,21 @@ export function createUser(
   wrap: UpdateWrapper = direct,
 ) {
   const runtime = getTestRuntime();
-  let pointerTarget: TestNode | null = null;
-  let hovered: TestNode | null = null;
-  const hover = (node: TestNode) => {
+  const pointerTargets = new Map<number, TestNode>();
+  const hoveredNodes = new Map<number, TestNode>();
+  const touches = new Map<
+    string,
+    { id: number; primary: boolean; target: TestNode }
+  >();
+  let penId: number | undefined;
+  const hover = (node: TestNode, pointerId = 0, pointerType = 'mouse') => {
+    const hovered = hoveredNodes.get(pointerId) ?? null;
     if (hovered === node) return;
+    const fields = { ...init(), pointerId, pointerType, isPrimary: true };
     if (hovered?.isConnected)
-      runtime.fire(hovered, 'pointerleave', { ...init(), relatedTarget: node });
-    runtime.fire(node, 'pointerenter', { ...init(), relatedTarget: hovered });
-    hovered = node;
+      runtime.fire(hovered, 'pointerleave', { ...fields, relatedTarget: node });
+    runtime.fire(node, 'pointerenter', { ...fields, relatedTarget: hovered });
+    hoveredNodes.set(pointerId, node);
   };
   if (
     options.delay !== undefined &&
@@ -187,67 +201,135 @@ export function createUser(
     }
   }
 
+  async function touch(
+    name: string,
+    target: NodeTarget | undefined,
+    data: PointerOptions,
+    phase: 'move' | 'release' | 'hold' | 'tap',
+  ) {
+    for (const [key, contact] of touches)
+      if (!runtime.pointerPressed(contact.id)) touches.delete(key);
+    let contact = touches.get(name);
+    const starting = phase === 'tap' || phase === 'hold';
+    if (starting && contact)
+      throw new Error(`Touch contact ${name} is already held`);
+    if (!starting && !contact)
+      throw new Error(`Touch contact ${name} is not held`);
+    const node = target ? resolveNode(target) : contact?.target;
+    if (!node) throw new Error('A new touch contact requires a target');
+    if (!eligible(node)) return;
+    if (!contact) {
+      contact = {
+        id: runtime.allocatePointerId(),
+        primary: touches.size === 0,
+        target: node,
+      };
+    }
+    const { id, primary } = contact;
+    const fields = () => ({
+      ...init(),
+      ...data,
+      pointerId: id,
+      pointerType: 'touch',
+      isPrimary: primary,
+    });
+    if (starting) {
+      const started = contact;
+      await step(() => {
+        touches.set(name, started);
+        runtime.pointerDown(node, { ...fields(), button: 0 });
+      });
+    }
+    if (phase === 'move') {
+      contact.target = node;
+      await step(
+        () => void runtime.pointerMove(node, { ...fields(), button: -1 }),
+      );
+    } else if (phase === 'tap' || phase === 'release') {
+      await step(() => {
+        touches.delete(name);
+        runtime.pointerUp(node, { ...fields(), button: 0 });
+      });
+    }
+  }
+
   async function pointer(actions: PointerAction | readonly PointerAction[]) {
     for (const action of Array.isArray(actions) ? actions : [actions]) {
       active();
-      const node = action.target ? resolveNode(action.target) : pointerTarget;
+      const { target, keys, pointerName, ...data } = action;
+      const touchKey = keys?.match(/^\[(\/)?(Touch[A-Z])(>)?\]$/);
+      if (touchKey || pointerName) {
+        if (
+          (touchKey?.[1] && touchKey[3]) ||
+          (keys && pointerName) ||
+          (data.pointerType && data.pointerType !== 'touch')
+        )
+          throw new Error('Invalid Soundor touch pointer action');
+        await touch(
+          touchKey?.[2] ?? pointerName!,
+          target,
+          data,
+          !touchKey
+            ? 'move'
+            : touchKey[1]
+              ? 'release'
+              : touchKey[3]
+                ? 'hold'
+                : 'tap',
+        );
+        continue;
+      }
+      if (data.pointerType === 'touch')
+        throw new Error(
+          'Touch actions require a Touch key or a held pointerName',
+        );
+      const pointerType = data.pointerType ?? 'mouse';
+      const id =
+        data.pointerId ??
+        (pointerType === 'pen' ? (penId ??= runtime.allocatePointerId()) : 0);
+      const node = target ? resolveNode(target) : pointerTargets.get(id);
       if (!node)
         throw new Error(
           'The first pointer action requires a target; simulated hit testing has no geometry',
         );
       if (!eligible(node)) continue;
-      pointerTarget = node;
-      const { target: _target, keys, ...data } = action;
-      if (data.pointerType && data.pointerType !== 'mouse')
-        throw new Error(
-          'Stateful user.pointer currently supports a mouse; use fireEvent for pen or touch events',
-        );
+      pointerTargets.set(id, node);
+      const fields = () => ({
+        ...init(),
+        isPrimary: true,
+        ...data,
+        pointerType,
+        pointerId: id,
+      });
+      const hoverIfFree = () => {
+        if (!runtime.pointerPressed(id)) hover(node, id, pointerType);
+      };
       if (!keys) {
         await step(() => {
-          if (!runtime.pointer.down) hover(node);
-          runtime.pointerMove(node, { ...init(), isPrimary: true, ...data });
+          hoverIfFree();
+          runtime.pointerMove(node, fields());
         });
         continue;
       }
       const match = /^\[(\/)?(MouseLeft|MouseRight|MouseMiddle)(>)?\]$/.exec(
         keys,
       );
-      if (!match)
+      if (!match || (match[1] && match[3]))
         throw new Error(`Unsupported Soundor pointer descriptor: ${keys}`);
       const button = { MouseLeft: 0, MouseRight: 2, MouseMiddle: 1 }[
         match[2]!
       ]!;
-      if (match[1])
+      if (!match[1]) {
         await step(() => {
-          runtime.pointerUp(node, {
-            ...init(),
-            isPrimary: true,
-            ...data,
-            button,
-          });
-          if (!runtime.pointer.down) hover(node);
+          hoverIfFree();
+          runtime.pointerDown(node, { ...fields(), button });
         });
-      else {
-        await step(() => {
-          if (!runtime.pointer.down) hover(node);
-          runtime.pointerDown(node, {
-            ...init(),
-            isPrimary: true,
-            ...data,
-            button,
-          });
-        });
-        if (!match[3])
-          await step(() => {
-            runtime.pointerUp(node, {
-              ...init(),
-              isPrimary: true,
-              ...data,
-              button,
-            });
-            if (!runtime.pointer.down) hover(node);
-          });
       }
+      if (!match[3])
+        await step(() => {
+          runtime.pointerUp(node, { ...fields(), button });
+          hoverIfFree();
+        });
     }
   }
   async function click(target: NodeTarget) {
@@ -310,6 +392,25 @@ export function createUser(
       if (options.shift && !held) await keyUp('Shift');
     },
     pointer,
+    wheel: async (target: NodeTarget, options: WheelOptions = {}) => {
+      const node = resolveNode(target);
+      if (!eligible(node)) return;
+      await step(() => {
+        pointerTargets.set(0, node);
+        if (!runtime.pointerPressed()) hover(node);
+        runtime.wheel(node, { ...init(), ...options });
+      });
+    },
+    accessibilityAction: async (
+      target: NodeTarget,
+      actionName: string,
+      value?: number | string,
+    ) => {
+      const node = resolveNode(target);
+      await step(
+        () => void runtime.accessibilityAction(node, actionName, value),
+      );
+    },
   };
 }
 export const userEvent = {
