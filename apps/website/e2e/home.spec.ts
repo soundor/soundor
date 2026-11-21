@@ -47,11 +47,14 @@ test('the homepage demo plays and expands without opening an editor', async ({
   await expect(
     page.locator('header').getByRole('link', { name: 'Docs', exact: true }),
   ).toBeVisible();
-  await page
-    .locator('header')
-    .getByRole('link', { name: 'Components', exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/docs\/components$/);
+  for (const [name, href] of [
+    ['Components', 'https://components.soundor.dev/'],
+    ['Icons', 'https://icons.soundor.dev/'],
+  ] as const) {
+    await expect(
+      page.locator('header').getByRole('link', { name, exact: true }),
+    ).toHaveAttribute('href', href);
+  }
   expect(errors).toEqual([]);
 });
 

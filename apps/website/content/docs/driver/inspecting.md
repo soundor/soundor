@@ -56,7 +56,7 @@ scrolling and the transforms presented now (animations included), as the
 rectangle around the transformed box. `layout.frame` is the laid-out box in
 its parent, before any of that. A display's scale (`layout.scale`) turns
 logical pixels into device pixels.
-See [coordinates](/docs/components/events#coordinates).
+See [coordinates](/docs/primitives/events#coordinates).
 
 ## Locators
 
@@ -79,7 +79,7 @@ const loose = driver.getByText('orb', { exact: false }); // case-insensitive, pa
 (and `node.debugId` in `soundor:ui`), for tools only: neither shown nor read to assistive
 technology, at most 128 characters. It is the stable way to find a node,
 whatever its text or language. Roles are those of
-[accessibility](/docs/components/accessibility); a name matches exactly,
+[accessibility](/docs/primitives/accessibility); a name matches exactly,
 unless `exact: false`.
 
 A locator holds no node reference. Each call takes a fresh snapshot and finds

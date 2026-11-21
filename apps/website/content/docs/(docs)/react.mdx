@@ -21,23 +21,23 @@ without a browser: there is no DOM, no `window`, no CSS. The web runtime
 draws the same Soundor nodes with DOM elements. Either way the UI sees the
 same components, the same layout and the same events, so it is written once:
 
-- **Components** follow React Native conventions: [`View`](/docs/components/view),
-  [`Text`](/docs/components/text), [`Pressable`](/docs/components/pressable),
-  [`TextInput`](/docs/components/text-input),
-  [`Image`](/docs/components/image), plus [`Canvas`](/docs/components/canvas)
-  for code that draws, [SVG components](/docs/components/svg) from
-  `@soundor/react/svg` for vectors, and overlays: [`Portal`](/docs/components/portal),
-  [`Modal`](/docs/components/modal), [`FocusScope`](/docs/components/focus-scope).
+- **Primitives** follow React Native conventions: [`View`](/docs/primitives/view),
+  [`Text`](/docs/primitives/text), [`Pressable`](/docs/primitives/pressable),
+  [`TextInput`](/docs/primitives/text-input),
+  [`Image`](/docs/primitives/image), plus [`Canvas`](/docs/primitives/canvas)
+  for code that draws, [SVG components](/docs/primitives/svg) from
+  `@soundor/react/svg` for vectors, and overlays: [`Portal`](/docs/primitives/portal),
+  [`Modal`](/docs/primitives/modal), [`FocusScope`](/docs/primitives/focus-scope).
   Strings go in a `Text`.
 - **Styles** are objects, not CSS: flexbox, a column by default
-  ([Style](/docs/components/style)).
+  ([Style](/docs/primitives/style)).
 - **Events** are Web-style pointer, wheel, key and focus events that capture
-  and bubble ([Events](/docs/components/events)), in the view's logical
-  pixels ([coordinates](/docs/components/events#coordinates)).
+  and bubble ([Events](/docs/primitives/events)), in the view's logical
+  pixels ([coordinates](/docs/primitives/events#coordinates)).
 - **Accessibility** is React Native's props, which every runtime presents to
-  its platform's screen readers ([Accessibility](/docs/components/accessibility)).
+  its platform's screen readers ([Accessibility](/docs/primitives/accessibility)).
 - **Animation** runs in the runtime, not in React:
-  [`Animated.View`](/docs/components/animated-view) animates style changes,
+  [`Animated.View`](/docs/primitives/animated-view) animates style changes,
   and `useAnimationFrame` draws a canvas every frame.
 
 ## State and parameters
@@ -57,7 +57,7 @@ parameters.gain.endGesture();
 Keep React state for what only the UI knows: a tab, a menu that is open.
 Persistent preferences go in [`soundor:storage`](/docs/api/storage), files
 in [`soundor:fs`](/docs/api/fs). See [Parameters](/docs/parameters) and
-[`@soundor/react`](/docs/components#rendering) for rendering and the hooks.
+[`@soundor/react`](/docs/primitives#rendering) for rendering and the hooks.
 
 ## Testing
 

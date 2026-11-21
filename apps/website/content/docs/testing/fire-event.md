@@ -47,6 +47,6 @@ of a double click, and its release fires `dblclick` after the `click`.
 node; it takes no event options. `focus` and `blur` call the node's methods.
 The other named helpers dispatch their single event.
 
-Fields and names are `soundor:ui`'s ([events](/docs/components/events)).
+Fields and names are `soundor:ui`'s ([events](/docs/primitives/events)).
 With the React entry, each dispatch applies React's updates before it
 returns.

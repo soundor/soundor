@@ -1,6 +1,6 @@
 {
-  "title": "Components",
-  "description": "Every component, live, with its props",
+  "title": "Primitives",
+  "description": "Every primitive, live, with its props",
   "root": true,
   "pages": [
     "index",

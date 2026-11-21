@@ -4,7 +4,7 @@ description: The plugin view's node tree, styles, events, canvases and animation
 ---
 
 `soundor:ui` is the plugin view itself: a tree of nodes laid out with
-flexbox, with DOM-style events. [`@soundor/react`](/docs/components#rendering) renders
+flexbox, with DOM-style events. [`@soundor/react`](/docs/primitives#rendering) renders
 into it, so most UIs never import it; reach for it to animate a node, read
 the view's size, or build a renderer.
 
@@ -91,21 +91,21 @@ A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
 `insertBefore`, `removeChild`, `parent`, `children`) and:
 
 - `style`, assigned whole or one property at a time
-  ([Style](/docs/components/style));
+  ([Style](/docs/primitives/style));
 - `layout` (its box in its parent's) and `getBoundingClientRect()` (in the
-  view's), in logical pixels ([coordinates](/docs/components/events#coordinates));
+  view's), in logical pixels ([coordinates](/docs/primitives/events#coordinates));
 - `focusable`, `focused`, `focusVisible` (whether it should show its
-  focus: [Focus rings](/docs/components/events#focus-rings)), `focus()`,
+  focus: [Focus rings](/docs/primitives/events#focus-rings)), `focus()`,
   `blur()`, and the `focusvisiblechange` event;
 - `debugId`, the name [DevTools](/docs/cli/devtools) shows and
   [Soundor Driver](/docs/driver) finds the node by;
 - `accessibility`, what it is to assistive technology;
 - `animate(keyframes, options)`, which returns a `UiAnimation`;
 - scrolling, for a view whose style scrolls
-  ([Overflow](/docs/components/style#overflow)): `scrollTop`, `scrollLeft`,
+  ([Overflow](/docs/primitives/style#overflow)): `scrollTop`, `scrollLeft`,
   `scrollWidth`, `scrollHeight`, `scrollIndicators`, `scrollTo()` and
   `scrollBy()` with `behavior: 'smooth'`, and `scrollIntoView()` on any node
-  inside it ([Scrolling from code](/docs/components/view#scrolling-from-code));
+  inside it ([Scrolling from code](/docs/primitives/view#scrolling-from-code));
 - per kind: `text`; `value`, `placeholder` and the selection; `source`;
   `width`, `height` and `getContext()`.
 
@@ -133,7 +133,7 @@ Compose several with `effect(node, keyframes, options)`, `sequence()`,
 
 `setReducedMotion()` and `prefersReducedMotion()` set and read the reduced
 motion preference that animations follow.
-[`Animated.View`](/docs/components/animated-view) is the React way in; the
+[`Animated.View`](/docs/primitives/animated-view) is the React way in; the
 [animation contract](/docs/contribute/engine-reference#advanced-animations)
 has the details.
 
@@ -144,12 +144,12 @@ has the details.
 | `pressable(node, handlers)`                                                                           | Makes a node pressable and focusable (what `Pressable` uses); returns a function that undoes it.             |
 | `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                                |
 | `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                                     |
-| `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/components/events#pointer-lock)). |
+| `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/primitives/events#pointer-lock)). |
 | `viewSize()`, `subscribeViewSize(listener)`                                                           | The view's size and its subscription ([The view's size](#the-views-size)).                                   |
 | `editorSize()`, `subscribeEditorSize(listener)`                                                       | The editor's size and its subscription ([The editor's size](#the-editors-size)).                             |
 | `requestEditorSize(width, height)`                                                                    | Asks for another editor size ([Asking for a size](#asking-for-a-size)).                                      |
-| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                         |
-| `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                                   |
+| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/primitives/text#fonts)).                         |
+| `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/primitives/events)).                                                   |
 
 `requestAnimationFrame()` is a global, as on the Web: its callback runs once,
 before the view's next frame.

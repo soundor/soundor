@@ -130,7 +130,7 @@ are Soundor's.
 
 Pointer and keyboard routing also follow the Soundor tree. React's `Modal` and
 `FocusScope` add keyboard focus management. Details and examples live in the
-[React reference](/docs/components/accessibility),
+[React reference](/docs/primitives/accessibility),
 [native accessibility reference](/docs/contribute/engine-reference#accessibility), and
 [Apple bridge guide](/docs/contribute/apple-accessibility).
 

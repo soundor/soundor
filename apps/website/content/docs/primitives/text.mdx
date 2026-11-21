@@ -12,7 +12,7 @@ run of text, each part with its own style; `numberOfLines` cuts it short.
   Native: there is no text outside a text node.
 - **Styles:** `fontSize`, `fontWeight`, `fontStyle`, `fontFamily`,
   `lineHeight`, `letterSpacing`, `textAlign` and `color`, besides a view's
-  layout and paint ([Style](/docs/components/style)). A nested `<Text>`
+  layout and paint ([Style](/docs/primitives/style)). A nested `<Text>`
   inherits its parent's and overrides some.
 - **To assistive technology** a `Text` is read as its text, nested ones
   included, once. Accessibility props of a nested `<Text>` have no effect.
@@ -70,5 +70,5 @@ export const Title = () => (
   type="Omit<TextProps, keyof EventProps | keyof AccessibilityProps>"
 />
 
-`Text` also takes the [event props](/docs/components/events) and the
-[accessibility props](/docs/components/accessibility).
+`Text` also takes the [event props](/docs/primitives/events) and the
+[accessibility props](/docs/primitives/accessibility).

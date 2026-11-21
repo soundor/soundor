@@ -3,7 +3,7 @@ title: Animated.View
 description: A view whose opacity and transform changes animate, run by the runtime.
 ---
 
-`Animated.View` is a [`View`](/docs/components/view) whose opacity and
+`Animated.View` is a [`View`](/docs/primitives/view) whose opacity and
 transform animate to each new value. The runtime runs the animation: React
 renders the start and the end, never the frames in between.
 
@@ -18,7 +18,7 @@ renders the start and the end, never the frames in between.
 - **Layout stays:** a transform moves how the view is drawn and hit, not
   where it is laid out.
 - **It scrolls** with `overflow: 'scroll'` in its style, as any view does
-  ([Overflow](/docs/components/style#overflow)): a list that fades or slides in
+  ([Overflow](/docs/primitives/style#overflow)): a list that fades or slides in
   needs only one `Animated.View`.
 - **Reduced motion** follows `soundor:ui`'s preference: the browser's media
   query on the web; natively, the host or your code sets it
@@ -55,6 +55,6 @@ approximates them.
   type="Pick<AnimatedViewProps, 'transition' | 'animation'>"
 />
 
-`Animated.View` also takes a [`View`](/docs/components/view)'s props, the
-[event props](/docs/components/events) and the
-[accessibility props](/docs/components/accessibility).
+`Animated.View` also takes a [`View`](/docs/primitives/view)'s props, the
+[event props](/docs/primitives/events) and the
+[accessibility props](/docs/primitives/accessibility).

@@ -6,7 +6,7 @@ description: Flexbox layout, spacing, text and paint, as in React Native.
 Styles follow React Native conventions: flexbox laid out by
 [Yoga](https://www.yogalayout.dev), spacing shorthands, percentages, CSS
 colors, rounded corners, opacity and transforms. The
-[node components](/docs/components) take `style`. `Portal.Host` also takes
+[node components](/docs/primitives) take `style`. `Portal.Host` also takes
 `style`; `Modal` takes `backdropStyle`. `Portal` and `FocusScope` have no
 style of their own.
 
@@ -55,8 +55,8 @@ sizes; see
 | `'hidden'`            | yes   | no                                                        |
 | `'scroll'`            | yes   | yes: wheel, scrollbar, `scrollTo()`, with `scroll` events |
 
-Any view scrolls with `'scroll'`, an [`Animated.View`](/docs/components/animated-view)
-too ([Scrolling](/docs/components/view#scrolling)). It is the CSS meaning,
+Any view scrolls with `'scroll'`, an [`Animated.View`](/docs/primitives/animated-view)
+too ([Scrolling](/docs/primitives/view#scrolling)). It is the CSS meaning,
 not React Native's, where `'scroll'` only clips.
 
 ```tsx
@@ -85,15 +85,15 @@ not React Native's, where `'scroll'` only clips.
   scrolls, unless its `scrollIndicators` prop is `false`
   ([`useScrollbar`](/docs/hooks/use-scrollbar) draws your own).
 - **From code:** the node's `scrollTo()`, `scrollBy()` and `scrollIntoView()`,
-  smooth with `behavior: 'smooth'` ([Scrolling from code](/docs/components/view#scrolling-from-code)).
+  smooth with `behavior: 'smooth'` ([Scrolling from code](/docs/primitives/view#scrolling-from-code)).
 
 ## Text
 
 `fontFamily`, `fontSize`, `fontWeight`, `fontStyle`, `lineHeight`,
-`letterSpacing`, `textAlign` and `color` style a [`Text`](/docs/components/text)
-(and a [`TextInput`](/docs/components/text-input)'s text). `fontFamily` is a
+`letterSpacing`, `textAlign` and `color` style a [`Text`](/docs/primitives/text)
+(and a [`TextInput`](/docs/primitives/text-input)'s text). `fontFamily` is a
 bundled font registered with `registerFont`, or one installed on the system
-([Fonts](/docs/components/text#fonts)).
+([Fonts](/docs/primitives/text#fonts)).
 
 ## Paint and transforms
 
@@ -102,7 +102,7 @@ bundled font registered with `registerFont`, or one installed on the system
 list of `translateX`, `translateY`, `scale`, `scaleX`, `scaleY` and `rotate`
 (radians as a number, or `'90deg'`), about the node's centre. A transform
 moves how the node is drawn and hit, not its layout;
-[`Animated.View`](/docs/components/animated-view) animates it.
+[`Animated.View`](/docs/primitives/animated-view) animates it.
 
 `willChange: 'transform'` asks the renderer to prepare a view for transform
 changes. The web runtime passes it to CSS as `will-change: transform`. The
@@ -117,7 +117,7 @@ border, following its `borderRadius`, `outlineOffset` away from it (inside
 when negative), in `outlineColor` (black by default). Unlike a border it
 takes no room and is not hit, so it can come and go without moving
 anything: a focus ring
-([Focus rings](/docs/components/events#focus-rings)).
+([Focus rings](/docs/primitives/events#focus-rings)).
 
 ```tsx
 <View
@@ -174,7 +174,7 @@ one, as the knob above does when pressed.
 `cursor` sets the pointer's shape over a node and everything in it, until a
 child sets its own. It is `'auto'` by default, which takes the parent's: the
 arrow (`'default'`) at the root, whatever is drawn there, and the I-beam
-(`'text'`) in a [`TextInput`](/docs/components/text-input). No component sets
+(`'text'`) in a [`TextInput`](/docs/primitives/text-input). No component sets
 one for you, buttons included, as in desktop apps and plugins; add
 `cursor: 'pointer'` where you want the hand.
 

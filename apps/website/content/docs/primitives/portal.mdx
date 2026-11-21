@@ -19,7 +19,7 @@ A tooltip is the trigger's box in surface coordinates and a portal:
 - above all of the content, whatever its `zIndex`, and out of any `overflow`
   clipping or scrolling;
 - in surface coordinates: place it with an event's `pageX`/`pageY` or a
-  node's `getBoundingClientRect()` ([coordinates](/docs/components/events#coordinates));
+  node's `getBoundingClientRect()` ([coordinates](/docs/primitives/events#coordinates));
 - filling the view, letting the pointer through where it draws nothing;
 - above the portals opened before it, so one opened from inside another (a
   dropdown in a dialog) is on top of it.

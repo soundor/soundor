@@ -1,6 +1,6 @@
 {
   "title": "Hooks",
-  "description": "React hooks for parameters, state, native streams, the host, presets, frames, the editor and view, canvases, scrollbars and presses",
+  "description": "Parameters, state, host and editor",
   "root": true,
   "pages": [
     "index",

@@ -14,11 +14,11 @@ the component's props and state.
 
 <Snippet name="canvas" height={200} />
 
-- **Draw a [`Canvas`](/docs/components/canvas)** with it: get the context
+- **Draw a [`Canvas`](/docs/primitives/canvas)** with it: get the context
   from the canvas's ref and draw the frame. Drawing marks only the canvas as
   changed.
 - **Not for animating styles:** an
-  [`Animated.View`](/docs/components/animated-view) animates opacity and
+  [`Animated.View`](/docs/primitives/animated-view) animates opacity and
   transforms in the runtime, without running JavaScript every frame.
 - **Not for state:** setting React state every frame re-renders the
   component every frame. Read values in the callback and draw instead.

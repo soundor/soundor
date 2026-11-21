@@ -29,7 +29,7 @@ function FocusHint() {
   can keep its focus; see [`useEditorVisibility`](/docs/hooks/use-editor-visibility).
   Neither is audio processing: nothing here pauses it.
 - **It is not which control has focus.** For one node's focus, use the
-  `onFocus` and `onBlur` props or [`FocusScope`](/docs/components/focus-scope).
+  `onFocus` and `onBlur` props or [`FocusScope`](/docs/primitives/focus-scope).
 
 ## In each runtime
 
