@@ -1,5 +1,12 @@
 # @soundor/vst3-runtime
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/runtime-sdk@0.19.1
+
 ## 0.1.0
 
 ### Minor Changes
