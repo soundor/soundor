@@ -37,7 +37,7 @@ same lifecycle phases. Two runtimes exist:
 
 The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
-(especially `vst3-runtime.md`, `web-runtime.md`, `react.mdx`), `components/`
+(especially `vst3-runtime.md`, `web-runtime.md`, `react.mdx`), `primitives/`
 (a page per `@soundor/react` component, its props table generated from its
 type and doc comments), `hooks/`, `api/` (a page per `soundor:*` module),
 `testing/`, `cli/` (commands, config, create-soundor-app), and `contribute/`

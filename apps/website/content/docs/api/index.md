@@ -10,7 +10,7 @@ the same errors, typed from the project's `soundor.config.ts`.
 
 | Module                                         | What it is                                                           |
 | ---------------------------------------------- | -------------------------------------------------------------------- |
-| [`@soundor/react`](/docs/components#rendering) | Rendering, hooks and styles; the [components](/docs/components).     |
+| [`@soundor/react`](/docs/primitives#rendering) | Rendering, hooks and styles; the [primitives](/docs/primitives).     |
 | [`soundor:parameters`](/docs/api/parameters)   | The plugin's parameters, shared with the audio and the host.         |
 | [`soundor:state`](/docs/api/state)             | Persistent typed values shared with native code.                     |
 | [`soundor:presets`](/docs/api/presets)         | Factory preset catalog, synchronous loading, and selection tracking. |
@@ -35,4 +35,4 @@ There is no `window` or `document`: see the
 [Web platform layer](/docs/contribute/engine-reference#the-web-platform-layer).
 
 React components and hooks build on these modules: see
-[Components](/docs/components) and [Hooks](/docs/hooks).
+[Primitives](/docs/primitives) and [Hooks](/docs/hooks).

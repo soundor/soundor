@@ -21,7 +21,7 @@ runtime runs:
 - `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`, `.svg`) bundles the
   image as an asset and yields its stable, content-derived id; so does
   `import inter from './Inter.ttf'` (also `.otf`) for a font, which
-  [`registerFont`](/docs/components/text#fonts) takes. Only the files the
+  [`registerFont`](/docs/primitives/text#fonts) takes. Only the files the
   bundle still uses after tree shaking are shipped: a library's font helper
   that the plugin never calls adds none.
 

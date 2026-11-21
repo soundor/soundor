@@ -1,7 +1,7 @@
 {
   "pages": [
     "(docs)",
-    "components",
+    "primitives",
     "hooks",
     "api",
     "testing",

@@ -15,7 +15,7 @@ import { Suspense, use } from 'react';
 
 import { BreakingChangeIcon } from '@/components/breaking-change-icon';
 import { useMDXComponents } from '@/components/mdx';
-import { baseOptions } from '@/lib/layout.shared';
+import { baseOptions, siteLinks } from '@/lib/layout.shared';
 import { getPageMarkdownUrl, repository } from '@/lib/shared';
 import { docs, source } from '@/lib/source';
 
@@ -99,8 +99,9 @@ export function DocumentationPage({
   const { path, pageTree, markdownUrl } = useFumadocsLoader(data);
 
   return (
-    // The header's links would open the sidebar, repeating its tab switcher.
-    <DocsLayout {...baseOptions()} links={[]} tree={pageTree}>
+    // The sidebar's tab switcher already has Docs and Changelog; only the links
+    // to the other Soundor sites are added to it.
+    <DocsLayout {...baseOptions()} links={[...siteLinks]} tree={pageTree}>
       <Suspense>
         <Content path={path} markdownUrl={markdownUrl} />
       </Suspense>

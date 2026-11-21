@@ -90,7 +90,7 @@ try {
 Locators find nodes by what the engine knows of them:
 
 - `getByDebugId(id)`: the node whose `debugId` prop (on
-  [node components](/docs/components), and `node.debugId` in
+  [node components](/docs/primitives), and `node.debugId` in
   [`soundor:ui`](/docs/api/ui)) is `id`. It is for tools only: users and
   assistive technology never see it. DevTools shows it too.
 - `getByRole(role, { name })`: a node assistive technology sees with this

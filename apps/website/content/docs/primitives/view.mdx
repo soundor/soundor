@@ -10,12 +10,12 @@ default, as in React Native.
 <Snippet name="view" height={230} />
 
 - **Layout:** `flexDirection`, `justifyContent`, `alignItems`, `gap`,
-  `flex`, sizes, margins and padding: see [Style](/docs/components/style).
+  `flex`, sizes, margins and padding: see [Style](/docs/primitives/style).
 - **Focus:** `focusable` makes it take keyboard focus when pressed or tabbed
-  to; then it receives key events ([Events](/docs/components/events)).
+  to; then it receives key events ([Events](/docs/primitives/events)).
 - **To assistive technology** a view is not an element itself; what it
   contains is, unless it is given a role or `accessible`
-  ([Accessibility](/docs/components/accessibility)).
+  ([Accessibility](/docs/primitives/accessibility)).
 
 ## Scrolling
 
@@ -31,7 +31,7 @@ scrollbar, or from code. `Animated.View` scrolls with the same styles.
   put it in another `View` inside.
 - **Axes:** `overflowX` and `overflowY` win over `overflow`, whatever the
   order. Set an axis to `'hidden'` to clip without scrolling it.
-  See [Overflow](/docs/components/style#overflow).
+  See [Overflow](/docs/primitives/style#overflow).
 - **`onScroll`** fires as it scrolls, by any means; read the node's `scrollTop`
   and `scrollLeft`. Scrolled from code, it fires once on the next frame,
   rather than during the call.
@@ -78,5 +78,5 @@ row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   type="Omit<ViewProps, keyof EventProps | keyof AccessibilityProps>"
 />
 
-A `View` also takes the [event props](/docs/components/events) and the
-[accessibility props](/docs/components/accessibility).
+A `View` also takes the [event props](/docs/primitives/events) and the
+[accessibility props](/docs/primitives/accessibility).

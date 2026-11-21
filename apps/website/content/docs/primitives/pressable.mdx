@@ -22,7 +22,7 @@ presses and state.
   assistive technology so.
 - **Focus:** it is focusable, so Tab reaches it; Enter or Space press it.
   Draw a focus ring from `focusVisible`, which a click does not set
-  ([Focus rings](/docs/components/events#focus-rings)):
+  ([Focus rings](/docs/primitives/events#focus-rings)):
   `style={({ focusVisible }) => ({ outlineWidth: focusVisible ? 2 : 0 })}`.
 - **To assistive technology** it is one element, a `button` unless given
   another role, labelled by its text. It offers `activate` (its `onPress`)
@@ -43,5 +43,5 @@ presses and state.
   name="PressableState"
 />
 
-`Pressable` also takes the [event props](/docs/components/events) and the
-[accessibility props](/docs/components/accessibility).
+`Pressable` also takes the [event props](/docs/primitives/events) and the
+[accessibility props](/docs/primitives/accessibility).

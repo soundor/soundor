@@ -129,15 +129,15 @@ area, including transparent parts. Event coordinates are logical UI pixels,
 not viewBox coordinates. Label meaningful graphics with `accessibilityLabel`;
 unlabelled SVGs are decorative. Groups and shapes have no independent event
 targets, refs or semantic nodes. Use a root or an enclosing
-[Pressable](/docs/components/pressable) for a control.
+[Pressable](/docs/primitives/pressable) for a control.
 
 ## SVG Image, React SVG and Canvas
 
 | Use                                                          | Rendering                                   | Best fit                                                     |
 | ------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------ |
-| [Image with an SVG asset](/docs/components/image#svg-assets) | Cached SkSVGDOM / browser image             | Exported artwork, including supported gradients and clipping |
+| [Image with an SVG asset](/docs/primitives/image#svg-assets) | Cached SkSVGDOM / browser image             | Exported artwork, including supported gradients and clipping |
 | React SVG                                                    | Retained SkPath/SkPaint scene / browser SVG | Declarative shapes that update with React state              |
-| [Canvas](/docs/components/canvas)                            | Explicit drawing commands                   | Custom drawing algorithms and immediate control              |
+| [Canvas](/docs/primitives/canvas)                            | Explicit drawing commands                   | Custom drawing algorithms and immediate control              |
 
 SVG Image files use the existing content-addressed asset bundler. They can
 support richer document features than these primitives. React SVG never

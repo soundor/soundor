@@ -275,7 +275,7 @@ test("a component's page runs it, and lists its props from its types", async ({
   page,
 }) => {
   const problems = watch(page);
-  await page.goto('/docs/components/pressable');
+  await page.goto('/docs/primitives/pressable');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Pressable');
   const plugin = page.frameLocator('iframe[title*="pressable snippet"]');
   await expect(plugin.getByRole('button', { name: /Press me/ })).toBeVisible();
@@ -290,7 +290,7 @@ test("a component's page runs it, and lists its props from its types", async ({
   expect(problems).toEqual([]);
 });
 
-test('the tabs lead to Components and API', async ({ page }) => {
+test('the tabs lead to Docs and API', async ({ page }) => {
   await page.goto('/docs');
   await page.getByRole('button', { name: /^Docs/ }).first().click();
   await page.getByRole('link', { name: /^API/ }).click();
@@ -303,7 +303,7 @@ test('the tabs lead to Components and API', async ({ page }) => {
 
 test("a component's Markdown has its props table", async ({ request }) => {
   const markdown = await (
-    await request.get('/docs/components/pressable.md')
+    await request.get('/docs/primitives/pressable.md')
   ).text();
   expect(markdown).toMatch(
     /\| `delayLongPress\?` +\| `number` +\| Milliseconds/,
@@ -313,7 +313,7 @@ test("a component's Markdown has its props table", async ({ request }) => {
 
 test("a snippet's image loads, from the example's build", async ({ page }) => {
   const problems = watch(page);
-  await page.goto('/docs/components/image');
+  await page.goto('/docs/primitives/image');
   const plugin = page.frameLocator('iframe[title*="image snippet"]');
   const image = plugin.getByRole('img', { name: 'A waveform, cover' });
   await expect(image).toBeVisible();

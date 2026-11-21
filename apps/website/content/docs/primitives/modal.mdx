@@ -9,13 +9,13 @@ works the same in any host, and in the browser.
 
 <Snippet name="modal" height={260} />
 
-It is a [`Portal`](/docs/components/portal) plus:
+It is a [`Portal`](/docs/primitives/portal) plus:
 
 - **A backdrop** over the whole view that blocks the pointer from everything
   below, transparent unless `backdropStyle` says otherwise. Its children fill
   the view above it and stay interactive: place a dialog with
   `margin: 'auto'`, say.
-- **A trapped [`FocusScope`](/docs/components/focus-scope)** with `autoFocus`
+- **A trapped [`FocusScope`](/docs/primitives/focus-scope)** with `autoFocus`
   and `restoreFocus`: focus goes to its first focusable child on open, Tab
   stays inside, and focus returns on close.
 - **Close requests:** Escape, and with `dismissOnBackdropPress` a press on

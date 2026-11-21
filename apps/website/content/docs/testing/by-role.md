@@ -36,7 +36,7 @@ screen.getByRole('switch', { name: 'Bypass', checked: true });
 
 - **Roles are Soundor's:** a `Pressable` is a `button` unless given another
   role, a `TextInput` is a `textinput`, a `Modal` a `dialog`. See
-  [Accessibility](/docs/components/accessibility) for every role and default.
+  [Accessibility](/docs/primitives/accessibility) for every role and default.
 - **The name** is the label (`accessibilityLabel`), else the text inside: a
   `Pressable` with `<Text>Save</Text>` is the button "Save".
 - **Hidden nodes,** and everything behind an open modal, are not found unless

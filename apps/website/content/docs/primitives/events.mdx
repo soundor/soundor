@@ -3,7 +3,7 @@ title: Events
 description: The Web-style pointer, wheel, key and focus events node components take, and their coordinates.
 ---
 
-The [node components](/docs/components) take event props: `onPointerDown`,
+The [node components](/docs/primitives) take event props: `onPointerDown`,
 `onClick`, `onDoubleClick`, `onKeyDown`, `onWheel`, `onFocus` and the others
 below. `onPointerDown`, `onPointerMove`, `onPointerUp`, `onClick`,
 `onDoubleClick`, `onContextMenu`, `onWheel` and `onKeyDown` also have
@@ -58,7 +58,7 @@ put node event handlers on the content they render.
   Keys go to the focused node. Show focus with `focusVisible`, not `focused`
   ([Focus rings](#focus-rings)).
 - **`onContextMenu`** fires when the secondary button goes down, so a UI can
-  open its own menu ([Portal](/docs/components/portal#over-everything)).
+  open its own menu ([Portal](/docs/primitives/portal#over-everything)).
 - **Double clicks** are the platform's: `onDoubleClick` fires right after
   the second click's `onClick` ([Double clicks](#double-clicks)).
 
@@ -104,9 +104,9 @@ whether the focus should show: not when a press gave it, until a key is
 pressed (not a shortcut nor a modifier on its own); when Tab, a screen
 reader or code moved it after a key; and always in a text input.
 `onFocusVisibleChange` fires whenever it changes, with
-`event.focusVisible`, and a [`Pressable`](/docs/components/pressable)'s
+`event.focusVisible`, and a [`Pressable`](/docs/primitives/pressable)'s
 state has it. Draw the ring with an
-[outline](/docs/components/style#outline), which takes no room, so nothing
+[outline](/docs/primitives/style#outline), which takes no room, so nothing
 moves when it shows:
 
 ```tsx

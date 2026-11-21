@@ -9,7 +9,7 @@ await user.tab(options?: { shift?: boolean }): Promise<void>;
 
 Presses Tab (or Shift+Tab with `shift: true`): focus moves to the next (or
 previous) focusable node, as in the runtime, within the innermost trapping
-[`FocusScope`](/docs/components/focus-scope).
+[`FocusScope`](/docs/primitives/focus-scope).
 
 ```ts
 await user.tab();
