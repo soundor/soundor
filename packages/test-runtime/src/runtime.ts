@@ -14,7 +14,7 @@ import { VirtualClock } from './clock';
 import { Listeners } from './listeners';
 import { TestNode, TestEvent } from './node';
 import { createParameterStore } from './parameters';
-import { semanticTree, semanticSnapshot } from './semantics';
+import { semanticTree, semanticSnapshot, type SemanticNode } from './semantics';
 import {
   MemoryStorage,
   type RuntimeOptions,
@@ -33,6 +33,18 @@ import type {
   NodeType,
   Style,
 } from './types';
+
+function createPointerState(isPrimary?: boolean) {
+  return {
+    target: null as TestNode | null,
+    down: null as TestNode | null,
+    buttons: 0,
+    type: 'mouse',
+    locked: null as TestNode | null,
+    clicks: 1,
+    ...(isPrimary === undefined ? {} : { isPrimary }),
+  };
+}
 
 export class TestRuntime {
   private readonly midiInput: MidiMessage[] = [];
@@ -126,16 +138,19 @@ export class TestRuntime {
   private clipboardText = '';
   private cleanups = new Set<() => void>();
   private committed = new WeakMap<TestNode, string>();
-  readonly pointer = {
-    target: null as TestNode | null,
-    down: null as TestNode | null,
-    buttons: 0,
-    type: 'mouse' as string,
-    /** The node holding the pointer lock: the press goes to it until released. */
-    locked: null as TestNode | null,
-    /** The press's click count: `detail` of its click. */
-    clicks: 1,
-  };
+  readonly pointer = createPointerState();
+  private readonly pointers = new Map([[0, this.pointer]]);
+  private nextPointerId = 1;
+
+  allocatePointerId(): number {
+    this.assertActive();
+    while (this.pointers.has(this.nextPointerId)) ++this.nextPointerId;
+    return this.nextPointerId++;
+  }
+
+  pointerPressed(id = 0): boolean {
+    return Boolean(this.pointers.get(id)?.down);
+  }
   readonly keys = new Set<string>();
   constructor(options: RuntimeOptions = {}) {
     this.root = new TestNode(this, 'view');
@@ -443,7 +458,8 @@ export class TestRuntime {
           'pointerleave',
         ].includes(type),
         button: 0,
-        buttons: this.pointer.buttons,
+        buttons:
+          this.pointers.get(Number(init['pointerId'] ?? 0))?.buttons ?? 0,
         pointerId: 0,
         pointerType: 'mouse',
         ...init,
@@ -462,27 +478,32 @@ export class TestRuntime {
   }
   pointerDown(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
-    if (this.pointer.down) this.assertNode(this.pointer.down);
+    const id = Number(init['pointerId'] ?? 0);
+    const pointer =
+      this.pointers.get(id) ?? createPointerState(Boolean(init['isPrimary']));
+    if (pointer.down) this.assertNode(pointer.down);
     const button = Number(init['button'] ?? 0);
     if (![0, 1, 2].includes(button))
       throw new RangeError(
         'Supported mouse buttons are primary, middle, and secondary',
       );
-    const firstPress = this.pointer.buttons === 0;
+    const firstPress = pointer.buttons === 0;
     if (firstPress) {
-      this.pointer.type = String(init['pointerType'] ?? 'mouse');
       // Which press of a series this is, as a platform counts them.
       const clicks = Number(init['detail'] ?? 1);
       if (!Number.isInteger(clicks) || clicks < 1)
         throw new RangeError('A press counts its clicks from 1 (detail)');
-      this.pointer.clicks = clicks;
+      pointer.type = String(init['pointerType'] ?? 'mouse');
+      pointer.clicks = clicks;
     }
-    this.pointer.down ??= node;
-    this.pointer.target = node;
-    this.pointer.buttons |= [1, 4, 2][button]!;
-    const target = this.pointer.down;
+    this.pointers.set(id, pointer);
+    pointer.down ??= node;
+    pointer.target = node;
+    pointer.buttons |= [1, 4, 2][button]!;
+    const target = pointer.down;
     // Pointer events say no count (detail 0); the press's click does.
-    const { detail: _detail, ...pointerInit } = init;
+    const { detail: _detail, ...data } = init;
+    const pointerInit = { pointerType: pointer.type, ...data };
     // Chorded button changes are moves and don't run press defaults.
     if (!firstPress)
       return this.fire(target, 'pointermove', { ...pointerInit, button });
@@ -499,43 +520,49 @@ export class TestRuntime {
   }
   pointerMove(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
-    if (this.pointer.down) this.assertNode(this.pointer.down);
-    this.pointer.target = node;
-    return this.fire(this.pointer.down ?? node, 'pointermove', {
+    const pointer = this.pointers.get(Number(init['pointerId'] ?? 0));
+    if (pointer?.down) this.assertNode(pointer.down);
+    if (pointer) pointer.target = node;
+    return this.fire(pointer?.down ?? node, 'pointermove', {
       button: -1,
+      pointerType: pointer?.type ?? 'mouse',
       ...init,
     });
   }
   pointerUp(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
-    if (this.pointer.down) this.assertNode(this.pointer.down);
+    const id = Number(init['pointerId'] ?? 0);
+    const pointer = this.pointers.get(id) ?? createPointerState();
+    if (pointer.down) this.assertNode(pointer.down);
     const button = Number(init['button'] ?? 0);
     if (![0, 1, 2].includes(button))
       throw new RangeError(
         'Supported mouse buttons are primary, middle, and secondary',
       );
-    const down = this.pointer.down;
-    this.pointer.target = node;
-    this.pointer.buttons &= ~[1, 4, 2][button]!;
+    const down = pointer.down;
+    pointer.target = node;
+    pointer.buttons &= ~[1, 4, 2][button]!;
     // The count is the press's (pointerDown's detail).
-    const { detail: _detail, ...pointerInit } = init;
-    if (this.pointer.buttons !== 0)
+    const { detail: _detail, ...data } = init;
+    const pointerInit = { pointerType: pointer.type, ...data };
+    if (pointer.buttons !== 0)
       return this.fire(down ?? node, 'pointermove', { ...pointerInit, button });
     let event: TestEvent;
     try {
       event = this.fire(down ?? node, 'pointerup', pointerInit);
     } finally {
-      if (this.pointer.buttons === 0) {
-        this.pointer.down = null;
-        this.pointer.locked = null;
+      if (pointer.buttons === 0) {
+        pointer.down = null;
+        pointer.locked = null;
+        if (id !== 0) this.pointers.delete(id);
       }
     }
-    if (this.pointer.buttons === 0 && button === 0 && down) {
+    if (pointer.buttons === 0 && button === 0 && down) {
       // Native Surface sends click to the deepest shared physical ancestor.
       let common: TestNode | null = down;
       while (common && !common.contains(node)) common = common.parent;
       if (common) {
-        const detail = this.pointer.clicks;
+        const detail = pointer.clicks;
         this.fire(common, 'click', { ...pointerInit, detail });
         // The second click of a series is also a double click.
         if (detail === 2 && common.isConnected)
@@ -545,25 +572,31 @@ export class TestRuntime {
     return event;
   }
 
-  pointerCancel() {
+  pointerCancel(id = 0) {
     this.assertActive();
-    if (this.pointer.down) this.assertNode(this.pointer.down);
-    const down = this.pointer.down;
-    this.pointer.down = null;
-    this.pointer.locked = null;
-    this.pointer.buttons = 0;
-    if (down) this.fire(down, 'pointercancel');
+    const pointer = this.pointers.get(id);
+    if (!pointer) return;
+    const down = pointer.down;
+    if (down) this.assertNode(down);
+    pointer.down = null;
+    pointer.locked = null;
+    pointer.buttons = 0;
+    if (id !== 0) this.pointers.delete(id);
+    if (down)
+      this.fire(down, 'pointercancel', {
+        pointerId: id,
+        pointerType: pointer.type,
+        isPrimary: pointer.isPrimary ?? id === 0,
+      });
   }
 
   /** As the runtimes: locks a mouse or pen pressing `node` or a node in it. */
   requestPointerLock(node: TestNode): Promise<void> {
-    const down = this.pointer.down;
-    if (
-      down === null ||
-      this.pointer.type === 'touch' ||
-      !node.isConnected ||
-      !node.contains(down)
-    ) {
+    const pointer = [...this.pointers.values()].find(
+      (state) =>
+        state.down && state.type !== 'touch' && node.contains(state.down),
+    );
+    if (!pointer || !node.isConnected) {
       return Promise.reject(
         new DOMException(
           'requestPointerLock(): no press of this node to lock',
@@ -571,21 +604,86 @@ export class TestRuntime {
         ),
       );
     }
-    this.pointer.down = node;
-    this.pointer.locked = node;
+    this.exitPointerLock();
+    pointer.down = node;
+    pointer.locked = node;
     return Promise.resolve();
   }
   exitPointerLock() {
-    this.pointer.locked = null;
+    for (const pointer of this.pointers.values()) pointer.locked = null;
   }
   pointerLockNode(): TestNode | null {
-    const locked = this.pointer.locked;
+    for (const pointer of this.pointers.values()) {
+      const locked = pointer.locked;
+      if (!locked) continue;
+      if (locked.isConnected && pointer.down === locked) return locked;
+      pointer.locked = null;
+    }
+    return null;
+  }
+
+  wheel(node: TestNode, init: Record<string, unknown> = {}) {
+    const event = this.fire(node, 'wheel', {
+      deltaX: 0,
+      deltaY: 0,
+      deltaZ: 0,
+      deltaMode: 0,
+      ...init,
+    });
+    // Page scroll has no default here: the simulator has no viewport layout.
+    if (event.defaultPrevented || init['ctrlKey'] || init['deltaMode'] === 2)
+      return event;
+    // Native wheel scrolls in pixels, or 40 pixels per line.
+    const scale = init['deltaMode'] === 1 ? 40 : 1;
+    let x = Number(init['deltaX'] ?? 0) * scale;
+    let y = Number(init['deltaY'] ?? 0) * scale;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return event;
+    if (init['shiftKey'] && x === 0) [x, y] = [y, x];
+    for (let at: TestNode | null = node; at; at = at.parent) {
+      if (at.isConnected && at.scrollFromWheel(x, y)) {
+        this.fire(at, 'scroll');
+        break;
+      }
+    }
+    return event;
+  }
+
+  accessibilityAction(
+    node: TestNode,
+    actionName: string,
+    value?: number | string,
+  ) {
+    this.assertNode(node);
+    const contains = (entries: SemanticNode[]): boolean =>
+      entries.some(
+        (entry) =>
+          (!entry.hidden && entry.node === node) || contains(entry.children),
+      );
+    if (!node.isConnected || !contains(this.semantics()))
+      throw new Error('Node is not exposed in the Soundor accessibility tree');
+    const offered =
+      node.accessibility.actions?.some(
+        (action) => action.name === actionName,
+      ) ||
+      (actionName === 'focus' && node.focusable) ||
+      (node.type === 'input' &&
+        (actionName === 'activate' || actionName === 'setValue'));
+    if (!actionName || !offered)
+      throw new Error(
+        `Node does not offer accessibility action "${actionName}"`,
+      );
     if (
-      locked !== null &&
-      (!locked.isConnected || this.pointer.down !== locked)
+      node.accessibility.state?.disabled &&
+      actionName !== 'focus' &&
+      actionName !== 'blur'
     )
-      this.pointer.locked = null;
-    return this.pointer.locked;
+      throw new Error(
+        `Disabled node cannot perform accessibility action "${actionName}"`,
+      );
+    return this.fire(node, 'accessibilityaction', {
+      actionName,
+      ...(value === undefined ? {} : { value }),
+    });
   }
   defaultAction(node: TestNode, event: TestEvent) {
     if (event.type === 'accessibilityaction') {
@@ -1156,6 +1254,8 @@ export class TestRuntime {
     this.pointer.down = null;
     this.pointer.target = null;
     this.pointer.buttons = 0;
+    this.pointer.locked = null;
+    this.pointers.clear();
     this.keys.clear();
     this.disposed = true;
   }

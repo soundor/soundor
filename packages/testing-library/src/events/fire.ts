@@ -53,9 +53,13 @@ export const fireEvent = Object.assign(
       getTestRuntime().pointerMove(resolveNode(target), { ...options }),
     pointerUp: (target: NodeTarget, options: PointerOptions = {}) =>
       getTestRuntime().pointerUp(resolveNode(target), { ...options }),
-    pointerCancel: (target: NodeTarget) => {
-      resolveNode(target);
-      getTestRuntime().pointerCancel();
+    pointerCancel: (
+      target: NodeTarget,
+      options: { pointerId?: number } = {},
+    ) => {
+      const runtime = getTestRuntime();
+      runtime.assertNode(resolveNode(target));
+      runtime.pointerCancel(options.pointerId);
     },
     keyDown: (target: NodeTarget, options: KeyOptions = {}) =>
       getTestRuntime().fire(resolveNode(target), 'keydown', { ...options }),

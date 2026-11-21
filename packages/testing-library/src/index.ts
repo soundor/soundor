@@ -6,7 +6,7 @@ export type {
   NodeTarget,
 } from './queries';
 export { userEvent } from './events/user';
-export type { UserOptions, PointerAction } from './events/user';
+export type { UserOptions, PointerAction, WheelOptions } from './events/user';
 export { fireEvent } from './events/fire';
 export type {
   PointerOptions,

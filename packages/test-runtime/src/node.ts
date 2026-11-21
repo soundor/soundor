@@ -337,11 +337,24 @@ export class TestNode {
     to: { left: number; top: number };
     started: number;
   } | null = null;
-  #moveTo(left: number, top: number) {
-    if (left === this.#scrollLeft && top === this.#scrollTop) return;
+  #moveTo(left: number, top: number, notify = true) {
+    if (left === this.#scrollLeft && top === this.#scrollTop) return false;
     this.#scrollLeft = left;
     this.#scrollTop = top;
-    this.runtime.scrolled(this);
+    if (notify) this.runtime.scrolled(this);
+    return true;
+  }
+  /** Wheel scroll is immediate; the input dispatches its own scroll event. */
+  scrollFromWheel(x: number, y: number): boolean {
+    const left = this.#scrolls('x')
+      ? Math.max(0, this.#scrollLeft + x)
+      : this.#scrollLeft;
+    const top = this.#scrolls('y')
+      ? Math.max(0, this.#scrollTop + y)
+      : this.#scrollTop;
+    if (!this.#moveTo(left, top, false)) return false;
+    this.#smooth = null;
+    return true;
   }
   /**
    * Along the axes its style scrolls; nothing on a node that does not, as in
