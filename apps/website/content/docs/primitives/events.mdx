@@ -57,10 +57,53 @@ put node event handlers on the content they render.
   `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
   Keys go to the focused node. Show focus with `focusVisible`, not `focused`
   ([Focus rings](#focus-rings)).
+- **`key` and `code`:** `key` is what a press types, which depends on the
+  layout and the modifiers; `code` is the physical key, as the Web names it
+  (`'KeyS'`, `'Digit1'`, `'ShiftLeft'`), whatever it types. Match text and
+  named keys (`'Enter'`, `'ArrowUp'`) by `key`, and a shortcut whose
+  modifiers change what it types by `code`: Option+S on macOS has the key
+  `'ß'` and Shift+1 on a US layout `'!'`, but their codes are `'KeyS'` and
+  `'Digit1'` ([Keyboard shortcuts](#keyboard-shortcuts)).
 - **`onContextMenu`** fires when the secondary button goes down, so a UI can
   open its own menu ([Portal](/docs/primitives/portal#over-everything)).
 - **Double clicks** are the platform's: `onDoubleClick` fires right after
   the second click's `onClick` ([Double clicks](#double-clicks)).
+
+## Keyboard shortcuts
+
+A shortcut handled by `onKeyDown` on a node that holds the focus (the
+editor's outermost view, say, made `focusable`) runs while the editor has
+the keyboard:
+
+```tsx
+<View
+  focusable
+  accessibilityKeyShortcuts="Control+S Meta+S"
+  onKeyDown={(event) => {
+    if ((event.ctrlKey || event.metaKey) && event.code === 'KeyS') {
+      save();
+      announce('Preset saved'); // from soundor:ui
+      event.preventDefault();
+    }
+  }}
+/>
+```
+
+- **`code` for letters and digits with modifiers**, since what they type
+  changes with Alt (Option), Shift and the layout; `key` for named keys.
+  `code` names the key where it is on a US keyboard, so on an AZERTY one
+  `'KeyQ'` is the key labelled A: match `key` where the label matters more
+  than the place.
+- **Every runtime gives it:** the browser's on the web; natively the key's
+  scan code (Windows), virtual key code (macOS) or keycode (X11). Soundor
+  Driver's keys and Testing Library's `user.keyboard` have the US key that
+  types them (`'!'` is `'Digit1'`); `fireEvent.keyDown` has the `code` it is
+  given, else `''`.
+- **`preventDefault()`** keeps the key from the host: unprevented, a DAW
+  may take it for its own shortcut.
+- **Tell assistive technology** with `accessibilityKeyShortcuts` and, for an
+  action that changes nothing focused, `announce()`
+  ([Accessibility](/docs/primitives/accessibility#keyboard-shortcuts)).
 
 ## Double clicks
 

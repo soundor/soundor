@@ -2,6 +2,8 @@
 
 #if SOUNDOR_DEVTOOLS
 
+    #include "input/KeyCodes.h"
+
     #include <algorithm>
     #include <array>
     #include <cmath>
@@ -269,7 +271,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                 ui::Modifiers mods = explicitModifiers | (down ? own : 0);
                 for (const auto& name : synthetic.keys)
                     mods |= modifierOf(name);
-                const ui::KeyInput input { .down = down, .key = key, .repeat = repeat, .modifiers = mods };
+                // No physical key: the one that types it on a US layout.
+                const ui::KeyInput input { .down = down,
+                                           .key = key,
+                                           .code = std::string(soundor::input::codeOfKey(key)),
+                                           .repeat = repeat,
+                                           .modifiers = mods };
                 const bool handled = surface.key(input, down ? typedText(key, mods) : std::string());
                 settle();
                 return handled;
@@ -326,7 +333,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         if (held.present)
             surface->pointer({ .phase = ui::PointerInput::Phase::Cancel, .pointerId = held.pointerId });
         for (const auto& key : held.keys)
-            surface->key(ui::KeyInput { .down = false, .key = key });
+            surface->key(
+                ui::KeyInput { .down = false, .key = key, .code = std::string(soundor::input::codeOfKey(key)) });
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
 #endif

@@ -182,6 +182,7 @@ export const testHost: typeof rawTestHost = {
 };
 export const testView: typeof rawTestView = {
   resize: (size) => syncUpdate(() => rawTestView.resize(size)),
+  announcements: () => rawTestView.announcements(),
 };
 export const testEditor: typeof rawTestEditor = {
   setVisible: (visible) => syncUpdate(() => rawTestEditor.setVisible(visible)),

@@ -9,16 +9,17 @@ import {
   View,
   type AccessibilityActionEvent,
 } from '@soundor/react';
-import { type TestNode } from '@soundor/test-runtime';
+import { semanticSnapshot, type TestNode } from '@soundor/test-runtime';
 import {
   render,
   act as reactAct,
   fireEvent as fire,
   screen,
+  testView,
   within,
 } from '@soundor/testing-library/react';
 import { useState, type ReactNode } from 'react';
-import { root, overlayRoot } from 'soundor:ui';
+import { announce, root, overlayRoot } from 'soundor:ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 let mounted: Awaited<ReturnType<typeof render>> | null = null;
@@ -93,6 +94,28 @@ describe('accessibility props', () => {
       value: { min: -60, max: 12, now: -3.5, text: '-3.5 dB' },
       actions: [{ name: 'increment' }, { name: 'decrement' }],
     });
+  });
+
+  it('declare key shortcuts, and announcements are recorded', async () => {
+    await show(
+      <Pressable
+        accessibilityKeyShortcuts="Control+S Meta+S"
+        onPress={() => announce('Preset saved')}
+      >
+        <Text>Save</Text>
+      </Pressable>,
+    );
+    expect(child(0).accessibility.keyShortcuts).toBe('Control+S Meta+S');
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(
+      semanticSnapshot([root as unknown as TestNode]).tree[0],
+    ).toMatchObject({ keyShortcuts: 'Control+S Meta+S' });
+    act(save, 'activate');
+    announce('Clipping', { priority: 'assertive' });
+    expect(testView.announcements()).toEqual([
+      { message: 'Preset saved', priority: 'polite' },
+      { message: 'Clipping', priority: 'assertive' },
+    ]);
   });
 
   it('apply to every primitive', async () => {

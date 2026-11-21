@@ -476,6 +476,25 @@ TEST_SUITE("soundor:ui")
         CHECK(f.log() == "keydown@root:bubble");
     }
 
+    TEST_CASE("keyboard events carry the physical key as code")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            globalThis.seen = [];
+            root.addEventListener('keydown', (e) => seen.push(e.key + '/' + e.code + '/' + e.altKey));
+            root.addEventListener('keyup', (e) => seen.push(e.key + '/' + e.code));
+            const made = new KeyboardEvent('keydown', { key: 'a', code: 'KeyA' });
+            const bare = new KeyboardEvent('keydown', { key: 'a' });
+            globalThis.result = made.code + ',' + JSON.stringify(bare.code);
+        )");
+        CHECK(f.eval("result").asString() == R"(KeyA,"")");
+        // Option+S on macOS types ß; the key is still S.
+        f.host.surface().key({ .down = true, .key = "\xC3\x9F", .code = "KeyS", .modifiers = ui::Modifier::Alt });
+        f.host.surface().key({ .down = false, .key = "\xC3\x9F", .code = "KeyS" });
+        f.host.surface().key({ .down = true, .key = "Shift" });
+        CHECK(f.eval("seen.join(' ')").asString() == "\xC3\x9F/KeyS/true \xC3\x9F/KeyS Shift//false");
+    }
+
     TEST_CASE("focus moves with focus(), blur() and presses, with focus and blur events")
     {
         UiFixture f;

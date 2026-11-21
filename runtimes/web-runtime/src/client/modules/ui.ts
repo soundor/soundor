@@ -177,6 +177,17 @@ export function exitPointerLock(): void {
   view.exitPointerLock();
 }
 
+/**
+ * Has assistive technology speak `message`: an ARIA live region's, polite
+ * or assertive.
+ */
+export function announce(
+  message: string,
+  options?: { priority?: 'polite' | 'assertive' },
+): void {
+  view.announce(message, options);
+}
+
 /** The node holding the pointer lock, if any. */
 export function pointerLockNode(): UiNode | null {
   return view.pointerLockNode();

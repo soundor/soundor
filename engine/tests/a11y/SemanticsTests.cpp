@@ -215,6 +215,57 @@ TEST_SUITE("a11y semantics")
         CHECK_FALSE(knob.supports(a11y::Action::Activate));
     }
 
+    TEST_CASE("key shortcuts are carried as given, and written for Apple platforms")
+    {
+        A11yFixture f;
+        f.build(R"(
+            globalThis.save = createView({ width: 30, height: 30 });
+            save.accessibility = { role: 'button', label: 'Save', keyShortcuts: 'Control+S Meta+S' };
+            root.appendChild(save);
+        )");
+        CHECK(f.node("Save").keyShortcuts == "Control+S Meta+S");
+        CHECK(a11y::appleKeyShortcuts("Meta+Shift+S") == "\xE2\x87\xA7\xE2\x8C\x98S");
+        CHECK(a11y::appleKeyShortcuts("Shift+Alt+Control+Meta+ArrowUp")
+              == "\xE2\x8C\x83\xE2\x8C\xA5\xE2\x87\xA7\xE2\x8C\x98\xE2\x86\x91");
+        CHECK(a11y::appleKeyShortcuts("  Control+s   Meta++ F5 ") == "\xE2\x8C\x83S, \xE2\x8C\x98+, F5");
+        CHECK(a11y::appleKeyShortcuts("").empty());
+        CHECK(a11y::hintWithKeyShortcuts("Saves the preset", "Meta+S") == "Saves the preset (\xE2\x8C\x98S)");
+        CHECK(a11y::hintWithKeyShortcuts("", "Meta+S") == "\xE2\x8C\x98S");
+        CHECK(a11y::hintWithKeyShortcuts("Saves", "") == "Saves");
+        CHECK(f.error(std::string(imports) + "createView().accessibility = { keyShortcuts: 5 };")
+                  .find("accessibility.keyShortcuts")
+              != std::string::npos);
+    }
+
+    TEST_CASE("announce() queues messages for platform accessibility, the latest kept")
+    {
+        A11yFixture f;
+        f.run(R"(
+            import { announce } from 'soundor:ui';
+            announce('Preset copied');
+            announce('Clipping', { priority: 'assertive' });
+            announce('');
+        )");
+        auto announcements = f.semantics().takeAnnouncements();
+        REQUIRE(announcements.size() == 2);
+        CHECK(announcements[0] == a11y::Announcement { "Preset copied", a11y::Priority::Polite });
+        CHECK(announcements[1] == a11y::Announcement { "Clipping", a11y::Priority::Assertive });
+        CHECK(f.semantics().takeAnnouncements().empty());
+        f.run(R"(
+            import { announce } from 'soundor:ui';
+            for (let i = 0; i < 20; i++) announce('Level ' + i);
+        )");
+        announcements = f.semantics().takeAnnouncements();
+        REQUIRE(announcements.size() == ui::Surface::maxAnnouncements);
+        CHECK(announcements.front().message == "Level 4");
+        CHECK(announcements.back().message == "Level 19");
+        CHECK(f.error("import { announce } from 'soundor:ui'; announce(1);").find("message: expected a string")
+              != std::string::npos);
+        CHECK(f.error("import { announce } from 'soundor:ui'; announce('x', { priority: 'urgent' });")
+                  .find("priority must be 'polite' or 'assertive'")
+              != std::string::npos);
+    }
+
     TEST_CASE("a listbox retains its options and reads each choice as one element")
     {
         A11yFixture f;

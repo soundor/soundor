@@ -1,5 +1,6 @@
 #include "input/apple/MacInput.h"
 
+#include "input/KeyCodes.h"
 #include "input/apple/Translation.h"
 #include "platform/apple/RuntimeClass.h"
 
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <map>
+#include <string>
 #include <utility>
 
 #if ! __has_feature(objc_arc)
@@ -255,10 +257,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                     held = 0;
                 }
                 for (auto& [code, name] : heldKeys)
-                {
-                    static_cast<void>(code);
-                    pending.emplace_back(KeyEvent { .key = { .down = false, .key = name }, .typed = {} });
-                }
+                    pending.emplace_back(
+                        KeyEvent { .key = { .down = false, .key = name, .code = std::string(codeOfMacKeyCode(code)) },
+                                   .typed = {} });
                 heldKeys.clear();
                 scrolling = false;
                 discardComposition();
@@ -365,9 +366,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                 {
                     if (known == heldKeys.end())
                         return;
-                    pending.emplace_back(KeyEvent {
-                        .key = { .down = false, .key = known->second, .modifiers = modifiersOf(event.modifierFlags) },
-                        .typed = {} });
+                    pending.emplace_back(KeyEvent { .key = { .down = false,
+                                                             .key = known->second,
+                                                             .code = std::string(codeOfMacKeyCode(code)),
+                                                             .modifiers = modifiersOf(event.modifierFlags) },
+                                                    .typed = {} });
                     heldKeys.erase(known);
                     return;
                 }
@@ -377,6 +380,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                     heldKeys.emplace(code, name);
                 pending.emplace_back(KeyEvent { .key = { .down = true,
                                                          .key = std::move(name),
+                                                         .code = std::string(codeOfMacKeyCode(code)),
                                                          .repeat = repeat,
                                                          .modifiers = modifiersOf(event.modifierFlags) },
                                                 .typed = ! textFocused ? typedCharacters(event) : std::string() });
@@ -453,8 +457,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                     heldKeys.emplace(code, name);
                 else if (heldKeys.erase(code) == 0)
                     return;
-                pending.emplace_back(KeyEvent {
-                    .key = { .down = down, .key = name, .modifiers = modifiersOf(event.modifierFlags) }, .typed = {} });
+                pending.emplace_back(KeyEvent { .key = { .down = down,
+                                                         .key = name,
+                                                         .code = std::string(codeOfMacKeyCode(code)),
+                                                         .modifiers = modifiersOf(event.modifierFlags) },
+                                                .typed = {} });
             }
 
             static Class viewClass();

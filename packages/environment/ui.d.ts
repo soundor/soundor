@@ -462,6 +462,14 @@ declare module 'soundor:ui' {
     label?: string;
     /** What happens when the element is acted on. */
     hint?: string;
+    /**
+     * The keyboard shortcuts that act on the element, as `aria-keyshortcuts`
+     * writes them: each its keys' `KeyboardEvent.key` names joined by '+',
+     * modifiers first, the alternatives separated by spaces
+     * ('Control+Shift+S Meta+Shift+S'). Only told to assistive technology:
+     * the shortcut itself is plugin code's to handle.
+     */
+    keyShortcuts?: string;
     state?: AccessibilityState;
     value?: AccessibilityValue;
     /** The actions it responds to, as `accessibilityaction` events. */
@@ -870,6 +878,21 @@ declare module 'soundor:ui' {
   };
   /** Ends the pointer lock, if any: the pointer shows again where it began. */
   export function exitPointerLock(): void;
+
+  export interface AnnounceOptions {
+    /**
+     * 'polite' (the default): spoken once assistive technology has said what
+     * it is saying. 'assertive': at once, interrupting it; for what the user
+     * must know now.
+     */
+    priority?: 'polite' | 'assertive';
+  }
+  /**
+   * Has assistive technology (a screen reader) speak `message`, which is no
+   * element's label or value: what an action did ("Preset copied"). Nothing
+   * when none is running; an empty message is nothing.
+   */
+  export function announce(message: string, options?: AnnounceOptions): void;
   /** The node holding the pointer lock, if any. */
   export function pointerLockNode(): UiNode | null;
   /** The node that has keyboard focus, if any. */
@@ -1158,6 +1181,7 @@ declare module 'soundor:ui' {
 
   export interface KeyboardEventInit extends ModifierEventInit {
     key?: string;
+    code?: string;
     repeat?: boolean;
   }
   export class KeyboardEvent extends Event implements ModifierState {
@@ -1169,6 +1193,14 @@ declare module 'soundor:ui' {
     getModifierState(key: string): boolean;
     /** The character, or a named key: 'Enter', 'ArrowLeft', 'Backspace'... */
     readonly key: string;
+    /**
+     * The physical key, as the Web names it: 'KeyS', 'Digit1', 'ShiftLeft',
+     * 'NumpadEnter'... whatever the layout and the modifiers make it type
+     * (Option+S on macOS has the key 'ß' and the code 'KeyS'). Empty when
+     * unknown. Input without a physical key (Soundor Driver's) has the key
+     * that types `key` on a US layout.
+     */
+    readonly code: string;
     readonly repeat: boolean;
     readonly target: UiNode | null;
     readonly currentTarget: UiNode | null;

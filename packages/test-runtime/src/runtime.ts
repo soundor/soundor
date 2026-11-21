@@ -404,7 +404,7 @@ export class TestRuntime {
       this.keyboardModality = true;
       this.showFocus();
     }
-    const event = new TestEvent('keydown', { key, ...init });
+    const event = new TestEvent('keydown', { key, code: '', ...init });
     const target = this.focusedNode() ?? this.root;
     if (!target.inputDisabled) target.dispatchEvent(event);
     if (
@@ -432,7 +432,7 @@ export class TestRuntime {
   }
   releaseKey(key: string, init: Record<string, unknown> = {}) {
     this.keys.delete(key);
-    const event = new TestEvent('keyup', { key, ...init });
+    const event = new TestEvent('keyup', { key, code: '', ...init });
     const target = this.focusedNode() ?? this.root;
     if (!target.inputDisabled) target.dispatchEvent(event);
     return event;
@@ -1270,6 +1270,26 @@ export class TestRuntime {
     if (!method)
       throw new Error(`soundor:native.${name} requires a configured test mock`);
     return method(...args);
+  }
+  /** What announce() was asked to speak, in order. */
+  readonly announcements: {
+    message: string;
+    priority: 'polite' | 'assertive';
+  }[] = [];
+  /** Checks its arguments as the runtimes do, and records the message. */
+  announce(message: string, options: { priority?: unknown } = {}) {
+    if (typeof message !== 'string')
+      throw new TypeError(
+        `message: expected a string, got ${message === null ? 'null' : typeof message}`,
+      );
+    if (typeof options !== 'object' || options === null)
+      throw new TypeError('announce options must be an object');
+    const priority = options.priority ?? 'polite';
+    if (priority !== 'polite' && priority !== 'assertive')
+      throw new TypeError(
+        `announce: priority must be 'polite' or 'assertive', got ${typeof priority}`,
+      );
+    if (message !== '') this.announcements.push({ message, priority });
   }
   readonly clipboard = {
     readText: async () => {

@@ -783,6 +783,24 @@ describe('focus', () => {
     ]);
   });
 
+  it("gives the browser's physical key as code", () => {
+    setup();
+    const seen: string[] = [];
+    view.root.addEventListener('keydown', (event) =>
+      seen.push(`${event.key}/${event.code}/${event.altKey}`),
+    );
+    // Option+S on macOS types ß; the key is still S.
+    view.rootElement.dispatchEvent(
+      new window.KeyboardEvent('keydown', {
+        key: 'ß',
+        code: 'KeyS',
+        altKey: true,
+        bubbles: true,
+      }),
+    );
+    expect(seen).toEqual(['ß/KeyS/true']);
+  });
+
   it('ignores nodes that cannot take focus, and blurs on removal', () => {
     const { other } = setup();
     other.focus();
@@ -1120,5 +1138,42 @@ describe('screenX and screenY', () => {
     });
     pointer('pointerup', 10, { button: 0 });
     expect(seen).toEqual([[600, 400]]);
+  });
+});
+
+describe('announce', () => {
+  it('adds each message to its live region, and removes it once read', () => {
+    vi.useFakeTimers();
+    try {
+      view = new UiView({ document });
+      view.mount(document.body);
+      const regions = [
+        ...view.rootElement.querySelectorAll<HTMLElement>('[aria-live]'),
+      ];
+      expect(regions.map((region) => region.getAttribute('aria-live'))).toEqual(
+        ['polite', 'assertive'],
+      );
+      const [polite, assertive] = regions as [HTMLElement, HTMLElement];
+      view.announce('Preset copied');
+      view.announce('Preset copied');
+      view.announce('Clipping', { priority: 'assertive' });
+      view.announce('');
+      expect([...polite.children].map((entry) => entry.textContent)).toEqual([
+        'Preset copied',
+        'Preset copied',
+      ]);
+      expect(assertive.textContent).toBe('Clipping');
+      vi.advanceTimersByTime(7000);
+      expect(polite.children).toHaveLength(0);
+      expect(assertive.children).toHaveLength(0);
+      expect(() => view.announce(1 as unknown as string)).toThrow(
+        'message: expected a string, got number',
+      );
+      expect(() =>
+        view.announce('x', { priority: 'urgent' as 'polite' }),
+      ).toThrow("announce: priority must be 'polite' or 'assertive'");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

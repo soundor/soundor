@@ -154,6 +154,10 @@ export function createUiModule(runtime: TestRuntime) {
       runtime.pressable(...args),
     focusedNode: () => runtime.focusedNode(),
     exitPointerLock: () => runtime.exitPointerLock(),
+    announce: (
+      message: string,
+      options?: { priority?: 'polite' | 'assertive' },
+    ) => runtime.announce(message, options),
     pointerLockNode: () => runtime.pointerLockNode(),
     clipboard: runtime.clipboard,
     /** The simulated size (nothing is laid out at it): the same object until set. */

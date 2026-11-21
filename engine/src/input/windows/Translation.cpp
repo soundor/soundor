@@ -1,5 +1,7 @@
 #include "input/windows/Translation.h"
 
+#include "input/KeyCodes.h"
+
 #include <utility>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
@@ -93,6 +95,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
         // and keypad Enter. Synthetic messages without a scan code use VK.
         const unsigned scan = (flags >> 16) & 0x1FFU;
         return scan != 0 ? scan : 0x200U + virtualKey;
+    }
+
+    std::string_view codeOf(unsigned physical)
+    {
+        if (physical < 0x200U)
+            return codeOfScancode(((physical & 0x100U) != 0 ? 0xE000U : 0U) | (physical & 0xFFU));
+        const unsigned virtualKey = physical - 0x200U;
+        if ((virtualKey >= '0' && virtualKey <= '9') || (virtualKey >= 'A' && virtualKey <= 'Z'))
+            return codeOfKey(std::string(1, static_cast<char>(virtualKey)));
+        return codeOfKey(namedKey(virtualKey));
     }
 
     ui::Point clientPosition(ui::Point client, const ViewGeometry& geometry) noexcept

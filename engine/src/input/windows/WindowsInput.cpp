@@ -301,8 +301,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
                 cancelPointer();
                 for (const auto& [code, name] : std::exchange(heldKeys, {}))
                 {
-                    static_cast<void>(code);
-                    pending.emplace_back(KeyEvent { .key = { .down = false, .key = name }, .typed = {} });
+                    pending.emplace_back(KeyEvent {
+                        .key = { .down = false, .key = name, .code = std::string(codeOf(code)) }, .typed = {} });
                 }
                 discardComposition();
             }
@@ -436,8 +436,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
                 {
                     if (known != heldKeys.end())
                     {
-                        pending.emplace_back(KeyEvent {
-                            .key = { .down = false, .key = known->second, .modifiers = modifiers() }, .typed = {} });
+                        pending.emplace_back(KeyEvent { .key = { .down = false,
+                                                                 .key = known->second,
+                                                                 .code = std::string(codeOf(code)),
+                                                                 .modifiers = modifiers() },
+                                                        .typed = {} });
                         heldKeys.erase(known);
                     }
                     return;
@@ -446,9 +449,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
                 const bool repeat = known != heldKeys.end() || (flags & (1U << 30)) != 0;
                 if (known == heldKeys.end())
                     heldKeys.emplace(code, name);
-                pending.emplace_back(KeyEvent {
-                    .key = { .down = true, .key = std::move(name), .repeat = repeat, .modifiers = modifiers() },
-                    .typed = {} });
+                pending.emplace_back(KeyEvent { .key = { .down = true,
+                                                         .key = std::move(name),
+                                                         .code = std::string(codeOf(code)),
+                                                         .repeat = repeat,
+                                                         .modifiers = modifiers() },
+                                                .typed = {} });
                 if (! composing)
                     typedKey = TypedKey { pending.size() - 1, code, (flags >> 16) & 0x1FFU, known == heldKeys.end() };
             }

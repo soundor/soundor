@@ -17,11 +17,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 for (const ActionRequest& request : session.takeRequests())
                     if (sameHost)
                         host.performAccessibilityAction(request);
+                std::vector<Announcement> announcements = host.accessibility().takeAnnouncements();
                 TreeUpdate changes = host.accessibility().update(! sameHost);
                 // TreeUpdate::empty() intentionally omits focus; a focus-only
                 // update has a root but no changed nodes. Preserve that update.
                 if (! changes.empty() || changes.root != noNode || presentationChanged)
                     session.update(std::move(changes), geometry, focused);
+                if (session.active())
+                    session.announce(std::move(announcements));
                 lastHost = &host;
                 presentationChanged = false;
             }

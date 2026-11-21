@@ -93,7 +93,9 @@ await driver.keyboard.type('Hello');
 ```
 
 Keys are `KeyboardEvent.key` values: `a`, `A`, `Enter`, `Escape`,
-`ArrowLeft`, `Backspace`, `Tab`, `Shift`. They go to the focused node (the
+`ArrowLeft`, `Backspace`, `Tab`, `Shift`. Their `KeyboardEvent.code` is the
+key that types them on a US layout (`a` and `A` are `KeyA`, `!` is `Digit1`,
+`Shift` is `ShiftLeft`), empty for others. They go to the focused node (the
 root without one). A printable key types its character when the plugin does
 not handle the key and neither Control nor Meta is held, as a keyboard does.
 Modifier keys held with `keyboard.down()` apply to later pointer and key

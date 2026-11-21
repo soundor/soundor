@@ -24,6 +24,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
 
         void update(TreeUpdate update, ViewGeometry geometry, bool focused);
         [[nodiscard]] std::vector<ActionRequest> takeRequests();
+        // Spoken once the tree's updates before them are applied, while
+        // registered on the bus; dropped otherwise.
+        void announce(std::vector<Announcement> announcements);
         [[nodiscard]] bool active() const;
 
     private:

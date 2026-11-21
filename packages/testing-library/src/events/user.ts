@@ -26,6 +26,71 @@ export interface UserOptions {
   ) => unknown | Promise<unknown>;
   delay?: number;
 }
+/** US keys' characters, unshifted then shifted, and their codes. */
+const US_KEYS: readonly (readonly [string, string])[] = [
+  ['1!', 'Digit1'],
+  ['2@', 'Digit2'],
+  ['3#', 'Digit3'],
+  ['4$', 'Digit4'],
+  ['5%', 'Digit5'],
+  ['6^', 'Digit6'],
+  ['7&', 'Digit7'],
+  ['8*', 'Digit8'],
+  ['9(', 'Digit9'],
+  ['0)', 'Digit0'],
+  ['-_', 'Minus'],
+  ['=+', 'Equal'],
+  ['[{', 'BracketLeft'],
+  [']}', 'BracketRight'],
+  ['\\|', 'Backslash'],
+  [';:', 'Semicolon'],
+  ['\'"', 'Quote'],
+  ['`~', 'Backquote'],
+  [',<', 'Comma'],
+  ['.>', 'Period'],
+  ['/?', 'Slash'],
+];
+/** Named keys whose code is their key. */
+const NAMED_CODES = new Set([
+  'Enter',
+  'Tab',
+  'Backspace',
+  'Escape',
+  'CapsLock',
+  'Delete',
+  'Insert',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ContextMenu',
+  'PrintScreen',
+  'ScrollLock',
+  'Pause',
+  'NumLock',
+]);
+
+/**
+ * KeyboardEvent.code for a key typed by name: the key that types it on a US
+ * layout, as the native runtime gives input without a physical key ('S' and
+ * '!' are 'KeyS' and 'Digit1'), the left one of a modifier; '' for others.
+ */
+function usCode(key: string): string {
+  if (/^[a-zA-Z]$/.test(key)) return `Key${key.toUpperCase()}`;
+  if (key === ' ') return 'Space';
+  if (key.length === 1)
+    return US_KEYS.find(([characters]) => characters.includes(key))?.[1] ?? '';
+  if (key === 'Shift' || key === 'Control' || key === 'Alt' || key === 'Meta')
+    return `${key}Left`;
+  if (key === 'AltGraph') return 'AltRight';
+  if (NAMED_CODES.has(key) || /^F([1-9]|1[0-9]|2[0-4])$/.test(key)) return key;
+  return '';
+}
+
 const modifiers: Record<string, string> = {
   Shift: 'shiftKey',
   Control: 'ctrlKey',
@@ -142,18 +207,7 @@ export function createUser(
               : value === 'BracketLeft'
                 ? '['
                 : value;
-    const code = physical
-      ? value
-      : /^[a-zA-Z]$/.test(key)
-        ? `Key${key.toUpperCase()}`
-        : /^[0-9]$/.test(key)
-          ? `Digit${key}`
-          : key === ' '
-            ? 'Space'
-            : modifiers[key]
-              ? `${key === 'Control' ? 'Control' : key}Left`
-              : key;
-    return { key, code };
+    return { key, code: physical ? value : usCode(key) };
   }
   async function keyboard(text: string) {
     for (let index = 0; index < text.length;) {

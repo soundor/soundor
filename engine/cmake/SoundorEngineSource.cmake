@@ -95,7 +95,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 # Native input: Windows (Win32), macOS (AppKit), Linux (X11 and XInput 2), and the
 # plugin framework's elsewhere (see src/input/Platform.cpp).
-list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp src/input/PointerLock.cpp)
+list(APPEND SOUNDOR_RUNTIME_SOURCES src/input/Platform.cpp src/input/ClickCounter.cpp src/input/KeyCodes.cpp src/input/PointerLock.cpp)
 # A plugin's view: what every runtime's editor does with the engine (editor/Editor.h).
 list(APPEND SOUNDOR_RUNTIME_SOURCES src/editor/Layout.cpp src/editor/Editor.cpp)
 if(APPLE AND NOT IOS)

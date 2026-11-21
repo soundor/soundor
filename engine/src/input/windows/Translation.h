@@ -11,6 +11,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::win32
     // Pure normalization; virtual-key values are the Win32 ABI's constants.
     [[nodiscard]] std::string namedKey(unsigned virtualKey);
     [[nodiscard]] unsigned physicalKey(unsigned virtualKey, std::uint32_t flags) noexcept;
+    // KeyboardEvent.code of a physicalKey(): its scan code's, or for a
+    // synthetic message without one, the virtual key's on a US layout.
+    [[nodiscard]] std::string_view codeOf(unsigned physical);
     [[nodiscard]] ui::Point clientPosition(ui::Point client, const ViewGeometry& geometry) noexcept;
     [[nodiscard]] ui::WheelInput wheelInput(int delta, bool horizontal, ui::Point position,
                                             ui::Modifiers modifiers) noexcept;

@@ -189,6 +189,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                                                                                          : roleOf(node);
             element.label = properties.label;
             element.hint = properties.hint;
+            element.keyShortcuts = properties.keyShortcuts;
             element.state = properties.state;
             if (element.role == Role::Option && ! element.state.selected.has_value())
                 element.state.selected = false;

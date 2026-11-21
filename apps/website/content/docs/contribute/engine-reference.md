@@ -1162,11 +1162,26 @@ knob.addEventListener('accessibilityaction', (event) => {
 ```
 
 - **`node.accessibility`** (`a11y::Properties`): `accessible`, `role`,
-  `label`, `hint`, `state` (`disabled`, `selected`, `checked` incl.
+  `label`, `hint`, `keyShortcuts` (`aria-keyshortcuts`' form, carried
+  as given), `state` (`disabled`, `selected`, `checked` incl.
   `'mixed'`, `busy`, `expanded`), `value` (`min`, `max`, `now` as doubles,
   `text`), `actions` (standard names or custom ones with a label) and
   `modal`. Replaced as a whole; invalid values throw a `TypeError` naming
-  them.
+  them. UI Automation gives `keyShortcuts` as `AcceleratorKey`, AT-SPI as
+  the `keyshortcuts` attribute; the Apple bridges, which have no property
+  for it, append it to the help text in Apple's symbols
+  (`a11y::hintWithKeyShortcuts`).
+- **Announcements:** `announce(message, { priority })` queues an
+  `a11y::Announcement` on the surface (`Surface::announce()`, at most
+  `maxAnnouncements` kept). Every platform's `tick()` takes them
+  (`SurfaceSemantics::takeAnnouncements()`) whether or not assistive
+  technology is active, so none is spoken late, and speaks them only while it
+  is: UIA notification events (looked up, Windows 10 1709 and later) raised
+  last in `Session::update`, AT-SPI `object:announcement` from the focused
+  element after the tree's updates, AppKit's
+  `NSAccessibilityAnnouncementRequestedNotification` on the view's window,
+  UIKit's `UIAccessibilityAnnouncementNotification`. The web adapter adds an
+  entry to an ARIA live region, removed after 7 s.
 - **The semantic tree** (`a11y::SurfaceSemantics`) is not the node tree:
   - A node is an element when it means something: a text node with text, an
     input, a node with a role (other than `'none'`), a label or
@@ -1326,7 +1341,9 @@ continued touchpad scrolling on actual devices.
 physical presses by scan code plus extended-key bit, keeping left/right
 modifier and keypad identities distinct internally. Releases retain the
 press's logical name across layout changes; repeat remains a down event.
-The shared public event exposes `KeyboardEvent.key`, not a physical `code`.
+`KeyboardEvent.code` is the scan code's Web name (`input/KeyCodes.cpp`,
+0xE0xx for an extended key), or for a synthetic message without one, the
+virtual key's on a US layout.
 Named keys use the Win32 virtual-key map; character names use the active
 layout with `ToUnicodeEx`'s no-state-change flag (Windows 10 1607+), so naming
 does not mutate the dead-key buffer. Shift, Control, Alt/AltGr and Windows-key
@@ -1424,8 +1441,8 @@ currently exposes deltas, not gesture phase notifications.
 
 **macOS keyboard and text.** Virtual key codes pair downs and ups even if
 modifiers or the layout change while held; `KeyboardEvent.key` uses the
-layout's Unicode characters or a Web named key. The shared API has no
-physical `KeyboardEvent.code` field. Repeat comes from AppKit and held-key
+layout's Unicode characters or a Web named key, and `KeyboardEvent.code` the
+virtual key code's Web name (`input/KeyCodes.cpp`). Repeat comes from AppKit and held-key
 state. `flagsChanged:` reports modifier transitions, including separate
 left/right keys, Caps Lock and Fn; the shared modifier mask remains Shift,
 Control, Alt/Option and Meta/Command.
@@ -1560,7 +1577,8 @@ current layout), for the input method and Xlib. `KeyboardEvent.key` is the
 keysym of the key's level without Control (`XkbLookupKeySym`), as the Web
 names it (`input/linux/Keys.cpp`: named keys, `"Dead"` for dead keys, else
 the keysym's character, through xkbcommon's `xkb_keysym_to_utf8` where it is
-loaded); modifiers are Shift, Control, Alt (Mod1) and Meta (Mod4, Super),
+loaded), and `KeyboardEvent.code` the keycode's (an evdev code plus 8;
+`input/KeyCodes.cpp`); modifiers are Shift, Control, Alt (Mod1) and Meta (Mod4, Super),
 a modifier key's own press holding it. Repeats are keys pressed again while
 held; releases go to the keys whose press was reported. A keyboard layout
 changing (`MappingNotify`, XKB's included) refreshes Xlib's map. Key events

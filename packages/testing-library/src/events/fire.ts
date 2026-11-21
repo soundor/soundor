@@ -62,9 +62,15 @@ export const fireEvent = Object.assign(
       runtime.pointerCancel(options.pointerId);
     },
     keyDown: (target: NodeTarget, options: KeyOptions = {}) =>
-      getTestRuntime().fire(resolveNode(target), 'keydown', { ...options }),
+      getTestRuntime().fire(resolveNode(target), 'keydown', {
+        code: '',
+        ...options,
+      }),
     keyUp: (target: NodeTarget, options: KeyOptions = {}) =>
-      getTestRuntime().fire(resolveNode(target), 'keyup', { ...options }),
+      getTestRuntime().fire(resolveNode(target), 'keyup', {
+        code: '',
+        ...options,
+      }),
     beforeInput: (target: NodeTarget, options: InputOptions = {}) =>
       getTestRuntime().fire(resolveNode(target), 'beforeinput', { ...options }),
     input: (target: NodeTarget, options: InputOptions = {}) =>

@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <array>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 {
@@ -25,6 +27,87 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         };
         static_assert(actionNames.size() == static_cast<std::size_t>(Action::Custom));
     } // namespace
+
+    std::string appleKeyShortcuts(std::string_view keyShortcuts)
+    {
+        // Modifiers in the order macOS writes them, and the keys it draws.
+        static constexpr std::array<std::pair<std::string_view, std::string_view>, 4> modifiers { {
+            { "Control", "\xE2\x8C\x83" },
+            { "Alt", "\xE2\x8C\xA5" },
+            { "Shift", "\xE2\x87\xA7" },
+            { "Meta", "\xE2\x8C\x98" },
+        } };
+        static constexpr std::array<std::pair<std::string_view, std::string_view>, 10> keys { {
+            { "ArrowUp", "\xE2\x86\x91" },
+            { "ArrowDown", "\xE2\x86\x93" },
+            { "ArrowLeft", "\xE2\x86\x90" },
+            { "ArrowRight", "\xE2\x86\x92" },
+            { "Enter", "\xE2\x86\xA9" },
+            { "Escape", "\xE2\x8E\x8B" },
+            { "Tab", "\xE2\x87\xA5" },
+            { "Backspace", "\xE2\x8C\xAB" },
+            { "Delete", "\xE2\x8C\xA6" },
+            { "Plus", "+" },
+        } };
+        std::string out;
+        std::size_t at = 0;
+        while (at < keyShortcuts.size())
+        {
+            const std::size_t start = keyShortcuts.find_first_not_of(" \t\n", at);
+            if (start == std::string_view::npos)
+                break;
+            const std::size_t end = std::min(keyShortcuts.find_first_of(" \t\n", start), keyShortcuts.size());
+            const std::string_view shortcut = keyShortcuts.substr(start, end - start);
+            at = end;
+            // Its parts; a "+" where a part should be is the key "+"
+            // ("Control++").
+            std::vector<std::string_view> parts;
+            std::size_t from = 0;
+            for (std::size_t i = 0; i < shortcut.size(); ++i)
+            {
+                if (shortcut[i] != '+')
+                    continue;
+                parts.push_back(i > from ? shortcut.substr(from, i - from) : shortcut.substr(i, 1));
+                from = i + 1;
+            }
+            if (from < shortcut.size())
+                parts.push_back(shortcut.substr(from));
+            std::string held;
+            std::string pressed;
+            for (const auto& [name, symbol] : modifiers)
+                if (std::ranges::find(parts, name) != parts.end())
+                    held += symbol;
+            for (const std::string_view part : parts)
+            {
+                if (std::ranges::any_of(modifiers, [&](const auto& modifier) { return modifier.first == part; }))
+                    continue;
+                const auto named = std::ranges::find_if(keys, [&](const auto& key) { return key.first == part; });
+                if (named != keys.end())
+                    pressed += named->second;
+                else if (part.size() == 1 && part.front() >= 'a' && part.front() <= 'z')
+                    pressed += static_cast<char>(part.front() - 'a' + 'A');
+                else
+                    pressed += part;
+            }
+            if (held.empty() && pressed.empty())
+                continue;
+            if (! out.empty())
+                out += ", ";
+            out += held;
+            out += pressed;
+        }
+        return out;
+    }
+
+    std::string hintWithKeyShortcuts(const std::string& hint, std::string_view keyShortcuts)
+    {
+        std::string shortcuts = appleKeyShortcuts(keyShortcuts);
+        if (shortcuts.empty())
+            return hint;
+        if (hint.empty())
+            return shortcuts;
+        return hint + " (" + shortcuts + ")";
+    }
 
     std::string_view roleName(Role role) noexcept
     {

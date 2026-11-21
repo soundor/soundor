@@ -36,3 +36,6 @@ await user.keyboard('{{'); // a literal {
   runtime), unless it is a shortcut or a modifier on its own.
 - **Soundor's editing rules,** not a keyboard layout or an input method:
   what is typed is the character written.
+- **Each key's `code`** is the US key that types it (`a` and `A` are
+  `KeyA`, `!` is `Digit1`, `{Shift}` is `ShiftLeft`), as natively for input
+  without a physical key; `[KeyA]` gives its own. Other characters have `''`.

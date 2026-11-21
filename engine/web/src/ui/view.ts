@@ -81,6 +81,9 @@ const MODIFIER_KEYS = new Set([
 ]);
 
 const STYLE_ID = 'soundor-ui-style';
+/** How long a message stays in its live region: read by then. */
+const ANNOUNCEMENT_MS = 7000;
+type AnnouncePriority = 'polite' | 'assertive';
 
 interface PointerState {
   captured: UiNode | null;
@@ -143,6 +146,9 @@ export class Engine implements ViewLink {
   #nativeDown = false;
   #pendingClick: PendingClick | null = null;
   #clipboard = '';
+  /** announce()'s live regions, and the messages they still hold. */
+  readonly #liveRegions: Record<AnnouncePriority, HTMLElement>;
+  readonly #announced = new Set<ReturnType<typeof setTimeout>>();
   /** Whether the ARIA is to be brought up to date. */
   #semanticsPending = false;
   /** The pointer whose cursor shows (the mouse), and the cursor shown. */
@@ -286,7 +292,23 @@ export class Engine implements ViewLink {
       handle: OVERLAY,
       overlay: true,
     });
-    this.rootElement.append(elementOf(this.root), elementOf(this.overlay));
+    const liveRegion = (priority: AnnouncePriority) => {
+      const region = document.createElement('div');
+      region.className = 'sd-live';
+      region.setAttribute('aria-live', priority);
+      region.setAttribute('aria-relevant', 'additions');
+      return region;
+    };
+    this.#liveRegions = {
+      polite: liveRegion('polite'),
+      assertive: liveRegion('assertive'),
+    };
+    this.rootElement.append(
+      elementOf(this.root),
+      elementOf(this.overlay),
+      this.#liveRegions.polite,
+      this.#liveRegions.assertive,
+    );
     this.#listen();
     this.#visibility = this.isVisible();
     document.addEventListener('visibilitychange', this.#visibilityChanged);
@@ -390,6 +412,8 @@ export class Engine implements ViewLink {
     this.#controller.abort();
     if (this.#pendingClick !== null) clearTimeout(this.#pendingClick.timer);
     this.#pendingClick = null;
+    for (const timer of this.#announced) clearTimeout(timer);
+    this.#announced.clear();
     this.rootElement.remove();
     this.#disposed = true;
     this.#handles.clear();
@@ -823,6 +847,37 @@ export class Engine implements ViewLink {
   }
 
   /** Ends the pointer lock, if any: the pointer shows again where it began. */
+  /**
+   * Has assistive technology speak `message` (soundor:ui's announce()): a
+   * new entry of an ARIA live region, polite or assertive, which screen
+   * readers read as it is added (so a repeated message is spoken again),
+   * removed once read.
+   */
+  announce(message: string, options: { priority?: AnnouncePriority } = {}) {
+    if (typeof message !== 'string')
+      throw new TypeError(
+        `message: expected a string, got ${describe(message)}`,
+      );
+    if (typeof options !== 'object' || options === null)
+      throw new TypeError(
+        `announce options must be an object, got ${describe(options)}`,
+      );
+    const priority = options.priority ?? 'polite';
+    if (priority !== 'polite' && priority !== 'assertive')
+      throw new TypeError(
+        `announce: priority must be 'polite' or 'assertive', got ${describe(priority)}`,
+      );
+    if (message === '' || this.#disposed) return;
+    const entry = this.rootElement.ownerDocument.createElement('div');
+    entry.textContent = message;
+    this.#liveRegions[priority].append(entry);
+    const timer = setTimeout(() => {
+      this.#announced.delete(timer);
+      entry.remove();
+    }, ANNOUNCEMENT_MS);
+    this.#announced.add(timer);
+  }
+
   exitPointerLock(): void {
     this.#endLock();
   }
@@ -1523,6 +1578,7 @@ export class Engine implements ViewLink {
           cancelable: true,
           composed: true,
           key: event.key,
+          code: event.code,
           repeat: event.repeat,
           shiftKey: event.shiftKey,
           ctrlKey: event.ctrlKey,

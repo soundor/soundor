@@ -322,6 +322,8 @@ export interface Accessibility {
   role?: AccessibilityRole;
   label?: string;
   hint?: string;
+  /** The shortcuts that act on it, as `aria-keyshortcuts` writes them. */
+  keyShortcuts?: string;
   state?: AccessibilityState;
   value?: AccessibilityValue;
   actions?: readonly AccessibilityAction[];

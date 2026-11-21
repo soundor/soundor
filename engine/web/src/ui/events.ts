@@ -445,21 +445,28 @@ export class WheelEvent extends PointerEvent {
 
 export interface KeyboardEventInit extends ModifierEventInit {
   key?: string;
+  code?: string;
   repeat?: boolean;
 }
 
 export class KeyboardEvent extends ModifierEvent {
   readonly #key: string;
+  readonly #code: string;
   readonly #repeat: boolean;
 
   constructor(type: string, init: KeyboardEventInit = {}) {
     super(type, init);
     this.#key = init.key ?? '';
+    this.#code = init.code ?? '';
     this.#repeat = Boolean(init.repeat);
   }
 
   get key(): string {
     return this.#key;
+  }
+  /** The physical key ('KeyS', 'Digit1'), whatever the layout types. */
+  get code(): string {
+    return this.#code;
   }
   get repeat(): boolean {
     return this.#repeat;

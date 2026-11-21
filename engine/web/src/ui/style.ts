@@ -77,6 +77,12 @@ export const STYLESHEET = `
   z-index: 0 !important;
 }
 .sd-overlay { z-index: 1 !important; pointer-events: none !important; }
+/* announce()'s live regions: read, never seen. */
+.sd-live {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  pointer-events: none;
+}
 .sd-hidden { display: none !important; }
 .sd-pe-none, .sd-pe-none * { pointer-events: none !important; }
 .sd-pe-box-none { pointer-events: none !important; }

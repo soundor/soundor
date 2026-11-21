@@ -15,6 +15,7 @@ const OWNED = [
   'role',
   'aria-label',
   'aria-description',
+  'aria-keyshortcuts',
   'aria-disabled',
   'aria-readonly',
   'aria-selected',
@@ -309,6 +310,8 @@ function attributesOf(node: UiNode, pass: Pass): Attributes {
   else if (label !== '' && (aria !== null || labelled))
     out['aria-label'] = label;
   if (semantics.hint !== '') out['aria-description'] = semantics.hint;
+  if (semantics.keyShortcuts !== '')
+    out['aria-keyshortcuts'] = semantics.keyShortcuts;
 
   const { state, value } = semantics;
   if (node.inputDisabled) out['aria-disabled'] = 'true';

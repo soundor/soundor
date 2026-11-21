@@ -203,7 +203,13 @@ describe('UiNode content', () => {
 
   it('has an overlay root over the content root, both filling the surface', () => {
     const { root, overlay } = setup();
-    expect([...view.rootElement.children]).toEqual([el(root), el(overlay)]);
+    // Then announce()'s live regions, read and never seen.
+    const [content, over, ...live] = view.rootElement.children;
+    expect([content, over]).toEqual([el(root), el(overlay)]);
+    expect(live.map((region) => region.className)).toEqual([
+      'sd-live',
+      'sd-live',
+    ]);
     expect(view.rootElement.className).toBe('sd-surface');
     overlay.style = { pointerEvents: 'auto', zIndex: -5 };
     // Its layer and pass-through stay, whatever its style says.

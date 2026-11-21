@@ -219,6 +219,8 @@ function normalizeAccessibility(value) {
     role,
     label: optional(given, 'label', 'string', 'accessibility') ?? '',
     hint: optional(given, 'hint', 'string', 'accessibility') ?? '',
+    keyShortcuts:
+      optional(given, 'keyShortcuts', 'string', 'accessibility') ?? '',
     state: {
       disabled:
         optional(state, 'disabled', 'boolean', 'accessibility.state') ?? false,
@@ -1379,6 +1381,25 @@ export function exitPointerLock() {
   native.exitPointerLock();
 }
 
+/**
+ * Has assistive technology speak `message`, which is no element's label or
+ * value: what an action did ("Preset copied"). Polite (the default) waits
+ * for what it is saying; assertive interrupts it.
+ */
+export function announce(message, options = {}) {
+  expectType(message, 'string', 'message');
+  if (typeof options !== 'object' || options === null)
+    throw new TypeError(
+      `announce options must be an object, got ${describe(options)}`,
+    );
+  const priority = options.priority ?? 'polite';
+  if (priority !== 'polite' && priority !== 'assertive')
+    throw new TypeError(
+      `announce: priority must be 'polite' or 'assertive', got ${describe(priority)}`,
+    );
+  native.announce(message, priority === 'assertive');
+}
+
 /** The node holding the pointer lock, if any. */
 export function pointerLockNode() {
   return nodeById(native.pointerLock());
@@ -1777,16 +1798,21 @@ WheelEvent.DOM_DELTA_PAGE = 2;
 
 export class KeyboardEvent extends ModifierEvent {
   #key;
+  #code;
   #repeat;
 
   constructor(type, init = {}) {
     super(type, init);
     this.#key = init.key ?? '';
+    this.#code = init.code ?? '';
     this.#repeat = Boolean(init.repeat);
   }
 
   get key() {
     return this.#key;
+  }
+  get code() {
+    return this.#code;
   }
   get repeat() {
     return this.#repeat;
@@ -2147,6 +2173,7 @@ native.setListener((type, targetId, data) => {
     deltaY: data.deltaY,
     deltaMode: data.deltaMode,
     key: data.key,
+    code: data.code,
     repeat: data.repeat,
     data: data.data,
     inputType: 'insertText',
