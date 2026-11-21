@@ -60,6 +60,8 @@ const ARIA_ROLES: Readonly<Record<Role, string | null>> = {
   menu: 'menu',
   menubar: 'menubar',
   menuitem: 'menuitem',
+  listbox: 'listbox',
+  option: 'option',
   scrollbar: 'scrollbar',
   spinbutton: 'spinbutton',
   tab: 'tab',
@@ -90,6 +92,7 @@ const LEAF_ROLES: ReadonlySet<Role> = new Set<Role>([
   'progressbar',
   'combobox',
   'menuitem',
+  'option',
   'scrollbar',
   'spinbutton',
   'tab',
@@ -311,7 +314,8 @@ function attributesOf(node: UiNode, pass: Pass): Attributes {
   if (node.inputDisabled) out['aria-disabled'] = 'true';
   if (state.readOnly) out['aria-readonly'] = 'true';
   if (state.busy) out['aria-busy'] = 'true';
-  if (state.selected !== null) out['aria-selected'] = String(state.selected);
+  if (state.selected !== null || role === 'option')
+    out['aria-selected'] = String(state.selected ?? false);
   if (state.expanded !== null) out['aria-expanded'] = String(state.expanded);
   if (state.checked !== null) {
     const checked = String(state.checked);

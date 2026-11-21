@@ -208,6 +208,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                     return { NSAccessibilityMenuBarRole, nil };
                 case Role::MenuItem:
                     return { NSAccessibilityMenuItemRole, nil };
+                // AppKit has no option role; expose a selectable row in a list.
+                case Role::ListBox:
+                    return { NSAccessibilityListRole, nil };
+                case Role::Option:
+                    return { NSAccessibilityRowRole, nil };
                 case Role::ScrollBar:
                     return { NSAccessibilityScrollBarRole, nil };
                 case Role::SpinButton:

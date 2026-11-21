@@ -101,7 +101,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
         // Read as one element; anything else is a container of its children.
         bool isLeaf(const Node& node)
         {
-            return node.children.empty() || isLeafRole(node.role);
+            return node.role != Role::ListBox && (node.children.empty() || isLeafRole(node.role));
         }
 
         UIAccessibilityTraits traitsOf(const Node& node)
@@ -148,6 +148,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                     break;
                 case Role::TabList:
                     traits |= UIAccessibilityTraitTabBar;
+                    break;
+                case Role::Option:
+                    // UIKit has no option trait. A choice that can be activated acts like a button.
+                    if (node.supports(Action::Activate))
+                        traits |= UIAccessibilityTraitButton;
                     break;
                 default:
                     break;
@@ -221,8 +226,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             element.accessibilityValue = valueOf(node);
             element.accessibilityTraits = traitsOf(node);
             element.accessibilityViewIsModal = node.modal ? YES : NO;
-            if (! leaf)
-                element.accessibilityContainerType = UIAccessibilityContainerTypeSemanticGroup;
+            if (node.role == Role::ListBox)
+                element.accessibilityContainerType = UIAccessibilityContainerTypeList;
+            else
+                element.accessibilityContainerType =
+                    leaf ? UIAccessibilityContainerTypeNone : UIAccessibilityContainerTypeSemanticGroup;
             element.accessibilityCustomActions = customActions(node, token);
             tag(element, token, node);
         }

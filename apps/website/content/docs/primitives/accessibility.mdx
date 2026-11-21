@@ -25,16 +25,16 @@ the platform's accessibility natively).
 
 ## The props
 
-| Prop                    | What it says                                                                                                                                                                                                                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accessible`            | `true`: one element, its descendants' text its label. `false`: the element itself is not perceived; its descendants still are.                                                                                                                                                                                    |
-| `accessibilityLabel`    | What is read. By default, a text's text, or the text inside a button-like element.                                                                                                                                                                                                                                |
-| `accessibilityHint`     | What acting on it does.                                                                                                                                                                                                                                                                                           |
-| `accessibilityRole`     | `none`, `text`, `image`, `button`, `link`, `adjustable`, `checkbox`, `switch`, `togglebutton`, `radio`, `radiogroup`, `progressbar`, `search`, `combobox`, `menu`, `menubar`, `menuitem`, `scrollbar`, `spinbutton`, `tab`, `tablist`, `header`, `summary`, `keyboardkey`, `timer`, `toolbar`, `alert`, `dialog`. |
-| `accessibilityState`    | `disabled`, `readOnly`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                   |
-| `accessibilityValue`    | `min`, `max`, `now` (fractional values are fine) and `text` (`'-3.5 dB'`, read in place of the number).                                                                                                                                                                                                           |
-| `accessibilityActions`  | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, or custom names with a `label`.                                                                                                                                                        |
-| `onAccessibilityAction` | An action asked of this element: `event.actionName`, and `event.value` for `setValue`. `event.preventDefault()` keeps the runtime's own response (a Pressable's press, focusing) from following.                                                                                                                  |
+| Prop                    | What it says                                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accessible`            | `true`: one element, its descendants' text its label. `false`: the element itself is not perceived; its descendants still are.                                                                                                                                                                                                         |
+| `accessibilityLabel`    | What is read. By default, a text's text, or the text inside a button-like element.                                                                                                                                                                                                                                                     |
+| `accessibilityHint`     | What acting on it does.                                                                                                                                                                                                                                                                                                                |
+| `accessibilityRole`     | `none`, `text`, `image`, `button`, `link`, `adjustable`, `checkbox`, `switch`, `togglebutton`, `radio`, `radiogroup`, `progressbar`, `search`, `combobox`, `menu`, `menubar`, `menuitem`, `listbox`, `option`, `scrollbar`, `spinbutton`, `tab`, `tablist`, `header`, `summary`, `keyboardkey`, `timer`, `toolbar`, `alert`, `dialog`. |
+| `accessibilityState`    | `disabled`, `readOnly`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                                        |
+| `accessibilityValue`    | `min`, `max`, `now` (fractional values are fine) and `text` (`'-3.5 dB'`, read in place of the number).                                                                                                                                                                                                                                |
+| `accessibilityActions`  | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, or custom names with a `label`.                                                                                                                                                                             |
+| `onAccessibilityAction` | An action asked of this element: `event.actionName`, and `event.value` for `setValue`. `event.preventDefault()` keeps the runtime's own response (a Pressable's press, focusing) from following.                                                                                                                                       |
 
 ## Disabled and read-only controls
 
@@ -53,6 +53,26 @@ not changed. It reports a read-only value to assistive technology without
 blocking focus, pointer, wheel, or keyboard input. For example, a read-only
 meter can still offer a “Copy value” context menu. The state does not make a
 text input non-editable; guard value changes in your control as needed.
+
+## Lists of choices
+
+Give the container `accessibilityRole="listbox"` and each choice
+`accessibilityRole="option"`. Set `accessibilityState={{ selected: true }}` on
+the chosen option and `disabled: true` on any unavailable option. Options are
+unselected by default and are read as one element, labelled by their content
+unless you provide `accessibilityLabel`. The roles describe the control; your
+component still manages selection and keyboard navigation.
+
+| Platform | How choices are exposed                                                                                                                   |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Web      | ARIA `listbox` and `option` with `aria-selected` and `aria-disabled`.                                                                     |
+| Windows  | UI Automation `List` and `ListItem`, with `SelectionItem.IsSelected` on each option.                                                      |
+| Linux    | AT-SPI list box and list item, with selectable and selected states.                                                                       |
+| macOS    | AppKit list and selectable rows; AppKit has no dedicated option role.                                                                     |
+| iOS      | UIKit list container. There is no option trait, so activatable choices use the button trait, and selected choices add the selected trait. |
+
+In Testing Library, use `getByRole('listbox')` and
+`getByRole('option', { selected: true })`.
 
 ## Defaults
 

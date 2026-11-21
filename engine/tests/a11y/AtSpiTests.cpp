@@ -309,6 +309,8 @@ TEST_SUITE("Linux AT-SPI")
         CHECK(atspi::role(Role::Adjustable).value == 51);
         CHECK(atspi::role(Role::Text).value == 116);
         CHECK(atspi::role(Role::Dialog).value == 16);
+        CHECK(atspi::role(Role::ListBox).value == 98);
+        CHECK(atspi::role(Role::Option).value == 32);
         auto update = example();
         Node& node = update.nodes[1];
         node.state.checked = Checked::Mixed;

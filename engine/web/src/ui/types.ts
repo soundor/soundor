@@ -264,6 +264,8 @@ export type AccessibilityRole =
   | 'menu'
   | 'menubar'
   | 'menuitem'
+  | 'listbox'
+  | 'option'
   | 'scrollbar'
   | 'spinbutton'
   | 'tab'

@@ -345,6 +345,53 @@ describe('Modal and Portal', () => {
   });
 });
 
+describe('listbox and option roles', () => {
+  it('exposes the selected choice and clears ARIA state when the role changes', () => {
+    function FilterOptions({
+      choiceRole,
+    }: {
+      choiceRole: 'option' | 'button';
+    }) {
+      return h(
+        View,
+        { accessibilityRole: 'listbox', accessibilityLabel: 'Filter type' },
+        h(
+          Pressable,
+          {
+            accessibilityRole: 'option',
+            accessibilityState: { selected: true },
+          },
+          h(Text, null, 'Low pass'),
+        ),
+        h(
+          Pressable,
+          { accessibilityRole: choiceRole, disabled: true },
+          h(Text, null, 'High pass'),
+        ),
+      );
+    }
+    render(h(FilterOptions, { choiceRole: 'option' }));
+    const list = first();
+    expect(aria(list)).toEqual({
+      role: 'listbox',
+      'aria-label': 'Filter type',
+    });
+    expect(aria(list.children[0]!)).toEqual({
+      role: 'option',
+      'aria-label': 'Low pass',
+      'aria-selected': 'true',
+    });
+    expect(aria(list.children[1]!)).toEqual({
+      role: 'option',
+      'aria-label': 'High pass',
+      'aria-selected': 'false',
+      'aria-disabled': 'true',
+    });
+    render(h(FilterOptions, { choiceRole: 'button' }));
+    expect(aria(list.children[1]!)['aria-selected']).toBeUndefined();
+  });
+});
+
 describe('activation', () => {
   /** A click as assistive technology sends it: no pointer, detail 0. */
   const atClick = (node: UiNode) =>

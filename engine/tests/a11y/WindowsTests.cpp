@@ -128,6 +128,7 @@ TEST_SUITE("a11y Windows UIA")
             { Role::Search, UIA_GroupControlTypeId },        { Role::ComboBox, UIA_ComboBoxControlTypeId },
             { Role::Menu, UIA_MenuControlTypeId },           { Role::MenuBar, UIA_MenuBarControlTypeId },
             { Role::MenuItem, UIA_MenuItemControlTypeId },   { Role::ScrollBar, UIA_ScrollBarControlTypeId },
+            { Role::ListBox, UIA_ListControlTypeId },        { Role::Option, UIA_ListItemControlTypeId },
             { Role::SpinButton, UIA_SpinnerControlTypeId },  { Role::Tab, UIA_TabItemControlTypeId },
             { Role::TabList, UIA_TabControlTypeId },         { Role::Header, UIA_TextControlTypeId },
             { Role::Summary, UIA_GroupControlTypeId },       { Role::KeyboardKey, UIA_ButtonControlTypeId },
@@ -382,6 +383,44 @@ TEST_SUITE("a11y Windows UIA")
         ComPtr<IUnknown> unsupported;
         CHECK(gain->GetPatternProvider(UIA_TogglePatternId, &unsupported) == S_OK);
         CHECK(unsupported == nullptr);
+    }
+
+    TEST_CASE("listbox options expose selection through UI Automation")
+    {
+        Window window;
+        uia::Session session(window.handle, "Plugin");
+        auto update = tree();
+        update.nodes[3].role = Role::ListBox;
+        update.nodes[4].role = Role::Option;
+        update.nodes[5].role = Role::Option;
+        update.nodes[5].state.selected.reset();
+        session.update(update, {}, true);
+
+        auto provider = root(session);
+        auto list = navigate(provider.Get(), NavigateDirection_LastChild);
+        auto first = navigate(list.Get(), NavigateDirection_FirstChild);
+        auto second = navigate(list.Get(), NavigateDirection_LastChild);
+        auto selection = pattern<ISelectionProvider>(list.Get(), UIA_SelectionPatternId);
+        SAFEARRAY* chosen = nullptr;
+        REQUIRE(selection->GetSelection(&chosen) == S_OK);
+        REQUIRE(chosen != nullptr);
+        CHECK(chosen->rgsabound[0].cElements == 1);
+        SafeArrayDestroy(chosen);
+        auto selected = pattern<ISelectionItemProvider>(first.Get(), UIA_SelectionItemPatternId);
+        auto unselected = pattern<ISelectionItemProvider>(second.Get(), UIA_SelectionItemPatternId);
+        BOOL isSelected = FALSE;
+        CHECK(selected->get_IsSelected(&isSelected) == S_OK);
+        CHECK(isSelected == TRUE);
+        CHECK(unselected->get_IsSelected(&isSelected) == S_OK);
+        CHECK(isSelected == FALSE);
+        ComPtr<IRawElementProviderSimple> container;
+        CHECK(unselected->get_SelectionContainer(&container) == S_OK);
+        CHECK(container.Get() == list.Get());
+        CHECK(unselected->Select() == S_OK);
+        const auto requests = session.takeRequests();
+        REQUIRE(requests.size() == 1);
+        CHECK(requests[0].target == update.nodes[5].id);
+        CHECK(requests[0].action == Action::Activate);
     }
 
     TEST_CASE("retained COM references become unavailable after removal, reload and close")

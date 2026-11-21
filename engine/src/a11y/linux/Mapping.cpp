@@ -41,6 +41,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 return { 34, "menu bar" };
             case Role::MenuItem:
                 return { 35, "menu item" };
+            case Role::ListBox:
+                return { 98, "list box" }; // ATSPI_ROLE_LIST_BOX
+            case Role::Option:
+                return { 32, "list item" }; // ATSPI_ROLE_LIST_ITEM
             case Role::ScrollBar:
                 return { 48, "scroll bar" };
             case Role::SpinButton:

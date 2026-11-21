@@ -53,6 +53,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     return UIA_MenuBarControlTypeId;
                 case Role::MenuItem:
                     return UIA_MenuItemControlTypeId;
+                case Role::ListBox:
+                    return UIA_ListControlTypeId;
+                case Role::Option:
+                    return UIA_ListItemControlTypeId;
                 case Role::ScrollBar:
                     return UIA_ScrollBarControlTypeId;
                 case Role::SpinButton:
@@ -140,11 +144,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         }
         bool selectable(const Node& node)
         {
-            return node.state.selected.has_value() || node.role == Role::Radio;
+            return node.state.selected.has_value() || node.role == Role::Radio || node.role == Role::Option;
         }
         bool selection(const Node& node)
         {
-            return node.role == Role::RadioGroup || node.role == Role::TabList;
+            return node.role == Role::RadioGroup || node.role == Role::TabList || node.role == Role::ListBox;
         }
         bool toggled(const Node& node)
         {
