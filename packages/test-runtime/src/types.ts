@@ -262,6 +262,7 @@ export type AccessibilityRole =
 
 export interface AccessibilityState {
   disabled?: boolean;
+  readOnly?: boolean;
   selected?: boolean;
   /** 'mixed': partly checked. */
   checked?: boolean | 'mixed';

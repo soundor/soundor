@@ -31,10 +31,28 @@ the platform's accessibility natively).
 | `accessibilityLabel`    | What is read. By default, a text's text, or the text inside a button-like element.                                                                                                                                                                                                                                |
 | `accessibilityHint`     | What acting on it does.                                                                                                                                                                                                                                                                                           |
 | `accessibilityRole`     | `none`, `text`, `image`, `button`, `link`, `adjustable`, `checkbox`, `switch`, `togglebutton`, `radio`, `radiogroup`, `progressbar`, `search`, `combobox`, `menu`, `menubar`, `menuitem`, `scrollbar`, `spinbutton`, `tab`, `tablist`, `header`, `summary`, `keyboardkey`, `timer`, `toolbar`, `alert`, `dialog`. |
-| `accessibilityState`    | `disabled`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                               |
+| `accessibilityState`    | `disabled`, `readOnly`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                   |
 | `accessibilityValue`    | `min`, `max`, `now` (fractional values are fine) and `text` (`'-3.5 dB'`, read in place of the number).                                                                                                                                                                                                           |
 | `accessibilityActions`  | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, or custom names with a `label`.                                                                                                                                                        |
 | `onAccessibilityAction` | An action asked of this element: `event.actionName`, and `event.value` for `setValue`. `event.preventDefault()` keeps the runtime's own response (a Pressable's press, focusing) from following.                                                                                                                  |
+
+## Disabled and read-only controls
+
+`accessibilityState={{ disabled: true }}` disables a node and its physical
+descendants, regardless of where they appear in the accessibility tree. A
+disabled target swallows presses, releases, clicks, context menus, and wheel
+input. These events do not bubble to a wrapper or go through to what is behind
+the target. Hover still works, so a tooltip can explain why a control is disabled.
+
+Disabled nodes cannot take focus and are skipped by Tab. Disabling a focused
+node blurs it; disabling a pressed node cancels the gesture. Re-enabling a node
+does not restore its focus or the canceled gesture.
+
+Use `accessibilityState={{ readOnly: true }}` for a value that can be read but
+not changed. It reports a read-only value to assistive technology without
+blocking focus, pointer, wheel, or keyboard input. For example, a read-only
+meter can still offer a “Copy value” context menu. The state does not make a
+text input non-editable; guard value changes in your control as needed.
 
 ## Defaults
 

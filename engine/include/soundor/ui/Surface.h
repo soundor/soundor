@@ -222,6 +222,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         // What plugin code says the node is to assistive technology.
         [[nodiscard]] const a11y::Properties& accessibility() const noexcept { return semantics; }
+        [[nodiscard]] bool inputDisabled() const noexcept;
         // Where assistive technology reads the node, in place of its parent
         // (noNode: its parent).
         [[nodiscard]] NodeId accessibilityParent() const noexcept { return semanticParent; }
@@ -699,6 +700,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // What its style no longer scrolls goes back to 0, its scrollbar too.
         void scrollingChanged(Node& node);
         void endScrollbarDrag();
+        void reconcileDisabledInput();
         void collectFocusable(Node& node, std::vector<NodeId>& out);
         bool moveFocus(bool backwards);
         bool dispatch(const Event& event);

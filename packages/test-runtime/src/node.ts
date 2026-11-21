@@ -190,7 +190,21 @@ export class TestNode {
   width = 300;
   height = 150;
   focusable: boolean;
-  accessibility: Accessibility = {};
+  #accessibility: Accessibility = {};
+  get accessibility(): Accessibility {
+    return this.#accessibility;
+  }
+  set accessibility(value: Accessibility) {
+    const disabling =
+      value.state?.disabled === true && !this.#accessibility.state?.disabled;
+    this.#accessibility = value;
+    if (disabling) this.runtime.reconcileDisabledInput();
+  }
+  get inputDisabled(): boolean {
+    for (let node: TestNode | null = this; node; node = node.parent)
+      if (node.accessibility.state?.disabled === true) return true;
+    return false;
+  }
   accessibilityParent: TestNode | null = null;
   #debugId = '';
   readonly listeners = new Map<string, Listener[]>();
@@ -478,6 +492,7 @@ export class TestNode {
     if (index < 0) this.kids.push(child);
     else this.kids.splice(index, 0, child);
     child.parent = this;
+    if (child.inputDisabled) this.runtime.reconcileDisabledInput();
     return child;
   }
 

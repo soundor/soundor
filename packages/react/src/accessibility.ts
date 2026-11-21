@@ -38,6 +38,7 @@ export interface AccessibilityProps {
   /** What acting on the element does, when the label does not say. */
   accessibilityHint?: string;
   accessibilityRole?: AccessibilityRole;
+  /** Semantic states. `disabled` also blocks activation and focus in the subtree; `readOnly` does not. */
   accessibilityState?: AccessibilityState;
   /** A range's value ('adjustable', 'progressbar'), and how to read it. */
   accessibilityValue?: AccessibilityValue;

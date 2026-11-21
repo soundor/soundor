@@ -244,9 +244,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         changed(selected(before) != selected(after), UIA_SelectionItemIsSelectedPropertyId);
         changed(before.state.expanded != after.state.expanded, UIA_ExpandCollapseExpandCollapseStatePropertyId);
         changed(before.modal != after.modal || before.role != after.role, UIA_IsDialogPropertyId);
-        if (after.supports(Action::SetValue))
+        const bool readOnlyChanged = (before.state.readOnly || ! before.supports(Action::SetValue))
+                                     != (after.state.readOnly || ! after.supports(Action::SetValue));
+        if (after.role == Role::TextInput || ! after.value.text.empty() || ! before.value.text.empty())
         {
+            changed(readOnlyChanged, UIA_ValueIsReadOnlyPropertyId);
             changed(before.value.text != after.value.text, UIA_ValueValuePropertyId);
+        }
+        if (range(after))
+        {
+            changed(readOnlyChanged, UIA_RangeValueIsReadOnlyPropertyId);
             changed(before.value.now != after.value.now, UIA_RangeValueValuePropertyId);
         }
         changed(before.value.min != after.value.min, UIA_RangeValueMinimumPropertyId);
@@ -589,7 +596,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             return read(
                 [&](const Node& node)
                 {
-                    *out = ! node.supports(Action::SetValue);
+                    *out = node.state.readOnly || ! node.supports(Action::SetValue);
                     return S_OK;
                 });
         }
@@ -827,7 +834,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     return text(node.value.text);
                 case UIA_ValueIsReadOnlyPropertyId:
                 case UIA_RangeValueIsReadOnlyPropertyId:
-                    return boolean(! node.supports(Action::SetValue));
+                    return boolean(node.state.readOnly || ! node.supports(Action::SetValue));
                 case UIA_RangeValueValuePropertyId:
                 case UIA_RangeValueMinimumPropertyId:
                 case UIA_RangeValueMaximumPropertyId:

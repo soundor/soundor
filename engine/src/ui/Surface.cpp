@@ -448,6 +448,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         nodes.erase(id);
     }
 
+    bool Node::inputDisabled() const noexcept
+    {
+        for (const Node* node = this; node != nullptr; node = node->parentNode)
+            if (node->semantics.state.disabled)
+                return true;
+        return false;
+    }
+
     void Surface::insertChild(NodeId parentId, NodeId childId, NodeId beforeId)
     {
         Node& parent = get(parentId);
@@ -481,6 +489,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 #endif
         restack(parent);
         markChanged(child);
+        if (child.inputDisabled())
+            reconcileDisabledInput();
     }
 
     void Surface::removeChild(NodeId parentId, NodeId childId)
@@ -980,8 +990,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (node.semantics.modal != properties.modal && metadataSubscribed)
             metadataOverflow = true;
 #endif
+        const bool disabling = properties.state.disabled && ! node.semantics.state.disabled;
         node.semantics = std::move(properties);
         ++changes;
+        if (disabling)
+            reconcileDisabledInput();
+    }
+
+    void Surface::reconcileDisabledInput()
+    {
+        if (const Node* node = find(focused()); node && node->inputDisabled())
+            focus(noNode);
+        if (scrollbarDrag)
+            if (const Node* node = find(scrollbarDrag->node); node && node->inputDisabled())
+                endScrollbarDrag();
+
+        // Cancel held gestures so a later release cannot activate them, even
+        // if the control is enabled again in the meantime.
+        std::vector<PointerInput> canceled;
+        for (const auto& [id, state] : pointers)
+            if (const Node* node = find(state.captured); node && node->inputDisabled())
+                canceled.push_back(state.last);
+        for (const auto& input : canceled)
+        {
+            const auto found = pointers.find(input.pointerId);
+            if (found == pointers.end())
+                continue;
+            auto& state = found->second;
+            if (const Node* node = find(state.captured); node && node->inputDisabled())
+            {
+                const NodeId target = std::exchange(state.captured, noNode);
+                (void)pointerLock();
+                dispatch(pointerEvent(Event::Type::PointerCancel, target, input));
+            }
+        }
     }
 
     void Surface::setAccessibilityParent(NodeId id, NodeId parent)
@@ -1512,7 +1554,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     bool Surface::requestPointerLock(NodeId id)
     {
-        if (! isConnected(id))
+        if (! isConnected(id) || get(id).inputDisabled())
             return false;
         for (auto& [pointerId, state] : pointers)
         {
@@ -1590,7 +1632,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (state.captured == noNode && input.type != PointerType::Touch)
         {
             updateScrollbars(input.phase == PointerInput::Phase::Cancel ? noNode : hit, input.position);
-            if (const auto bar = scrollbarAt(hit))
+            if (const auto bar = scrollbarAt(hit); bar && ! get(bar->first).inputDisabled())
             {
                 if (input.phase == PointerInput::Phase::Down && input.button == 0)
                 {
@@ -1612,6 +1654,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 const NodeId target = state.captured != noNode ? state.captured : hit;
                 if (target == noNode)
                     return false;
+                if (const Node* node = find(target); ! node || node->inputDisabled())
+                    return true;
                 // Implicit capture until the last button is up, from before the
                 // listeners run, so they can lock it (a node they remove lets go).
                 if (state.captured == noNode)
@@ -1622,7 +1666,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 const bool prevented = dispatch(pointerEvent(Event::Type::PointerDown, target, input));
                 if (! isConnected(state.captured))
                     state.captured = noNode;
-                if (! prevented)
+                if (! prevented && isConnected(target) && ! get(target).inputDisabled())
                 {
                     // Focus goes to the nearest focusable node, or nowhere.
                     NodeId focusTarget = noNode;
@@ -1635,7 +1679,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     focus(isConnected(focusTarget) ? focusTarget : noNode);
                 }
                 // The secondary button asks for a context menu, as on the Web.
-                if (input.button == 2 && isConnected(target))
+                if (input.button == 2 && isConnected(target) && ! get(target).inputDisabled())
                     dispatch(pointerEvent(Event::Type::ContextMenu, target, input));
                 return true;
             }
@@ -1653,15 +1697,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             {
                 const NodeId pressed = state.captured;
                 const NodeId target = pressed != noNode ? pressed : hit;
-                if (target != noNode)
+                if (const Node* node = find(target); node && ! node->inputDisabled())
                     dispatch(pointerEvent(Event::Type::PointerUp, target, input));
                 if (input.buttons == 0)
                 {
-                    state.captured = noNode;
+                    const bool stillPressed = std::exchange(state.captured, noNode) == pressed;
                     // A click goes to the deepest node containing both where
                     // the press started and where it ended.
                     const NodeId released = hitTest(input.position);
-                    if (input.button == 0 && pressed != noNode && released != noNode)
+                    if (input.button == 0 && stillPressed && isConnected(pressed) && ! get(pressed).inputDisabled()
+                        && released != noNode && ! get(released).inputDisabled())
                     {
                         const auto from = pathTo(pressed);
                         const auto to = pathTo(released);
@@ -1675,7 +1720,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             Event click = pointerEvent(Event::Type::Click, common, input);
                             click.detail = state.clicks;
                             dispatch(click);
-                            if (state.clicks == 2 && isConnected(common))
+                            if (state.clicks == 2 && isConnected(common) && ! get(common).inputDisabled())
                             {
                                 Event twice = pointerEvent(Event::Type::DoubleClick, common, input);
                                 twice.detail = state.clicks;
@@ -1864,6 +1909,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const NodeId target = hitTest(input.position);
         if (target == noNode)
             return false;
+        if (get(target).inputDisabled())
+            return true;
         Event event;
         event.type = Event::Type::Wheel;
         event.target = target;
@@ -1886,7 +1933,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         float deltaY = input.deltaY * scale;
         if ((input.modifiers & Modifier::Shift) != 0 && deltaX == 0)
             std::swap(deltaX, deltaY);
-        return scrollBy(target, deltaX, deltaY);
+        return isConnected(target) && ! get(target).inputDisabled() && scrollBy(target, deltaX, deltaY);
     }
 
     bool Surface::scrollBy(NodeId target, float deltaX, float deltaY)
@@ -1925,7 +1972,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.key = input.key;
         event.repeat = input.repeat;
         event.modifiers = input.modifiers;
-        if (dispatch(event))
+        if (! get(event.target).inputDisabled() && dispatch(event))
             return true;
         if (input.down && input.key == "Tab" && (input.modifiers & shortcut) == 0)
             return moveFocus((input.modifiers & Modifier::Shift) != 0);
@@ -1943,7 +1990,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     bool Surface::text(const TextInput& input)
     {
         const NodeId target = focused();
-        if (target == noNode || input.text.empty())
+        if (target == noNode || get(target).inputDisabled() || input.text.empty())
             return false;
         Event event;
         event.type = Event::Type::BeforeInput;
@@ -1957,6 +2004,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                       std::variant<std::monostate, double, std::string> value)
     {
         if (! isConnected(target))
+            return false;
+        const Node& node = get(target);
+        if ((node.inputDisabled() && action != "blur")
+            || (node.accessibility().state.readOnly
+                && (action == "setValue" || action == "increment" || action == "decrement")))
             return false;
         // Assistive technology moves focus as the keyboard does: shown.
         keyboardModality = true;
@@ -1980,7 +2032,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (id != noNode)
         {
             const Node* node = find(id);
-            if (node == nullptr || ! node->canFocus || ! isConnected(id))
+            if (node == nullptr || ! node->canFocus || node->inputDisabled() || ! isConnected(id))
                 return;
         }
         const NodeId previous = focused();
@@ -2048,7 +2100,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     void Surface::collectFocusable(Node& node, std::vector<NodeId>& out)
     {
-        if (node.nodeStyle.display == Display::None)
+        if (node.nodeStyle.display == Display::None || node.semantics.state.disabled)
             return;
         if (node.canFocus)
             out.push_back(node.nodeId);

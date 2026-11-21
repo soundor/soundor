@@ -276,6 +276,106 @@ describe('the DOM adapter', () => {
     expect(result.scrollTop).toBe(120);
   });
 
+  it('blocks disabled subtree input and focus while keeping hover and read-only input', async () => {
+    const stage = await page.evaluate(async () => {
+      const { Engine, wasmUrl, element } = window.soundor;
+      const stage = window.stage(200, 200);
+      const engine = await Engine.create({ wasmUrl });
+      const panel = engine.root.appendChild(engine.createView({ height: 80 }));
+      const child = panel.appendChild(engine.createView({ height: 40 }));
+      const sibling = engine.root.appendChild(
+        engine.createView({ height: 40 }),
+      );
+      child.focusable = sibling.focusable = true;
+      child.accessibility = { role: 'adjustable', state: { readOnly: true } };
+      const log: string[] = [];
+      for (const type of [
+        'pointerenter',
+        'pointerdown',
+        'pointerup',
+        'pointercancel',
+        'click',
+        'dblclick',
+        'contextmenu',
+        'wheel',
+        'keydown',
+        'blur',
+      ])
+        child.addEventListener(type, () => log.push(type));
+      panel.addEventListener('click', () => log.push('panel click'));
+      Object.assign(window, { disabledInput: { panel, child, sibling, log } });
+      element(child).id = 'control';
+      engine.mount(stage);
+      engine.flushLayout();
+      const { x, y } = stage.getBoundingClientRect();
+      return { x: x + 20, y: y + 20 };
+    });
+    await page.mouse.move(stage.x, stage.y);
+    await page.mouse.down();
+    const focus = await page.evaluate(() => {
+      const { panel, child, sibling } = (
+        window as unknown as {
+          disabledInput: { panel: UiNode; child: UiNode; sibling: UiNode };
+        }
+      ).disabledInput;
+      const wasFocused = child.focused;
+      panel.accessibility = { state: { disabled: true } };
+      child.focus();
+      (window.soundor.element(child) as HTMLElement).focus();
+      return {
+        wasFocused,
+        child: child.focused,
+        sibling: sibling.focused,
+        dom: document.activeElement?.id,
+      };
+    });
+    expect(focus).toEqual({
+      wasFocused: true,
+      child: false,
+      sibling: false,
+      dom: '',
+    });
+    expect(await page.locator('#control').getAttribute('aria-disabled')).toBe(
+      'true',
+    );
+    expect(await page.locator('#control').getAttribute('aria-readonly')).toBe(
+      'true',
+    );
+    await page.mouse.up();
+    await page.mouse.dblclick(stage.x, stage.y);
+    await page.mouse.click(stage.x, stage.y, { button: 'right' });
+    await page.mouse.wheel(0, 10);
+    await page.keyboard.press('Tab');
+    const result = await page.evaluate(() => {
+      const { panel, sibling, log } = (
+        window as unknown as {
+          disabledInput: { panel: UiNode; sibling: UiNode; log: string[] };
+        }
+      ).disabledInput;
+      panel.accessibility = {};
+      return { tabbed: sibling.focused, log: log.splice(0) };
+    });
+    expect(result).toEqual({
+      tabbed: true,
+      log: ['pointerenter', 'pointerdown', 'blur', 'pointercancel'],
+    });
+    expect(
+      await page.locator('#control').getAttribute('aria-disabled'),
+    ).toBeNull();
+    await page.mouse.click(stage.x, stage.y);
+    await page.keyboard.press('Enter');
+    expect(
+      await page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              disabledInput: { log: string[] };
+            }
+          ).disabledInput.log,
+      ),
+    ).toEqual(['pointerdown', 'pointerup', 'click', 'panel click', 'keydown']);
+  });
+
   it('runs engines side by side, independent', async () => {
     const result = await page.evaluate(async () => {
       const { Engine, wasmUrl } = window.soundor;

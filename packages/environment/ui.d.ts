@@ -401,7 +401,10 @@ declare module 'soundor:ui' {
     | 'dialog';
 
   export interface AccessibilityState {
+    /** Blocks activation, wheel, keys and focus on this node and its physical descendants. Hover still works. */
     disabled?: boolean;
+    /** Announces a read-only value without blocking pointer, wheel, keyboard or focus. */
+    readOnly?: boolean;
     selected?: boolean;
     /** 'mixed': partly checked. */
     checked?: boolean | 'mixed';

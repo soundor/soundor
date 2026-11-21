@@ -136,7 +136,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                     break;
                 case Role::Adjustable:
                 case Role::SpinButton:
-                    traits |= UIAccessibilityTraitAdjustable;
+                    if (! node.state.readOnly)
+                        traits |= UIAccessibilityTraitAdjustable;
                     break;
                 case Role::ProgressBar:
                 case Role::Timer:

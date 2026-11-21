@@ -82,6 +82,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
     struct State
     {
         bool disabled = false;
+        bool readOnly = false;
         bool busy = false;
         Checked checked = Checked::Unset;
         // Unset: not something that can be selected / expanded.

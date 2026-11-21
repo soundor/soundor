@@ -44,6 +44,7 @@ export interface NormalizedAccessibility {
   readonly hint: string;
   readonly state: {
     readonly disabled: boolean;
+    readonly readOnly: boolean;
     readonly busy: boolean;
     readonly checked: boolean | 'mixed' | null;
     readonly selected: boolean | null;
@@ -138,6 +139,8 @@ export function normalizeAccessibility(
     state: {
       disabled:
         optional(state, 'disabled', 'boolean', 'accessibility.state') ?? false,
+      readOnly:
+        optional(state, 'readOnly', 'boolean', 'accessibility.state') ?? false,
       busy: optional(state, 'busy', 'boolean', 'accessibility.state') ?? false,
       checked: checked as boolean | 'mixed' | null,
       selected: optional(state, 'selected', 'boolean', 'accessibility.state'),

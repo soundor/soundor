@@ -395,6 +395,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 const jsi::Object object = bind::expectObject(context, value, path);
                 const jsi::Value checked = bind::property(context, object, "checked");
                 field(object, "disabled", path, out.disabled);
+                field(object, "readOnly", path, out.readOnly);
                 field(object, "busy", path, out.busy);
                 optional(object, "selected", path, out.selected);
                 optional(object, "expanded", path, out.expanded);

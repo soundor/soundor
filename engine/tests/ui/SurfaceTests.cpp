@@ -657,6 +657,50 @@ TEST_SUITE("ui::Surface hit testing")
 
 TEST_SUITE("ui::Surface input")
 {
+    TEST_CASE("disabled subtrees swallow activation and wheel, keep hover, and lose focus and capture")
+    {
+        Row f;
+        Recorder r(f.surface);
+        f.surface.setFocusable(f.a, true);
+        f.surface.setFocusable(f.inner, true);
+        f.surface.pointer(down(110, 10));
+        REQUIRE(f.surface.focused() == f.inner);
+        r.take();
+
+        soundor::a11y::Properties disabled;
+        disabled.state.disabled = true;
+        f.surface.setAccessibility(f.b, disabled);
+        CHECK(f.surface.focused() == noNode);
+        CHECK(r.take() == std::vector { at(f.inner, "blur"), at(f.inner, "cancel") });
+        f.surface.focus(f.inner);
+        CHECK(f.surface.focused() == noNode);
+        f.surface.pointer(up(110, 10));
+        f.surface.pointer(pointer(PointerInput::Phase::Down, 110, 10, 2, 2));
+        f.surface.pointer(pointer(PointerInput::Phase::Up, 110, 10, 0, 2));
+        f.surface.wheel({ .position = { 110, 10 }, .deltaY = 3 });
+        CHECK(r.take().empty());
+        f.surface.pointer(move(110, 10));
+        CHECK(r.take() == std::vector { at(f.inner, "move") });
+        CHECK(f.surface.hitTest({ 110, 10 }) == f.inner);
+        f.surface.key(key("Tab"));
+        CHECK(f.surface.focused() == f.a);
+        f.surface.key(key("Tab"));
+        CHECK(f.surface.focused() == f.a);
+        r.take();
+
+        soundor::a11y::Properties readOnly;
+        readOnly.state.readOnly = true;
+        f.surface.setAccessibility(f.b, {});
+        f.surface.setAccessibility(f.inner, readOnly);
+        f.surface.pointer(down(110, 10));
+        f.surface.pointer(up(110, 10));
+        CHECK(f.surface.focused() == f.inner);
+        CHECK(r.last.type == Event::Type::Click);
+        f.surface.key(key("Enter"));
+        CHECK(r.last.target == f.inner);
+        CHECK(r.last.type == Event::Type::KeyDown);
+    }
+
     TEST_CASE("hover enters from the outside in and leaves from the inside out")
     {
         Row f;
