@@ -379,9 +379,8 @@ return (
 ```
 
 The pressed node keeps the pointer's events until the release, also where
-the pointer leaves it. The examples' `ResizeGrip.tsx`
-([Basic](/docs/examples/basic), [Orbit](/docs/examples/orbit)) is the
-whole grip: a cancelled drag going back to its first size, the arrow keys,
+the pointer leaves it. The Basic example's `ResizeGrip.tsx`
+([Basic](/docs/examples/basic)) is the whole grip: a cancelled drag going back to its first size, the arrow keys,
 and its look an `<Svg>` to replace with any other.
 
 Where the corner is depends on the editor's

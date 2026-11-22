@@ -1,0 +1,37 @@
+{
+  "name": "soundor-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Soundor's end-to-end regression suite: a plugin built from the workspace, in the real VST3 host on Linux, macOS and Windows, and in Chromium.",
+  "type": "module",
+  "scripts": {
+    "build:vst3": "soundor build vst3",
+    "build:web": "soundor build web",
+    "dev": "soundor dev vst3",
+    "dev:web": "soundor dev web",
+    "gen": "soundor gen",
+    "serve": "node scripts/serve.ts",
+    "test:rust": "soundor gen && cargo test --manifest-path lib/Cargo.toml",
+    "test:vst3": "soundor build vst3 --debug && soundor gen && vitest run",
+    "test:web": "soundor build web && playwright test",
+    "typecheck": "soundor gen && tsc -b"
+  },
+  "dependencies": {
+    "@soundor/react": "workspace:*",
+    "@soundor/vst3-runtime": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@soundor/config": "workspace:*",
+    "@soundor/runtime-sdk": "workspace:*",
+    "@soundor/vitest-e2e": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "soundor": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

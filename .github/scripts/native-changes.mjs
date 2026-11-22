@@ -2,7 +2,7 @@
 // reports, from a change to the package, a workspace package it depends on,
 // its external dependencies or turbo's global dependencies. CI's own
 // definition is not in the package graph, so a change to it runs everything,
-// as does an unknown base. Host-only changes run the VST3 and Orbit checks.
+// as does an unknown base. Host-only changes run the VST3 host's and the E2E checks.
 // Changeset release notes do not affect this host-only decision.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
@@ -12,11 +12,11 @@ const JOBS = {
   native: '@soundor/engine',
   benchmark: 'soundor-benchmark',
   host: '@soundor/vst3-host',
-  orbit: 'orbit',
+  e2e: 'soundor-e2e',
   vst3: '@soundor/vst3-runtime',
 };
 const CI =
-  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|orbit|vst3|vst3-host-artifacts)\.yml|actions\/|scripts\/(verified-deps|verified_deps_test|native-artifacts|native-plan|native-changes|engine-prebuilts|verify-results|macos-minimum|linux-plugin-check|windows-plugin-check))/;
+  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|e2e|vst3|vst3-host-artifacts)\.yml|actions\/|scripts\/(verified-deps|verified_deps_test|native-artifacts|native-plan|native-changes|engine-prebuilts|verify-results|macos-minimum|linux-plugin-check|windows-plugin-check))/;
 
 const HOST = 'hosts/vst3-host/';
 
@@ -70,7 +70,7 @@ function affectedByChange() {
   // Keep .changeset/config.json and other configuration in the decision.
   const inputs = files.filter((path) => !/^\.changeset\/[^/]+\.md$/.test(path));
   if (inputs.length > 0 && inputs.every((path) => path.startsWith(HOST)))
-    return new Set([JOBS.host, JOBS.orbit]);
+    return new Set([JOBS.host, JOBS.e2e]);
   return affectedPackages();
 }
 

@@ -123,15 +123,29 @@ later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
-Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, `examples/analyzer`,
+Examples (`examples/basic`, `examples/primitives`, `examples/analyzer`,
 `examples/controller` (the same Rust controller in native and web), and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (VST3) or `dev:web`,
 `build:vst3` or `build:web`. CI's Workspace job runs their tests, typecheck and web
-builds, and the website embeds those web builds. Orbit also has end-to-end tests
-of its Debug VST3 (`pnpm --filter orbit test:e2e`), the one example a native CI
-job builds. Tests have their own fixtures, inside the package they test:
-`runtimes/vst3-runtime/tests/plugin`.
+builds, and the website embeds those web builds. Tests have their own fixtures,
+inside the package they test: `runtimes/vst3-runtime/tests/plugin`.
+
+The end-to-end regression suite (`tests/e2e`, the private `soundor-e2e`; see
+`contribute/e2e-suite.md`) is a plugin built from the workspace, made only to
+be tested, with one of each thing the engine and the runtimes do (drawing by
+each path, layout, input, accessibility, the Rust processor and controller,
+JavaScript and Web APIs, state, presets, the editor's lifecycle). It is not an
+example: change it with the tests that rely on it, and add a test there when
+infrastructure breaks in a way a real plugin would see.
+
+```sh
+xvfb-run -a pnpm --filter soundor-e2e test:vst3   # its Debug VST3 in the VST3 host (vitest-e2e); Linux needs X
+pnpm --filter soundor-e2e test:web                # its web build in Chromium (Playwright)
+```
+
+The VST3 suite needs the workspace's adapter (`build:native debug`) and a
+VST3 host (`hosts/vst3-host` `build:native`), as any workspace VST3 build.
 
 The website (`apps/website`) embeds the examples' web builds:
 
@@ -153,8 +167,8 @@ Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`). Each group is a reusable
 workflow called from `verify.yml`, so its jobs show as `<group> / <job>`: Engine
 (`engine.yml`; its suites ← `@soundor/engine`), VST3 (vst3-runtime) (`vst3.yml`) ← `@soundor/vst3-runtime`, VST3 (host) (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
-Orbit E2E (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`. A change
-only under `hosts/vst3-host/` runs VST3 (host) and Orbit E2E alone. The engine and the host
+E2E (`e2e.yml`, the VST3 suite on Linux, macOS and Windows) ← `soundor-e2e`, and Benchmark smoke ← `soundor-benchmark`. A change
+only under `hosts/vst3-host/` runs VST3 (host) and E2E alone. The E2E web suite runs in the Workspace job. The engine and the host
 share one pattern: `engine-plan` and `host-plan` select, one group builds and
 checks (Engine, VST3 (host)), and jobs wait for it and consume the artifact or the release. What a job
 builds must therefore be a dependency of its package. A package's workflow

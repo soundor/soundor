@@ -43,6 +43,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         // Reads back the GPU canvases' new images into their pixels, for
         // drawing the surface on the CPU; returns how many were read.
         static int readBackCanvases(ui::Surface& surface, const gpu::Device* drawingDevice = nullptr);
+        // Reads back every GPU canvas's image, new or not, leaving what the
+        // compositor has yet to show as it is: for drawing the view once,
+        // apart from its frames (a capture), while a GPU compositor shows
+        // those images itself and has taken them as shown.
+        static void readBackAllCanvases(ui::Surface& surface);
 
     private:
         // A GPU canvas shown as a layer of its own.

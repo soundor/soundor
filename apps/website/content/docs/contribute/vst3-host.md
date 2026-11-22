@@ -201,7 +201,7 @@ compiling it. The plan builds the checkout when `turbo query affected` reports
 `@soundor/vst3-host` (`.github/scripts/native-changes.mjs`, job `host`): a change
 in the package, its workspace dependencies (the shared configs), turbo's global
 dependencies or CI itself. Only then do `checks` run. It also builds when the job
-that uses the host, Orbit's end-to-end tests, is affected and no release matches
+that uses the host, the [end-to-end suite](/docs/contribute/e2e-suite), is affected and no release matches
 this checkout (`selectHost()`). For an unchanged host in a pull request, the
 planner first looks for complete artifacts from a successful `main` push with
 the same native fingerprint and build recipe. These expire after seven days;
@@ -211,12 +211,12 @@ release publishing. A matching published release takes priority over CI reuse.
 
 Host changes never run the engine's suites, and engine changes never run the
 host's. A change only under `hosts/vst3-host/`, optionally accompanied by
-`.changeset/*.md` release notes, runs this job and Orbit's alone. Changeset
+`.changeset/*.md` release notes, runs this job and the end-to-end suite's alone. Changeset
 configuration is still considered. The package
 graph has it reach the benchmark package through `@soundor/driver`, but
 only that package's optional `vst3` entry uses the host.
 
-Orbit's job is the one that runs `@soundor/driver/vst3` against a real plugin
+The E2E job is the one that runs `@soundor/driver/vst3` against a real plugin
 (through `@soundor/vitest-e2e`). The Driver's unit tests use a simulated runtime, and
 `packages/driver/src/vst3.plugin.test.ts` runs by hand against the real pieces; its
 first lines say how.

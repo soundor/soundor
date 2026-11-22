@@ -524,9 +524,6 @@ importers:
       npm-to-yarn:
         specifier: 'catalog:'
         version: 3.2.0
-      orbit:
-        specifier: workspace:*
-        version: link:../../examples/orbit
       primitives:
         specifier: workspace:*
         version: link:../../examples/primitives
@@ -852,55 +849,6 @@ importers:
       '@soundor/vitest':
         specifier: workspace:^
         version: link:../../packages/vitest
-      '@soundor/vst3-host':
-        specifier: workspace:^
-        version: link:../../hosts/vst3-host
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.2
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.3.0
-      soundor:
-        specifier: workspace:*
-        version: link:../../packages/cli
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      vitest-environment-soundor:
-        specifier: workspace:^
-        version: link:../../packages/vitest-environment-soundor
-
-  examples/orbit:
-    dependencies:
-      '@soundor/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@soundor/vst3-runtime':
-        specifier: workspace:*
-        version: link:../../runtimes/vst3-runtime
-      '@soundor/web-runtime':
-        specifier: workspace:*
-        version: link:../../runtimes/web-runtime
-      react:
-        specifier: 'catalog:'
-        version: 19.3.1
-    devDependencies:
-      '@soundor/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@soundor/testing-library':
-        specifier: workspace:^
-        version: link:../../packages/testing-library
-      '@soundor/vitest':
-        specifier: workspace:^
-        version: link:../../packages/vitest
-      '@soundor/vitest-e2e':
-        specifier: workspace:^
-        version: link:../../packages/vitest-e2e
       '@soundor/vst3-host':
         specifier: workspace:^
         version: link:../../hosts/vst3-host
@@ -1766,6 +1714,52 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.23.7(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  tests/e2e:
+    dependencies:
+      '@soundor/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@soundor/vst3-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/vst3-runtime
+      '@soundor/web-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/web-runtime
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+    devDependencies:
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.65.0
+      '@soundor/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@soundor/runtime-sdk':
+        specifier: workspace:*
+        version: link:../../packages/runtime-sdk
+      '@soundor/vitest-e2e':
+        specifier: workspace:^
+        version: link:../../packages/vitest-e2e
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      soundor:
+        specifier: workspace:*
+        version: link:../../packages/cli
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

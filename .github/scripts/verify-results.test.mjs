@@ -11,7 +11,7 @@ function jobs(flags = {}) {
         native: 'false',
         benchmark: 'false',
         host: 'false',
-        orbit: 'false',
+        e2e: 'false',
         vst3: 'false',
         ...flags,
       },
@@ -24,7 +24,7 @@ function jobs(flags = {}) {
         'benchmark',
         'host-plan',
         'host',
-        'orbit',
+        'e2e',
         'vst3',
       ].map((name) => [name, { result: 'skipped' }]),
     ),
@@ -86,16 +86,16 @@ test('an affected VST3 host requires its native checks', () => {
   for (const name of ['engine', 'vst3'])
     assert.equal(needs[name].result, 'skipped');
 });
-test('affected Orbit tests require their job and what they use', () => {
-  const needs = jobs({ orbit: 'true' });
+test('affected end-to-end tests require their job and what they use', () => {
+  const needs = jobs({ e2e: 'true' });
   assert.throws(() => verifyResults(needs), /Host planning/);
   needs['host-plan'] = { result: 'success', outputs: { build: 'true' } };
   assert.throws(() => verifyResults(needs), /Engine planning/);
   needs['engine-plan'] = { result: 'success', outputs: { build: 'false' } };
   assert.throws(() => verifyResults(needs), /host=skipped/);
   needs.host.result = 'success';
-  assert.throws(() => verifyResults(needs), /orbit=skipped/);
-  needs.orbit.result = 'success';
+  assert.throws(() => verifyResults(needs), /e2e=skipped/);
+  needs.e2e.result = 'success';
   verifyResults(needs);
   // A released host that matches needs no build.
   needs['host-plan'].outputs.build = 'false';
@@ -103,8 +103,8 @@ test('affected Orbit tests require their job and what they use', () => {
   verifyResults(needs);
 });
 test('unchanged native packages can use validated main artifacts with their build jobs skipped', () => {
-  const needs = jobs({ orbit: 'true' });
-  needs.orbit.result = 'success';
+  const needs = jobs({ e2e: 'true' });
+  needs.e2e.result = 'success';
   for (const kind of ['engine', 'host'])
     needs[`${kind}-plan`] = {
       result: 'success',

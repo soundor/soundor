@@ -8,6 +8,7 @@ packages:
   - configs/*
   - examples/*
   - tools/*
+  - tests/*
 
 catalog:
   '@babel/core': ^8.1.0

@@ -259,12 +259,9 @@ export default [custom, oscillator({ frequency: 330 }), audioFile(), microphone(
       "webRuntime({ inputs: './audio/inputs.ts' })",
     ),
   );
-  // Custom inputs opt into a browser project, as Orbit does. Preserve the config project's types.
+  // Custom inputs opt into a browser project, as the end-to-end suite's plugin does. Preserve the config project's types.
   const browserConfig = JSON.parse(
-    await readFile(
-      resolve(repository, 'examples/orbit/tsconfig.web.json'),
-      'utf8',
-    ),
+    await readFile(resolve(repository, 'tests/e2e/tsconfig.web.json'), 'utf8'),
   );
   browserConfig.include = ['audio/**/*.ts'];
   await writeFile(

@@ -74,7 +74,7 @@ and a display to open the plugin in the host. The examples install the host
 and use automatic engine selection: matching
 releases use prebuilts; local engine changes or unpublished versions build
 from source. The examples are real applications; native CI uses the runtime's own
-test plugin fixtures, and builds only Orbit, for its end-to-end tests. See [Basic](/docs/examples/basic) and
+test plugin fixtures, and the [end-to-end suite](/docs/contribute/e2e-suite)'s plugin. See [Basic](/docs/examples/basic) and
 [Primitives](/docs/examples/primitives), and [Analyzer](/docs/examples/analyzer) for native streams.
 
 ## Run the website

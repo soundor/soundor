@@ -46,7 +46,6 @@
     "analyzer": "workspace:*",
     "basic": "workspace:*",
     "npm-to-yarn": "catalog:",
-    "orbit": "workspace:*",
     "primitives": "workspace:*",
     "rolldown": "catalog:",
     "snippets": "workspace:*",
