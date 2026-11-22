@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { KeyboardEvent } from '../../src/ui/events.ts';
 import { UiNode } from '../../src/ui/node.ts';
 import { Engine as UiView } from '../../src/ui/view.ts';
 
@@ -786,9 +787,10 @@ describe('focus', () => {
   it("gives the browser's physical key as code", () => {
     setup();
     const seen: string[] = [];
-    view.root.addEventListener('keydown', (event) =>
-      seen.push(`${event.key}/${event.code}/${event.altKey}`),
-    );
+    view.root.addEventListener('keydown', (event) => {
+      const { key, code, altKey } = event as KeyboardEvent;
+      seen.push(`${key}/${code}/${altKey}`);
+    });
     // Option+S on macOS types ß; the key is still S.
     view.rootElement.dispatchEvent(
       new window.KeyboardEvent('keydown', {
