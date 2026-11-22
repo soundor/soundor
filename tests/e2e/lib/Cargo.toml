@@ -1,0 +1,17 @@
+# The E2E plugin's processor and controller (src/lib.rs). Soundor's runtimes
+# run it natively in the VST3 plugin and compiled to WebAssembly on the Web.
+[package]
+name = "soundor-e2e"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# Soundor's SDK, with the parameters of soundor.config.ts, written by
+# `soundor gen`.
+soundor = { path = "../.soundor/generated/rust/soundor" }
+
+[profile.dev]
+opt-level = 1
+
+[workspace]

@@ -23,7 +23,7 @@ jobs:
       native: ${{ steps.detect.outputs.native }}
       benchmark: ${{ steps.detect.outputs.benchmark }}
       host: ${{ steps.detect.outputs.host }}
-      orbit: ${{ steps.detect.outputs.orbit }}
+      e2e: ${{ steps.detect.outputs.e2e }}
       vst3: ${{ steps.detect.outputs.vst3 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,7 +39,7 @@ jobs:
     name: Select engine
     needs: changes
     if: >-
-      needs.changes.outputs.native == 'true' || needs.changes.outputs.orbit == 'true' ||
+      needs.changes.outputs.native == 'true' || needs.changes.outputs.e2e == 'true' ||
       needs.changes.outputs.vst3 == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -92,7 +92,7 @@ jobs:
     name: Select VST3 host
     needs: changes
     if: >-
-      needs.changes.outputs.host == 'true' || needs.changes.outputs.orbit == 'true' ||
+      needs.changes.outputs.host == 'true' || needs.changes.outputs.e2e == 'true' ||
       needs.changes.outputs.vst3 == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -197,10 +197,10 @@ jobs:
 
       - name: Example application tests, types and web builds
         run: |
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter controller --filter midi --filter midi-arpeggiator test &&
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter controller --filter midi --filter midi-arpeggiator --filter snippets --filter soundor-benchmark test:rust &&
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter controller --filter midi --filter midi-arpeggiator typecheck &&
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter midi --filter midi-arpeggiator build:web
+          pnpm --filter basic --filter primitives --filter analyzer --filter controller --filter midi --filter midi-arpeggiator test &&
+          pnpm --filter basic --filter primitives --filter analyzer --filter controller --filter midi --filter midi-arpeggiator --filter snippets --filter soundor-benchmark --filter soundor-e2e test:rust &&
+          pnpm --filter basic --filter primitives --filter analyzer --filter controller --filter midi --filter midi-arpeggiator --filter soundor-e2e typecheck &&
+          pnpm --filter basic --filter primitives --filter analyzer --filter midi --filter midi-arpeggiator build:web
 
       # The docs and the examples' web builds they embed; fails on a broken
       # internal link or anchor. Deployed by website.yml.
@@ -229,6 +229,12 @@ jobs:
       # search, an embedded example, and editing its code.
       - name: Website browser tests
         run: pnpm --filter website test:e2e
+
+      # The end-to-end suite's plugin in the web runtime (Chromium, as
+      # above): the engine's WebAssembly core and DOM adapter, the host's
+      # audio inputs. Its VST3 suite is the E2E job's.
+      - name: E2E browser tests
+        run: pnpm --filter soundor-e2e test:web
 
       - name: Packed DevTools consumer smoke
         run: pnpm --filter soundor test:devtools-consumer
@@ -302,19 +308,19 @@ jobs:
     with:
       checks: ${{ needs.changes.outputs.host == 'true' }}
 
-  orbit:
-    name: Orbit E2E
+  e2e:
+    name: E2E
     needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
-      needs.changes.outputs.orbit == 'true' && needs.engine-plan.result == 'success' &&
+      needs.changes.outputs.e2e == 'true' && needs.engine-plan.result == 'success' &&
       (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success') &&
       needs.host-plan.result == 'success' &&
       (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/orbit.yml
+    uses: ./.github/workflows/e2e.yml
     with:
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
       engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
@@ -360,7 +366,7 @@ jobs:
         benchmark,
         host-plan,
         host,
-        orbit,
+        e2e,
         vst3,
       ]
     runs-on: ubuntu-24.04

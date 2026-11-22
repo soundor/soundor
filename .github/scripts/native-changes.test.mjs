@@ -58,9 +58,10 @@ const relock = (name) => (root) => {
   );
 };
 
-// [change, native, benchmark, host, orbit, vst3]: the jobs testing
-// @soundor/engine, soundor-benchmark, @soundor/vst3-host, the Orbit example
-// and @soundor/vst3-runtime, from the packages they depend on.
+// [change, native, benchmark, host, e2e, vst3]: the jobs testing
+// @soundor/engine, soundor-benchmark, @soundor/vst3-host, the end-to-end
+// suite (soundor-e2e) and @soundor/vst3-runtime, from the packages they
+// depend on.
 const cases = [
   // None of them depends on these.
   [
@@ -206,10 +207,10 @@ const cases = [
     true,
     true,
   ],
-  // Orbit's own tests, and what runs them.
+  // The end-to-end suite's own tests, and what runs them.
   [
-    'Orbit e2e test',
-    create('examples/orbit/e2e/fixture.test.ts'),
+    'an end-to-end test',
+    create('tests/e2e/e2e/vst3/fixture.test.ts'),
     false,
     false,
     false,
@@ -217,7 +218,7 @@ const cases = [
     false,
   ],
   [
-    'the e2e package',
+    'the vitest-e2e package',
     append('packages/vitest-e2e/src/index.ts'),
     false,
     false,
@@ -280,7 +281,7 @@ const cases = [
     true,
     false,
   ],
-  // Its own change alone is its job's and Orbit's; with another package, the graph decides.
+  // Its own change alone is its job's and the end-to-end suite's; with another package, the graph decides.
   [
     'the host, the Driver and a changeset',
     (root) => {
@@ -397,8 +398,8 @@ const cases = [
     true,
   ],
   [
-    'orbit workflow',
-    append('.github/workflows/orbit.yml'),
+    'e2e workflow',
+    append('.github/workflows/e2e.yml'),
     true,
     true,
     true,
@@ -458,7 +459,7 @@ test('native jobs follow the affected packages they test', () => {
       '--no-verify',
     );
     const base = git('rev-parse', 'HEAD');
-    for (const [name, change, native, benchmark, host, orbit, vst3] of cases) {
+    for (const [name, change, native, benchmark, host, e2e, vst3] of cases) {
       git('reset', '-q', '--hard', base);
       git('clean', '-qfd');
       change(root);
@@ -487,7 +488,7 @@ test('native jobs follow the affected packages they test', () => {
       });
       assert.equal(
         readFileSync(output, 'utf8'),
-        `native=${native}\nbenchmark=${benchmark}\nhost=${host}\norbit=${orbit}\nvst3=${vst3}\n`,
+        `native=${native}\nbenchmark=${benchmark}\nhost=${host}\ne2e=${e2e}\nvst3=${vst3}\n`,
         name,
       );
       rmSync(output);
@@ -507,7 +508,7 @@ test('an unknown base runs every native job', () => {
     });
     assert.equal(
       readFileSync(output, 'utf8'),
-      'native=true\nbenchmark=true\nhost=true\norbit=true\nvst3=true\n',
+      'native=true\nbenchmark=true\nhost=true\ne2e=true\nvst3=true\n',
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
