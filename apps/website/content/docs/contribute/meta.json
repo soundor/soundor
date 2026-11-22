@@ -37,6 +37,7 @@
     "---Testing---",
     "test-runtime",
     "react-tests",
+    "e2e-suite",
     "---Shared configs---",
     "typescript-config",
     "tsdown-config"

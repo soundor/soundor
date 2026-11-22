@@ -503,9 +503,8 @@ Even if async work ignores cancellation and returns cleanup late, the host
 calls that cleanup and keeps its audio disconnected. Stale failures do not
 replace the new input's status; current failures appear in the Audio panel.
 
-The [Orbit example](/docs/examples/orbit) registers a synthesized pluck phrase
-this way. Its audio processor handles the host input without knowing whether
-it came from the demo, a file, or a microphone.
+The plugin's audio processor handles the host input without knowing whether
+it came from a custom input, a file, or a microphone.
 
 ## The host UI
 

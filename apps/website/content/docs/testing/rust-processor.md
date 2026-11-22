@@ -128,13 +128,15 @@ pnpm --filter @soundor/web-runtime test
 pnpm --filter @soundor/web-runtime test:browser
 ```
 
-Orbit's `e2e/parity.test.ts` compares its real VST3 output with its WASM build,
-given identical seeded input, parameters, transport and block sizes. It covers
-the delay, feedback, modulation, time changes, Hold and bypass. Run it with
-`pnpm --filter orbit test:e2e` after installing the WASM target. Transcendental
-functions can differ across native and WASM math libraries; Orbit allows an
-absolute sample error below `1e-6`. Use tolerances appropriate to your DSP and
-also assert that the signal is nonzero so silence cannot pass as parity.
+Soundor's end-to-end suite (`tests/e2e/e2e/vst3/parity.test.ts`) compares its
+plugin's real VST3 output with its WASM build, given identical seeded input,
+parameters, audio state and block sizes. Run it with
+`pnpm --filter soundor-e2e test:vst3` after installing the WASM target.
+Transcendental functions can differ across native and WASM math libraries, so
+a DSP that uses them needs a tolerance (an absolute sample error below `1e-6`
+is well under what a 24-bit converter resolves). Use tolerances appropriate to
+your DSP and also assert that the signal is nonzero so silence cannot pass as
+parity.
 
 These layers each exercise their own boundary. A native `WasmHandle` unit test
 alone is not a WASM test, and invoking a worklet class in Node alone is not a

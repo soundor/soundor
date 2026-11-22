@@ -60,8 +60,8 @@ knob changes, nested modal focus, hosted portals, and animation lifecycle.
 Native application builds remain separate: `pnpm --filter basic --filter primitives
 exec soundor build vst3`. The VST3 runtime's job builds its own test plugin
 (`pnpm --filter @soundor/vst3-runtime test:plugin`) and the controller
-example; Orbit is the
-one example CI builds natively, for its end-to-end tests. Simulated tests
+example, and the [end-to-end suite](/docs/contribute/e2e-suite) builds its
+own plugin. Simulated tests
 cannot validate pixels, DSP, plugin formats or host integration. Use
 [`@soundor/vitest-e2e`](/docs/testing/e2e) to test a built VST3's real UI and
 audio in the VST3 host, alongside the native engine and adapter suites.

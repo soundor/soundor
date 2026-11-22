@@ -35,7 +35,7 @@ Release artifacts for Linux, macOS and Windows. Windows uses two runners in
 parallel: one for the dynamic C runtime (`/MD`, `/MDd`), the other for the static
 C runtime (`/MT`, `/MTd`), each with its own dependency cache. Consumers merge
 the two Windows artifacts before selecting an engine. The VST3 runtime's and
-Orbit's jobs consume those artifacts from the same run and commit instead of
+the end-to-end suite's jobs consume those artifacts from the same run and commit instead of
 rebuilding the engine. When it is not affected, they use a matching released engine. If the current version is
 unpublished or its inputs do not match the release, an unchanged package in a
 pull request can instead use complete artifacts from a successful `main` push.
@@ -212,12 +212,12 @@ each a reusable workflow called from `verify.yml`:
 | Engine              | `engine.yml`              | `engine-plan`           | Builds the engine for every target and, when it is affected, its static analysis and test suites |
 | VST3 (host)         | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host                                                                        |
 | VST3 (vst3-runtime) | `vst3.yml`                | `@soundor/vst3-runtime` | The adapter, its native tests, a real plugin in the VST3 host and pluginval                      |
-| Orbit E2E           | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
+| E2E                 | `e2e.yml`                 | `soundor-e2e`           | The [end-to-end suite](/docs/contribute/e2e-suite)'s plugin in the VST3 host, on every platform  |
 
 What uses the engine or the host waits for its whole group, so it starts from one that
 passed. Each group checks its own package only: the engine's never builds or tests a runtime,
 and a new runtime gets its own group. Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
-runs VST3 (host) and Orbit E2E alone. Verify is the one required check, and it runs for pull
+runs VST3 (host) and E2E alone. Verify is the one required check, and it runs for pull
 requests into `main` and main pushes. Each build input must be a dependency of the package whose
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)

@@ -65,8 +65,8 @@ A locator is a query for one node of the selected target:
 ```ts
 const reset = driver.getByDebugId('reset');
 const gain = driver.getByRole('adjustable', { name: 'Gain' });
-const title = driver.getByText('Orbit');
-const loose = driver.getByText('orb', { exact: false }); // case-insensitive, part
+const title = driver.getByText('My Delay');
+const loose = driver.getByText('delay', { exact: false }); // case-insensitive, part
 ```
 
 | Locator                    | Finds                                                                      |

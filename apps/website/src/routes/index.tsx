@@ -10,7 +10,6 @@ import {
   Terminal,
 } from 'lucide-react';
 
-import { OrbitDemo } from '@/components/orbit-demo';
 import { baseOptions } from '@/lib/layout.shared';
 import { repository, soundorVersion } from '@/lib/shared';
 
@@ -72,9 +71,6 @@ function Home() {
               >
                 Read the docs <ArrowUpRight size={16} aria-hidden />
               </Link>
-              <a href="#try-orbit" className="home-text-link">
-                Try Orbit ↓
-              </a>
             </div>
             <div className="home-targets" aria-label="Supported plugin formats">
               <span>VST3</span>
@@ -103,33 +99,6 @@ function Home() {
               <strong>Browser experience</strong>
               <span>The same UI · your Web Audio processor</span>
             </span>
-          </div>
-        </section>
-
-        <section
-          id="try-orbit"
-          className="home-example"
-          aria-labelledby="orbit-title"
-        >
-          <div className="home-section-heading">
-            <p className="home-eyebrow">Try something made with Soundor</p>
-            <h2 id="orbit-title">
-              Meet Orbit.
-              <br />
-              Make some space.
-            </h2>
-            <p>
-              A three-voice stereo delay you can play right here. Press Play,
-              drag the echoes, and compare Original with Orbit to hear the
-              difference.
-            </p>
-          </div>
-          <div className="home-demo">
-            <OrbitDemo />
-            <p className="home-demo-note">
-              <span className="home-note-line" /> This is a real plugin. The
-              same React UI runs in the DAW.
-            </p>
           </div>
         </section>
 

@@ -134,9 +134,9 @@ Install it with your system's packages: `xvfb` on Debian and Ubuntu,
 
 ### On CI
 
-GitHub's hosted runners have what this needs, and Soundor's own tests of
-[Orbit](https://github.com/soundor/soundor/blob/main/.github/workflows/orbit.yml)
-run on all three:
+GitHub's hosted runners have what this needs, and Soundor's own
+[end-to-end suite](https://github.com/soundor/soundor/blob/main/.github/workflows/e2e.yml)
+runs on all three:
 
 | Runner  | Setup                                                       |
 | ------- | ----------------------------------------------------------- |

@@ -71,8 +71,8 @@ dragged, or focused (Tab) with the arrow keys, it asks for a size with
 [`requestEditorSize()`](/docs/api/ui#asking-for-a-size), and hides where the
 editor's size cannot be asked for (`?embed`). The editor centres its layout
 in a window larger than its 1600×1200 maximum (`fit: 'contain'`), so a host
-making it larger still leaves the grip in the middle of the window; Orbit
-covers the window instead.
+making it larger still leaves the grip in the middle of the window
+(`fit: 'cover'` would cover the window instead).
 
 The build works from any path and inside an iframe, so a docs page can show
 the code above next to the running plugin:

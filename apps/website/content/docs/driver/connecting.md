@@ -62,7 +62,7 @@ name; otherwise commands fail with `AMBIGUOUS_TARGET`:
 
 ```ts
 const driver = await connect({ targetId: '3f0c…' });
-const byName = await connect({ targetName: 'Orbit' });
+const byName = await connect({ targetName: 'My Delay' });
 ```
 
 An unknown selection fails at once with `TARGET_NOT_FOUND`. `target()`

@@ -1844,8 +1844,8 @@ own source, as a Blob URL), not another WebAssembly module.
 processor behind the function table. What needs a real Rust processor stays
 with the runtimes, which reach the SDK: the VST3 runtime's test plugin
 (`tests/plugin.test.ts`, in the VST3 host), the web runtime's `wasm-processor.test.ts` (Node) and
-`worklet.browser.test.ts` (Chromium), and the examples' native/WASM parity
-tests (Orbit's `e2e/parity.test.ts`).
+`worklet.browser.test.ts` (Chromium), and the end-to-end suite's native/WASM
+parity tests (`tests/e2e/e2e/vst3/parity.test.ts`).
 
 ## Rust controller hosting
 
@@ -2501,7 +2501,7 @@ engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
 
 The release notes are generated from the same data. Verify builds the same
 archives through `engine.yml` as run artifacts, with no release; by hand,
-`engine-prebuilts.yml`'s `validate` mode does too. The VST3 runtime's and Orbit's jobs download these
+`engine-prebuilts.yml`'s `validate` mode does too. The VST3 runtime's and the end-to-end suite's jobs download these
 same-commit artifacts and set `SOUNDOR_ENGINE_MANIFEST` to a generated local
 manifest. When the engine is unchanged and no published engine matches, PR
 consumers can instead download complete artifacts from a successful `main` push
