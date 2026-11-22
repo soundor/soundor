@@ -185,6 +185,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         return read;
     }
 
+    void ViewRenderer::readBackAllCanvases(ui::Surface& surface)
+    {
+        for (const ui::NodeId id : surface.canvases())
+        {
+            const auto buffer = surface.canvasBuffer(id);
+            flushCanvas(*buffer);
+            if (buffer->gpuImage != nullptr && buffer->gpuImage->read(buffer->pixels))
+                surface.invalidate(id);
+        }
+    }
+
     void ViewRenderer::promote(ui::Surface& surface, const gpu::Device* gpuDevice)
     {
         for (const auto id : surface.canvases())

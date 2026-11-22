@@ -194,7 +194,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     void RuntimeHost::render(const render::Bitmap& target)
     {
-        render::ViewRenderer::readBackCanvases(*uiSurface);
+        // Every GPU canvas, not only those with a new image: a GPU compositor
+        // shows them without reading them back, so their pixels can be stale.
+        render::ViewRenderer::readBackAllCanvases(*uiSurface);
         renderer->render(*uiSurface, target, seconds());
     }
 
