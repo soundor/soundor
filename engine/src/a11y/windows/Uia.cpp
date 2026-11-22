@@ -237,6 +237,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         changed(before.label != after.label, UIA_NamePropertyId);
         changed(before.placeholder != after.placeholder, UIA_HelpTextPropertyId);
         changed(before.hint != after.hint, UIA_FullDescriptionPropertyId);
+        changed(before.keyShortcuts != after.keyShortcuts, UIA_AcceleratorKeyPropertyId);
         changed(before.state.disabled != after.state.disabled, UIA_IsEnabledPropertyId);
         changed(before.focusable != after.focusable || before.state.disabled != after.state.disabled,
                 UIA_IsKeyboardFocusablePropertyId);
@@ -817,6 +818,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     return boolean(node.modal);
                 case UIA_FullDescriptionPropertyId:
                     return text(node.hint);
+                // aria-keyshortcuts, as Chromium gives it.
+                case UIA_AcceleratorKeyPropertyId:
+                    return text(node.keyShortcuts);
                 case UIA_ItemStatusPropertyId:
                     return text(node.state.busy ? "Busy" : "");
                 case UIA_FrameworkIdPropertyId:
@@ -1034,7 +1038,47 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         }
     }
 
-    void Session::update(const TreeUpdate& update, const ViewGeometry& geometry, bool focused)
+    namespace
+    {
+        // UiaRaiseNotificationEvent: Windows 10 1709 and later, so looked up
+        // (the plugin still loads where it is missing). Its enums as their
+        // values: NotificationKind_Other (4), NotificationProcessing_ImportantAll
+        // (0) and NotificationProcessing_All (2).
+        using RaiseNotification = HRESULT(WINAPI*)(IRawElementProviderSimple*, int, int, BSTR, BSTR);
+        RaiseNotification raiseNotification()
+        {
+            static const auto raise = []() -> RaiseNotification
+            {
+                const HMODULE core = GetModuleHandleW(L"uiautomationcore.dll");
+                if (core == nullptr)
+                    return nullptr;
+                // Through void*: FARPROC is no function type of its own.
+                return reinterpret_cast<RaiseNotification>(
+                    reinterpret_cast<void*>(GetProcAddress(core, "UiaRaiseNotificationEvent")));
+            }();
+            return raise;
+        }
+
+        void announce(IRawElementProviderSimple* source, const std::vector<Announcement>& announcements)
+        {
+            const RaiseNotification raise = raiseNotification();
+            BSTR activity = nullptr;
+            if (raise == nullptr || FAILED(stringValue("Soundor.Announcement", &activity)))
+                return;
+            for (const Announcement& announcement : announcements)
+            {
+                BSTR message = nullptr;
+                if (FAILED(stringValue(announcement.message, &message)))
+                    continue;
+                raise(source, 4, announcement.priority == Priority::Assertive ? 0 : 2, message, activity);
+                SysFreeString(message);
+            }
+            SysFreeString(activity);
+        }
+    } // namespace
+
+    void Session::update(const TreeUpdate& update, const ViewGeometry& geometry, bool focused,
+                         const std::vector<Announcement>& announcements)
     {
         // Snapshot screen origin on the HWND thread; queries never send window
         // messages or touch a RuntimeHost. UIA calls happen after unlocking.
@@ -1051,6 +1095,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         std::vector<Microsoft::WRL::ComPtr<Provider>> retired;
         Microsoft::WRL::ComPtr<Provider> rootEvent;
         Microsoft::WRL::ComPtr<Provider> focusEvent;
+        Microsoft::WRL::ComPtr<Provider> announcer;
         const bool clients = UiaClientsAreListening() != FALSE;
         {
             const std::scoped_lock lock(state->mutex);
@@ -1144,6 +1189,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 focusProperty(oldFocus, false);
                 focusProperty(newFocus, true);
             }
+            // From the focused element, else the view.
+            if (notify && ! announcements.empty())
+                announcer = state->element(
+                    state, newFocus != noNode && state->tree.find(newFocus) != nullptr ? state->key(newFocus) : noNode);
         }
         for (const PropertyEvent& event : events)
         {
@@ -1163,6 +1212,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         {
             UiaRaiseAutomationEvent(focusEvent.Get(), UIA_AutomationFocusChangedEventId);
         }
+        if (announcer != nullptr)
+            announce(announcer.Get(), announcements);
         for (const auto& provider : retired)
             UiaDisconnectProvider(provider.Get());
     }
@@ -1182,6 +1233,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             }
             void tick(RuntimeHost& host) override
             {
+                // Taken whether or not anything listens: none is spoken late.
+                const std::vector<Announcement> announcements = host.accessibility().takeAnnouncements();
                 if (hwnd == nullptr || ! session.active())
                     return;
                 const bool sameHost = lastHost == &host;
@@ -1192,7 +1245,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 // UIA can re-enter window handling. Publish bookkeeping first,
                 // and do not access this editor after sending notifications.
                 lastHost = &host;
-                session.update(changes, geometry, focused);
+                session.update(changes, geometry, focused, announcements);
             }
             void setGeometry(const ViewGeometry& next) override { geometry = next; }
             void setFocused(bool next) override { focused = next; }

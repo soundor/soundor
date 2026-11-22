@@ -14,6 +14,8 @@ export interface SemanticNode {
   role: SemanticRole;
   name: string;
   description: string;
+  /** The shortcuts that act on it, as `aria-keyshortcuts` writes them. */
+  keyShortcuts: string;
   state: AccessibilityState;
   value: AccessibilityValue;
   hidden: boolean;
@@ -144,6 +146,7 @@ export function semanticSnapshot(roots: readonly TestNode[]): {
       role,
       name: a.label || (node.type === 'text' ? node.text : text(node)),
       description: a.hint ?? '',
+      keyShortcuts: a.keyShortcuts ?? '',
       state: {
         ...a.state,
         ...(role === 'option' ? { selected: a.state?.selected ?? false } : {}),

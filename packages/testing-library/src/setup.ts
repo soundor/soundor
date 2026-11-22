@@ -37,6 +37,16 @@ export const testView = {
   resize(size: ViewSizeInit): void {
     getTestRuntime().setViewSize(size);
   },
+  /**
+   * What the UI asked assistive technology to speak with announce()
+   * (soundor:ui), in order.
+   */
+  announcements(): readonly {
+    message: string;
+    priority: 'polite' | 'assertive';
+  }[] {
+    return [...getTestRuntime().announcements];
+  },
 };
 
 /**

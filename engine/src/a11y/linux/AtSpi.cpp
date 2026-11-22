@@ -158,6 +158,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             return std::exchange(requests, {});
         }
 
+        void announce(std::vector<Announcement> next)
+        {
+            if (next.empty())
+                return;
+            const std::scoped_lock lock(mutex);
+            for (Announcement& announcement : next)
+                announcements.push_back(std::move(announcement));
+            g_main_context_wakeup(context);
+        }
+
         [[nodiscard]] bool active() const { return registered; }
 
     private:
@@ -193,12 +203,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         void poll()
         {
             std::vector<Update> next;
+            std::vector<Announcement> spoken;
             {
                 const std::scoped_lock lock(mutex);
                 next.swap(updates);
+                spoken.swap(announcements);
             }
             for (const Update& update : next)
                 apply(update);
+            for (const Announcement& announcement : spoken)
+                announce(announcement);
             if (connection != nullptr && g_dbus_connection_is_closed(connection))
                 disconnect();
             const auto now = g_get_monotonic_time();
@@ -472,6 +486,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             signal(pathOf(id).c_str(), "org.a11y.atspi.Event.Object", member,
                    g_variant_new("(siiv@a{sv})", detail, first, second, payload,
                                  g_variant_new_array(G_VARIANT_TYPE("{sv}"), nullptr, 0)));
+        }
+
+        // As GTK 4 announces (gtk_accessible_announce) and Orca speaks it:
+        // object:announcement, its politeness ATSPI_LIVE_POLITE (1) or
+        // ATSPI_LIVE_ASSERTIVE (2), from the focused element, else the view.
+        void announce(const Announcement& announcement) const
+        {
+            if (! registered)
+                return;
+            const NodeId from = tree.focus() != noNode ? tree.focus() : tree.root();
+            event(from, "Announcement", "", announcement.priority == Priority::Assertive ? 2 : 1,
+                  g_variant_new_string(announcement.message.c_str()));
         }
 
         void childrenChanged(const Node& before, const Node& after) const
@@ -775,6 +801,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                         g_variant_builder_add(&attributes, "{ss}", "placeholder-text", node.placeholder.c_str());
                     if (! node.value.text.empty())
                         g_variant_builder_add(&attributes, "{ss}", "valuetext", node.value.text.c_str());
+                    // aria-keyshortcuts, as browsers give it (Orca reads it).
+                    if (! node.keyShortcuts.empty())
+                        g_variant_builder_add(&attributes, "{ss}", "keyshortcuts", node.keyShortcuts.c_str());
                     return g_variant_new("(@a{ss})", g_variant_builder_end(&attributes));
                 }
                 const auto children = childrenOf(node);
@@ -939,6 +968,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         std::mutex mutex;
         std::vector<Update> updates;
         std::vector<ActionRequest> requests;
+        std::vector<Announcement> announcements;
         std::uint64_t generation = 0;
         // Everything below belongs exclusively to the owned event thread.
         GDBusNodeInfo* metadata = nullptr;
@@ -973,6 +1003,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
     std::vector<ActionRequest> Session::takeRequests()
     {
         return impl->takeRequests();
+    }
+    void Session::announce(std::vector<Announcement> announcements)
+    {
+        impl->announce(std::move(announcements));
     }
     bool Session::active() const
     {

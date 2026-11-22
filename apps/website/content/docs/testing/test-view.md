@@ -1,6 +1,6 @@
 ---
 title: 'testView'
-description: 'Resizes the plugin view in a test, as a user resizing the editor does.'
+description: 'Resizes the plugin view in a test, as a user resizing the editor does, and lists what it announced.'
 ---
 
 ```ts
@@ -25,6 +25,28 @@ expect(screen.getByLabelText('Controls')).toBeDefined();
 
 testView.resize({ width: 520 });
 expect(screen.getByLabelText('Controls, stacked')).toBeDefined();
+```
+
+## Announcements
+
+```ts
+testView.announcements(): readonly {
+  message: string;
+  priority: 'polite' | 'assertive';
+}[];
+```
+
+What the UI asked a screen reader to speak with `soundor:ui`'s
+[`announce()`](/docs/primitives/accessibility#announcements), in order,
+since the test began (an empty message is none). The arguments are checked
+as the runtimes check them.
+
+```tsx
+await render(<PresetBar />);
+await user.keyboard('{Control>}c{/Control}');
+expect(testView.announcements()).toEqual([
+  { message: 'Preset copied', priority: 'polite' },
+]);
 ```
 
 ## Good to know

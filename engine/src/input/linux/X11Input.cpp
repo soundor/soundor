@@ -1,6 +1,7 @@
 #include "input/linux/X11Input.h"
 
 #include "input/ClickCounter.h"
+#include "input/KeyCodes.h"
 #include "input/linux/Keys.h"
 #include "input/linux/Scroll.h"
 #include "input/linux/Xlib.h"
@@ -15,6 +16,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -833,6 +835,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::x11
                         return;
                     ui::KeyInput input { .down = false,
                                          .key = heldKey->name,
+                                         .code = std::string(codeOf(heldKey->keycode)),
                                          .repeat = false,
                                          .modifiers =
                                              static_cast<ui::Modifiers>(modifiers & ~modifierOfKey(heldKey->name)) };
@@ -866,6 +869,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::x11
                 const ui::Modifiers own = modifierOfKey(name);
                 emit(KeyEvent { .key = { .down = true,
                                          .key = std::move(name),
+                                         .code = std::string(codeOf(event.keycode)),
                                          .repeat = repeat,
                                          .modifiers = static_cast<ui::Modifiers>(modifiers | own) },
                                 .typed = std::move(typed) });
@@ -874,9 +878,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::x11
             void releaseKeys()
             {
                 for (HeldKey& released : std::exchange(heldKeys, {}))
-                    emit(KeyEvent {
-                        .key = { .down = false, .key = std::move(released.name), .repeat = false, .modifiers = 0 },
-                        .typed = {} });
+                    emit(KeyEvent { .key = { .down = false,
+                                             .key = std::move(released.name),
+                                             .code = std::string(codeOf(released.keycode)),
+                                             .repeat = false,
+                                             .modifiers = 0 },
+                                    .typed = {} });
+            }
+
+            // X11 keycodes are evdev's, less 8 (as every X server since
+            // xf86-input-evdev numbers them).
+            static std::string_view codeOf(unsigned keycode) noexcept
+            {
+                return keycode >= 8 ? codeOfEvdev(keycode - 8) : std::string_view {};
             }
 
             // ── Input method ───────────────────────────────────────────────

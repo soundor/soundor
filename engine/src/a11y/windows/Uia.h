@@ -39,7 +39,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         Session(const Session&) = delete;
         Session& operator=(const Session&) = delete;
 
-        void update(const TreeUpdate& update, const ViewGeometry& geometry, bool focused);
+        // `announcements` are raised last, as UIA notification events from
+        // the focused element (else the view), while clients listen.
+        void update(const TreeUpdate& update, const ViewGeometry& geometry, bool focused,
+                    const std::vector<Announcement>& announcements = {});
         [[nodiscard]] std::vector<ActionRequest> takeRequests();
         // AddRef'd; caller owns the returned reference. Also activates events.
         [[nodiscard]] IRawElementProviderSimple* provider();

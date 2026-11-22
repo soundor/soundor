@@ -25,16 +25,17 @@ the platform's accessibility natively).
 
 ## The props
 
-| Prop                    | What it says                                                                                                                                                                                                                                                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accessible`            | `true`: one element, its descendants' text its label. `false`: the element itself is not perceived; its descendants still are.                                                                                                                                                                                                         |
-| `accessibilityLabel`    | What is read. By default, a text's text, or the text inside a button-like element.                                                                                                                                                                                                                                                     |
-| `accessibilityHint`     | What acting on it does.                                                                                                                                                                                                                                                                                                                |
-| `accessibilityRole`     | `none`, `text`, `image`, `button`, `link`, `adjustable`, `checkbox`, `switch`, `togglebutton`, `radio`, `radiogroup`, `progressbar`, `search`, `combobox`, `menu`, `menubar`, `menuitem`, `listbox`, `option`, `scrollbar`, `spinbutton`, `tab`, `tablist`, `header`, `summary`, `keyboardkey`, `timer`, `toolbar`, `alert`, `dialog`. |
-| `accessibilityState`    | `disabled`, `readOnly`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                                        |
-| `accessibilityValue`    | `min`, `max`, `now` (fractional values are fine) and `text` (`'-3.5 dB'`, read in place of the number).                                                                                                                                                                                                                                |
-| `accessibilityActions`  | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, or custom names with a `label`.                                                                                                                                                                             |
-| `onAccessibilityAction` | An action asked of this element: `event.actionName`, and `event.value` for `setValue`. `event.preventDefault()` keeps the runtime's own response (a Pressable's press, focusing) from following.                                                                                                                                       |
+| Prop                        | What it says                                                                                                                                                                                                                                                                                                                           |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accessible`                | `true`: one element, its descendants' text its label. `false`: the element itself is not perceived; its descendants still are.                                                                                                                                                                                                         |
+| `accessibilityLabel`        | What is read. By default, a text's text, or the text inside a button-like element.                                                                                                                                                                                                                                                     |
+| `accessibilityHint`         | What acting on it does.                                                                                                                                                                                                                                                                                                                |
+| `accessibilityKeyShortcuts` | The keyboard shortcuts that act on it, as `aria-keyshortcuts` writes them: `'Control+Shift+S Meta+Shift+S'` ([Keyboard shortcuts](#keyboard-shortcuts)).                                                                                                                                                                               |
+| `accessibilityRole`         | `none`, `text`, `image`, `button`, `link`, `adjustable`, `checkbox`, `switch`, `togglebutton`, `radio`, `radiogroup`, `progressbar`, `search`, `combobox`, `menu`, `menubar`, `menuitem`, `listbox`, `option`, `scrollbar`, `spinbutton`, `tab`, `tablist`, `header`, `summary`, `keyboardkey`, `timer`, `toolbar`, `alert`, `dialog`. |
+| `accessibilityState`        | `disabled`, `readOnly`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                                        |
+| `accessibilityValue`        | `min`, `max`, `now` (fractional values are fine) and `text` (`'-3.5 dB'`, read in place of the number).                                                                                                                                                                                                                                |
+| `accessibilityActions`      | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, or custom names with a `label`.                                                                                                                                                                             |
+| `onAccessibilityAction`     | An action asked of this element: `event.actionName`, and `event.value` for `setValue`. `event.preventDefault()` keeps the runtime's own response (a Pressable's press, focusing) from following.                                                                                                                                       |
 
 ## Disabled and read-only controls
 
@@ -73,6 +74,66 @@ component still manages selection and keyboard navigation.
 
 In Testing Library, use `getByRole('listbox')` and
 `getByRole('option', { selected: true })`.
+
+## Keyboard shortcuts
+
+`accessibilityKeyShortcuts` tells assistive technology which shortcuts act
+on an element, as `aria-keyshortcuts` writes them: each shortcut its keys'
+`KeyboardEvent.key` names joined by `+`, modifiers first, the alternatives
+separated by spaces. It only tells: the shortcut is the app's to handle
+([Keyboard shortcuts](/docs/primitives/events#keyboard-shortcuts)), so give
+the shortcuts it handles on the platform it runs on.
+
+```tsx
+<Pressable
+  accessibilityKeyShortcuts={isMac ? 'Meta+Shift+S' : 'Control+Shift+S'}
+  onPress={saveAs}
+>
+  <Text>Save as…</Text>
+</Pressable>
+```
+
+| Platform | How shortcuts are exposed                                                                                |
+| -------- | -------------------------------------------------------------------------------------------------------- |
+| Web      | `aria-keyshortcuts`.                                                                                     |
+| Windows  | UI Automation `AcceleratorKey`, as given.                                                                |
+| Linux    | AT-SPI's `keyshortcuts` attribute, as browsers give it.                                                  |
+| macOS    | AppKit has no property for them outside its menus: the help text has them after the hint, `Saves (⇧⌘S)`. |
+| iOS      | The same in the hint: UIKit has none outside its key commands.                                           |
+
+In tests, a semantic node's `keyShortcuts` has them.
+
+## Announcements
+
+`announce(message, { priority })` from `soundor:ui` has a screen reader
+speak a message that is no element's label or value: what an action did when
+it changed nothing focused (a shortcut that copied a preset, or saved), or
+a change in a live control.
+
+```ts
+import { announce } from 'soundor:ui';
+
+announce('Preset copied');
+announce('Clipping', { priority: 'assertive' });
+```
+
+`'polite'` (the default) waits until the screen reader has said what it is
+saying; `'assertive'` interrupts it, for what the user must know now. Keep
+announcements few and short: a meter announcing every value is noise.
+Nothing is spoken when no screen reader runs, and messages are not kept for
+one that starts later. An empty message is nothing; a message that is not a
+string, or another priority, throws a `TypeError`.
+
+| Platform | How a message is spoken                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| Web      | An entry added to an ARIA live region, `aria-live` polite or assertive.                             |
+| Windows  | A UI Automation notification event (Windows 10 1709 and later), `ImportantAll` when assertive.      |
+| Linux    | AT-SPI's `object:announcement`, politeness polite or assertive (Orca speaks it).                    |
+| macOS    | `NSAccessibilityAnnouncementRequestedNotification`, priority high when assertive, medium otherwise. |
+| iOS      | `UIAccessibilityAnnouncementNotification`, queued unless assertive.                                 |
+
+In tests, [`testView.announcements()`](/docs/testing/test-view) lists what
+was announced.
 
 ## Defaults
 

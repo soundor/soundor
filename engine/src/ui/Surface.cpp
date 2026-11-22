@@ -1589,6 +1589,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         endLock();
     }
 
+    void Surface::announce(a11y::Announcement announcement)
+    {
+        if (announcement.message.empty())
+            return;
+        if (announcements.size() == maxAnnouncements)
+            announcements.erase(announcements.begin());
+        announcements.push_back(std::move(announcement));
+    }
+
+    std::vector<a11y::Announcement> Surface::takeAnnouncements()
+    {
+        return std::exchange(announcements, {});
+    }
+
     void Surface::endLock() noexcept
     {
         if (! lock)
@@ -1970,6 +1984,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const NodeId target = focused();
         event.target = target != noNode ? target : rootNode->nodeId;
         event.key = input.key;
+        event.code = input.code;
         event.repeat = input.repeat;
         event.modifiers = input.modifiers;
         if (! get(event.target).inputDisabled() && dispatch(event))

@@ -322,6 +322,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         WheelInput::Unit deltaUnit = WheelInput::Unit::Pixel;
 
         std::string key;
+        std::string code;
         bool repeat = false;
         std::string text;
 
@@ -603,6 +604,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // every tick, as cursor()).
         [[nodiscard]] std::optional<PointerLock> pointerLock();
 
+        // Queues a message for assistive technology to speak (soundor:ui's
+        // announce()); an empty one is nothing. Platform accessibility takes
+        // them every tick, speaking them only while it is active, so none is
+        // spoken late; until then, only the latest maxAnnouncements are kept.
+        void announce(a11y::Announcement announcement);
+        [[nodiscard]] std::vector<a11y::Announcement> takeAnnouncements();
+        static constexpr std::size_t maxAnnouncements = 16;
+
         // Delivers an accessibility action to `target` (an
         // `accessibilityaction` event); whether something acted on it.
         bool accessibilityAction(NodeId target, std::string action,
@@ -764,6 +773,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::uint64_t hoverRevision = 0;
         std::optional<PointerLock> lock;
         Point lockPosition; // where the lock began, in the view
+        std::vector<a11y::Announcement> announcements;
         // The movement of the input being routed, for its events.
         Point routedMovement;
         bool route(PointerState& state, const PointerInput& input);

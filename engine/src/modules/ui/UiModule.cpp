@@ -357,6 +357,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 optional(object, "role", path, role);
                 field(object, "label", path, out.label);
                 field(object, "hint", path, out.hint);
+                field(object, "keyShortcuts", path, out.keyShortcuts);
                 field(object, "modal", path, out.modal);
                 readState(state, path.field("state"), out.state);
                 readValue(current, path.field("value"), out.value);
@@ -593,6 +594,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface)
                         {
                             surface.exitPointerLock();
+                            return jsi::Value::undefined();
+                        });
+        }
+
+        jsi::Value announce(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "announce", count, 2,
+                        [&](Surface& surface)
+                        {
+                            a11y::Announcement announcement;
+                            bind::read(context, args[0], bind::Path { "message" }, announcement.message);
+                            announcement.priority =
+                                bind::toBoolean(context, args[1]) ? a11y::Priority::Assertive : a11y::Priority::Polite;
+                            surface.announce(std::move(announcement));
                             return jsi::Value::undefined();
                         });
         }
@@ -1392,6 +1407,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 case Event::Type::KeyDown:
                 case Event::Type::KeyUp:
                     data.set("key", bind::write(context, event.key));
+                    data.set("code", bind::write(context, event.code));
                     data.set("repeat", jsi::Value(event.repeat));
                     break;
                 case Event::Type::BeforeInput:
@@ -1471,6 +1487,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "requestPointerLock", requestPointerLock, 1 },
             { "exitPointerLock", exitPointerLock, 0 },
             { "pointerLock", pointerLock, 0 },
+            { "announce", announce, 2 },
             { "frame", nodeFrame, 1 },
             { "bounds", bounds, 1 },
             { "size", viewSize, 0 },

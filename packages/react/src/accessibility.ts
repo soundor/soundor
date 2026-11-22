@@ -37,6 +37,13 @@ export interface AccessibilityProps {
   accessibilityLabel?: string;
   /** What acting on the element does, when the label does not say. */
   accessibilityHint?: string;
+  /**
+   * The keyboard shortcuts that act on the element, for assistive
+   * technology, as `aria-keyshortcuts` writes them: each its keys joined by
+   * '+', modifiers first, alternatives separated by spaces
+   * (`'Control+Shift+S Meta+Shift+S'`). Handling them is the app's.
+   */
+  accessibilityKeyShortcuts?: string;
   accessibilityRole?: AccessibilityRole;
   /** Semantic states. `disabled` also blocks activation and focus in the subtree; `readOnly` does not. */
   accessibilityState?: AccessibilityState;
@@ -62,6 +69,7 @@ export const ACCESSIBILITY_PROPS = {
   accessibilityRole: 'role',
   accessibilityLabel: 'label',
   accessibilityHint: 'hint',
+  accessibilityKeyShortcuts: 'keyShortcuts',
   accessibilityState: 'state',
   accessibilityValue: 'value',
   accessibilityActions: 'actions',

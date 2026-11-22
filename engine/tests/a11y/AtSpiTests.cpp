@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -529,6 +530,38 @@ TEST_SUITE("Linux AT-SPI")
             }));
         CHECK(std::ranges::any_of(notifications, [](const auto& event)
                                   { return event.member == "RemoveAccessible" && event.signature == "((so))"; }));
+    }
+
+    TEST_CASE("key shortcuts are an attribute, and announcements object:announcement events")
+    {
+        Bus bus;
+        atspi::Session session("Shortcuts", bus.address);
+        auto update = example();
+        update.nodes[1].keyShortcuts = "Control+Shift+S";
+        session.update(update, {}, true);
+        REQUIRE(eventually([&] { return session.active(); }));
+        const auto app = bus.applications().front();
+        const std::string attributes = printed(bus, app, "/org/a11y/atspi/accessible/n11", "org.a11y.atspi.Accessible",
+                                               "GetAttributes", nullptr, G_VARIANT_TYPE("(a{ss})"));
+        CHECK(attributes.find("'keyshortcuts': 'Control+Shift+S'") != std::string::npos);
+        bus.takeEvents();
+        session.announce({ { "Preset copied", Priority::Polite }, { "Clipping", Priority::Assertive } });
+        std::vector<Bus::Event> notifications;
+        REQUIRE(eventually(
+            [&]
+            {
+                auto next = bus.takeEvents();
+                notifications.insert(notifications.end(), next.begin(), next.end());
+                return std::ranges::count(notifications, "Announcement", &Bus::Event::member) == 2;
+            }));
+        std::vector<Bus::Event> spoken;
+        std::ranges::copy_if(notifications, std::back_inserter(spoken),
+                             [](const auto& event) { return event.member == "Announcement"; });
+        // From the focused element; ATSPI_LIVE_POLITE, then ATSPI_LIVE_ASSERTIVE.
+        CHECK(spoken[0].path.ends_with("n11"));
+        CHECK(spoken[0].signature == "(siiva{sv})");
+        CHECK(spoken[0].payload.find("('', 1, 0, <'Preset copied'>") != std::string::npos);
+        CHECK(spoken[1].payload.find("('', 2, 0, <'Clipping'>") != std::string::npos);
     }
 
     TEST_CASE("text values use Unicode offsets without inventing caret or selection data")

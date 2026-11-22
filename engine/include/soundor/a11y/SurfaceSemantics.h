@@ -42,6 +42,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         [[nodiscard]] const Tree& inspect();
 #endif
 
+        // The messages plugin code asked to be spoken since the last call
+        // (ui::Surface::announce()), for a platform's accessibility to speak
+        // while it is active, and to drop while it is not.
+        [[nodiscard]] std::vector<Announcement> takeAnnouncements() { return surface.takeAnnouncements(); }
+
         // The tree as of the last update().
         [[nodiscard]] const Tree& tree() const noexcept { return current; }
 

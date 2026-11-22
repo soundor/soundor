@@ -102,6 +102,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // KeyboardEvent.key: the character ("a", "A", "1") or a named key
         // ("Enter", "ArrowLeft", "Backspace", "F5"...).
         std::string key;
+        // KeyboardEvent.code: the physical key ("KeyS", "Digit1",
+        // "ShiftLeft"), whatever the layout and modifiers make it type;
+        // empty when unknown.
+        std::string code;
         bool repeat = false;
         Modifiers modifiers = 0;
     };

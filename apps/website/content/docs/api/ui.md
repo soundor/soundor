@@ -139,17 +139,18 @@ has the details.
 
 ## The rest
 
-| Export                                                                                                | What it is                                                                                                   |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `pressable(node, handlers)`                                                                           | Makes a node pressable and focusable (what `Pressable` uses); returns a function that undoes it.             |
-| `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                                |
-| `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                                     |
-| `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/primitives/events#pointer-lock)). |
-| `viewSize()`, `subscribeViewSize(listener)`                                                           | The view's size and its subscription ([The view's size](#the-views-size)).                                   |
-| `editorSize()`, `subscribeEditorSize(listener)`                                                       | The editor's size and its subscription ([The editor's size](#the-editors-size)).                             |
-| `requestEditorSize(width, height)`                                                                    | Asks for another editor size ([Asking for a size](#asking-for-a-size)).                                      |
-| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/primitives/text#fonts)).                         |
-| `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/primitives/events)).                                                   |
+| Export                                                                                                | What it is                                                                                                                |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `pressable(node, handlers)`                                                                           | Makes a node pressable and focusable (what `Pressable` uses); returns a function that undoes it.                          |
+| `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                                             |
+| `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                                                  |
+| `announce(message, { priority }?)`                                                                    | Has a screen reader speak `message`, polite or assertive ([Announcements](/docs/primitives/accessibility#announcements)). |
+| `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/primitives/events#pointer-lock)).              |
+| `viewSize()`, `subscribeViewSize(listener)`                                                           | The view's size and its subscription ([The view's size](#the-views-size)).                                                |
+| `editorSize()`, `subscribeEditorSize(listener)`                                                       | The editor's size and its subscription ([The editor's size](#the-editors-size)).                                          |
+| `requestEditorSize(width, height)`                                                                    | Asks for another editor size ([Asking for a size](#asking-for-a-size)).                                                   |
+| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/primitives/text#fonts)).                                      |
+| `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/primitives/events)).                                                                |
 
 `requestAnimationFrame()` is a global, as on the Web: its callback runs once,
 before the view's next frame.

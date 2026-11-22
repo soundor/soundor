@@ -44,6 +44,7 @@ export interface NormalizedAccessibility {
   readonly role: AccessibilityRole | null;
   readonly label: string;
   readonly hint: string;
+  readonly keyShortcuts: string;
   readonly state: {
     readonly disabled: boolean;
     readonly readOnly: boolean;
@@ -138,6 +139,8 @@ export function normalizeAccessibility(
     role: role as AccessibilityRole | null,
     label: optional(given, 'label', 'string', 'accessibility') ?? '',
     hint: optional(given, 'hint', 'string', 'accessibility') ?? '',
+    keyShortcuts:
+      optional(given, 'keyShortcuts', 'string', 'accessibility') ?? '',
     state: {
       disabled:
         optional(state, 'disabled', 'boolean', 'accessibility.state') ?? false,

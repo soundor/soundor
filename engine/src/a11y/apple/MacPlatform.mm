@@ -301,7 +301,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             }
             else
                 [element setAccessibilityLabel:node.label.empty() ? nil : string(node.label)];
-            [element setAccessibilityHelp:node.hint.empty() ? nil : string(node.hint)];
+            // AppKit has no property for key shortcuts but a menu item's.
+            const std::string help = hintWithKeyShortcuts(node.hint, node.keyShortcuts);
+            [element setAccessibilityHelp:help.empty() ? nil : string(help)];
             [element setAccessibilityEnabled:node.state.disabled ? NO : YES];
             [element setAccessibilitySelected:node.state.selected.value_or(false) ? YES : NO];
             [element setAccessibilityExpanded:node.state.expanded.value_or(false) ? YES : NO];
@@ -364,6 +366,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 for (const ActionRequest& request : take(*channel))
                     if (sameHost)
                         host.performAccessibilityAction(request);
+                // Taken whether or not VoiceOver runs: none is spoken late.
+                const std::vector<Announcement> announcements = host.accessibility().takeAnnouncements();
 
                 const bool on = active();
                 if (! on)
@@ -378,6 +382,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 lastHost = &host;
                 apply(host.accessibility().update(full));
                 refreshFrames(false);
+                announce(announcements);
             }
 
             void setGeometry(const ViewGeometry& next) override
@@ -401,6 +406,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             [[nodiscard]] void* accessibilityContainer() const override { return (__bridge void*)container; }
 
         private:
+            // As browsers speak aria-live: requested of the view's window.
+            void announce(const std::vector<Announcement>& announcements) const
+            {
+                NSView* shown = view;
+                id source = shown.window != nil ? shown.window : static_cast<id>(shown);
+                if (source == nil)
+                    return;
+                for (const Announcement& announcement : announcements)
+                    NSAccessibilityPostNotificationWithUserInfo(
+                        source, NSAccessibilityAnnouncementRequestedNotification, @{
+                            NSAccessibilityAnnouncementKey : string(announcement.message),
+                            NSAccessibilityPriorityKey :
+                                @(announcement.priority == Priority::Assertive ? NSAccessibilityPriorityHigh
+                                                                               : NSAccessibilityPriorityMedium),
+                        });
+            }
+
             NSAccessibilityElement* element(NodeId id) const
             {
                 return elements[@(static_cast<unsigned long long>(id))];

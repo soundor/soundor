@@ -24,6 +24,27 @@ test('modifiers, physical descriptors, literal delimiters and Unicode retain ses
     'Unclosed keyboard descriptor',
   );
 });
+test('keys carry the code of the US key that types them, or the physical one named', async () => {
+  const r = getTestRuntime(),
+    user = userEvent.setup();
+  const seen: string[] = [];
+  r.root.addEventListener('keydown', (event) =>
+    seen.push(`${event['key']}/${event['code']}`),
+  );
+  await user.keyboard('{Shift>}s!{/Shift}{Enter}[Digit1]{F5}');
+  expect(seen).toEqual([
+    'Shift/ShiftLeft',
+    's/KeyS',
+    '!/Digit1',
+    'Enter/Enter',
+    '1/Digit1',
+    'F5/F5',
+  ]);
+  seen.length = 0;
+  fireEvent.keyDown(r.root, { key: 'ß', code: 'KeyS', altKey: true });
+  fireEvent.keyDown(r.root, { key: 'x' });
+  expect(seen).toEqual(['ß/KeyS', 'x/']);
+});
 test('a knob locks its drag and turns by movement, as natively', async () => {
   const r = getTestRuntime(),
     knob = r.create('view'),

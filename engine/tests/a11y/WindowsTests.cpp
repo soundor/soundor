@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <thread>
+#include <vector>
 
 using namespace soundor;
 using namespace soundor::a11y;
@@ -43,6 +44,7 @@ namespace
         knob.role = Role::Adjustable;
         knob.label = "Gain";
         knob.hint = "Output level";
+        knob.keyShortcuts = "Control+G";
         knob.value = { -60, 12, -3.5, "-3.5 dB" };
         knob.bounds = { 10, 20, 40, 40 };
         knob.focusable = true;
@@ -178,6 +180,9 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(std::ranges::find(events, UIA_ExpandCollapseExpandCollapseStatePropertyId) != events.end());
         CHECK(std::ranges::find(events, UIA_BoundingRectanglePropertyId) != events.end());
         CHECK(std::ranges::find(events, UIA_RangeValueValuePropertyId) == events.end());
+        changed = meter;
+        changed.keyShortcuts = "Control+M";
+        CHECK(uia::changedProperties(meter, changed) == std::vector<PROPERTYID> { UIA_AcceleratorKeyPropertyId });
     }
 
     TEST_CASE("read-only transitions report UIA properties without passive value events")
@@ -273,6 +278,7 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(noHost == nullptr);
         CHECK(property(gain.Get(), UIA_NamePropertyId) == L"Gain");
         CHECK(property(gain.Get(), UIA_FullDescriptionPropertyId) == L"Output level");
+        CHECK(property(gain.Get(), UIA_AcceleratorKeyPropertyId) == L"Control+G");
         auto again = navigate(provider.Get(), NavigateDirection_FirstChild);
         CHECK(again.Get() == gain.Get());
         auto parent = navigate(gain.Get(), NavigateDirection_Parent);

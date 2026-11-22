@@ -481,6 +481,11 @@ TEST_SUITE("native input: X11 (XTest)")
         CHECK(withShift[1].typed.empty());
         CHECK(withShift[3].typed == "A");
         CHECK(withShift[5].key.modifiers == 0);
+        // The physical keys, whatever Shift makes them type.
+        CHECK(withShift[0].key.code == "ShiftLeft");
+        CHECK(withShift[3].key.code == "KeyA");
+        CHECK(withShift[4].key.code == "KeyA");
+        CHECK(withShift[5].key.code == "ShiftLeft");
 
         framework.key(XK_Control_L, true);
         framework.type(XK_c);
@@ -493,7 +498,9 @@ TEST_SUITE("native input: X11 (XTest)")
         CHECK(shortcut[1].key.key == "c");
         CHECK(shortcut[1].key.modifiers == ui::Modifier::Control);
         CHECK(shortcut[1].typed.empty()); // a shortcut types nothing
+        CHECK(shortcut[1].key.code == "KeyC");
         CHECK(shortcut[4].key.key == "Enter");
+        CHECK(shortcut[4].key.code == "Enter");
         CHECK(shortcut[4].typed.empty());
         CHECK(shortcut[6].key.key == "Backspace");
 

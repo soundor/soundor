@@ -129,6 +129,33 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
     // The standard action `name` is, or Custom.
     [[nodiscard]] Action actionFromName(std::string_view name) noexcept;
 
+    // keyShortcuts (aria-keyshortcuts' form) as Apple platforms write
+    // shortcuts, for where they have no property for them: each its
+    // modifiers' symbols in their order, then its key ("Meta+Shift+S" is
+    // "⇧⌘S"), the alternatives separated by ", ".
+    [[nodiscard]] std::string appleKeyShortcuts(std::string_view keyShortcuts);
+    // An element's hint where the platform has nowhere else for its key
+    // shortcuts (Apple's): the hint, then the shortcuts in parentheses.
+    [[nodiscard]] std::string hintWithKeyShortcuts(const std::string& hint, std::string_view keyShortcuts);
+
+    // How urgently assistive technology speaks an announcement: after what it
+    // is saying (polite), or at once, interrupting it (assertive).
+    enum class Priority : std::uint8_t
+    {
+        Polite,
+        Assertive,
+    };
+
+    // A message for assistive technology to speak, which is no element's
+    // label or value: what an action did ("Preset copied").
+    struct Announcement
+    {
+        std::string message;
+        Priority priority = Priority::Polite;
+
+        friend bool operator==(const Announcement&, const Announcement&) = default;
+    };
+
     // An action an element responds to.
     struct ActionDescriptor
     {
@@ -150,6 +177,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         std::optional<Role> role;
         std::string label;
         std::string hint;
+        // The keyboard shortcuts that act on it, as aria-keyshortcuts writes
+        // them: space-separated, each its keys joined by "+"
+        // ("Control+Shift+S Meta+Shift+S").
+        std::string keyShortcuts;
         State state;
         Value value;
         std::vector<ActionDescriptor> actions;
@@ -177,7 +208,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         Role role = Role::Group;
         std::string label;
         std::string hint;
-        std::string placeholder; // text inputs: shown while empty
+        std::string keyShortcuts; // as in Properties
+        std::string placeholder;  // text inputs: shown while empty
         State state;
         Value value;
         std::vector<ActionDescriptor> actions;

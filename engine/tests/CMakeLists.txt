@@ -95,6 +95,7 @@ if(SOUNDOR_JS_SOURCE)
     main.cpp
     a11y/SemanticsTests.cpp
     input/ClickCounterTests.cpp
+    input/KeyCodesTests.cpp
     input/MacTranslationTests.cpp
     input/PointerLockTests.cpp
     editor/LayoutTests.cpp

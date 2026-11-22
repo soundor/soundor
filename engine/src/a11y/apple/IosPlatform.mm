@@ -222,7 +222,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             const bool leaf = isLeaf(node);
             element.isAccessibilityElement = leaf ? YES : NO;
             element.accessibilityLabel = node.label.empty() ? nil : string(node.label);
-            element.accessibilityHint = node.hint.empty() ? nil : string(node.hint);
+            // UIKit has no property for key shortcuts but a UIKeyCommand's.
+            const std::string hint = hintWithKeyShortcuts(node.hint, node.keyShortcuts);
+            element.accessibilityHint = hint.empty() ? nil : string(hint);
             element.accessibilityValue = valueOf(node);
             element.accessibilityTraits = traitsOf(node);
             element.accessibilityViewIsModal = node.modal ? YES : NO;
@@ -271,6 +273,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                             adjusted.insert(request.target);
                         host.performAccessibilityAction(request);
                     }
+                // Taken whether or not VoiceOver runs: none is spoken late.
+                const std::vector<Announcement> announcements = host.accessibility().takeAnnouncements();
 
                 if (! active())
                 {
@@ -284,6 +288,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 lastHost = &host;
                 apply(host.accessibility().update(full));
                 refreshFrames(false);
+                // An assertive one interrupts what VoiceOver says; a polite
+                // one waits in its queue.
+                for (const Announcement& announcement : announcements)
+                {
+                    NSAttributedString* spoken =
+                        [[NSAttributedString alloc] initWithString:string(announcement.message)
+                                                        attributes:@{
+                                                            UIAccessibilitySpeechAttributeQueueAnnouncement :
+                                                                @(announcement.priority == Priority::Polite),
+                                                        }];
+                    UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, spoken);
+                }
             }
 
             void setGeometry(const ViewGeometry& next) override

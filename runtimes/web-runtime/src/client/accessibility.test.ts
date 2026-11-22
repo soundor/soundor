@@ -54,6 +54,23 @@ afterEach(() => {
 const first = (): UiNode => view.root.children[0]!;
 
 describe('ARIA', () => {
+  it('key shortcuts as aria-keyshortcuts', () => {
+    render(
+      h(
+        Pressable,
+        { onPress: () => {}, accessibilityKeyShortcuts: 'Control+S Meta+S' },
+        h(Text, null, 'Save'),
+      ),
+    );
+    expect(aria(first())).toEqual({
+      role: 'button',
+      'aria-label': 'Save',
+      'aria-keyshortcuts': 'Control+S Meta+S',
+    });
+    render(h(Pressable, { onPress: () => {} }, h(Text, null, 'Save')));
+    expect(aria(first())['aria-keyshortcuts']).toBeUndefined();
+  });
+
   it('a button labelled by its text', () => {
     render(h(Pressable, { onPress: () => {} }, h(Text, null, 'Reset')));
     expect(aria(first())).toEqual({ role: 'button', 'aria-label': 'Reset' });
