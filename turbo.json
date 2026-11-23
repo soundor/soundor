@@ -10,7 +10,6 @@
   ],
   "globalDependencies": [
     "package.json",
-    "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
     ".nvmrc",
     ".clang-format",
