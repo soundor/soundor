@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <thread>
 
 using namespace soundor;
@@ -159,6 +160,74 @@ TEST_SUITE("Linux GPU presentation")
         compositor.reset();
         XCloseDisplay(display);
         test::destroyTestWindow(view);
+    }
+
+    TEST_CASE("a frame presented before the host maps its window is presented again once it is viewable")
+    {
+        // The host attaches the editor, which presents its first frame, and
+        // maps its window afterwards: that present is lost (issue #380).
+        Display* display = XOpenDisplay(nullptr);
+        if (display == nullptr)
+        {
+            if (test::gpuRequired())
+                FAIL("Linux presentation tests need an X11 display");
+            return;
+        }
+        const Window parent = XCreateSimpleWindow(display, DefaultRootWindow(display), 0, 0, 100, 100, 0, 0, 0);
+        XSync(display, False);
+        void* view = reinterpret_cast<void*>(static_cast<std::uintptr_t>(parent)); // NOLINT(performance-no-int-to-ptr)
+        std::string failure;
+        auto compositor = render::GpuCompositor::create(
+            { .view = { view }, .background = 0xFF3366CC, .allowSoftware = true }, &failure);
+        INFO(failure);
+        REQUIRE(compositor != nullptr);
+        compositor->setBounds(0, 0, 100, 100, 1);
+        compositor->setVisible(true);
+        REQUIRE(compositor->needsRedraw());
+        compositor->composite({ .width = 100, .height = 100 });
+        REQUIRE(compositor->healthy());
+        // Not viewable yet: nothing exposed, nothing more to draw.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        CHECK_FALSE(compositor->needsRedraw());
+
+        XMapWindow(display, parent);
+        XSync(display, False);
+        bool asked = false;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (! asked && std::chrono::steady_clock::now() < deadline)
+        {
+            asked = compositor->needsRedraw();
+            if (! asked)
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        REQUIRE(asked);
+        compositor->composite({ .width = 100, .height = 100 });
+        CHECK_FALSE(compositor->needsRedraw());
+
+        Window root = 0, returnedParent = 0;
+        Window* children = nullptr;
+        unsigned count = 0;
+        REQUIRE(XQueryTree(display, parent, &root, &returnedParent, &children, &count));
+        REQUIRE(count == 1);
+        const Window child = children[0];
+        XFree(children);
+        bool presented = false;
+        const auto shown = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        do
+        {
+            XImage* image = XGetImage(display, child, 50, 50, 1, 1, AllPlanes, ZPixmap);
+            if (image != nullptr)
+            {
+                presented = (XGetPixel(image, 0, 0) & 0xFFFFFFUL) == 0x3366CCUL;
+                XDestroyImage(image);
+            }
+            if (! presented)
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        } while (! presented && std::chrono::steady_clock::now() < shown);
+        CHECK(presented);
+        compositor.reset();
+        XDestroyWindow(display, parent);
+        XCloseDisplay(display);
     }
 
     TEST_CASE("a missing parent selects the CPU fallback")

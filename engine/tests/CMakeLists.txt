@@ -148,6 +148,8 @@ if(SOUNDOR_JS_SOURCE)
   if(NOT SOUNDOR_ENGINE_PREBUILT)
     target_link_libraries(soundor_runtime_tests PRIVATE soundor_skia)
     target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_SVG=1)
+    # Reads typefaces through Skia, which a prebuilt engine keeps private.
+    target_sources(soundor_runtime_tests PRIVATE render/FontsTests.cpp)
   endif()
   if(WIN32)
     # dbghelp, and Winsock for the HTTP tests' server.

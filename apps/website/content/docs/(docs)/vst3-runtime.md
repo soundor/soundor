@@ -371,6 +371,32 @@ frame:
   [native animation contract](/docs/contribute/engine-reference#native-timing-animations))
   run on the UI tick without JavaScript.
 
+### Memory: what an editor costs
+
+A plugin with its editor closed costs little: the processor, the controller
+and the plugin's code. Opening the editor adds its own JavaScript runtime,
+UI tree, fonts, the surfaces it draws into, and a GPU context with its driver
+memory. Closing it gives all of that back. Measured with the
+[end-to-end suite](/docs/contribute/e2e-suite)'s plugin (a Debug build,
+Linux, Vulkan), an open editor adds about 23 MB to the host's PSS (10 MB of
+it heap) and 12 threads. Opening and closing it 15 times leaves 2 to 3 MB of
+heap behind (allocator and driver noise) and no threads.
+
+- **Editors share what they can.** The editors open on one thread share one
+  GPU device and its ANGLE display, whose worker pool has at most two
+  threads. The fonts
+  share their font manager, and one typeface for each font file. A second
+  open editor costs its runtime, UI and surfaces, not another device.
+- **Window size costs memory.** The UI is drawn into surfaces of its size in
+  device pixels, 4 bytes a pixel: at 1600×1200 that is 7.7 MB for one full
+  layer, and canvases and animated groups have layers of their own.
+- **2D canvases cache on the GPU.** Each editor's GPU-drawn canvases keep up
+  to 32 MB of textures for later (path masks, glyph atlases, scratch
+  surfaces). What goes unused for 10 seconds is freed.
+
+The suite checks that repeated opens leave nothing behind
+(`e2e/vst3/memory.test.ts`).
+
 ### Accessibility
 
 The view is accessible to screen readers through Soundor's own semantics

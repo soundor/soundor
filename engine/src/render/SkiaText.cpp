@@ -7,6 +7,7 @@
 #include <include/core/SkFont.h>
 #include <include/core/SkFontMetrics.h>
 #include <include/core/SkFontStyle.h>
+#include <include/core/SkGraphics.h>
 #include <include/core/SkPaint.h>
 
 #if defined(__APPLE__)
@@ -22,6 +23,9 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <span>
+#include <unordered_map>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
@@ -138,7 +142,82 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         }
     } // namespace
 
-    Fonts::Fonts(ui::Renderer::AssetLoader loader) : manager(platformFonts()), assets(std::move(loader)) {}
+    // What every Fonts of the process shares while any exists.
+    class FontShare
+    {
+    public:
+        // The share, made by the first Fonts.
+        static std::shared_ptr<FontShare> acquire()
+        {
+            static std::mutex mutex;
+            static std::weak_ptr<FontShare> current;
+            const std::scoped_lock lock(mutex);
+            if (auto share = current.lock())
+                return share;
+            auto share = std::make_shared<FontShare>();
+            current = share;
+            return share;
+        }
+
+        FontShare() : manager(platformFonts()) {}
+
+        ~FontShare()
+        {
+            faces.clear();
+            manager.reset();
+            // Glyphs and metrics of the typefaces that went (Skia's caches
+            // are the process's, which this plugin's Skia alone uses).
+            SkGraphics::PurgeFontCache();
+        }
+
+        FontShare(const FontShare&) = delete;
+        FontShare& operator=(const FontShare&) = delete;
+        FontShare(FontShare&&) = delete;
+        FontShare& operator=(FontShare&&) = delete;
+
+        [[nodiscard]] const sk_sp<SkFontMgr>& fonts() const noexcept { return manager; }
+
+        // The typeface of a font file's bytes: the one already made for the
+        // same bytes, or a new one; null if Skia does not read them.
+        sk_sp<SkTypeface> typeface(std::span<const std::uint8_t> bytes)
+        {
+            if (manager == nullptr)
+                return nullptr;
+            // FNV-1a: font files are small, and the bytes are compared too.
+            std::uint64_t hash = 14695981039346656037ULL;
+            for (const std::uint8_t byte : bytes)
+                hash = (hash ^ byte) * 1099511628211ULL;
+            const std::scoped_lock lock(mutex);
+            const auto [first, last] = faces.equal_range(hash);
+            for (auto known = first; known != last; ++known)
+                if (known->second.data->size() == bytes.size()
+                    && (bytes.empty() || std::memcmp(known->second.data->data(), bytes.data(), bytes.size()) == 0))
+                    return known->second.typeface;
+            sk_sp<SkData> data = SkData::MakeWithCopy(bytes.data(), bytes.size());
+            sk_sp<SkTypeface> made = manager->makeFromData(data);
+            if (made != nullptr)
+                faces.emplace(hash, Face { std::move(data), made });
+            return made;
+        }
+
+    private:
+        struct Face
+        {
+            sk_sp<SkData> data;
+            sk_sp<SkTypeface> typeface;
+        };
+
+        sk_sp<SkFontMgr> manager;
+        std::mutex mutex;
+        std::unordered_multimap<std::uint64_t, Face> faces;
+    };
+
+    Fonts::Fonts(ui::Renderer::AssetLoader loader)
+        : share(FontShare::acquire()), manager(share->fonts()), assets(std::move(loader))
+    {
+    }
+
+    Fonts::~Fonts() = default;
 
     std::optional<std::string> Fonts::add(std::string_view family, std::string_view source, int weight, bool italic)
     {
@@ -146,8 +225,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             assets ? assets(source) : std::optional<std::span<const std::uint8_t>> {};
         if (! bytes)
             return "'" + std::string(source) + "' is not a bundled font (TrueType or OpenType)";
-        sk_sp<SkTypeface> typeface =
-            manager != nullptr ? manager->makeFromData(SkData::MakeWithCopy(bytes->data(), bytes->size())) : nullptr;
+        sk_sp<SkTypeface> typeface = share->typeface(*bytes);
         if (typeface == nullptr)
             return "'" + std::string(source) + "' is not a bundled font (TrueType or OpenType)";
         std::vector<Registered>& faces = families[lowercase(family)];

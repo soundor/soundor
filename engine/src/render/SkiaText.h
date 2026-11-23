@@ -26,13 +26,26 @@ class SkPaint;
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
+    class FontShare;
+
     // The fonts text is set in: the platform's, and the bundled font files the
     // UI registered (registerFont()), shared by a view's text and canvases.
+    //
+    // While any Fonts exists, the process shares one font manager and one
+    // typeface per font file's bytes, so an editor opened again uses the
+    // same typefaces, and Skia's glyph caches, made for them, again. When the
+    // last one goes, those typefaces and Skia's font caches go too: an editor
+    // closed leaves no font data behind.
     class Fonts
     {
     public:
         // `loader` reads the font files registered by asset id (may be empty).
         explicit Fonts(ui::Renderer::AssetLoader loader = {});
+        ~Fonts();
+        Fonts(const Fonts&) = delete;
+        Fonts& operator=(const Fonts&) = delete;
+        Fonts(Fonts&&) = delete;
+        Fonts& operator=(Fonts&&) = delete;
 
         [[nodiscard]] const sk_sp<SkFontMgr>& platform() const noexcept { return manager; }
 
@@ -65,6 +78,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             sk_sp<SkTypeface> typeface;
         };
 
+        // First: it outlives the typefaces below.
+        std::shared_ptr<FontShare> share;
         sk_sp<SkFontMgr> manager;
         ui::Renderer::AssetLoader assets;
         // By family, lowercased: family names match case-insensitively.

@@ -55,7 +55,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     // A GPU device and ANGLE's EGL display over it. It belongs to the thread
     // that created it (the UI thread): contexts are made, used and destroyed
     // there. Each Device has a display of its own, so destroying one never
-    // affects another (another editor, another plugin); except OpenGL ones.
+    // affects another (another plugin, a test's); except OpenGL ones. The
+    // editors of one thread share theirs (shared()).
     class Device
     {
     public:
@@ -71,6 +72,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // A device that `options` accepts, or null (with the reason in
         // `failure`) when there is none.
         [[nodiscard]] static std::shared_ptr<Device> create(const Options& options, std::string* failure = nullptr);
+        // The device another caller on this thread holds for the same
+        // `options`, or a new one: editors open at the same time share one
+        // device (one GPU device, one ANGLE display and worker pool, and the
+        // driver's memory for them), rather than one each.
+        [[nodiscard]] static std::shared_ptr<Device> shared(const Options& options, std::string* failure = nullptr);
 
         ~Device();
         Device(const Device&) = delete;
@@ -86,6 +92,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         Device() = default;
 
         void* eglDisplay = nullptr;
+        // EGL_PLATFORM_ANGLE_DISPLAY_KEY_ANGLE: given back when terminated.
+        std::intptr_t displayKey = 0;
         DeviceInfo deviceInfo;
         std::thread::id owner = std::this_thread::get_id();
     };

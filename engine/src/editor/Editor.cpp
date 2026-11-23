@@ -138,8 +138,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
             bridge->tick(runtime(), session != nullptr ? session->reloadCount() + 1 : 1);
 #endif
         updateCompositor(state);
-        if (runtime().needsRender())
+        if (needsRender())
             render();
+    }
+
+    bool Editor::needsRender()
+    {
+        // Both, every time: the runtime's changes are taken either way.
+        const bool changed = runtime().needsRender();
+        // A static UI reports no change, but a window placed, shown or
+        // exposed anew needs presenting again.
+        const bool redraw = gpuCompositor != nullptr && gpuCompositor->needsRedraw();
+        return changed || redraw;
     }
 
     void Editor::resized()
@@ -154,7 +164,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
         if (gpuCompositor == nullptr || ! state.visible)
             return;
         updateCompositor(state);
-        if (gpuCompositor != nullptr && runtime().needsRender())
+        if (gpuCompositor != nullptr && needsRender())
             render();
     }
 
@@ -216,9 +226,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
             capabilities = compositor->capabilities();
             log(js::LogLevel::Info, capabilities.gpu ? "renderer: GPU compositor, " + capabilities.backend
                                                      : "renderer: CPU, " + capabilities.backend + " (" + why + ")");
-            // A new compositor has nothing yet: it draws everything.
-            if (state.nativeView != nullptr)
-                render();
         }
         if (gpuCompositor != nullptr)
         {
@@ -228,6 +235,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
                                      area.height * state.nativeScale, runtime().surface().scale());
             gpuCompositor->setVisible(state.visible);
         }
+        // A new compositor has nothing yet: it draws everything, placed and
+        // shown (a present into the unplaced, unmapped window would be lost).
+        if (rebuild && state.nativeView != nullptr)
+            render();
     }
 
     void Editor::render()

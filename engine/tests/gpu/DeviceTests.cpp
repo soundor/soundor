@@ -2,8 +2,11 @@
 
 #include <array>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
+#include <thread>
 
 using namespace soundor;
 
@@ -96,6 +99,22 @@ namespace
         }
         return false;
     }
+
+#if defined(__linux__)
+    // The threads of this process named `name`.
+    int threadsNamed(std::string_view name)
+    {
+        int count = 0;
+        for (const auto& task : std::filesystem::directory_iterator("/proc/self/task"))
+        {
+            std::ifstream comm(task.path() / "comm");
+            std::string line;
+            if (std::getline(comm, line) && line == name)
+                ++count;
+        }
+        return count;
+    }
+#endif
 } // namespace
 
 TEST_SUITE("gpu::Device")
@@ -234,4 +253,72 @@ TEST_SUITE("gpu::Device")
         }
         CHECK(eglGetCurrentContext() == outer->handle());
     }
+
+    TEST_CASE("editors on one thread share a device, and one opened again reuses the display")
+    {
+        const gpu::Device::Options options { .policy = gpu::DevicePolicy::AllowSoftware };
+        std::string failure;
+        auto first = gpu::Device::shared(options, &failure);
+        if (first == nullptr)
+        {
+            if (test::gpuRequired())
+                FAIL("no GPU device, though SOUNDOR_REQUIRE_GPU=1: " << failure);
+            MESSAGE("skipped: no GPU device here (" << failure << ")");
+            return;
+        }
+        auto second = gpu::Device::shared(options);
+        CHECK(second == first);
+        // Not for other options, nor for create(): a device of its own.
+        const auto independent = gpu::Device::create(options);
+        REQUIRE(independent != nullptr);
+        CHECK(independent != first);
+        CHECK(independent->display() != first->display());
+
+        void* const display = first->display();
+        first.reset();
+        second.reset();
+        // The last editor closed, then one opened: ANGLE's display again,
+        // initialized anew, not one more left behind.
+        const auto again = gpu::Device::shared(options);
+        REQUIRE(again != nullptr);
+        CHECK(again->display() == display);
+        const auto context = gpu::Context::create(again, {}, &failure);
+        REQUIRE_MESSAGE(context.get() != nullptr, failure);
+        const gpu::CurrentContext current(*context);
+        CHECK(current.ok());
+    }
+
+#if defined(__linux__)
+    TEST_CASE("a device starts at most two ANGLE worker threads, whatever the number of CPUs")
+    {
+        const int before = threadsNamed("ANGLE-Worker");
+        {
+            const auto device = test::testDevice();
+            if (device == nullptr)
+                return;
+            std::string failure;
+            const auto context = gpu::Context::create(device, {}, &failure);
+            REQUIRE_MESSAGE(context.get() != nullptr, failure);
+            const gpu::CurrentContext current(*context);
+            REQUIRE(current.ok());
+            // Programs linked in parallel, where the device can: the first
+            // task starts the device's pool.
+            std::array<GLuint, 4> programs {};
+            for (GLuint& program : programs)
+                program = test::buildProgram(vertexShader, fragmentShader);
+            for (const GLuint program : programs)
+            {
+                GLint linked = GL_FALSE;
+                glGetProgramiv(program, GL_LINK_STATUS, &linked);
+                CHECK(linked == GL_TRUE);
+                glDeleteProgram(program);
+            }
+            const int workers = threadsNamed("ANGLE-Worker") - before;
+            MESSAGE("ANGLE workers: " << workers << " (" << std::thread::hardware_concurrency() << " CPUs)");
+            CHECK(workers <= 2);
+        }
+        // Joined when the device goes.
+        CHECK(threadsNamed("ANGLE-Worker") == before);
+    }
+#endif
 }

@@ -976,7 +976,12 @@ Drawing behavior:
   text engine and its canvases): a registered family shadows the platform's,
   its face chosen by CSS's weight and style matching, with Skia's fake bold
   and a quarter skew where none matches. `ui::Surface::addFont()` registers
-  one with the surface's text engine and lays its text out again. Shaping is
+  one with the surface's text engine and lays its text out again. While any
+  `render::Fonts` exists, the process shares one font manager and one
+  typeface per font file's bytes (`FontShare`), so an editor opened again
+  reuses its typefaces and Skia's glyph caches for them; when the last one
+  goes, so do they, and `SkGraphics::PurgeFontCache()` empties Skia's caches
+  (the plugin's Skia is its own, so no other plugin's are touched). Shaping is
   simple: one glyph per code point, no ligatures or kerning, no complex scripts
   or bidi; those need HarfBuzz and ICU. The same text engine lays text out, so
   layout matches what is drawn. Tests that need machine-independent sizes use
@@ -988,8 +993,13 @@ Drawing behavior:
 its headers.
 
 - **`gpu::Device`:** a GPU device and ANGLE's EGL display over it. Each device
-  has a display of its own, so destroying one never affects another editor's
-  or another plugin's. It belongs to the thread that created it (the UI
+  has a display of its own, so destroying one never affects another plugin's.
+  The editors open on one thread share theirs (`Device::shared()`, which
+  `GpuCompositor::createDevice()` uses): one GPU device, display and worker
+  pool for all of them, rather than one each. ANGLE keeps every display it
+  handed out for the process's life, so a display's key is used again once
+  the display is terminated: an editor opened again initializes the display
+  it had. It belongs to the thread that created it (the UI
   thread); debug builds assert that its contexts are used there only.
 - **Which device:** the platform's backend: Metal, Direct3D 11 or Vulkan.
   `DevicePolicy` says whether software renderers (SwiftShader, llvmpipe,
@@ -1016,7 +1026,12 @@ its headers.
   premultiplied alpha, `GL_BGRA` textures uploaded row by row from the CPU
   surfaces' damage. It never waits for the GPU (`glFinish`). It wants a
   hardware device (`allowSoftware` is for tests) and reports a lost GPU
-  through `healthy()`.
+  through `healthy()`. It presents only when a layer changed or the window
+  needs it again, `needsRedraw()`: placed or shown anew (the editor places it
+  every frame; only a change counts), or exposed. The editor renders when
+  the UI changed or the compositor needs a redraw, so a static UI is
+  presented again too, and places and shows a new compositor before its
+  first frame.
 - **Presentation:** what the compositor presents into, inside the view the
   backend gives, without registering or subclassing anything:
   - macOS: a plain `CALayer` added on top of the `NSView`'s layer (ANGLE puts
@@ -1028,7 +1043,11 @@ its headers.
   - Linux: an X11 child window with an empty input shape, so the parent
     keeps pointer, scroll and focus handling. ANGLE's Vulkan XCB backend
     presents into it. XCB and XCB Shape load at run time; none is a mandatory
-    engine dependency. X Shape 1.1 is required for input transparency. Wayland
+    engine dependency. X Shape 1.1 is required for input transparency. The
+    child selects its own Expose events on its own connection
+    (`Presentation::exposed()`): the host maps its window after attaching the
+    editor, and the X server drops what was presented before the window was
+    viewable, so an Expose makes the compositor present again. Wayland
     sessions work through XWayland when the host supplies an X11 editor
     window; native Wayland views are not supported. Without a display or an
     acceptable GPU, the editor uses CPU composition.
@@ -1074,7 +1093,12 @@ its headers.
     (converted when `alpha` or `premultipliedAlpha` is false). That happens
     with another device, a CPU compositor (`SOUNDOR_RENDERER=cpu`, a
     lost GPU), `RuntimeHost::render()`, or a clip that one rounded
-    rectangle can't express. Read-backs are counted
+    rectangle can't express. The layer's clip is the canvas's own rounded
+    box cut by each clipping ancestor's (inside its borders, its radii less
+    their widths): an ancestor whose rounded corners the canvas stays clear
+    of is left out, one inside the canvas (or the same box) becomes the clip
+    (each corner the rounder one's), and anything else is read back.
+    Read-backs are counted
     (`FrameStatistics::gpuReadbacks`, `WebGLContext::readbacks()`).
   - **Texture sources:** typed arrays, a `PIXEL_UNPACK_BUFFER` offset,
     `ImageData`, and canvas nodes (RGBA, `UNSIGNED_BYTE`), honoring
@@ -2166,7 +2190,11 @@ compositor and WebGL (see "The GPU").
   backend terminates instead of after: on Vulkan, terminating destroys the
   instance and the loader unloads the driver, and a worker that had made
   Vulkan calls would then exit into the driver's unloaded thread-exit code
-  (Mesa's Venus driver crashes the process on every `eglTerminate`). The patch
+  (Mesa's Venus driver crashes the process on every `eglTerminate`).
+  `WorkerThreadPool::Create` makes a display's asynchronous pool at most two
+  threads, not one per CPU: the first task posted (a program link, a
+  pipeline) starts all of them, and their glibc arenas kept the memory they
+  freed after the editor closed. The patch
   fails the build when ANGLE's code no longer matches, so an ANGLE update has
   to revisit it.
 - **Prerequisites:** git, Python 3 and ninja, as for Skia; Linux also needs

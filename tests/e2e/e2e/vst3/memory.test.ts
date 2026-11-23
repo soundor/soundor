@@ -1,0 +1,71 @@
+// What an editor costs, and that closing it gives it back: an editor opened
+// and closed again and again (as a user does, all session long) leaves no
+// memory and no threads behind. Linux only: it reads the host's /proc.
+import { readdir, readFile } from 'node:fs/promises';
+
+import { launchPlugin, type Vst3Plugin } from '@soundor/vitest-e2e';
+import { expect, test } from 'vitest';
+
+/**
+ * The host's anonymous memory (its heaps, arenas and stacks, in MB: what a
+ * leak grows, and unlike PSS or private memory not moved by the other
+ * processes that share the host's libraries, such as the suite's other
+ * hosts), its PSS, and its thread count.
+ */
+async function footprint(pid: number) {
+  const rollup = await readFile(`/proc/${pid}/smaps_rollup`, 'utf8');
+  const megabytes = (field: string) =>
+    Number(new RegExp(`^${field}:\\s+(\\d+) kB`, 'm').exec(rollup)?.[1]) / 1024;
+  return {
+    anonymous: megabytes('Anonymous'),
+    pss: megabytes('Pss'),
+    threads: (await readdir(`/proc/${pid}/task`)).length,
+  };
+}
+
+async function reopen(plugin: Vst3Plugin) {
+  await plugin.host.closeEditor();
+  await plugin.openEditor();
+  // Drawn and running: its UI answers.
+  await expect(plugin.getByDebugId('note')).toHaveText('Note: none');
+}
+
+// Each open makes a runtime, a GPU context, fonts and canvases, and
+// starts the editor's threads; each close must end them. Before the fixes
+// for #376 and #377, PSS grew by about 1 MB (fonts, glyphs) plus up to
+// 14 MB (a dozen ANGLE workers' glibc arenas) per open.
+test.skipIf(process.platform !== 'linux')(
+  'an editor opened and closed again and again leaves no memory or threads behind',
+  async () => {
+    const plugin = await launchPlugin();
+    const pid = plugin.host.pid;
+    expect(pid).toBeDefined();
+    await expect(plugin.getByDebugId('note')).toHaveText('Note: none');
+    // What the first opens make once (caches, the driver's pools).
+    for (let round = 0; round < 3; round += 1) await reopen(plugin);
+
+    await plugin.host.closeEditor();
+    const before = await footprint(pid!);
+    await plugin.openEditor();
+    const open = await footprint(pid!);
+    const rounds = 15;
+    for (let round = 0; round < rounds; round += 1) await reopen(plugin);
+    await plugin.host.closeEditor();
+    const after = await footprint(pid!);
+
+    const megabytes = (value: number) => `${value.toFixed(1)} MB`;
+    console.info(
+      `editor closed: anonymous ${megabytes(before.anonymous)} (PSS ${megabytes(before.pss)}), ` +
+        `${before.threads} threads; open: anonymous ${megabytes(open.anonymous)}, ` +
+        `${open.threads} threads; closed after ${rounds} more opens: ` +
+        `anonymous ${megabytes(after.anonymous)} (PSS ${megabytes(after.pss)}), ` +
+        `${after.threads} threads`,
+    );
+    expect(after.threads).toBe(before.threads);
+    // Allocator and driver noise, not a leak per open. Measured on Linux
+    // (Vulkan, 4 CPUs): 10 opens grew it by 7.5 MB before those fixes; 15
+    // opens grow it by 2 to 3 MB now.
+    expect(after.anonymous - before.anonymous).toBeLessThan(5);
+  },
+  180_000,
+);

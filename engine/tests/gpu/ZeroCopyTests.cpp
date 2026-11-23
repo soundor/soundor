@@ -199,7 +199,7 @@ TEST_SUITE("WebGL composited without copies")
         CHECK(f.at(32, 32) == green);
     }
 
-    TEST_CASE("a clip a layer cannot have is drawn on the CPU instead")
+    TEST_CASE("a rounded clip inside the canvas is the layer's clip")
     {
         const auto device = test::testDevice();
         if (device == nullptr)
@@ -207,7 +207,8 @@ TEST_SUITE("WebGL composited without copies")
         ZeroCopyFixture f(device);
         f.run(R"(
             import { root, createView } from 'soundor:ui';
-            // A rounded box cutting into the canvas.
+            // A rounded box cutting into the canvas: its rounded rectangle
+            // is all that shows.
             const box = createView({ width: 24, height: 24, borderRadius: 8, overflow: 'hidden' });
             root.removeChild(c);
             box.appendChild(c);
@@ -215,9 +216,86 @@ TEST_SUITE("WebGL composited without copies")
             fill(0, 0, 1);
         )");
         const render::FrameStatistics stats = f.show();
+        CHECK(stats.gpuLayers == 1);
+        CHECK(stats.gpuReadbacks == 0);
+        CHECK(f.at(28, 28) == blue);
+        CHECK(f.at(17, 17) == red);
+        CHECK(f.at(44, 44) == red);
+    }
+
+    TEST_CASE("a canvas filling a rounded clip is a layer with the clip's rounded corners")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        ZeroCopyFixture f(device);
+        f.run(R"(
+            import { root, createView } from 'soundor:ui';
+            // The canvas has no radius of its own (issue #379).
+            const box = createView({ width: 32, height: 32, borderRadius: 8, overflow: 'hidden' });
+            root.removeChild(c);
+            box.appendChild(c);
+            root.appendChild(box);
+            fill(0, 0, 1);
+        )");
+        const render::FrameStatistics stats = f.show();
+        CHECK(stats.gpuLayers == 1);
+        CHECK(stats.gpuReadbacks == 0);
+        CHECK(f.at(32, 32) == blue);
+        // Outside the rounded corner: the root's red; along the edges: blue.
+        CHECK(f.at(17, 17) == red);
+        CHECK(f.at(46, 17) == red);
+        CHECK(f.at(46, 46) == red);
+        CHECK(f.at(17, 46) == red);
+        CHECK(f.at(32, 17) == blue);
+        CHECK(f.at(17, 32) == blue);
+    }
+
+    TEST_CASE("a canvas clear of a rounded clip's corners keeps its own clip")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        ZeroCopyFixture f(device);
+        f.run(R"(
+            import { root, createView } from 'soundor:ui';
+            root.style = { backgroundColor: '#ff0000', padding: 8, alignItems: 'flex-start' };
+            const box = createView({ width: 48, height: 48, padding: 8, borderRadius: 6, overflow: 'hidden' });
+            root.removeChild(c);
+            box.appendChild(c);
+            root.appendChild(box);
+            fill(0, 0, 1);
+        )");
+        const render::FrameStatistics stats = f.show();
+        CHECK(stats.gpuLayers == 1);
+        CHECK(stats.gpuReadbacks == 0);
+        // The canvas's corners are square.
+        CHECK(f.at(16, 16) == blue);
+        CHECK(f.at(47, 47) == blue);
+    }
+
+    TEST_CASE("nested rounded clips the canvas fills are drawn on the CPU when they do not make one")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        ZeroCopyFixture f(device);
+        f.run(R"(
+            import { root, createView } from 'soundor:ui';
+            // The outer box's rounding cuts into the inner box's: no one
+            // rounded rectangle is both.
+            const outer = createView({ width: 32, height: 40, borderRadius: 12, overflow: 'hidden' });
+            const inner = createView({ width: 32, height: 32, borderRadius: 4, overflow: 'hidden' });
+            root.removeChild(c);
+            inner.appendChild(c);
+            outer.appendChild(inner);
+            root.appendChild(outer);
+            fill(0, 0, 1);
+        )");
+        const render::FrameStatistics stats = f.show();
         CHECK(stats.gpuLayers == 0);
         CHECK(stats.gpuReadbacks == 1);
-        CHECK(f.layers == 1);
-        CHECK(f.at(28, 28) == blue);
+        CHECK(f.at(32, 32) == blue);
+        CHECK(f.at(17, 17) == red);
     }
 }

@@ -231,6 +231,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::editor
         void updatePointerLock();
         void updateCursor();
         void updateCompositor(const Platform::State& state);
+        // Whether to render now: the UI changed, or the GPU compositor's
+        // window needs presenting again.
+        [[nodiscard]] bool needsRender();
         void render();
         void log(js::LogLevel level, const std::string& message) const;
         [[nodiscard]] bool textInputFocused();

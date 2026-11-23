@@ -51,6 +51,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             map_window_checked =
                 reinterpret_cast<decltype(map_window_checked)>(dlsym(library, "xcb_map_window_checked"));
             complete = complete && map_window_checked != nullptr;
+            poll_for_event = reinterpret_cast<decltype(poll_for_event)>(dlsym(library, "xcb_poll_for_event"));
+            complete = complete && poll_for_event != nullptr;
             unmap_window_checked =
                 reinterpret_cast<decltype(unmap_window_checked)>(dlsym(library, "xcb_unmap_window_checked"));
             complete = complete && unmap_window_checked != nullptr;
@@ -89,6 +91,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         decltype(&xcb_configure_window_checked) configure_window_checked = nullptr;
         decltype(&xcb_map_window_checked) map_window_checked = nullptr;
         decltype(&xcb_unmap_window_checked) unmap_window_checked = nullptr;
+        decltype(&xcb_poll_for_event) poll_for_event = nullptr;
         decltype(&xcb_shape_query_version) shape_query_version = nullptr;
         decltype(&xcb_shape_query_version_reply) shape_query_version_reply = nullptr;
         decltype(&xcb_shape_rectangles_checked) shape_rectangles_checked = nullptr;

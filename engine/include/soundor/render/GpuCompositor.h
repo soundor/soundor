@@ -54,7 +54,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // The device a GPU compositor would draw on, made before there is
             // a view: give it to the RuntimeHost too, so that WebGL draws on
             // it and the compositor shows WebGL without copies. Null (and why
-            // in `failure`) where there is no GPU composition.
+            // in `failure`) where there is no GPU composition. Editors open
+            // on the same thread at the same time get the same device.
             [[nodiscard]] static std::shared_ptr<gpu::Device> createDevice(bool allowSoftware = false,
                                                                            std::string* failure = nullptr);
 
@@ -68,6 +69,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // device pixels per unit.
             virtual void setBounds(float x, float y, float width, float height, float scale) = 0;
             virtual void setVisible(bool visible) = 0;
+            // Whether the view needs presenting again although no layer
+            // changed: the compositor was placed or shown anew, or its window
+            // lost what it showed (Linux: a window mapped after the last
+            // present, or uncovered). Composite a frame then, even if the UI
+            // reports no change.
+            [[nodiscard]] virtual bool needsRedraw() = 0;
             // False once the GPU is lost (a driver reset, a removed GPU):
             // switch to a RasterCompositor.
             [[nodiscard]] virtual bool healthy() const noexcept = 0;
