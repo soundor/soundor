@@ -1083,7 +1083,12 @@ its headers.
     (converted when `alpha` or `premultipliedAlpha` is false). That happens
     with another device, a CPU compositor (`SOUNDOR_RENDERER=cpu`, a
     lost GPU), `RuntimeHost::render()`, or a clip that one rounded
-    rectangle can't express. Read-backs are counted
+    rectangle can't express. The layer's clip is the canvas's own rounded
+    box cut by each clipping ancestor's (inside its borders, its radii less
+    their widths): an ancestor whose rounded corners the canvas stays clear
+    of is left out, one inside the canvas (or the same box) becomes the clip
+    (each corner the rounder one's), and anything else is read back.
+    Read-backs are counted
     (`FrameStatistics::gpuReadbacks`, `WebGLContext::readbacks()`).
   - **Texture sources:** typed arrays, a `PIXEL_UNPACK_BUFFER` offset,
     `ImageData`, and canvas nodes (RGBA, `UNSIGNED_BYTE`), honoring

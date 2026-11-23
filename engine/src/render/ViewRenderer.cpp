@@ -1,10 +1,12 @@
 #include "render/ViewRenderer.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
@@ -29,17 +31,124 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             }
         };
 
-        // What the ancestors clip a node to: a rectangle, rounded or not.
-        struct AncestorClip
+        // A rectangle with a circular radius at each corner (top left, top
+        // right, bottom right, bottom left), in logical pixels: what a
+        // layer's clip can be. Not `exact` where a corner is elliptical (a
+        // clip inside borders of different widths): its radii then bound
+        // the corners, and it can only be left out, never be a layer's clip.
+        struct Rounded
         {
             Box box;
-            bool rounded = false;
+            std::array<float, 4> radii {};
+            bool exact = true;
+
+            [[nodiscard]] bool rounded() const noexcept
+            {
+                return std::ranges::any_of(radii, [](float radius) { return radius > 0; });
+            }
+
+            // Radii that overlap are scaled down together, as CSS and Skia do.
+            void normalize() noexcept
+            {
+                const float width = box.right - box.left;
+                const float height = box.bottom - box.top;
+                float factor = 1;
+                const auto fit = [&](float side, float first, float second)
+                {
+                    if (first + second > side && first + second > 0)
+                        factor = std::min(factor, std::max(0.0f, side) / (first + second));
+                };
+                fit(width, radii[0], radii[1]);
+                fit(height, radii[1], radii[2]);
+                fit(width, radii[3], radii[2]);
+                fit(height, radii[0], radii[3]);
+                if (factor < 1)
+                    for (float& radius : radii)
+                        radius *= factor;
+            }
+
+            // Whether `inner`, inside the box, stays out of the corners'
+            // squares, where the rounding cuts.
+            [[nodiscard]] bool avoidsCorners(const Box& inner) const noexcept
+            {
+                const auto overlaps = [&](const Box& corner)
+                {
+                    return inner.left < corner.right && inner.right > corner.left && inner.top < corner.bottom
+                           && inner.bottom > corner.top;
+                };
+                const Box corners[4] = {
+                    { box.left, box.top, box.left + radii[0], box.top + radii[0] },
+                    { box.right - radii[1], box.top, box.right, box.top + radii[1] },
+                    { box.right - radii[2], box.bottom - radii[2], box.right, box.bottom },
+                    { box.left, box.bottom - radii[3], box.left + radii[3], box.bottom },
+                };
+                for (std::size_t corner = 0; corner < 4; ++corner)
+                    if (radii[corner] > 0 && overlaps(corners[corner]))
+                        return false;
+                return true;
+            }
         };
 
-        bool hasRadius(const ui::Corners& radii) noexcept
+        // A node's own rounded rectangle, normalized.
+        Rounded roundedBox(const Box& box, const ui::Corners& radii)
         {
-            return radii.topLeft > 0 || radii.topRight > 0 || radii.bottomRight > 0 || radii.bottomLeft > 0;
+            Rounded own { box, { radii.topLeft, radii.topRight, radii.bottomRight, radii.bottomLeft } };
+            own.normalize();
+            return own;
         }
+
+        // Where a view clips its children: inside its borders, its radii
+        // less the borders' widths (ui::Renderer's clip).
+        Rounded clipBox(const Box& inner, const ui::Corners& radii, const ui::Edges<float>& border)
+        {
+            Rounded clip { inner };
+            const auto corner = [&](std::size_t index, float radius, float sideX, float sideY)
+            {
+                const float x = std::max(0.0f, radius - sideX);
+                const float y = std::max(0.0f, radius - sideY);
+                // Skia draws a corner with either radius 0 square.
+                if (x <= 0 || y <= 0)
+                    return;
+                clip.radii[index] = std::max(x, y);
+                clip.exact = clip.exact && x == y;
+            };
+            corner(0, radii.topLeft, border.left, border.top);
+            corner(1, radii.topRight, border.right, border.top);
+            corner(2, radii.bottomRight, border.right, border.bottom);
+            corner(3, radii.bottomLeft, border.left, border.bottom);
+            clip.normalize();
+            return clip;
+        }
+
+        // Where both show, if one rounded rectangle is all of it.
+        std::optional<Rounded> intersect(const Rounded& a, const Rounded& b)
+        {
+            const auto same = [](const Box& x, const Box& y)
+            {
+                constexpr float epsilon = 1e-3f;
+                return std::abs(x.left - y.left) < epsilon && std::abs(x.top - y.top) < epsilon
+                       && std::abs(x.right - y.right) < epsilon && std::abs(x.bottom - y.bottom) < epsilon;
+            };
+            if (same(a.box, b.box) && a.exact && b.exact)
+            {
+                // The same box: each corner is the rounder one's.
+                Rounded both { b.box };
+                for (std::size_t corner = 0; corner < 4; ++corner)
+                    both.radii[corner] = std::max(a.radii[corner], b.radii[corner]);
+                return both;
+            }
+            if (b.exact && a.box.contains(b.box) && a.avoidsCorners(b.box))
+                return b;
+            if (a.exact && b.box.contains(a.box) && b.avoidsCorners(a.box))
+                return a;
+            if (! a.rounded() && ! b.rounded())
+                return Rounded { a.box.intersected(b.box) };
+            return std::nullopt;
+        }
+
+        // What the ancestors clip a node to: each clipping ancestor's
+        // rounded rectangle, the innermost last.
+        using AncestorClip = std::vector<Rounded>;
 
         // Walks the tree in paint order, as ui::Renderer draws it, finding
         // the GPU canvases a compositor on `device` can show as layers.
@@ -67,8 +176,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 painted.back().add({ left, top, right - left, bottom - top });
             }
 
-            void walk(const ui::Node& node, float originX, float originY, float opacity,
-                      const std::optional<AncestorClip>& clip)
+            void walkChildren(const ui::Node& node, float x, float y, float opacity, const AncestorClip& clip)
+            {
+                const ui::Point scrolled = node.scrollOffset();
+                for (const ui::Node* child : node.stackedChildren())
+                    walk(*child, x - scrolled.x, y - scrolled.y, opacity, clip);
+            }
+
+            void walk(const ui::Node& node, float originX, float originY, float opacity, const AncestorClip& clip)
             {
                 const ui::Style& style = node.presentedStyle();
                 if (style.display == ui::Display::None || style.opacity <= 0)
@@ -98,18 +213,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                     canvas(node, x, y, seen, clip);
                 if (node.children().empty())
                     return;
-                std::optional<AncestorClip> inner = clip;
                 if (style.clips())
                 {
                     const Box box { x + border.left, y + border.top, x + frame.width - border.right,
                                     y + frame.height - border.bottom };
-                    const bool rounded = hasRadius(style.borderRadius);
-                    inner = clip ? AncestorClip { clip->box.intersected(box), clip->rounded || rounded }
-                                 : AncestorClip { box, rounded };
+                    AncestorClip inner = clip;
+                    inner.push_back(clipBox(box, style.borderRadius, border));
+                    walkChildren(node, x, y, seen, inner);
                 }
-                const ui::Point scrolled = node.scrollOffset();
-                for (const ui::Node* child : node.stackedChildren())
-                    walk(*child, x - scrolled.x, y - scrolled.y, seen, inner);
+                else
+                    walkChildren(node, x, y, seen, clip);
                 // Its border, outline and scroll indicators paint after its
                 // children: in a later layer when a canvas among them is
                 // promoted.
@@ -117,7 +230,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                     paintOwn();
             }
 
-            void canvas(const ui::Node& node, float x, float y, float opacity, const std::optional<AncestorClip>& clip)
+            void canvas(const ui::Node& node, float x, float y, float opacity, const AncestorClip& clip)
             {
                 const ui::CanvasBuffer* buffer = node.canvas();
                 if (device == nullptr || buffer == nullptr || buffer->gpuImage == nullptr
@@ -125,26 +238,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                     || buffer->gpuImage->height() <= 0)
                     return;
                 const ui::Rect frame = node.frame();
-                const ui::Corners& radii = node.style().borderRadius;
-                const Box own { x, y, x + frame.width, y + frame.height };
-                Clip shown { own.left * scale,
-                             own.top * scale,
-                             frame.width * scale,
-                             frame.height * scale,
-                             { radii.topLeft * scale, radii.topRight * scale, radii.bottomRight * scale,
-                               radii.bottomLeft * scale } };
-                if (clip && ! clip->box.contains(own))
-                {
-                    // One rounded rectangle is all a layer's clip can be.
-                    if (clip->rounded || hasRadius(radii))
-                        return;
-                    const Box cut = clip->box.intersected(own);
-                    shown = { cut.left * scale,
-                              cut.top * scale,
-                              std::max(0.0f, cut.right - cut.left) * scale,
-                              std::max(0.0f, cut.bottom - cut.top) * scale,
-                              {} };
-                }
+                // Its own rounded box, then each clipping ancestor's: one an
+                // ancestor's rounded corners do not reach is left out.
+                std::optional<Rounded> visible =
+                    roundedBox({ x, y, x + frame.width, y + frame.height }, node.style().borderRadius);
+                for (auto ancestor = clip.rbegin(); visible && ancestor != clip.rend(); ++ancestor)
+                    visible = intersect(*visible, *ancestor);
+                // One rounded rectangle is all a layer's clip can be: the
+                // canvas is read back and drawn on the CPU otherwise.
+                if (! visible || ! visible->exact)
+                    return;
+                const Box& cut = visible->box;
+                const Clip shown { cut.left * scale,
+                                   cut.top * scale,
+                                   std::max(0.0f, cut.right - cut.left) * scale,
+                                   std::max(0.0f, cut.bottom - cut.top) * scale,
+                                   { visible->radii[0] * scale, visible->radii[1] * scale, visible->radii[2] * scale,
+                                     visible->radii[3] * scale } };
                 // The image stretched over the content box, like the CPU's.
                 const ui::Rect content = node.contentBox();
                 const GpuImage& image = *buffer->gpuImage;
@@ -201,8 +311,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         for (const auto id : surface.canvases())
             flushCanvas(*surface.canvasBuffer(id));
         Planner planner { surface, gpuDevice, surface.scale(), {}, std::vector<Region>(1) };
-        planner.walk(surface.root(), 0, 0, 1, std::nullopt);
-        planner.walk(surface.overlay(), 0, 0, 1, std::nullopt);
+        planner.walk(surface.root(), 0, 0, 1, {});
+        planner.walk(surface.overlay(), 0, 0, 1, {});
 
         std::vector<Promoted> now;
         for (auto& [node, layer] : planner.found)
