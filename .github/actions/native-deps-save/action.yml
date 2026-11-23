@@ -1,14 +1,19 @@
 name: Save native dependencies
-description: Saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked, and on main the compiler cache
+description: On a pull request, saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked; on main, saves the compiler cache and offers the builds no release has
 
 inputs:
   key:
-    description: native-deps's cache-key output
-    required: true
+    description: native-deps's cache-key output (empty when the dependency cache is not used)
+    required: false
+    default: ''
   restored:
     description: native-deps's cache-matched-key output (empty when nothing was restored)
     required: false
     default: ''
+  offer:
+    description: Offer the complete builds no release has for Verify to publish (a successful job on main)
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -20,6 +25,7 @@ runs:
     # new saves nothing.
     - name: Name the complete builds
       id: key
+      if: inputs.key != ''
       shell: bash
       env:
         KEY: ${{ inputs.key }}
@@ -54,3 +60,22 @@ runs:
       with:
         path: ${{ runner.temp }}/ccache
         key: ${{ env.SOUNDOR_CCACHE_KEY }}
+
+    # For Verify's "Release native dependencies" job, which publishes them once
+    # (.github/scripts/native-deps-release.mjs). Only from a job that passed:
+    # a release is permanent.
+    - name: Offer the builds no release has
+      id: offer
+      if: inputs.offer == 'true' && env.SOUNDOR_DEPENDENCY_GROUP != ''
+      shell: bash
+      run: node .github/scripts/native-deps-release.mjs offer "$RUNNER_TEMP/native-deps/offer"
+
+    - name: Keep the offered builds
+      if: steps.offer.outputs.count != '' && steps.offer.outputs.count != '0'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: native-deps-candidate-${{ github.job }}-${{ env.SOUNDOR_DEPENDENCY_GROUP }}
+        path: ${{ runner.temp }}/native-deps/offer
+        if-no-files-found: error
+        retention-days: 1
+        compression-level: 0

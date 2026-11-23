@@ -1,9 +1,9 @@
 name: Native dependencies
-description: Installs what building Skia, ANGLE and Hermes needs, a software GPU on Linux, and keeps their builds across runs
+description: Installs what building Skia, ANGLE and Hermes needs and a software GPU on Linux, and gets their builds from main's releases (and a pull request's cache)
 
 inputs:
   cache:
-    description: Restore ordinary compiled dependency and compiler caches (false for release-producing builds)
+    description: Restore the compiler cache, and on pull requests the dependency cache (false for release-producing builds)
     required: false
     default: 'true'
   job:
@@ -95,14 +95,18 @@ runs:
         restore-keys: |
           ccache-${{ inputs.job }}-${{ github.job }}-
 
-    # Each build lives in a directory keyed by what made it, so an older cache
-    # is a fine start: only what changed is built again. The job saves it at
-    # its end, also when tests failed, under this key and the builds it holds
-    # complete (./.github/actions/native-deps-save), so a long build is never
-    # done twice. The newest entry for the same recipes is restored first. Another
-    # Xcode starts empty: its directories' keys do not tell the builds apart.
+    # Pull requests only: what a pull request that changes the recipes built,
+    # for its next push (main's builds are in its releases, below). Each build
+    # lives in a directory keyed by what made it, so an older cache is a fine
+    # start: only what changed is built again. The job saves it at its end,
+    # also when tests failed, under this key and the builds it holds complete
+    # (./.github/actions/native-deps-save). The newest entry for the same
+    # recipes is restored first. Another Xcode starts empty: its directories'
+    # keys do not tell the builds apart. On main, every build is either
+    # fetched from a release or built from clean sources in the job, which is
+    # what makes it fit to publish.
     - name: Restore Skia, ANGLE and Hermes
-      if: inputs.cache == 'true'
+      if: inputs.cache == 'true' && github.event_name == 'pull_request'
       id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -111,3 +115,15 @@ runs:
         restore-keys: |
           native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('engine/cmake/SoundorSkia*.cmake', 'engine/cmake/SoundorAngle*.cmake', 'engine/cmake/angle/**', 'engine/cmake/SoundorHermes*.cmake', 'engine/cmake/hermes/**', 'engine/cmake/SoundorDependencies.cmake') }}-
           native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-
+
+    # What the job lacks, CMake fetches from the immutable releases main's CI
+    # published (native-deps-*) before it would build it, after verifying
+    # their attestation: SOUNDOR_DEPENDENCY_FETCH
+    # (engine/cmake/SoundorDependencies.cmake, .github/scripts/native-deps-release.mjs).
+    # Release builds too: those builds come from clean sources.
+    - name: Find released Skia, ANGLE and Hermes
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        JOB: ${{ inputs.job }}
+      run: node .github/scripts/native-deps-release.mjs index "$JOB"

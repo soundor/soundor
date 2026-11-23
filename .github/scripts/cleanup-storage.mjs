@@ -139,24 +139,16 @@ export function planCleanup({
       // Remove lookup first: partial API failures leave an unselectable set.
       for (const member of set.members) add('artifact', member, reason);
     });
-  for (const items of groupBy(mainArtifacts, (a) =>
-    new RegExp(`^verified-native-.+-${HASH}$`).test(a.name) ? a.name : null,
-  ).values()) {
-    prune(items, 'superseded signed snapshot', (a, reason) =>
-      add('artifact', a, reason),
-    );
-  }
   for (const artifact of mainArtifacts) {
     const run = runMap.get(artifact.workflow_run.id);
-    // Keep signed snapshots. Release intermediates are no longer inputs after
-    // the ENTIRE root workflow succeeds; failed runs retain their retry inputs.
+    // Release intermediates are no longer inputs after the ENTIRE root
+    // workflow succeeds; failed runs retain their retry inputs.
     if (
       old(artifact) &&
       [
         '.github/workflows/release.yml',
         '.github/workflows/engine-prebuilts.yml',
-      ].includes(run.path) &&
-      !artifact.name.startsWith('verified-native-')
+      ].includes(run.path)
     )
       add('artifact', artifact, 'successful release intermediate');
   }
@@ -177,25 +169,6 @@ export function planCleanup({
     prune(items, 'superseded cache snapshot', (c, reason) =>
       add('cache', c, reason),
     );
-  const dependencyKey = (cache) =>
-    new RegExp(`^(native-deps-.+)-(${HASH})(?:-[a-f0-9]{16})?$`).exec(
-      cache.key,
-    );
-  for (const items of groupBy(mainCaches, (c) => {
-    const match = dependencyKey(c);
-    return match ? `${match[1]}:${c.version}` : null;
-  }).values()) {
-    const generations = [
-      ...groupBy(items, (c) => dependencyKey(c)[2]).values(),
-    ].map((members) => ({ ...newest(members)[0], members }));
-    prune(
-      generations,
-      'superseded dependency generation',
-      (generation, reason) => {
-        for (const member of generation.members) add('cache', member, reason);
-      },
-    );
-  }
   if (new RegExp(`^${HASH}$`).test(lockHash)) {
     for (const items of groupBy(
       mainCaches,

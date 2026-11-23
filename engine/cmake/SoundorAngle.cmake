@@ -140,9 +140,13 @@ if(NOT SOUNDOR_ANGLE_DIR)
     # Parallel configures wait for each other instead of building twice.
     file(LOCK "${SOUNDOR_ANGLE_DIR}.lock" GUARD PROCESS TIMEOUT 10800)
     if(NOT EXISTS "${SOUNDOR_ANGLE_DIR}/libs.txt")
+      get_filename_component(install "${SOUNDOR_ANGLE_DIR}" NAME)
+      soundor_fetch_dependency("${cache_root}" "${install}")
+    endif()
+    if(NOT EXISTS "${SOUNDOR_ANGLE_DIR}/libs.txt")
       message(STATUS "Building ANGLE ${SOUNDOR_ANGLE_VERSION} into ${SOUNDOR_ANGLE_DIR} (once per machine)")
       execute_process(
-        COMMAND ${CMAKE_COMMAND}
+        COMMAND ${SOUNDOR_DEPENDENCY_BUILD} ${CMAKE_COMMAND}
           "-DOUT=${SOUNDOR_ANGLE_DIR}"
           "-DREVISION=${SOUNDOR_ANGLE_REVISION}"
           "-DREPOSITORY=${SOUNDOR_ANGLE_REPOSITORY}"

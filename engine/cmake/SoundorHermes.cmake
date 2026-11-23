@@ -119,6 +119,10 @@ if(NOT SOUNDOR_HERMES_DIR)
     # Parallel configures wait for each other instead of building twice.
     file(LOCK "${out}.lock" GUARD PROCESS TIMEOUT 7200)
     if(NOT EXISTS "${out}/hermes.txt")
+      get_filename_component(install "${SOUNDOR_HERMES_DIR}" NAME)
+      soundor_fetch_dependency("${cache_root}" "${install}/${flavor}")
+    endif()
+    if(NOT EXISTS "${out}/hermes.txt")
       set(runtime "")
       if(flavor STREQUAL "md")
         set(runtime MultiThreadedDLL)
@@ -131,7 +135,7 @@ if(NOT SOUNDOR_HERMES_DIR)
       endif()
       message(STATUS "Building Hermes ${SOUNDOR_HERMES_VERSION} (${flavor}) into ${out} (once per machine)")
       execute_process(
-        COMMAND ${CMAKE_COMMAND}
+        COMMAND ${SOUNDOR_DEPENDENCY_BUILD} ${CMAKE_COMMAND}
           "-DOUT=${out}"
           "-DREVISION=${SOUNDOR_HERMES_REVISION}"
           "-DSHA256=${SOUNDOR_HERMES_SHA256}"

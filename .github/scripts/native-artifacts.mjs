@@ -1,6 +1,8 @@
-// Reuse complete native builds from successful pushes to this repository's main.
-// A small fingerprint-named marker, uploaded by the planner, indexes the run;
-// the run must finish successfully and retain every expected binary artifact.
+// Reuse complete native builds from pushes to this repository's main. A small
+// fingerprint-named marker, uploaded by the planner, indexes the run; the run
+// must have finished, every job of the build's own workflow (its builds and
+// checks) must have succeeded, and every expected binary artifact must remain.
+// An unrelated job of the run (the E2E suite) failing does not discard a build.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -8,8 +10,8 @@ const recipes = {
   engine: [
     '.github/workflows/engine.yml',
     '.github/scripts/engine-prebuilts.mjs',
-    '.github/scripts/verified-deps.mjs',
-    '.github/scripts/verified-deps.py',
+    '.github/scripts/native-deps-release.mjs',
+    '.github/scripts/native-deps-archive.py',
     '.github/actions/native-deps/action.yml',
     '.github/actions/native-deps-save/action.yml',
   ],
@@ -37,6 +39,9 @@ export function artifactKey(kind, fingerprint, read = readFileSync) {
   }
   return `native-${kind}-${hash.digest('hex')}`;
 }
+
+// The reusable workflow's jobs are named after the caller job in verify.yml.
+const jobPrefix = { engine: 'Engine / ', host: 'VST3 (host) / ' };
 
 export function binaryArtifacts(kind, commit) {
   if (kind === 'engine')
@@ -79,6 +84,24 @@ export async function findMainArtifacts({
   };
   const available = (artifact) =>
     !artifact.expired && Date.parse(artifact.expires_at) > now;
+  // Every job of the build's workflow ran and passed (skipped is a check the
+  // run did not ask for); there is at least one, or the build never ran.
+  const buildPassed = async (id) => {
+    let count = 0;
+    for (let jobsPage = 1; ; jobsPage++) {
+      const jobs = await request(
+        `/actions/runs/${id}/jobs?filter=latest&per_page=100&page=${jobsPage}`,
+      );
+      if (!jobs) return false;
+      for (const job of jobs.jobs) {
+        if (!job.name.startsWith(jobPrefix[kind])) continue;
+        count++;
+        if (job.conclusion !== 'success' && job.conclusion !== 'skipped')
+          return false;
+      }
+      if (jobs.jobs.length < 100) return count > 0;
+    }
+  };
   const cutoff = now - 7 * 24 * 60 * 60 * 1000;
   for (let page = 1; ; page++) {
     const markers = await request(
@@ -98,7 +121,6 @@ export async function findMainArtifacts({
       if (
         !run ||
         run.status !== 'completed' ||
-        run.conclusion !== 'success' ||
         run.event !== 'push' ||
         run.head_branch !== 'main' ||
         run.path !== '.github/workflows/verify.yml' ||
@@ -107,6 +129,7 @@ export async function findMainArtifacts({
         marker.workflow_run.head_sha !== run.head_sha
       )
         continue;
+      if (!(await buildPassed(id))) continue;
       const found = new Set();
       for (let artifactsPage = 1; ; artifactsPage++) {
         const artifacts = await request(

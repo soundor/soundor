@@ -36,6 +36,12 @@ const artifacts = (kind) =>
     expired: false,
     expires_at: expires,
   }));
+const prefix = { engine: 'Engine / ', host: 'VST3 (host) / ' };
+const passing = (kind) => [
+  { name: `${prefix[kind]}Build (linux-x64)`, conclusion: 'success' },
+  { name: `${prefix[kind]}Checks`, conclusion: 'skipped' },
+  { name: 'E2E / linux', conclusion: 'success' },
+];
 const response = (value, status = 200) =>
   new Response(JSON.stringify(value), { status });
 function lookup({
@@ -43,6 +49,7 @@ function lookup({
   markers = [marker],
   selectedRun = run,
   binaries = artifacts(kind),
+  jobs,
   fetcher,
 } = {}) {
   return findMainArtifacts({
@@ -59,6 +66,8 @@ function lookup({
         if (path.endsWith('/actions/artifacts'))
           return response({ artifacts: markers });
         if (path.endsWith('/runs/123')) return response(selectedRun);
+        if (path.endsWith('/runs/123/jobs'))
+          return response({ jobs: jobs ?? passing(kind) });
         if (path.endsWith('/runs/123/artifacts'))
           return response({ artifacts: binaries });
         throw new Error(`Unexpected request ${url}`);
@@ -111,8 +120,6 @@ test('a miss, expired marker or a build older than seven days cannot be reused',
 test('rejects failed, incomplete, PR, fork and other-workflow runs', async () => {
   for (const patch of [
     { status: 'in_progress' },
-    { conclusion: 'failure' },
-    { conclusion: 'cancelled' },
     { event: 'pull_request' },
     { event: 'workflow_dispatch' },
     { head_branch: 'feature' },
@@ -123,6 +130,45 @@ test('rejects failed, incomplete, PR, fork and other-workflow runs', async () =>
     { head_sha: 'malformed' },
   ])
     assert.equal(await lookup({ selectedRun: { ...run, ...patch } }), null);
+});
+
+test('a run whose unrelated jobs failed still provides a build whose own jobs passed', async () => {
+  const failedRun = { ...run, conclusion: 'failure' };
+  for (const kind of ['engine', 'host'])
+    assert.deepEqual(
+      await lookup({
+        kind,
+        selectedRun: failedRun,
+        jobs: [
+          ...passing(kind),
+          { name: 'E2E / linux', conclusion: 'failure' },
+        ],
+      }),
+      { run: '123', commit },
+    );
+});
+
+test('a failed, cancelled or missing job of the build itself cannot be reused', async () => {
+  for (const kind of ['engine', 'host']) {
+    for (const conclusion of ['failure', 'cancelled', null])
+      assert.equal(
+        await lookup({
+          kind,
+          jobs: [
+            ...passing(kind),
+            { name: `${prefix[kind]}Build (macos-universal)`, conclusion },
+          ],
+        }),
+        null,
+      );
+    assert.equal(
+      await lookup({
+        kind,
+        jobs: [{ name: 'E2E / linux', conclusion: 'success' }],
+      }),
+      null,
+    );
+  }
 });
 
 test('every platform artifact must still exist and be unexpired', async () => {
@@ -171,6 +217,8 @@ test('continues past unusable markers and paginates artifacts', async () => {
         });
       }
       if (parsed.pathname.endsWith('/runs/123')) return response(run);
+      if (parsed.pathname.endsWith('/runs/123/jobs'))
+        return response({ jobs: passing('engine') });
       return response({
         artifacts:
           parsed.searchParams.get('page') === '1'
@@ -183,7 +231,7 @@ test('continues past unusable markers and paginates artifacts', async () => {
     },
   });
   assert.deepEqual(result, { run: '123', commit });
-  assert.equal(seen.length, 5);
+  assert.equal(seen.length, 6);
 });
 
 test('deleted candidates are misses, permission and service failures are errors', async () => {
