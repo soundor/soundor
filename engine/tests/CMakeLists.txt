@@ -117,6 +117,7 @@ if(SOUNDOR_JS_SOURCE)
     history/HistoryTests.cpp
     render/CompositorTests.cpp
     render/AnimationFrameTests.cpp
+    render/FontsTests.cpp
     render/FrameTests.cpp
     render/RegionTests.cpp
     runtime/DevSessionTests.cpp

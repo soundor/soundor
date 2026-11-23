@@ -976,7 +976,12 @@ Drawing behavior:
   text engine and its canvases): a registered family shadows the platform's,
   its face chosen by CSS's weight and style matching, with Skia's fake bold
   and a quarter skew where none matches. `ui::Surface::addFont()` registers
-  one with the surface's text engine and lays its text out again. Shaping is
+  one with the surface's text engine and lays its text out again. While any
+  `render::Fonts` exists, the process shares one font manager and one
+  typeface per font file's bytes (`FontShare`), so an editor opened again
+  reuses its typefaces and Skia's glyph caches for them; when the last one
+  goes, so do they, and `SkGraphics::PurgeFontCache()` empties Skia's caches
+  (the plugin's Skia is its own, so no other plugin's are touched). Shaping is
   simple: one glyph per code point, no ligatures or kerning, no complex scripts
   or bidi; those need HarfBuzz and ICU. The same text engine lays text out, so
   layout matches what is drawn. Tests that need machine-independent sizes use
