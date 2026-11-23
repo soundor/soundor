@@ -117,7 +117,7 @@ if(NOT SOUNDOR_SKIA_DIR)
     if(NOT EXISTS "${SOUNDOR_SKIA_DIR}/defines.txt")
       message(STATUS "Building Skia ${SOUNDOR_SKIA_VERSION} into ${SOUNDOR_SKIA_DIR} (once per machine)")
       execute_process(
-        COMMAND ${CMAKE_COMMAND}
+        COMMAND ${SOUNDOR_DEPENDENCY_BUILD} ${CMAKE_COMMAND}
           "-DOUT=${SOUNDOR_SKIA_DIR}"
           "-DREVISION=${SOUNDOR_SKIA_REVISION}"
           "-DREPOSITORY=${SOUNDOR_SKIA_REPOSITORY}"

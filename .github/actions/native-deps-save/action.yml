@@ -1,10 +1,11 @@
 name: Save native dependencies
-description: Saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked, and on main the compiler cache
+description: On a pull request, saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked; on main, saves the compiler cache and offers the builds no release has
 
 inputs:
   key:
-    description: native-deps's cache-key output
-    required: true
+    description: native-deps's cache-key output (empty when the dependency cache is not used)
+    required: false
+    default: ''
   restored:
     description: native-deps's cache-matched-key output (empty when nothing was restored)
     required: false
@@ -24,6 +25,7 @@ runs:
     # new saves nothing.
     - name: Name the complete builds
       id: key
+      if: inputs.key != ''
       shell: bash
       env:
         KEY: ${{ inputs.key }}

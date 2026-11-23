@@ -129,8 +129,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      id-token: write
-      attestations: write
     uses: ./.github/workflows/engine.yml
     with:
       release-build: true

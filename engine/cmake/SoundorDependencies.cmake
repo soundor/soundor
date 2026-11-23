@@ -108,6 +108,14 @@ endfunction()
 # and either leaves the complete install there or nothing. It failing stops
 # the configure; it never makes a build. Soundor's CI fetches what its main
 # branch built (.github/scripts/native-deps-release.mjs).
+# How each install is built: from its pinned sources alone, never through a
+# compiler cache the environment names (CMAKE_<LANG>_COMPILER_LAUNCHER, which
+# CMake reads from it). An install is kept and shared: Soundor's CI publishes
+# what its main branch built, and its release builds link them.
+set(SOUNDOR_DEPENDENCY_BUILD
+  "${CMAKE_COMMAND}" -E env --unset=CMAKE_C_COMPILER_LAUNCHER --unset=CMAKE_CXX_COMPILER_LAUNCHER
+  --unset=CMAKE_OBJC_COMPILER_LAUNCHER --unset=CMAKE_OBJCXX_COMPILER_LAUNCHER)
+
 function(soundor_fetch_dependency cache_root install)
   if(NOT DEFINED ENV{SOUNDOR_DEPENDENCY_FETCH} OR "$ENV{SOUNDOR_DEPENDENCY_FETCH}" STREQUAL "")
     return()

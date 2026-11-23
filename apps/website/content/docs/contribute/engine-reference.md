@@ -1987,50 +1987,26 @@ free space could then differ by whole boxes from x86's and from the web runtime'
 What still differs from the web runtime is in
 [Where layout differs](/docs/web-runtime#where-layout-differs).
 
-### Verified dependencies in CI
-
-Release engine jobs (`engine.yml`, `release-build: true`) bypass ordinary native
-and compiler caches, including the pnpm store cache. Standalone Verify uses `release-build: false`, including on
-main, to check changes and populate ordinary CI caches and artifacts. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
-the recipes (including patches and symbol prefixes), runtime family, detected
-compiler and SDK settings, CMake flags and hosted runner image. It looks for a
-matching fourteen-day artifact from a main release workflow whose dependency
-producer and signing jobs both succeeded for that runtime family. A later release
-failure does not invalidate that snapshot. A miss
-compiles cleanly from pinned sources; no existing unsigned cache is promoted.
-
-Before restoring a snapshot, the job verifies the transport digest, then uses
-`gh attestation verify` to bind the archive to this repository's `engine.yml`
-signer, `refs/heads/main`, the original source and signer commits, and a hosted
-runner. Signature verification precedes native archive extraction. The archive
-reader rejects path traversal, links, devices, duplicate paths and unexpected
-identities. The engine itself still compiles from the current checkout.
-
-After all release engine build jobs succeed, `attest-dependencies` runs separately
-on `main`. Verify does not run this signing job. It receives signing permissions, installs no packages, and executes no
-producer tools. GitHub's pinned `actions/attest` signs the snapshot digest, and
-the archive and bundle are retained together for fourteen days. The initial main
-run and changes to recipes or toolchain/image settings require a cold dependency
-build. This authenticates the builder and exact bytes; it does not establish
-that the reviewed source or compiler is free of malicious behavior.
-
-PR builds continue using ordinary caches for speed. The separate sanitizer,
-GCC, no-GPU and lint suites do not supply release dependency snapshots.
-
 ### Released dependencies in CI
 
-The Actions cache evicts, so Verify also keeps every Skia, ANGLE and Hermes
-build its main branch made in immutable GitHub releases,
-`native-deps-<recipes>-r<n>` (prereleases, never the latest;
-`.github/scripts/native-deps-release.mjs`). No CI job builds one of them again
-until its recipe changes, on any branch, however old its cache.
+The Actions cache evicts, so CI keeps every Skia, ANGLE and Hermes build its
+main branch made in immutable GitHub releases, `native-deps-<recipes>-r<n>`
+(prereleases, never the latest; `.github/scripts/native-deps-release.mjs`).
+No CI job builds one of them again until its recipe changes: Verify on any
+branch, and the release workflow's engine builds.
 
-- **The unit:** an install, as the engine's CMake names it in the
-  cache: `skia-<...>`, `angle-<...>`, and each flavor of `hermes-<...>/<flavor>`.
+- **The unit:** an install, as the engine's CMake names it in the cache:
+  `skia-<...>`, `angle-<...>`, and each flavor of `hermes-<...>/<flavor>`.
   Install names carry the revision, recipe, platform and architectures, not the
   compiler's version, so each asset is one install of one _group_: the job's
   cache name and its toolchain (runner image and compiler on Linux, Xcode on
   macOS, the MSVC toolset on Windows).
+- **Clean builds:** an install is compiled from its pinned sources alone. The
+  engine's CMake builds it without the compiler cache the environment names
+  (`SOUNDOR_DEPENDENCY_BUILD`), and on main a job restores no dependency cache:
+  every install it holds is fetched from a release or built in the job. Only
+  pull requests restore and save one, for the next push of a pull request that
+  changes the recipes.
 - **Fetching:** before CMake builds a missing install, it runs the program
   `SOUNDOR_DEPENDENCY_FETCH` names with the cache root and the install
   (`soundor_fetch_dependency`), which either leaves the complete install there
@@ -2038,16 +2014,21 @@ until its recipe changes, on any branch, however old its cache.
   checks its published digest, verifies its attestation (`verify.yml` on
   `refs/heads/main`, at the release's commit, on a hosted runner) before
   reading it, and unpacks it under a temporary name, refusing links and paths
-  outside the install (`native-deps-archive.py`). Release builds never fetch:
-  they use only verified dependencies.
-- **Publishing:** on a push to main, each job that passed offers the complete
-  installs no release has, and Verify's `Release native dependencies` job
-  attests and publishes what is still unreleased as the next revision. A
+  outside the install (`native-deps-archive.py`). Release engine builds
+  (`release-build: true`) restore no cache and fetch the same way; what no
+  release has, they build from clean sources.
+- **Publishing:** on a push to main, each Verify job that passed offers the
+  complete installs no release has, and Verify's `Release native dependencies`
+  job attests and publishes what is still unreleased as the next revision. A
   release only adds: nothing is uploaded twice, and a later run completes what
-  an earlier one did not build. Pull requests never publish.
+  an earlier one did not build. Pull requests and release builds never publish.
 - **Revoking:** delete the release that holds a bad install. Its tag is not
   reused; the next main run builds the install again and publishes it in a new
   revision.
+
+The attestation authenticates the builder and the exact bytes; it does not
+establish that the reviewed sources or the compiler are free of malicious
+behavior.
 
 ### Skia
 

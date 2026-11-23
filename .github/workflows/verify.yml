@@ -80,8 +80,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      id-token: write
-      attestations: write
     uses: ./.github/workflows/engine.yml
     with:
       release-build: false
@@ -169,9 +167,7 @@ jobs:
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
       - name: Prebuilt release tooling tests (engine, VST3 adapters)
-        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/vst3-adapters.test.mjs .github/scripts/native-artifacts.test.mjs .github/scripts/verified-deps.test.mjs .github/scripts/native-deps-release.test.mjs
-      - name: Verified dependency archive tests
-        run: python3 -m unittest discover -s .github/scripts -p 'verified_deps_test.py'
+        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/vst3-adapters.test.mjs .github/scripts/native-artifacts.test.mjs .github/scripts/native-deps-release.test.mjs
 
       - name: Storage cleanup policy tests
         run: node --test .github/scripts/cleanup-storage.test.mjs
@@ -289,7 +285,7 @@ jobs:
           node tools/benchmark/scripts/verify-svg-report.mjs "$RUNNER_TEMP/svg.json"
 
       - name: Save native dependencies
-        if: always() && steps.deps.outputs.cache-key != ''
+        if: always()
         uses: ./.github/actions/native-deps-save
         with:
           key: ${{ steps.deps.outputs.cache-key }}

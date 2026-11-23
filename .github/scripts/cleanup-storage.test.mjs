@@ -189,7 +189,7 @@ test('main cleanup pauses for queued, waiting and running native consumers', () 
       0,
     );
 });
-test('signed snapshots group by exact identity; release intermediates preserve failed runs', () => {
+test('release intermediates preserve failed runs', () => {
   const runs = [1, 2, 3, 4].map((n) =>
     run(n, {
       path: '.github/workflows/release.yml',
@@ -197,15 +197,11 @@ test('signed snapshots group by exact identity; release intermediates preserve f
     }),
   );
   const artifacts = [
-    artifact(1, 1, `verified-native-windows-${hash(1)}`, 5),
-    artifact(2, 2, `verified-native-windows-${hash(1)}`, 4),
-    artifact(3, 3, `verified-native-windows-${hash(1)}`, 2),
     artifact(4, 4, 'packed-retry'),
     artifact(5, 3, 'packed-published'),
-    artifact(6, 3, `verified-native-windows-static-${hash(2)}`),
-    artifact(7, 3, 'dependency-candidate', 0.2),
+    artifact(7, 3, 'packed-young', 0.2),
   ];
-  assert.deepEqual(ids(plan({ runs, artifacts })).sort(), [1, 5]);
+  assert.deepEqual(ids(plan({ runs, artifacts })), [5]);
 });
 test('cache snapshots preserve distinct configurations and backend versions', () => {
   const caches = [
@@ -217,16 +213,6 @@ test('cache snapshots preserve distinct configurations and backend versions', ()
     cache(6, 'unknown-key', 10),
   ];
   assert.deepEqual(ids(plan({ caches })), [1]);
-});
-test('dependency caches retain all completion variants in two mature recipe generations', () => {
-  const caches = [
-    cache(1, `native-deps-windows-msvc14-${hash(1)}-aaaaaaaaaaaaaaaa`, 6),
-    cache(2, `native-deps-windows-msvc14-${hash(1)}-bbbbbbbbbbbbbbbb`, 5),
-    cache(3, `native-deps-windows-msvc14-${hash(2)}`, 4),
-    cache(4, `native-deps-windows-msvc14-${hash(3)}`, 2),
-    cache(5, `native-deps-windows-static-msvc14-${hash(1)}`, 6),
-  ];
-  assert.deepEqual(ids(plan({ caches })).sort(), [1, 2]);
 });
 test('pnpm requires a mature current lockfile cache on each platform', () => {
   const caches = [

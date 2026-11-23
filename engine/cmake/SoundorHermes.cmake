@@ -135,7 +135,7 @@ if(NOT SOUNDOR_HERMES_DIR)
       endif()
       message(STATUS "Building Hermes ${SOUNDOR_HERMES_VERSION} (${flavor}) into ${out} (once per machine)")
       execute_process(
-        COMMAND ${CMAKE_COMMAND}
+        COMMAND ${SOUNDOR_DEPENDENCY_BUILD} ${CMAKE_COMMAND}
           "-DOUT=${out}"
           "-DREVISION=${SOUNDOR_HERMES_REVISION}"
           "-DSHA256=${SOUNDOR_HERMES_SHA256}"

@@ -65,24 +65,18 @@ It neither calls Verify nor consumes its required results or binary artifacts.
 Release disables pnpm store caching throughout its jobs, reusable engine/host
 builds, and website deployment. Verify retains pnpm caching.
 
-Release engine builds (`engine.yml`, `release-build: true`) do not restore
-ordinary compiled native or compiler caches. They restore dependency snapshots only after checking the
-transport digest and GitHub's signed build attestation against this repository,
-the `engine.yml` signer, `main`, and the original commit. The snapshot identity
-also includes dependency recipes, compiler/SDK settings and the runner image.
-An absent or expired snapshot builds dependencies from clean sources. Invalid
-signatures, identities or archive paths fail before the dependencies are used.
-
-After the engine builds pass, an isolated main-only job attests the dependency
-snapshot and retains it for fourteen days. It installs no packages and runs no
-producer executables; only this job receives signing permissions. Verify uses
-`release-build: false` on both PRs and main, keeps ordinary caches, and does not
-sign dependency snapshots. The source test suites keep their own configurations.
+Release engine builds (`engine.yml`, `release-build: true`) restore no cache,
+compiled native or compiler. They fetch Skia, ANGLE and Hermes from the
+immutable releases Verify publishes on main, which are built from clean
+sources, after checking each archive's digest and GitHub's signed build
+attestation against this repository, `verify.yml`, `main` and the release's
+commit; invalid signatures or archive paths fail before anything is used. What
+no release has, they build from clean sources, so the release workflow does not
+depend on Verify having run. See
+[Released dependencies in CI](/docs/contribute/engine-reference#released-dependencies-in-ci).
 
 Missing or mismatched CI artifacts fail verification; there is no fallback to an
-older engine. Release can opportunistically use verified dependency snapshots
-from earlier release builds; their absence triggers a clean build and creates
-no dependency on the standalone Verify workflow.
+older engine.
 
 ## Clean up CI storage
 

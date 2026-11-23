@@ -183,8 +183,6 @@ jobs:
       # Plans against the existing releases, drafts included.
       contents: write
       actions: read
-      id-token: write
-      attestations: write
     uses: ./.github/workflows/engine-prebuilts.yml
     with:
       mode: publish
@@ -249,8 +247,6 @@ jobs:
     permissions:
       contents: write
       actions: read
-      id-token: write
-      attestations: write
     uses: ./.github/workflows/engine-prebuilts.yml
     with:
       mode: publish

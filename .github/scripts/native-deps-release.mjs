@@ -1,6 +1,7 @@
-// Skia, ANGLE and Hermes that main's CI built, kept as GitHub releases so that
-// no job builds them again until their recipes change. The Actions cache is
-// the fast path and evicts; these releases are immutable and never expire.
+// Skia, ANGLE and Hermes that main's CI built from clean sources, kept as
+// GitHub releases so that no job, Verify's or a release build's, builds them
+// again until their recipes change. Unlike the Actions cache, which evicts,
+// these releases are immutable and never expire.
 //
 // The unit is an install: a directory of the Soundor cache that the engine's
 // CMake names after what made it (skia-<...>, angle-<...>, and each flavor of
