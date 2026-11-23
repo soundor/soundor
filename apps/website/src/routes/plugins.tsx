@@ -33,7 +33,7 @@ function Plugins() {
           The official plugins, built with the same toolchain you use.
         </p>
         <ul className="mt-12 space-y-20">
-          {officialPlugins.map((plugin) => (
+          {officialPlugins.map((plugin, index) => (
             <li
               key={plugin.name}
               className="grid items-center gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12"
@@ -45,11 +45,15 @@ function Plugins() {
                 className="block overflow-hidden rounded-xl border shadow-2xl shadow-black/10 transition-colors hover:border-fd-primary dark:shadow-black/40"
               >
                 <img
-                  src={plugin.image}
+                  src={plugin.image.src}
+                  srcSet={plugin.image.srcSet}
+                  sizes="(min-width: 1024px) 640px, 100vw"
                   alt=""
-                  width={1600}
-                  height={1200}
-                  loading="lazy"
+                  width={plugin.image.width}
+                  height={plugin.image.height}
+                  // The first image is what the page paints largest.
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={index === 0 ? 'high' : 'auto'}
                   className="aspect-[4/3] w-full object-cover"
                 />
               </a>
