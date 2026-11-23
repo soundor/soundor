@@ -33,8 +33,10 @@ read or hear.
 The VST3 suite has a file per subsystem: `rendering` (colors read back from
 captures, with the CPU compositor and with the platform's), `layout`,
 `input`, `accessibility`, `native`, `javascript`, `audio`, `session` (saved
-state, presets, the editor closed and opened again, instances) and `parity`
-(the same Rust as the VST3 and as WebAssembly, sample for sample). The web
+state, presets, the editor closed and opened again, instances), `memory`
+(on Linux, the editor opened and closed again and again leaves no memory or
+threads behind in the host, read from `/proc`) and `parity` (the same Rust
+as the VST3 and as WebAssembly, sample for sample). The web
 suite covers drawing, the checks, controls through ARIA, the controller and
 the processor's streams, the host's audio inputs, and no WebGL.
 

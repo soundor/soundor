@@ -15,11 +15,22 @@
     #include <include/gpu/ganesh/gl/GrGLAssembleInterface.h>
     #include <include/gpu/ganesh/gl/GrGLBackendSurface.h>
     #include <include/gpu/ganesh/gl/GrGLDirectContext.h>
+
+    #include <chrono>
+    #include <cstddef>
 #endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
 #if defined(SK_GANESH) && SOUNDOR_HAS_GANESH
+    namespace
+    {
+        // What one editor's 2D canvases keep on the GPU for later, at most.
+        constexpr std::size_t resourceCacheLimit = 32ULL * 1024 * 1024;
+        // How long what they keep may go unused before it is freed.
+        constexpr std::chrono::seconds unusedResourceLifetime { 10 };
+    } // namespace
+
     struct GaneshContext::Scope::Impl
     {
         std::unique_ptr<gpu::CurrentContext> current;
@@ -69,7 +80,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 *failure = "Skia rejected ANGLE's GLES context";
             return nullptr;
         }
-        context->setResourceCacheLimit(64ULL * 1024 * 1024);
+        // Each editor has its own context: what a 2D canvas keeps for later
+        // (scratch textures, path masks, glyph atlases) is bounded per editor.
+        context->setResourceCacheLimit(resourceCacheLimit);
         auto result = std::shared_ptr<GaneshContext>(new GaneshContext());
         result->impl->driver = std::move(driver);
         result->impl->context = std::move(context);
@@ -150,8 +163,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     }
     void GaneshSurface::publish()
     {
-        impl->owner->impl->context->flushAndSubmit(impl->surface.get(), GrSyncCpu::kNo);
+        auto& context = *impl->owner->impl->context;
+        context.flushAndSubmit(impl->surface.get(), GrSyncCpu::kNo);
         impl->texture->publish();
+        // What a busy moment left in the cache goes once unused for a while,
+        // not only when the cache is full.
+        context.performDeferredCleanup(unusedResourceLifetime);
     }
     sk_sp<SkImage> GaneshSurface::snapshot()
     {
