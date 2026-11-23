@@ -47,8 +47,8 @@ function Plugins() {
                 <img
                   src={plugin.image}
                   alt=""
-                  width={800}
-                  height={600}
+                  width={1600}
+                  height={1200}
                   loading="lazy"
                   className="aspect-[4/3] w-full object-cover"
                 />
