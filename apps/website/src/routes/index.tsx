@@ -15,6 +15,7 @@ import {
   ArrowRight,
   AudioWaveform,
   Globe,
+  Play,
   Shapes,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import {
 import { highlightFlow } from '@/components/home/highlight';
 import { workflowSteps } from '@/components/home/steps';
 import { Workflow } from '@/components/home/workflow';
+import { OrbitDemo } from '@/components/orbit-demo';
 import { baseOptions } from '@/lib/layout.shared';
 import { repository, soundorVersion } from '@/lib/shared';
 
@@ -139,6 +141,16 @@ function Home() {
                 Get started
                 <ArrowRight aria-hidden className="size-4" />
               </Link>
+              <a
+                className={buttonVariants({
+                  variant: 'outline',
+                  className: 'gap-1.5 px-4 py-2.5',
+                })}
+                href="#orbit-demo"
+              >
+                Try Orbit
+                <Play aria-hidden className="size-4" />
+              </a>
             </div>
             <Install className="mt-8 w-full max-w-lg text-left" />
           </section>
@@ -150,6 +162,28 @@ function Home() {
               text="One plugin, all the way through. Follow a gain parameter from its definition to the finished plugin."
             />
             <Workflow steps={workflowSteps(Route.useLoaderData())} />
+          </section>
+
+          <section id="orbit-demo" className="scroll-mt-20 border-t py-20">
+            <Heading
+              eyebrow="Try a plugin made with Soundor"
+              title="Meet Orbit"
+              text="A three-voice stereo delay, running right here in your browser. Press Play, drag an echo, and hear what you can build."
+            />
+            <div className="mx-auto max-w-[920px] rounded-xl shadow-2xl shadow-black/10 dark:shadow-black/40">
+              <OrbitDemo />
+            </div>
+            <p className="mx-auto mt-5 max-w-2xl text-center text-sm text-fd-muted-foreground">
+              Orbit, running live in the web runtime. The same code builds its
+              VST3.{' '}
+              <Link
+                to="/plugins"
+                className="underline underline-offset-4 hover:text-fd-foreground"
+              >
+                See the plugin
+              </Link>
+              .
+            </p>
           </section>
 
           <section className="border-t py-20">

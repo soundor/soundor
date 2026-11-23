@@ -38,3 +38,15 @@ test('the homepage fits a phone and its menu reaches the docs', async ({
     .click();
   await expect(page).toHaveURL(/\/docs$/);
 });
+
+test('the homepage embeds a playable Orbit', async ({ page }) => {
+  await page.goto('/');
+  const demo = page.getByTitle('Orbit, playable in the browser');
+  await expect(demo).toHaveAttribute(
+    'src',
+    'https://orbit.soundor.dev/embed/index.html',
+  );
+  await expect(demo).toHaveAttribute('allow', 'autoplay; microphone');
+  await page.getByRole('link', { name: 'Try Orbit' }).click();
+  await expect(page).toHaveURL(/#orbit-demo$/);
+});
