@@ -54,7 +54,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // The device a GPU compositor would draw on, made before there is
             // a view: give it to the RuntimeHost too, so that WebGL draws on
             // it and the compositor shows WebGL without copies. Null (and why
-            // in `failure`) where there is no GPU composition.
+            // in `failure`) where there is no GPU composition. Editors open
+            // on the same thread at the same time get the same device.
             [[nodiscard]] static std::shared_ptr<gpu::Device> createDevice(bool allowSoftware = false,
                                                                            std::string* failure = nullptr);
 

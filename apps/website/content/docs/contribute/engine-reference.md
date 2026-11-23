@@ -993,8 +993,13 @@ Drawing behavior:
 its headers.
 
 - **`gpu::Device`:** a GPU device and ANGLE's EGL display over it. Each device
-  has a display of its own, so destroying one never affects another editor's
-  or another plugin's. It belongs to the thread that created it (the UI
+  has a display of its own, so destroying one never affects another plugin's.
+  The editors open on one thread share theirs (`Device::shared()`, which
+  `GpuCompositor::createDevice()` uses): one GPU device, display and worker
+  pool for all of them, rather than one each. ANGLE keeps every display it
+  handed out for the process's life, so a display's key is used again once
+  the display is terminated: an editor opened again initializes the display
+  it had. It belongs to the thread that created it (the UI
   thread); debug builds assert that its contexts are used there only.
 - **Which device:** the platform's backend: Metal, Direct3D 11 or Vulkan.
   `DevicePolicy` says whether software renderers (SwiftShader, llvmpipe,
@@ -2185,7 +2190,11 @@ compositor and WebGL (see "The GPU").
   backend terminates instead of after: on Vulkan, terminating destroys the
   instance and the loader unloads the driver, and a worker that had made
   Vulkan calls would then exit into the driver's unloaded thread-exit code
-  (Mesa's Venus driver crashes the process on every `eglTerminate`). The patch
+  (Mesa's Venus driver crashes the process on every `eglTerminate`).
+  `WorkerThreadPool::Create` makes a display's asynchronous pool at most two
+  threads, not one per CPU: the first task posted (a program link, a
+  pipeline) starts all of them, and their glibc arenas kept the memory they
+  freed after the editor closed. The patch
   fails the build when ANGLE's code no longer matches, so an ANGLE update has
   to revisit it.
 - **Prerequisites:** git, Python 3 and ninja, as for Skia; Linux also needs

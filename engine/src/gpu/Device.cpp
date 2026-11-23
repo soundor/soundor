@@ -4,8 +4,8 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cctype>
+#include <mutex>
 #include <string_view>
 #include <vector>
 
@@ -68,13 +68,50 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             return std::ranges::any_of(names, [&](std::string_view name) { return contains(renderer, name); });
         }
 
-        // Every Device gets a display of its own (EGL hands out one display per
-        // platform and attributes otherwise).
-        EGLAttrib nextDisplayKey()
+        // Every Device gets a display of its own: EGL hands out one display per
+        // platform and attributes, and the key makes them differ. ANGLE keeps
+        // a display it handed out, terminated or not, for the process's life,
+        // so a key is used again once its display was terminated: an editor
+        // opened again then initializes the display it had, rather than
+        // leaving another behind each time.
+        class DisplayKeys
         {
-            static std::atomic<EGLAttrib> next { 1 };
-            return next.fetch_add(1, std::memory_order_relaxed);
-        }
+        public:
+            static EGLAttrib take()
+            {
+                const std::scoped_lock lock(mutex());
+                auto& unused = free();
+                if (unused.empty())
+                    return next()++;
+                const EGLAttrib key = unused.back();
+                unused.pop_back();
+                return key;
+            }
+
+            // After eglTerminate().
+            static void give(EGLAttrib key)
+            {
+                const std::scoped_lock lock(mutex());
+                free().push_back(key);
+            }
+
+        private:
+            static std::mutex& mutex()
+            {
+                static std::mutex shared;
+                return shared;
+            }
+            static std::vector<EGLAttrib>& free()
+            {
+                static std::vector<EGLAttrib> keys;
+                return keys;
+            }
+            static EGLAttrib& next()
+            {
+                static EGLAttrib key = 1;
+                return key;
+            }
+        };
 
         // GL_RENDERER and GL_VENDOR, read through a throwaway context.
         bool describe(EGLDisplay display, DeviceInfo& info)
@@ -127,13 +164,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         std::string reasons;
         for (const Candidate& candidate : candidates(options))
         {
+            const EGLAttrib key = DisplayKeys::take();
             const EGLAttrib attributes[] = {
                 EGL_PLATFORM_ANGLE_TYPE_ANGLE,
                 candidate.type,
                 EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE,
                 candidate.deviceType,
                 EGL_PLATFORM_ANGLE_DISPLAY_KEY_ANGLE,
-                nextDisplayKey(),
+                key,
 #if defined(__linux__)
                 EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
                 options.presentation && candidate.backend == Backend::Vulkan ? EGL_PLATFORM_X11_EXT
@@ -148,10 +186,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 reasons += std::string(reasons.empty() ? "" : "; ") + name(candidate.backend) + ": no device";
                 if (display != EGL_NO_DISPLAY)
                     eglTerminate(display);
+                DisplayKeys::give(key);
                 continue;
             }
             std::shared_ptr<Device> device(new Device());
             device->eglDisplay = display;
+            device->displayKey = key;
             device->deviceInfo.backend = candidate.backend;
             const std::string extensions = eglQueryString(display, EGL_EXTENSIONS);
             const auto has = [&](const std::string& extension)
@@ -180,9 +220,36 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         return nullptr;
     }
 
+    std::shared_ptr<Device> Device::shared(const Options& options, std::string* failure)
+    {
+        struct Held
+        {
+            Options options;
+            std::thread::id thread;
+            std::weak_ptr<Device> device;
+        };
+        static std::mutex mutex;
+        static std::vector<Held> held;
+        const std::scoped_lock lock(mutex);
+        std::erase_if(held, [](const Held& entry) { return entry.device.expired(); });
+        const auto thread = std::this_thread::get_id();
+        for (const Held& entry : held)
+            if (entry.thread == thread && entry.options.policy == options.policy
+                && entry.options.backend == options.backend && entry.options.presentation == options.presentation)
+                if (auto device = entry.device.lock())
+                    return device;
+        auto device = create(options, failure);
+        if (device != nullptr)
+            held.push_back({ options, thread, device });
+        return device;
+    }
+
     Device::~Device()
     {
         if (eglDisplay != nullptr)
+        {
             eglTerminate(eglDisplay);
+            DisplayKeys::give(displayKey);
+        }
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

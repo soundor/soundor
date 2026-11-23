@@ -156,7 +156,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 *failure = "no GPU presentation on this platform";
             return nullptr;
         }
-        return gpu::Device::create(
+        // The editors open on this thread share it.
+        return gpu::Device::shared(
             { .policy = allowSoftware ? gpu::DevicePolicy::AllowSoftware : gpu::DevicePolicy::HardwareOnly,
               .presentation = true },
             failure);

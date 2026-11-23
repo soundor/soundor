@@ -47,6 +47,29 @@ else()
   file(WRITE "${SOURCE}/src/libANGLE/Display.cpp" "${content}")
 endif()
 
+# WorkerThreadPool::Create: at most two worker threads per display, not one
+# per CPU. The first task posted (a program link, a monolithic pipeline, a
+# pipeline cache compression) starts every one of them, and each editor's
+# display has its own pool: with one per CPU, every editor open started a
+# dozen threads, whose glibc arenas kept their freed memory after the editor
+# closed (issue #377). A plugin's UI links a few programs, not hundreds.
+file(READ "${SOURCE}/src/common/WorkerThread.cpp" content)
+set(upstream [=[
+            numThreads == 0 ? std::thread::hardware_concurrency() : numThreads);]=])
+set(patched [=[
+            // Soundor: at most two threads (see SoundorAnglePatch.cmake).
+            numThreads == 0 ? (std::thread::hardware_concurrency() >= 2 ? 2 : 1) : numThreads);]=])
+string(FIND "${content}" "${upstream}" found)
+if(found EQUAL -1)
+  string(FIND "${content}" "${patched}" already)
+  if(already EQUAL -1)
+    message(FATAL_ERROR "src/common/WorkerThread.cpp: WorkerThreadPool::Create changed; update SoundorAnglePatch.cmake")
+  endif()
+else()
+  string(REPLACE "${upstream}" "${patched}" content "${content}")
+  file(WRITE "${SOURCE}/src/common/WorkerThread.cpp" "${content}")
+endif()
+
 # XCB presentation only: keep GLX and Xlib GPU discovery disabled. Both would
 # add mandatory X11 dependencies and are unnecessary for Vulkan presentation.
 function(soundor_angle_replace file before after)
