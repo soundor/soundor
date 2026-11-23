@@ -102,6 +102,23 @@ function(soundor_cache_root out)
   set(${out} "${root}" PARENT_SCOPE)
 endfunction()
 
+# Before building an install into the cache (skia-<...>, angle-<...>,
+# hermes-<...>/<flavor>), the program SOUNDOR_DEPENDENCY_FETCH names, if any,
+# may provide it: it is run with the cache root and the install's path in it,
+# and either leaves the complete install there or nothing. It failing stops
+# the configure; it never makes a build. Soundor's CI fetches what its main
+# branch built (.github/scripts/native-deps-release.mjs).
+function(soundor_fetch_dependency cache_root install)
+  if(NOT DEFINED ENV{SOUNDOR_DEPENDENCY_FETCH} OR "$ENV{SOUNDOR_DEPENDENCY_FETCH}" STREQUAL "")
+    return()
+  endif()
+  separate_arguments(command NATIVE_COMMAND "$ENV{SOUNDOR_DEPENDENCY_FETCH}")
+  execute_process(COMMAND ${command} "${cache_root}" "${install}" RESULT_VARIABLE status)
+  if(NOT status EQUAL 0)
+    message(FATAL_ERROR "SOUNDOR_DEPENDENCY_FETCH failed for ${install} (see above)")
+  endif()
+endfunction()
+
 # Populates a pinned GitHub archive without running its own CMakeLists.txt:
 # Soundor defines the targets it needs itself, so upstream build options,
 # executables and install rules never leak into the consuming project.

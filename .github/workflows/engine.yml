@@ -241,6 +241,7 @@ jobs:
         with:
           key: ${{ steps.deps.outputs.cache-key }}
           restored: ${{ steps.deps.outputs.cache-matched-key }}
+          offer: ${{ job.status == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   attest-dependencies:
     name: Attest dependencies (${{ matrix.family }})
@@ -433,6 +434,7 @@ jobs:
         with:
           key: ${{ steps.deps.outputs.cache-key }}
           restored: ${{ steps.deps.outputs.cache-matched-key }}
+          offer: ${{ job.status == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   native:
     name: ${{ matrix.name }}
@@ -515,3 +517,4 @@ jobs:
         with:
           key: ${{ steps.deps.outputs.cache-key }}
           restored: ${{ steps.deps.outputs.cache-matched-key }}
+          offer: ${{ job.status == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}

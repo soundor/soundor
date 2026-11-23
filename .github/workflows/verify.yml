@@ -169,7 +169,7 @@ jobs:
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
       - name: Prebuilt release tooling tests (engine, VST3 adapters)
-        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/vst3-adapters.test.mjs .github/scripts/native-artifacts.test.mjs .github/scripts/verified-deps.test.mjs
+        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/vst3-adapters.test.mjs .github/scripts/native-artifacts.test.mjs .github/scripts/verified-deps.test.mjs .github/scripts/native-deps-release.test.mjs
       - name: Verified dependency archive tests
         run: python3 -m unittest discover -s .github/scripts -p 'verified_deps_test.py'
 
@@ -294,6 +294,63 @@ jobs:
         with:
           key: ${{ steps.deps.outputs.cache-key }}
           restored: ${{ steps.deps.outputs.cache-matched-key }}
+          offer: ${{ job.status == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+  # Skia, ANGLE and Hermes that this push's jobs built and no release has
+  # yet, published once as an immutable release (native-deps-<recipes>-r<n>)
+  # for every later job, on any branch, to fetch instead of building
+  # (.github/scripts/native-deps-release.mjs). Each job offers only what it
+  # built and only when it passed. Main only: pull requests never write one.
+  native-deps-release:
+    name: Release native dependencies
+    needs: [engine, benchmark]
+    if: >-
+      always() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      (needs.engine.result != 'skipped' || needs.benchmark.result != 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Two pushes never name the same revision.
+    concurrency:
+      group: native-deps-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Download the offered builds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: native-deps-candidate-*
+          path: ${{ runner.temp }}/native-deps-candidates
+          merge-multiple: true
+      - name: Keep what no release has
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/native-deps-release.mjs prepare "$RUNNER_TEMP/native-deps-candidates" "$RUNNER_TEMP/native-deps-release"
+      # What fetch verifies before it reads an archive: built by this workflow on main.
+      - name: Attest
+        id: attest
+        if: steps.prepare.outputs.count != '0'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ runner.temp }}/native-deps-release/*.tar.gz
+      - name: Publish
+        if: steps.prepare.outputs.count != '0'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.prepare.outputs.tag }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: node .github/scripts/native-deps-release.mjs publish "$RUNNER_TEMP/native-deps-release" "$TAG" "$BUNDLE"
 
   # @soundor/vst3-host: its executable on every target, tested headless and
   # with its editor, for the jobs that use it. Clang-tidy and sanitizers only

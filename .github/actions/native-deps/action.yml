@@ -111,3 +111,16 @@ runs:
         restore-keys: |
           native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('engine/cmake/SoundorSkia*.cmake', 'engine/cmake/SoundorAngle*.cmake', 'engine/cmake/angle/**', 'engine/cmake/SoundorHermes*.cmake', 'engine/cmake/hermes/**', 'engine/cmake/SoundorDependencies.cmake') }}-
           native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-
+
+    # What neither the cache nor this job has, CMake fetches from the
+    # immutable releases main's CI published (native-deps-*) before it would
+    # build it: SOUNDOR_DEPENDENCY_FETCH (engine/cmake/SoundorDependencies.cmake,
+    # .github/scripts/native-deps-release.mjs). Never in release builds, which
+    # use only verified dependencies.
+    - name: Find released Skia, ANGLE and Hermes
+      if: inputs.cache == 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        JOB: ${{ inputs.job }}
+      run: node .github/scripts/native-deps-release.mjs index "$JOB"

@@ -2017,6 +2017,38 @@ that the reviewed source or compiler is free of malicious behavior.
 PR builds continue using ordinary caches for speed. The separate sanitizer,
 GCC, no-GPU and lint suites do not supply release dependency snapshots.
 
+### Released dependencies in CI
+
+The Actions cache evicts, so Verify also keeps every Skia, ANGLE and Hermes
+build its main branch made in immutable GitHub releases,
+`native-deps-<recipes>-r<n>` (prereleases, never the latest;
+`.github/scripts/native-deps-release.mjs`). No CI job builds one of them again
+until its recipe changes, on any branch, however old its cache.
+
+- **The unit:** an install, as the engine's CMake names it in the
+  cache: `skia-<...>`, `angle-<...>`, and each flavor of `hermes-<...>/<flavor>`.
+  Install names carry the revision, recipe, platform and architectures, not the
+  compiler's version, so each asset is one install of one _group_: the job's
+  cache name and its toolchain (runner image and compiler on Linux, Xcode on
+  macOS, the MSVC toolset on Windows).
+- **Fetching:** before CMake builds a missing install, it runs the program
+  `SOUNDOR_DEPENDENCY_FETCH` names with the cache root and the install
+  (`soundor_fetch_dependency`), which either leaves the complete install there
+  or nothing; a failure stops the configure. CI's fetcher downloads the asset,
+  checks its published digest, verifies its attestation (`verify.yml` on
+  `refs/heads/main`, at the release's commit, on a hosted runner) before
+  reading it, and unpacks it under a temporary name, refusing links and paths
+  outside the install (`native-deps-archive.py`). Release builds never fetch:
+  they use only verified dependencies.
+- **Publishing:** on a push to main, each job that passed offers the complete
+  installs no release has, and Verify's `Release native dependencies` job
+  attests and publishes what is still unreleased as the next revision. A
+  release only adds: nothing is uploaded twice, and a later run completes what
+  an earlier one did not build. Pull requests never publish.
+- **Revoking:** delete the release that holds a bad install. Its tag is not
+  reused; the next main run builds the install again and publishes it in a new
+  revision.
+
 ### Skia
 
 Skia is built from source at the pinned `chrome/m144` commit, with raster
