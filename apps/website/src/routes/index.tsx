@@ -1,187 +1,378 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { Card, Cards } from 'fumadocs-ui/components/card';
+import {
+  CodeBlock,
+  CodeBlockTab,
+  CodeBlockTabs,
+  CodeBlockTabsList,
+  CodeBlockTabsTrigger,
+  Pre,
+} from 'fumadocs-ui/components/codeblock';
+import { buttonVariants } from 'fumadocs-ui/components/ui/button';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import {
+  AppWindow,
   ArrowRight,
-  ArrowUpRight,
-  AudioLines,
-  Braces,
-  Code2,
-  Layers,
-  Terminal,
+  AudioWaveform,
+  Globe,
+  Shapes,
+  SlidersHorizontal,
 } from 'lucide-react';
 
+import { highlightFlow } from '@/components/home/highlight';
+import { workflowSteps } from '@/components/home/steps';
+import { Workflow } from '@/components/home/workflow';
 import { baseOptions } from '@/lib/layout.shared';
 import { repository, soundorVersion } from '@/lib/shared';
 
-export const Route = createFileRoute('/')({ component: Home });
+export const Route = createFileRoute('/')({
+  loader: () => highlightFlow(),
+  component: Home,
+});
 
-const workflow = [
-  {
-    icon: Braces,
-    title: 'Define your plugin.',
-    text: 'Declare parameters and a typed native API in soundor.config.ts. Generated types keep your UI and host implementations in agreement.',
-    url: '/docs/parameters',
-    link: 'Parameters & automation',
-  },
-  {
-    icon: Code2,
-    title: 'Find your interface.',
-    text: 'Compose controls in React and TypeScript. Use layout, animation, Canvas 2D and WebGL. Save a UI change and see it reload.',
-    url: '/docs/react',
-    link: 'Meet the React API',
-  },
-  {
-    icon: AudioLines,
-    title: 'Give it a sound.',
-    text: 'Write the processor once in Rust. It runs natively in the VST3 plugin and as WebAssembly in the browser.',
-    url: '/docs/rust-processor',
-    link: 'Rust audio processing',
-  },
-];
+const managers = [
+  ['pnpm', `pnpm create soundor-app@${soundorVersion} my-plugin`],
+  ['npm', `npm create soundor-app@${soundorVersion} my-plugin`],
+] as const;
+
+/** Creating a project, with either package manager Soundor supports. */
+function Install({ className }: { readonly className?: string }) {
+  return (
+    <CodeBlockTabs defaultValue="pnpm" className={className}>
+      <CodeBlockTabsList>
+        {managers.map(([name]) => (
+          <CodeBlockTabsTrigger key={name} value={name}>
+            {name}
+          </CodeBlockTabsTrigger>
+        ))}
+      </CodeBlockTabsList>
+      {managers.map(([name, command]) => (
+        <CodeBlockTab key={name} value={name}>
+          <CodeBlock>
+            <Pre>
+              {/* One line: the code block lays each child of code on its own. */}
+              <code>
+                <span className="line">
+                  <span className="text-fd-muted-foreground select-none">
+                    ${' '}
+                  </span>
+                  {command}
+                </span>
+              </code>
+            </Pre>
+          </CodeBlock>
+        </CodeBlockTab>
+      ))}
+    </CodeBlockTabs>
+  );
+}
+
+function Heading({
+  eyebrow,
+  title,
+  text,
+  align = 'center',
+}: {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly text: string;
+  readonly align?: 'center' | 'left';
+}) {
+  return (
+    <div className={align === 'center' ? 'mb-10 text-center' : 'mb-10'}>
+      <p className="mb-2 font-mono text-xs tracking-wider text-fd-primary uppercase">
+        {eyebrow}
+      </p>
+      <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        {title}
+      </h2>
+      <p
+        className={`mt-2 text-fd-muted-foreground ${align === 'center' ? 'mx-auto max-w-xl' : 'max-w-xl'}`}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
 
 function Home() {
   return (
-    <HomeLayout {...baseOptions()} className="soundor-home">
-      <div className="home-content">
-        <section className="home-hero" aria-labelledby="home-title">
-          <div className="home-intro">
-            <p className="home-eyebrow">
-              <span /> A toolkit for plugin makers
-            </p>
-            <h1 id="home-title">
-              Audio plugins with a React UI. <br />
-              <span>Your sound. Your interface.</span>
+    <HomeLayout {...baseOptions()}>
+      <main className="relative isolate w-full overflow-x-clip">
+        {/* A faint grid behind the hero, as on the other Soundor sites. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[760px] [background-image:linear-gradient(to_right,var(--color-fd-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-fd-border)_1px,transparent_1px)] [background-size:48px_48px] opacity-60 [mask-image:radial-gradient(ellipse_60%_55%_at_50%_0%,black,transparent)]"
+        />
+
+        <div className="mx-auto max-w-6xl px-6">
+          <section className="flex flex-col items-center pt-20 pb-14 text-center sm:pt-28">
+            <Link
+              to="/changelog/$"
+              params={{ _splat: '' }}
+              className="mb-6 inline-flex items-center gap-2 rounded-full border bg-fd-card/80 px-3 py-1 text-xs text-fd-muted-foreground backdrop-blur transition-colors hover:text-fd-foreground"
+            >
+              <AudioWaveform aria-hidden className="size-3.5 text-fd-primary" />
+              Soundor {soundorVersion} · VST3 and the web
+              <ArrowRight aria-hidden className="size-3" />
+            </Link>
+            <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
+              Audio plugins with a React UI,{' '}
+              <span className="bg-gradient-to-r from-fd-primary to-fd-foreground/60 bg-clip-text text-transparent">
+                in your DAW and the browser
+              </span>
             </h1>
-            <p className="home-lead">
-              Build the interface in TypeScript and React. Run it in a native
-              VST3 plugin and in the browser. Write the DSP once, in Rust.
+            <p className="mt-5 max-w-2xl text-lg text-balance text-fd-muted-foreground">
+              Write the interface in React and TypeScript and the sound in Rust.
+              One project builds a VST3 plugin for Linux, macOS and Windows, and
+              a web page that runs the same plugin.
             </p>
-            <div className="home-hero-actions">
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link
+                className={buttonVariants({
+                  variant: 'primary',
+                  className: 'gap-1.5 px-4 py-2.5',
+                })}
                 to="/docs/$"
                 params={{ _splat: 'getting-started' }}
-                className="home-button home-button-primary"
               >
-                Get started <ArrowRight size={17} aria-hidden />
-              </Link>
-              <Link
-                to="/docs/$"
-                params={{ _splat: '' }}
-                className="home-text-link"
-              >
-                Read the docs <ArrowUpRight size={16} aria-hidden />
+                Get started
+                <ArrowRight aria-hidden className="size-4" />
               </Link>
             </div>
-            <div className="home-targets" aria-label="Supported plugin formats">
-              <span>VST3</span>
-              <span>Audio Unit</span>
-              <span>Standalone</span>
-              <span>Web</span>
+            <Install className="mt-8 w-full max-w-lg text-left" />
+          </section>
+
+          <section id="workflow" className="scroll-mt-20 border-t py-20">
+            <Heading
+              eyebrow="Workflow"
+              title="From an empty folder to a plugin"
+              text="One plugin, all the way through. Follow a gain parameter from its definition to the finished plugin."
+            />
+            <Workflow steps={workflowSteps(Route.useLoaderData())} />
+          </section>
+
+          <section className="border-t py-20">
+            <Heading
+              eyebrow="Runtimes"
+              title="One plugin, two places to play"
+              text="The same interface and the same Rust, run by two runtimes."
+            />
+            <Cards className="sm:grid-cols-2">
+              <Card
+                icon={<AppWindow />}
+                title="VST3, in your DAW"
+                href="/docs/vst3-runtime"
+                description="A VST3 bundle for Linux, macOS and Windows. The interface runs in an embedded engine and draws on the GPU; there is no browser inside the plugin."
+              />
+              <Card
+                icon={<Globe />}
+                title="Web, in the browser"
+                href="/docs/web-runtime"
+                description="A static site with the same interface on the page and the Rust compiled to WebAssembly, playing through Web Audio."
+              />
+            </Cards>
+          </section>
+
+          <section className="border-t py-20">
+            <Heading
+              eyebrow="Libraries"
+              title="Made to go with it"
+              text="Ready-made controls and icons that run in both runtimes."
+            />
+            <Cards className="sm:grid-cols-2">
+              <Card
+                icon={<SlidersHorizontal />}
+                title="Soundor Components"
+                href="https://components.soundor.dev/"
+                external
+                description="Knobs, faders, meters and draggable plots that bind to your parameters and speak to screen readers."
+              />
+              <Card
+                icon={<Shapes />}
+                title="Soundor Icons"
+                href="https://icons.soundor.dev/"
+                external
+                description="Icons from Lucide, Tabler, Phosphor, Heroicons and Material Symbols, drawn natively in a plugin."
+              />
+            </Cards>
+          </section>
+
+          <section className="border-t py-20">
+            <Heading
+              eyebrow="FAQ"
+              title="A few things you might be wondering"
+              text="A few details that are easy to miss when you start."
+            />
+            <div className="mx-auto grid max-w-4xl gap-3">
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Is there a browser inside the VST3 plugin?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  No. The VST3 runtime embeds Soundor’s native engine and runs
+                  your JavaScript with Hermes. It lays out the interface with
+                  Yoga and draws it with Skia; it does not embed a browser.
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Does JavaScript make the audio processing slow?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  JavaScript does not process the audio. Your DSP is written in
+                  Rust and runs on the audio thread—natively in the VST3, and as
+                  WebAssembly in an AudioWorklet on the web. JavaScript runs the
+                  interface separately.
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Can the same project run in a browser too?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  Yes. One project can build a VST3 and a web app. Both use the
+                  same React interface and Rust audio processor, with each
+                  runtime adapting them to its platform.
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Can I use regular browser React and CSS for the interface?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  The shared plugin UI has no DOM, <code>window</code>, or CSS.
+                  It uses Soundor’s React components and object-based styles.
+                  The web runtime draws those same UI nodes with browser
+                  elements. See the{' '}
+                  <a
+                    className="text-fd-primary hover:underline"
+                    href="/docs/react"
+                  >
+                    React UI guide
+                  </a>
+                  .
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Does declaring a parameter automatically change the sound?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  No. The config defines the parameter and keeps its type and
+                  range consistent, but your Rust processor must read it and
+                  apply it to the audio. The scaffold’s gain example shows the
+                  connection in the{' '}
+                  <a
+                    className="text-fd-primary hover:underline"
+                    href="/docs/rust-processor"
+                  >
+                    Rust processor guide
+                  </a>
+                  .
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Do I need Rust, even for a web-only project?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  Yes. Both runtimes build the project’s Rust audio processor;
+                  the web runtime compiles it to WebAssembly. The starter
+                  project includes a working processor, and{' '}
+                  <code>soundor doctor</code> checks the required tools.
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Can I build VST3s for every platform from one machine?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  Each VST3 build targets the OS and CPU you’re building on;
+                  Soundor doesn’t cross-compile. It supports Linux x64, Windows
+                  x64, and macOS for the machine’s CPU. The plugin format is
+                  VST3.
+                </p>
+              </details>
+              <details className="group rounded-xl border bg-fd-card p-5">
+                <summary className="cursor-pointer list-none font-medium marker:hidden [&::-webkit-details-marker]:hidden">
+                  Can I rename a parameter after people use the plugin?
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-fd-muted-foreground">
+                  Keep its config key stable: hosts use it to identify saved
+                  values and automation, so renaming it can break existing
+                  sessions. You can change its <code>label</code> without
+                  changing that identity.
+                </p>
+              </details>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="home-foundation" aria-label="How Soundor works">
-          <p>One UI. Two places to play.</p>
-          <div>
-            <Layers size={18} aria-hidden />
-            <span>
-              <strong>Native VST3 plugin</strong>
-              <span>Embedded engine · no browser in the editor</span>
-            </span>
-          </div>
-          <span className="home-foundation-plus" aria-hidden>
-            +
-          </span>
-          <div>
-            <Code2 size={18} aria-hidden />
-            <span>
-              <strong>Browser experience</strong>
-              <span>The same UI · your Web Audio processor</span>
-            </span>
-          </div>
-        </section>
-
-        <section className="home-workflow" aria-labelledby="workflow-title">
-          <div className="home-section-heading">
-            <p className="home-eyebrow">From an idea to an instrument</p>
-            <h2 id="workflow-title">
-              A familiar way to build
-              <br />
-              something that sounds like you.
+          <section className="mb-24 overflow-hidden rounded-2xl border bg-fd-card p-8 text-center sm:p-12">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Start your own plugin
             </h2>
-            <p>
-              Soundor connects your interface to the host.
-              <br />
-              You stay in control of the design and the audio.
+            <p className="mx-auto mt-3 max-w-md text-fd-muted-foreground">
+              You need Node.js 24 and Rust. VST3 builds also need the platform’s
+              linker.
             </p>
-          </div>
-          <div className="home-workflow-grid">
-            {workflow.map((step, index) => (
-              <article key={step.title}>
-                <div className="home-step-top">
-                  <step.icon size={23} strokeWidth={1.5} aria-hidden />
-                  <span>0{index + 1}</span>
-                </div>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
-                <a href={step.url}>
-                  {step.link} <ArrowRight size={15} aria-hidden />
-                </a>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="home-start" aria-labelledby="start-title">
-          <div>
-            <p className="home-eyebrow">Your next plugin starts here</p>
-            <h2 id="start-title">Make a little noise.</h2>
-            <p>
-              Create a project with a working gain control and a Rust processor
-              scaffold. Then make it your own.
-            </p>
+            <Install className="mx-auto mt-6 max-w-lg text-left" />
             <Link
+              className={buttonVariants({
+                variant: 'primary',
+                className: 'mt-6 gap-1.5 px-4 py-2.5',
+              })}
               to="/docs/$"
               params={{ _splat: 'getting-started' }}
-              className="home-text-link"
             >
-              Follow the getting started guide{' '}
-              <ArrowRight size={16} aria-hidden />
+              Follow the guide
+              <ArrowRight aria-hidden className="size-4" />
             </Link>
-          </div>
-          <div className="home-terminal">
-            <div>
-              <Terminal size={15} aria-hidden />
-              <span>Create a project</span>
-            </div>
-            <pre>
-              <code>
-                <span className="home-shell-prompt" aria-hidden>
-                  ${' '}
-                </span>
-                npm create soundor-app@{soundorVersion} my-plugin
-              </code>
-            </pre>
-            <p>
-              Node.js 24 · Rust · VST3 builds need the platform's linker.{' '}
-              <a href="/docs/getting-started#requirements">
-                Requirements <ArrowUpRight size={12} aria-hidden />
-              </a>
-            </p>
-          </div>
-        </section>
-
-        <footer className="home-footer">
-          <p>
-            Soundor <span>·</span> Tools for your next sound.
-          </p>
-          <p>Pre-1.0. APIs can change between minor releases.</p>
-          <a href={repository.url}>
-            Build with us on GitHub <ArrowUpRight size={14} aria-hidden />
-          </a>
-        </footer>
-      </div>
+          </section>
+        </div>
+      </main>
+      <Footer />
     </HomeLayout>
+  );
+}
+
+function Footer() {
+  return (
+    <footer role="contentinfo" className="border-t">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8 text-sm text-fd-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <p>Soundor is before 1.0: APIs can change between minor releases.</p>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
+          <Link
+            className="hover:text-fd-foreground"
+            to="/docs/$"
+            params={{ _splat: '' }}
+          >
+            Docs
+          </Link>
+          <Link
+            className="hover:text-fd-foreground"
+            to="/changelog/$"
+            params={{ _splat: '' }}
+          >
+            Changelog
+          </Link>
+          <a className="hover:text-fd-foreground" href={repository.url}>
+            GitHub
+          </a>
+          <a
+            className="hover:text-fd-foreground"
+            href="https://components.soundor.dev/"
+          >
+            Components
+          </a>
+          <a
+            className="hover:text-fd-foreground"
+            href="https://icons.soundor.dev/"
+          >
+            Icons
+          </a>
+        </nav>
+      </div>
+    </footer>
   );
 }

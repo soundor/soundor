@@ -24,7 +24,7 @@ test('the homepage fits a phone and its menu reaches the docs', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
-    'Your sound. Your interface.',
+    'in your DAW and the browser',
   );
   expect(
     await page.evaluate(
