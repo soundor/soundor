@@ -47,6 +47,7 @@ export function baseOptions(): BaseLayoutProps {
     githubUrl: repository.url,
     links: [
       { text: 'Docs', url: '/docs', active: 'url' },
+      { text: 'Plugins', url: '/plugins', active: 'url' },
       { text: 'Changelog', url: '/changelog', active: 'nested-url' },
       ...siteLinks.map((link) => ({
         ...link,

@@ -350,3 +350,11 @@ test('each tab has its own pages: hooks, testing, the CLI', async ({
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(heading);
   }
 });
+
+test('the plugins page lists the official plugins', async ({ page }) => {
+  await page.goto('/plugins');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Made with Soundor',
+  );
+  await expect(page.getByRole('heading', { name: 'Orbit' })).toBeVisible();
+});
