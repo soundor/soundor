@@ -24,7 +24,7 @@ test('the homepage fits a phone and its menu reaches the docs', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
-    'Your sound. Your interface.',
+    'in your DAW and the browser',
   );
   expect(
     await page.evaluate(
@@ -32,6 +32,21 @@ test('the homepage fits a phone and its menu reaches the docs', async ({
     ),
   ).toBe(true);
   await page.locator('header').getByRole('button', { name: /menu/i }).click();
-  await page.getByRole('link', { name: 'Docs', exact: true }).click();
+  await page
+    .locator('header')
+    .getByRole('link', { name: 'Docs', exact: true })
+    .click();
   await expect(page).toHaveURL(/\/docs$/);
+});
+
+test('the homepage embeds a playable Orbit', async ({ page }) => {
+  await page.goto('/');
+  const demo = page.getByTitle('Orbit, playable in the browser');
+  await expect(demo).toHaveAttribute(
+    'src',
+    'https://orbit.soundor.dev/embed/index.html',
+  );
+  await expect(demo).toHaveAttribute('allow', 'autoplay; microphone');
+  await page.getByRole('link', { name: 'Try our plugin' }).click();
+  await expect(page).toHaveURL(/#orbit-demo$/);
 });

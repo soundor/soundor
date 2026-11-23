@@ -32,12 +32,14 @@ export function baseOptions(): BaseLayoutProps {
           <img
             src="/soundor-logo.svg"
             alt={appName}
+            width={143}
             height={28}
             className="h-7 w-auto dark:hidden"
           />
           <img
             src="/soundor-logo-dark-bg.svg"
             alt={appName}
+            width={143}
             height={28}
             className="hidden h-7 w-auto dark:block"
           />
@@ -47,6 +49,7 @@ export function baseOptions(): BaseLayoutProps {
     githubUrl: repository.url,
     links: [
       { text: 'Docs', url: '/docs', active: 'url' },
+      { text: 'Plugins', url: '/plugins', active: 'url' },
       { text: 'Changelog', url: '/changelog', active: 'nested-url' },
       ...siteLinks.map((link) => ({
         ...link,
