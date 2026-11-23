@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { buttonVariants } from 'fumadocs-ui/components/ui/button';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { ArrowUpRight } from 'lucide-react';
 
@@ -21,7 +22,7 @@ export const Route = createFileRoute('/plugins')({
 function Plugins() {
   return (
     <HomeLayout {...baseOptions()}>
-      <main className="mx-auto w-full max-w-5xl px-4 py-16">
+      <main className="mx-auto w-full max-w-6xl px-4 py-16">
         <p className="mb-2 font-mono text-xs tracking-wider text-fd-primary uppercase">
           Plugins
         </p>
@@ -31,38 +32,39 @@ function Plugins() {
         <p className="mt-2 max-w-xl text-fd-muted-foreground">
           The official plugins, built with the same toolchain you use.
         </p>
-        <ul className="mt-10 grid gap-4 sm:grid-cols-2">
+        <ul className="mt-12 space-y-20">
           {officialPlugins.map((plugin) => (
             <li
               key={plugin.name}
-              className="relative overflow-hidden rounded-xl border bg-fd-card text-fd-card-foreground transition-colors focus-within:border-fd-primary hover:border-fd-primary"
+              className="grid items-center gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12"
             >
-              <img
-                src={plugin.image}
-                alt={`${plugin.name}, ${plugin.kind.toLowerCase()}`}
-                width={800}
-                height={600}
-                loading="lazy"
-                className="aspect-[4/3] w-full border-b object-cover"
-              />
-              <div className="p-5">
-                <p className="text-xs text-fd-muted-foreground">
+              <a
+                href={plugin.url}
+                tabIndex={-1}
+                aria-hidden
+                className="block overflow-hidden rounded-xl border shadow-2xl shadow-black/10 transition-colors hover:border-fd-primary dark:shadow-black/40"
+              >
+                <img
+                  src={plugin.image}
+                  alt=""
+                  width={800}
+                  height={600}
+                  loading="lazy"
+                  className="aspect-[4/3] w-full object-cover"
+                />
+              </a>
+              <div>
+                <p className="font-mono text-xs tracking-wider text-fd-primary uppercase">
                   {plugin.kind}
                 </p>
-                <h2 className="mt-1 text-xl font-semibold">
-                  <a
-                    href={plugin.url}
-                    className="inline-flex items-center gap-1 after:absolute after:inset-0 after:content-['']"
-                  >
-                    {plugin.name}
-                    <ArrowUpRight aria-hidden className="size-4" />
-                  </a>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                  {plugin.name}
                 </h2>
-                <p className="mt-2 text-sm text-fd-muted-foreground">
+                <p className="mt-4 text-fd-muted-foreground">
                   {plugin.description}
                 </p>
                 <ul
-                  className="mt-4 flex flex-wrap gap-2"
+                  className="mt-5 flex flex-wrap gap-2"
                   aria-label={`${plugin.name} formats`}
                 >
                   {plugin.formats.map((format) => (
@@ -74,6 +76,16 @@ function Plugins() {
                     </li>
                   ))}
                 </ul>
+                <a
+                  href={plugin.url}
+                  className={buttonVariants({
+                    variant: 'primary',
+                    className: 'mt-8 gap-1.5 px-4 py-2.5',
+                  })}
+                >
+                  Visit {plugin.name}
+                  <ArrowUpRight aria-hidden className="size-4" />
+                </a>
               </div>
             </li>
           ))}
