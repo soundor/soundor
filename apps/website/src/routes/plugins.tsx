@@ -4,6 +4,7 @@ import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 
 import { officialPlugins } from '@/components/plugins/plugins';
+import { SiteFooter } from '@/components/site-footer';
 import { baseOptions } from '@/lib/layout.shared';
 
 export const Route = createFileRoute('/plugins')({
@@ -133,6 +134,7 @@ function Plugins() {
           </div>
         </section>
       </main>
+      <SiteFooter />
     </HomeLayout>
   );
 }

@@ -9,12 +9,14 @@ import {
   DocsPage,
   DocsTitle,
   MarkdownCopyButton,
+  PageFooter,
   ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
-import { Suspense, use } from 'react';
+import { type ComponentProps, Suspense, use } from 'react';
 
 import { BreakingChangeIcon } from '@/components/breaking-change-icon';
 import { useMDXComponents } from '@/components/mdx';
+import { PageLegal } from '@/components/site-footer';
 import { baseOptions, siteLinks } from '@/lib/layout.shared';
 import { getPageMarkdownUrl, repository } from '@/lib/shared';
 import { docs, source } from '@/lib/source';
@@ -58,6 +60,16 @@ const serverLoader = createServerFn({
     };
   });
 
+/** The page's previous and next links, then the site's legal line. */
+function PageFooterWithLegal(props: ComponentProps<typeof PageFooter>) {
+  return (
+    <>
+      <PageFooter {...props} />
+      <PageLegal />
+    </>
+  );
+}
+
 function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
   const page = docs.getPage(path);
   if (!page) throw new Error(`unknown page: ${path}`);
@@ -66,7 +78,7 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
   const MDX = page.body;
 
   return (
-    <DocsPage toc={toc}>
+    <DocsPage toc={toc} slots={{ footer: PageFooterWithLegal }}>
       <DocsTitle>
         {page.title.endsWith(' ⚠') ? (
           <>

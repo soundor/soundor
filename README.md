@@ -1,5 +1,5 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/soundor-logo-dark-bg.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/soundor-logo-on-dark.svg">
   <img alt="Soundor" src="assets/brand/soundor-logo.svg" height="64">
 </picture>
 
@@ -95,7 +95,16 @@ Native checks build the engine and its dependencies on the first run. See
 [Contributing](https://soundor.dev/docs/contribute) for requirements, focused checks, and example
 commands.
 
-## License
+## License & Branding
 
-Soundor is [MIT licensed](LICENSE). Native dependencies carry their own notices;
-see [engine attribution](https://soundor.dev/docs/engine#licenses-and-attribution).
+Soundor's software is [MIT licensed](LICENSE). Native dependencies carry their
+own notices; see
+[engine attribution](https://soundor.dev/docs/engine#licenses-and-attribution).
+
+The Soundor name and the Soundor logos are the project's identity, not part of
+the software license: the logo files in [`assets/brand`](assets/brand) have their
+own [notice](assets/brand/LICENSE.md). You are free to build and sell plugins,
+open source or proprietary, with Soundor under the MIT License, and to say they
+are built with Soundor; please don't present them as official Soundor releases.
+See the [Brand Guidelines](https://soundor.dev/brand) and [BRANDING.md](BRANDING.md),
+and the [Privacy Policy](https://soundor.dev/privacy).

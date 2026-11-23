@@ -32,16 +32,16 @@ export function baseOptions(): BaseLayoutProps {
           <img
             src="/soundor-logo.svg"
             alt={appName}
-            width={143}
-            height={28}
-            className="h-7 w-auto dark:hidden"
+            width={128}
+            height={36}
+            className="h-9 w-auto dark:hidden"
           />
           <img
-            src="/soundor-logo-dark-bg.svg"
+            src="/soundor-logo-on-dark.svg"
             alt={appName}
-            width={143}
-            height={28}
-            className="hidden h-7 w-auto dark:block"
+            width={128}
+            height={36}
+            className="hidden h-9 w-auto dark:block"
           />
         </>
       ),
