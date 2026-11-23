@@ -15,7 +15,7 @@ import {
   ArrowRight,
   AudioWaveform,
   Globe,
-  Play,
+  Orbit as OrbitIcon,
   Shapes,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -144,12 +144,12 @@ function Home() {
               <a
                 className={buttonVariants({
                   variant: 'outline',
-                  className: 'gap-1.5 px-4 py-2.5',
+                  className: 'px-4 py-2.5',
                 })}
                 href="#orbit-demo"
               >
-                Try Orbit
-                <Play aria-hidden className="size-4" />
+                Try our plugin
+                <OrbitIcon aria-hidden className="ml-1.5 size-4" />
               </a>
             </div>
             <Install className="mt-8 w-full max-w-lg text-left" />

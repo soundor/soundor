@@ -47,6 +47,6 @@ test('the homepage embeds a playable Orbit', async ({ page }) => {
     'https://orbit.soundor.dev/embed/index.html',
   );
   await expect(demo).toHaveAttribute('allow', 'autoplay; microphone');
-  await page.getByRole('link', { name: 'Try Orbit' }).click();
+  await page.getByRole('link', { name: 'Try our plugin' }).click();
   await expect(page).toHaveURL(/#orbit-demo$/);
 });
