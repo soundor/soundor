@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { buttonVariants } from 'fumadocs-ui/components/ui/button';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 
 import { officialPlugins } from '@/components/plugins/plugins';
 import { baseOptions } from '@/lib/layout.shared';
@@ -90,6 +90,44 @@ function Plugins() {
             </li>
           ))}
         </ul>
+        <section
+          aria-labelledby="create-title"
+          className="mt-24 overflow-hidden rounded-2xl border bg-fd-card p-8 text-center sm:p-12"
+        >
+          <h2
+            id="create-title"
+            className="text-2xl font-semibold tracking-tight sm:text-3xl"
+          >
+            Don’t wait. Make your own plugin.
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-fd-muted-foreground">
+            Write the interface in React and the sound in Rust. Soundor builds
+            it for your DAW and the browser.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link
+              className={buttonVariants({
+                variant: 'primary',
+                className: 'gap-1.5 px-4 py-2.5',
+              })}
+              to="/docs/$"
+              params={{ _splat: 'getting-started' }}
+            >
+              Get started
+              <ArrowRight aria-hidden className="size-4" />
+            </Link>
+            <Link
+              className={buttonVariants({
+                variant: 'outline',
+                className: 'px-4 py-2.5',
+              })}
+              to="/docs/$"
+              params={{ _splat: '' }}
+            >
+              Read the docs
+            </Link>
+          </div>
+        </section>
       </main>
     </HomeLayout>
   );

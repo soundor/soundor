@@ -360,4 +360,5 @@ test('the plugins page lists the official plugins', async ({ page }) => {
     'href',
     'https://orbit.soundor.dev/',
   );
+  await expect(page.getByRole('link', { name: 'Get started' })).toBeVisible();
 });
