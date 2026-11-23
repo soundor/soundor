@@ -41,8 +41,10 @@ test.skipIf(process.platform !== 'linux')(
     const pid = plugin.host.pid;
     expect(pid).toBeDefined();
     await expect(plugin.getByDebugId('note')).toHaveText('Note: none');
-    // What the first opens make once (caches, the driver's pools).
-    for (let round = 0; round < 3; round += 1) await reopen(plugin);
+    // What the first opens make once (caches, the driver's pools, the
+    // allocator's arenas settling): a CI runner's took more than 3 opens,
+    // and what settled during the measured ones counted as growth.
+    for (let round = 0; round < 10; round += 1) await reopen(plugin);
 
     await plugin.host.closeEditor();
     const before = await footprint(pid!);
@@ -65,7 +67,10 @@ test.skipIf(process.platform !== 'linux')(
     // Allocator and driver noise, not a leak per open. Measured on Linux
     // (Vulkan, 4 CPUs): 10 opens grew it by 7.5 MB before those fixes; 15
     // opens grow it by 2 to 3 MB now.
-    expect(after.anonymous - before.anonymous).toBeLessThan(5);
+    expect(
+      after.anonymous - before.anonymous,
+      `anonymous memory grew from ${megabytes(before.anonymous)} to ${megabytes(after.anonymous)}`,
+    ).toBeLessThan(5);
   },
   180_000,
 );
