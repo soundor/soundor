@@ -32,6 +32,9 @@ test('the homepage fits a phone and its menu reaches the docs', async ({
     ),
   ).toBe(true);
   await page.locator('header').getByRole('button', { name: /menu/i }).click();
-  await page.getByRole('link', { name: 'Docs', exact: true }).click();
+  await page
+    .locator('header')
+    .getByRole('link', { name: 'Docs', exact: true })
+    .click();
   await expect(page).toHaveURL(/\/docs$/);
 });
