@@ -5,7 +5,7 @@ export interface OfficialPlugin {
   readonly description: string;
   /** The plugin formats and runtimes it is built for. */
   readonly formats: readonly string[];
-  /** Its preview image in `public/plugins/` (1280×640), shown on the card. */
+  /** Its preview image in `public/plugins/` (800×600), shown on the card. */
   readonly image: string;
   /** Its own site. */
   readonly url: string;

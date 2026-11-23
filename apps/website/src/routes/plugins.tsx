@@ -40,10 +40,10 @@ function Plugins() {
               <img
                 src={plugin.image}
                 alt={`${plugin.name}, ${plugin.kind.toLowerCase()}`}
-                width={1280}
-                height={640}
+                width={800}
+                height={600}
                 loading="lazy"
-                className="aspect-[2/1] w-full border-b object-cover"
+                className="aspect-[4/3] w-full border-b object-cover"
               />
               <div className="p-5">
                 <p className="text-xs text-fd-muted-foreground">
