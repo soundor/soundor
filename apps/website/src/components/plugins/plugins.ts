@@ -5,6 +5,8 @@ export interface OfficialPlugin {
   readonly description: string;
   /** The plugin formats and runtimes it is built for. */
   readonly formats: readonly string[];
+  /** Its preview image in `public/plugins/` (1280×640), shown on the card. */
+  readonly image: string;
   /** Its own site. */
   readonly url: string;
 }
@@ -17,6 +19,7 @@ export const officialPlugins: readonly OfficialPlugin[] = [
     description:
       'A three-voice stereo delay with a WebGL echo map. Drag each echo to set its timing and level, shape feedback, tone, motion and stereo spread, and hold the echoes as repeating loops.',
     formats: ['VST3', 'Web'],
+    image: '/plugins/orbit.png',
     url: 'https://orbit.soundor.dev/',
   },
 ];

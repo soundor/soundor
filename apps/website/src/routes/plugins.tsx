@@ -35,34 +35,46 @@ function Plugins() {
           {officialPlugins.map((plugin) => (
             <li
               key={plugin.name}
-              className="relative rounded-xl border bg-fd-card p-5 text-fd-card-foreground transition-colors focus-within:border-fd-primary hover:border-fd-primary"
+              className="relative overflow-hidden rounded-xl border bg-fd-card text-fd-card-foreground transition-colors focus-within:border-fd-primary hover:border-fd-primary"
             >
-              <p className="text-xs text-fd-muted-foreground">{plugin.kind}</p>
-              <h2 className="mt-1 text-xl font-semibold">
-                <a
-                  href={plugin.url}
-                  className="inline-flex items-center gap-1 after:absolute after:inset-0 after:content-['']"
-                >
-                  {plugin.name}
-                  <ArrowUpRight aria-hidden className="size-4" />
-                </a>
-              </h2>
-              <p className="mt-2 text-sm text-fd-muted-foreground">
-                {plugin.description}
-              </p>
-              <ul
-                className="mt-4 flex flex-wrap gap-2"
-                aria-label={`${plugin.name} formats`}
-              >
-                {plugin.formats.map((format) => (
-                  <li
-                    key={format}
-                    className="rounded-md border px-2 py-0.5 font-mono text-xs"
+              <img
+                src={plugin.image}
+                alt={`${plugin.name}, ${plugin.kind.toLowerCase()}`}
+                width={1280}
+                height={640}
+                loading="lazy"
+                className="aspect-[2/1] w-full border-b object-cover"
+              />
+              <div className="p-5">
+                <p className="text-xs text-fd-muted-foreground">
+                  {plugin.kind}
+                </p>
+                <h2 className="mt-1 text-xl font-semibold">
+                  <a
+                    href={plugin.url}
+                    className="inline-flex items-center gap-1 after:absolute after:inset-0 after:content-['']"
                   >
-                    {format}
-                  </li>
-                ))}
-              </ul>
+                    {plugin.name}
+                    <ArrowUpRight aria-hidden className="size-4" />
+                  </a>
+                </h2>
+                <p className="mt-2 text-sm text-fd-muted-foreground">
+                  {plugin.description}
+                </p>
+                <ul
+                  className="mt-4 flex flex-wrap gap-2"
+                  aria-label={`${plugin.name} formats`}
+                >
+                  {plugin.formats.map((format) => (
+                    <li
+                      key={format}
+                      className="rounded-md border px-2 py-0.5 font-mono text-xs"
+                    >
+                      {format}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </li>
           ))}
         </ul>
