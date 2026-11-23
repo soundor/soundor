@@ -1,5 +1,5 @@
 // CI selection: keep affected packages' native checks, otherwise prefer the
-// published binary, then a complete matching build from successful main CI.
+// published binary, then a complete matching build from main CI whose build jobs passed.
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -36,7 +36,7 @@ const { build, reused } = await planNativeBuild({
 });
 console.log(
   reused
-    ? { mode: 'artifact', reason: 'matching successful main build', ...reused }
+    ? { mode: 'artifact', reason: 'matching main build that passed', ...reused }
     : selection,
 );
 const directory = join(process.env.RUNNER_TEMP, `native-${kind}-index`);

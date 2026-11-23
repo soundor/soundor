@@ -62,8 +62,8 @@ jobs:
           NATIVE_AFFECTED: ${{ needs.changes.outputs.native }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node .github/scripts/native-plan.mjs engine
-      # Indexed before building, but lookup accepts only completed successful
-      # main runs that still contain every binary artifact.
+      # Indexed before building, but lookup accepts only finished main runs
+      # whose build jobs all passed and that still contain every binary artifact.
       - name: Index main's engine build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.select.outputs.build == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -111,8 +111,8 @@ jobs:
           NATIVE_AFFECTED: ${{ needs.changes.outputs.host }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node .github/scripts/native-plan.mjs host
-      # Indexed before building, but lookup accepts only completed successful
-      # main runs that still contain every binary artifact.
+      # Indexed before building, but lookup accepts only finished main runs
+      # whose build jobs all passed and that still contain every binary artifact.
       - name: Index main's host build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.select.outputs.build == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
