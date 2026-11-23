@@ -1016,7 +1016,12 @@ its headers.
   premultiplied alpha, `GL_BGRA` textures uploaded row by row from the CPU
   surfaces' damage. It never waits for the GPU (`glFinish`). It wants a
   hardware device (`allowSoftware` is for tests) and reports a lost GPU
-  through `healthy()`.
+  through `healthy()`. It presents only when a layer changed or the window
+  needs it again, `needsRedraw()`: placed or shown anew (the editor places it
+  every frame; only a change counts), or exposed. The editor renders when
+  the UI changed or the compositor needs a redraw, so a static UI is
+  presented again too, and places and shows a new compositor before its
+  first frame.
 - **Presentation:** what the compositor presents into, inside the view the
   backend gives, without registering or subclassing anything:
   - macOS: a plain `CALayer` added on top of the `NSView`'s layer (ANGLE puts
@@ -1028,7 +1033,11 @@ its headers.
   - Linux: an X11 child window with an empty input shape, so the parent
     keeps pointer, scroll and focus handling. ANGLE's Vulkan XCB backend
     presents into it. XCB and XCB Shape load at run time; none is a mandatory
-    engine dependency. X Shape 1.1 is required for input transparency. Wayland
+    engine dependency. X Shape 1.1 is required for input transparency. The
+    child selects its own Expose events on its own connection
+    (`Presentation::exposed()`): the host maps its window after attaching the
+    editor, and the X server drops what was presented before the window was
+    viewable, so an Expose makes the compositor present again. Wayland
     sessions work through XWayland when the host supplies an X11 editor
     window; native Wayland views are not supported. Without a display or an
     acceptable GPU, the editor uses CPU composition.

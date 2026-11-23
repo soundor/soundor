@@ -23,6 +23,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         virtual void setBounds(float x, float y, float width, float height, float scale) = 0;
         virtual void setVisible(bool visible) = 0;
         [[nodiscard]] virtual bool healthy() const noexcept { return true; }
+        // Whether the window lost what it showed since the last call, and
+        // needs presenting again (Linux: an X11 window that became viewable,
+        // or was uncovered, drops what was presented while it was not).
+        // Elsewhere the system keeps the last presented frame.
+        [[nodiscard]] virtual bool exposed() { return false; }
     };
 
     // The platform's presentation in `view` (NSView*, HWND, or X11 Window

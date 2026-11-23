@@ -68,6 +68,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // device pixels per unit.
             virtual void setBounds(float x, float y, float width, float height, float scale) = 0;
             virtual void setVisible(bool visible) = 0;
+            // Whether the view needs presenting again although no layer
+            // changed: the compositor was placed or shown anew, or its window
+            // lost what it showed (Linux: a window mapped after the last
+            // present, or uncovered). Composite a frame then, even if the UI
+            // reports no change.
+            [[nodiscard]] virtual bool needsRedraw() = 0;
             // False once the GPU is lost (a driver reset, a removed GPU):
             // switch to a RasterCompositor.
             [[nodiscard]] virtual bool healthy() const noexcept = 0;

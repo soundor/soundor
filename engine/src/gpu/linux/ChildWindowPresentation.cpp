@@ -83,6 +83,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
             [[nodiscard]] bool healthy() const noexcept override { return working; }
 
+            bool exposed() override
+            {
+                // Its own connection only carries this window's Expose events
+                // (and errors of unchecked requests, of which there are none).
+                // A present made before the window was viewable (the host maps
+                // its window after attaching the editor) is dropped; its Expose
+                // says when to present again.
+                bool any = false;
+                while (auto* event = functions.poll_for_event(display.get()))
+                {
+                    any = any || (event->response_type & 0x7F) == XCB_EXPOSE;
+                    std::free(event);
+                }
+                return any;
+            }
+
         private:
             const Xcb& functions;
             Connection display;
@@ -134,11 +150,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             return fail("could not create the X11 rendering colormap");
         const xcb_window_t child = x.generate_id(display.get());
         // Explicit border and colormap also work with an ARGB parent of a different depth.
-        const std::array<std::uint32_t, 2> attributes { 0, colors };
+        // Exposure: what was presented before the window was viewable is lost
+        // (values in the order of their masks' bits).
+        const std::array<std::uint32_t, 3> attributes { 0, XCB_EVENT_MASK_EXPOSURE, colors };
         if (! checked(x, display.get(),
                       x.create_window_checked(display.get(), screen->root_depth, child, parent, 0, 0, 1, 1, 0,
                                               XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
-                                              XCB_CW_BORDER_PIXEL | XCB_CW_COLORMAP, attributes.data())))
+                                              XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK | XCB_CW_COLORMAP,
+                                              attributes.data())))
             return fail("could not create the X11 rendering child window");
         // Empty input shape: the parent retains pointer, wheel, keyboard and focus handling.
         if (! checked(x, display.get(),

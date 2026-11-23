@@ -5,6 +5,7 @@
 
 #include <soundor/render/GpuCompositor.h>
 
+#include <array>
 #include <cstdlib>
 #include <string>
 #include <utility>
@@ -93,14 +94,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
             void setBounds(float x, float y, float w, float h, float scale) override
             {
+                // The editor places it every frame: only a change needs drawing.
+                const std::array<float, 5> now { x, y, w, h, scale };
+                if (now == bounds)
+                    return;
+                bounds = now;
                 presentation->setBounds(x, y, w, h, scale);
                 stale = true;
             }
 
             void setVisible(bool visible) override
             {
+                if (visible == shown)
+                    return;
+                shown = visible;
                 presentation->setVisible(visible);
                 stale = true;
+            }
+
+            [[nodiscard]] bool needsRedraw() override
+            {
+                stale = presentation->exposed() || stale;
+                return stale && shown && healthy();
             }
 
             [[nodiscard]] bool healthy() const noexcept override { return working && presentation->healthy(); }
@@ -119,6 +134,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             CompositorStatistics stats;
             int width = 0;
             int height = 0;
+            std::array<float, 5> bounds { -1, -1, -1, -1, -1 };
+            bool shown = false;
             // The window needs drawing again although no layer changed.
             bool stale = true;
             bool working = true;
