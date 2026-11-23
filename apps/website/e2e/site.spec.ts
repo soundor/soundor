@@ -356,5 +356,8 @@ test('the plugins page lists the official plugins', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Made with Soundor',
   );
-  await expect(page.getByRole('heading', { name: 'Orbit' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Orbit' })).toHaveAttribute(
+    'href',
+    'https://orbit.soundor.dev/',
+  );
 });

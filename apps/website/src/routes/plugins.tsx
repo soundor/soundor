@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
+import { ArrowUpRight } from 'lucide-react';
 
 import { officialPlugins } from '@/components/plugins/plugins';
 import { baseOptions } from '@/lib/layout.shared';
@@ -34,10 +35,18 @@ function Plugins() {
           {officialPlugins.map((plugin) => (
             <li
               key={plugin.name}
-              className="rounded-xl border bg-fd-card p-5 text-fd-card-foreground"
+              className="relative rounded-xl border bg-fd-card p-5 text-fd-card-foreground transition-colors focus-within:border-fd-primary hover:border-fd-primary"
             >
               <p className="text-xs text-fd-muted-foreground">{plugin.kind}</p>
-              <h2 className="mt-1 text-xl font-semibold">{plugin.name}</h2>
+              <h2 className="mt-1 text-xl font-semibold">
+                <a
+                  href={plugin.url}
+                  className="inline-flex items-center gap-1 after:absolute after:inset-0 after:content-['']"
+                >
+                  {plugin.name}
+                  <ArrowUpRight aria-hidden className="size-4" />
+                </a>
+              </h2>
               <p className="mt-2 text-sm text-fd-muted-foreground">
                 {plugin.description}
               </p>
