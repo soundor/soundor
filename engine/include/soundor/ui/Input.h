@@ -33,6 +33,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Mouse,
         Pen,
         Touch,
+        NoPointer, // an anchored context menu request without a pointer
     };
 
     struct PointerInput

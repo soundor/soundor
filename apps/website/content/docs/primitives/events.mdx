@@ -6,7 +6,7 @@ description: The Web-style pointer, wheel, key and focus events node components 
 The [node components](/docs/primitives) take event props: `onPointerDown`,
 `onClick`, `onDoubleClick`, `onKeyDown`, `onWheel`, `onFocus` and the others
 below. `onPointerDown`, `onPointerMove`, `onPointerUp`, `onClick`,
-`onDoubleClick`, `onContextMenu`, `onWheel` and `onKeyDown` also have
+`onDoubleClick`, `onContextMenu`, `onLongPress`, `onWheel` and `onKeyDown` also have
 `…Capture` variants. They receive
 `soundor:ui`'s Web-style events, which capture and bubble through the view's
 nodes as in the DOM. `Portal`, `Modal` and `FocusScope` take their own props;
@@ -64,10 +64,147 @@ put node event handlers on the content they render.
   modifiers change what it types by `code`: Option+S on macOS has the key
   `'ß'` and Shift+1 on a US layout `'!'`, but their codes are `'KeyS'` and
   `'Digit1'` ([Keyboard shortcuts](#keyboard-shortcuts)).
-- **`onContextMenu`** fires when the secondary button goes down, so a UI can
-  open its own menu ([Portal](/docs/primitives/portal#over-everything)).
+- **`onContextMenu`** is a [request to open a context menu](#context-menus).
 - **Double clicks** are the platform's: `onDoubleClick` fires right after
   the second click's `onClick` ([Double clicks](#double-clicks)).
+
+## Context menus
+
+`contextmenu` is a request for a context menu, not a right-click event. The
+engine recognizes every way of asking for one on any view: a secondary
+click (Control-click on macOS), Shift+F10 or the Context Menu key on the
+focused node, a touch [long press](#long-presses), and the
+`showContextMenu` [accessibility action](/docs/primitives/accessibility#context-menus).
+All of them are the same `contextmenu` event, for `soundor:ui` listeners and
+the `onContextMenu` and `onContextMenuCapture` props; the plugin decides
+what to show. It works alongside primary interactions such as `onPress`.
+
+```tsx
+const handleContextMenu = (event: PointerEvent) => {
+  event.preventDefault(); // Suppress the browser's menu for this request.
+  openMenu({ x: event.pageX, y: event.pageY });
+};
+
+<View
+  focusable
+  accessibilityLabel="Track options"
+  accessibilityActions={[{ name: 'showContextMenu' }]}
+  onContextMenu={handleContextMenu}
+>
+  <Text>Track options</Text>
+</View>;
+
+<Pressable onPress={openSettings} onContextMenu={handleContextMenu}>
+  <Text>Settings</Text>
+</Pressable>;
+```
+
+Use `pageX`/`pageY` (the same view-relative logical pixels as
+`clientX`/`clientY`) to position a menu in a [portal](/docs/primitives/portal).
+For a pointer request, these are the pointer's coordinates. For a keyboard
+or accessibility request, they are the bottom-left of the target's bounds;
+`pointerType` is `''`, `button` and `pointerId` are `-1`, and no buttons are
+held. `offsetX`/`offsetY` are relative to the original target, even when an
+ancestor handles the request.
+
+The keyboard shortcuts act on the focused node. A plain view can opt into
+keyboard focus with `focusable`. `preventDefault()` on `keydown` cancels the
+request. `preventDefault()` on `contextmenu` says the plugin handled it: a
+browser does not show its own menu (where its event is cancelable), and in
+a plugin's editor the shortcut does not go on to the host. Repeats of a held
+shortcut make no new request.
+
+A wrapper can observe requests without advertising an accessibility action:
+
+```tsx
+<View onContextMenuCapture={observeRequest}>
+  <Application />
+</View>
+```
+
+A listener never offers a context menu to assistive technology, on its node
+or its descendants: declare `showContextMenu` in the `accessibilityActions`
+of the element that has one ([Accessibility](/docs/primitives/accessibility#context-menus)).
+A secondary click on a node that also handles presses does not press it.
+
+| Runtime | Pointer and keyboard                                                            | Accessibility                                |
+| ------- | ------------------------------------------------------------------------------- | -------------------------------------------- |
+| macOS   | Secondary click, Control-click, Shift+F10, Context Menu key                     | `AXShowMenu`                                 |
+| Linux   | Secondary click, Shift+F10, Context Menu key                                    | AT-SPI action `popup`                        |
+| Windows | Secondary click, Shift+F10, Context Menu key                                    | UI Automation `ShowContextMenu`              |
+| iOS     | What the host delivers                                                          | VoiceOver action "Show context menu"         |
+| Web     | The browser's menu gestures (touch long press too), Shift+F10, Context Menu key | A `contextmenu` the browser sends unprompted |
+
+## Long presses
+
+`longpress` is a gesture event on any view, through `soundor:ui` and the
+`onLongPress` and `onLongPressCapture` props. The engine recognizes it: the
+primary pointer held 500 ms (a `Pressable`'s `delayLongPress`) without
+moving more than 10 logical pixels. Releasing or canceling the pointer,
+moving further, scrolling, pointer lock, the node leaving the tree, and
+`preventDefault()` on its `pointerdown` (which claims the press) end it
+first. `pointerType` says where it came from: `'touch'`, `'mouse'` or
+`'pen'`, and `''` for the accessibility `longpress` action. A touch held in
+a text input is never a long press: it is the input's own (the caret, the
+selection, a phone's Paste), so neither `longpress` nor `contextmenu`
+comes from it. A mouse held there, a secondary click and the keyboard still
+ask.
+
+Its default, for a touch long press only, is a `contextmenu` event at the
+same node and point, so `onContextMenu` alone opens a menu on a touch
+screen, with no `onLongPress` needed. A mouse long press and the
+accessibility `longpress` action (a different request from
+`showContextMenu`) have no default. To give a touch hold another meaning,
+cancel it; right-click, the keyboard and assistive technology still request
+the menu:
+
+```tsx
+<View
+  onLongPress={(event) => {
+    event.preventDefault(); // No contextmenu follows this hold.
+    resetValue();
+  }}
+  onContextMenu={handleContextMenu}
+/>
+```
+
+## Event order
+
+| Invocation                             | Event sequence                        |
+| -------------------------------------- | ------------------------------------- |
+| Secondary click or macOS Control-click | `contextmenu`                         |
+| Shift+F10 or Context Menu key          | `keydown` → `contextmenu`             |
+| Touch long press                       | `longpress` → `contextmenu`           |
+| Mouse long press                       | `longpress`                           |
+| Accessibility `showContextMenu`        | `accessibilityaction` → `contextmenu` |
+| Accessibility `longpress`              | `accessibilityaction` → `longpress`   |
+
+(Unrelated pointer and key events are left out.) Each event captures and
+bubbles, and each arrow is a default: it runs after the event before it has
+gone through every listener, unless one called `preventDefault()`.
+`stopPropagation()` does not cancel it, and neither the presence nor the
+absence of a listener changes it.
+
+A long press canceled, or whose `contextmenu` was canceled, is consumed: its
+release does not click. An unhandled one still clicks, and a `Pressable`
+never presses after its `onLongPress` ran.
+
+Touch long presses need a runtime that receives touch input: the web runtime
+does; the VST3 runtime's desktop editors get mouse input (a touch screen's
+emulated mouse included), so a held finger there is a mouse long press.
+
+On the web, Soundor makes every request from the input itself, as natively:
+a secondary click asks on its press (also on Windows, where browsers open
+their menu on release), Control-click on macOS too, and a touch hold after
+its 500 ms, in every browser (iOS Safari sends no `contextmenu` for one; on
+iOS the view also hides Safari's callout, except in text inputs). As in a
+plugin's editor, text in the view cannot be selected, so a hold never
+starts a selection; text inputs keep theirs. The
+browser's own `contextmenu` for that input only says whether its menu may
+show: not if the request was canceled. A browser may still keep a gesture
+for itself (scrolling, text selection) before Soundor sees it, and a
+shortcut the host or the system takes before the editor gets it cannot
+request a menu.
 
 ## Keyboard shortcuts
 

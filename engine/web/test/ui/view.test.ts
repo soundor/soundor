@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { KeyboardEvent } from '../../src/ui/events.ts';
+import type {
+  AccessibilityActionEvent,
+  KeyboardEvent,
+  PointerEvent as UiPointerEvent,
+} from '../../src/ui/events.ts';
 import { UiNode } from '../../src/ui/node.ts';
 import { Engine as UiView } from '../../src/ui/view.ts';
 
@@ -673,6 +677,126 @@ describe('overlay', () => {
 });
 
 describe('contextmenu', () => {
+  it('deduplicates browser touch menus and respects longpress cancellation', () => {
+    vi.useFakeTimers();
+    try {
+      const { panel, button, events } = setup();
+      const order: string[] = [];
+      let cancelHold = false;
+      panel.addEventListener(
+        'longpress',
+        (event) => {
+          expect(event.target).toBe(button);
+          expect(event.currentTarget).toBe(panel);
+          order.push('capture');
+          if (cancelHold) event.preventDefault();
+        },
+        true,
+      );
+      button.addEventListener(
+        'longpress',
+        (event) => {
+          order.push('hold');
+          event.stopPropagation();
+        },
+        true,
+      );
+      button.addEventListener('longpress', () => order.push('target bubble'));
+      panel.addEventListener('longpress', () => order.push('bubble'));
+      panel.addEventListener('contextmenu', (event) => {
+        order.push('menu');
+        event.preventDefault();
+      });
+      const touch = { pointerType: 'touch', pointerId: 3 };
+      const browserMenu = () => {
+        const event = new window.PointerEvent('contextmenu', {
+          ...touch,
+          bubbles: true,
+          cancelable: true,
+          clientX: 10,
+          button: 2,
+        });
+        view.rootElement.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      pointer('pointerdown', 10, { ...touch, button: 0, buttons: 1 });
+      expect(browserMenu()).toBe(true); // browser wins the race
+      vi.advanceTimersByTime(600);
+      pointer('pointerup', 10, { ...touch, button: 0 });
+      expect(order).toEqual(['capture', 'hold', 'target bubble', 'menu']);
+      expect(events).not.toContain('click@button');
+
+      order.length = 0;
+      cancelHold = true;
+      pointer('pointerdown', 10, { ...touch, button: 0, buttons: 1 });
+      vi.advanceTimersByTime(500); // timer wins the race
+      expect(browserMenu()).toBe(true);
+      pointer('pointerup', 10, { ...touch, button: 0 });
+      expect(order).toEqual(['capture', 'hold', 'target bubble']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps unhandled holds clickable and cancels the timer when a node leaves', () => {
+    vi.useFakeTimers();
+    try {
+      const { panel, button, events } = setup();
+      const held = vi.fn<() => void>();
+      panel.addEventListener('longpress', held);
+      pointer('pointerdown', 10, { button: 0, buttons: 1 });
+      vi.advanceTimersByTime(500);
+      pointer('pointerup', 10, { button: 0 });
+      expect(held).toHaveBeenCalledTimes(1);
+      expect(events).toContain('click@button');
+      expect(events).not.toContain('contextmenu@button');
+      pointer('pointerdown', 10, { button: 0, buttons: 1 });
+      button.remove();
+      panel.appendChild(button);
+      vi.advanceTimersByTime(500);
+      expect(held).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks a screen reader's request of the element offering showContextMenu", () => {
+    const { panel, button } = setup();
+    const order: string[] = [];
+    let replace = false;
+    panel.accessibility = { actions: [{ name: 'showContextMenu' }] };
+    panel.addEventListener('accessibilityaction', (event) => {
+      const action = event as AccessibilityActionEvent;
+      order.push(`action:${action.actionName}`);
+      if (replace) event.preventDefault();
+    });
+    panel.addEventListener('contextmenu', (event) => {
+      const menu = event as UiPointerEvent;
+      order.push(`menu:${menu.target === panel}:${menu.pointerType}`);
+      event.preventDefault();
+    });
+    // What a screen reader's command delivers: no pointer, no key first.
+    const request = () => {
+      const event = new window.MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+      });
+      el(button).dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(request()).toBe(true);
+    expect(order).toEqual(['action:showContextMenu', 'menu:true:']);
+    order.length = 0;
+    replace = true;
+    expect(request()).toBe(true);
+    expect(order).toEqual(['action:showContextMenu']);
+    // Without the action declared, it is an ordinary request to the node.
+    order.length = 0;
+    panel.accessibility = {};
+    expect(request()).toBe(true);
+    expect(order).toEqual(['menu:false:']);
+  });
+
   function contextMenu(x: number): MouseEvent {
     const event = new window.MouseEvent('contextmenu', {
       bubbles: true,
@@ -686,31 +810,119 @@ describe('contextmenu', () => {
     return event;
   }
 
-  it("bridges the browser's request as a Soundor pointer event that bubbles", () => {
+  it("comes from the secondary press; the browser's only answers it", () => {
     const { root, button, events } = setup();
     const seen: string[] = [];
     root.addEventListener('contextmenu', (event) => {
       const e = event as unknown as Record<string, unknown>;
       seen.push(`${e['button']} ${e['pageX']} ${e['cancelable']}`);
     });
-    const allowed = contextMenu(10);
-    expect(events).toEqual(['contextmenu@button']);
-    expect(seen).toEqual(['2 10 true']);
-    // Nobody prevented it: the browser may show its own menu.
-    expect(allowed.defaultPrevented).toBe(false);
-
-    button.addEventListener('contextmenu', (event) => event.preventDefault());
-    expect(contextMenu(10).defaultPrevented).toBe(true);
-  });
-
-  it('goes to the pressed node while the pointer is captured', () => {
-    const { events } = setup();
     pointer('pointerdown', 10, { button: 2, buttons: 2 });
-    contextMenu(20);
     expect(events.filter((e) => !e.startsWith('pointerenter'))).toEqual([
       'pointerdown@button',
       'contextmenu@button',
     ]);
+    expect(seen).toEqual(['2 10 true']);
+    // Nobody prevented it: the browser may show its own menu, which comes
+    // on press or (Windows) after the release, and makes no second request.
+    pointer('pointerup', 10, { button: 2, buttons: 0 });
+    expect(contextMenu(20).defaultPrevented).toBe(false);
+    expect(seen).toHaveLength(1);
+
+    // Canceled, the browser's menu stays away; a canceled pointerdown
+    // still asks, as natively.
+    button.addEventListener('pointerdown', (event) => event.preventDefault());
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+    pointer('pointerdown', 10, { button: 2, buttons: 2 });
+    expect(contextMenu(10).defaultPrevented).toBe(true);
+    expect(seen).toHaveLength(2);
+    pointer('pointerup', 10, { button: 2, buttons: 0 });
+  });
+
+  it('is Control-click on macOS, which does not click', () => {
+    vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    const { events } = setup();
+    const buttons: number[] = [];
+    view.root.addEventListener('pointerdown', (event) =>
+      buttons.push((event as UiPointerEvent).button),
+    );
+    pointer('pointerdown', 10, { button: 0, buttons: 1, ctrlKey: true });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(buttons).toEqual([2]);
+    expect(events).toContain('contextmenu@button');
+    expect(events).not.toContain('click@button');
+  });
+
+  it("comes from the menu keys; the browser's answers each press", () => {
+    const { button, events } = setup();
+    button.focusable = true;
+    button.focus();
+    let cancelKey = false;
+    button.addEventListener('keydown', (event) => {
+      if (cancelKey) event.preventDefault();
+    });
+    const key = (type: string, init: KeyboardEventInit) => {
+      const event = new window.KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      view.rootElement.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const browserMenu = () => {
+      const event = new window.MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+      });
+      el(button).dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    key('keydown', { key: 'F10', shiftKey: true });
+    expect(browserMenu()).toBe(false);
+    key('keydown', { key: 'F10', shiftKey: true, repeat: true });
+    expect(browserMenu()).toBe(false); // a repeat answers, asks nothing
+    key('keyup', { key: 'F10', shiftKey: true });
+    key('keydown', { key: 'ContextMenu' });
+    key('keyup', { key: 'ContextMenu' });
+    expect(browserMenu()).toBe(false); // Windows' comes on release
+    expect(events.filter((e) => e === 'contextmenu@button')).toHaveLength(2);
+    // Canceling the key cancels its request, and the browser's menu.
+    cancelKey = true;
+    expect(key('keydown', { key: 'ContextMenu' })).toBe(true);
+    expect(browserMenu()).toBe(true);
+    expect(events.filter((e) => e === 'contextmenu@button')).toHaveLength(2);
+  });
+
+  it("a touch held in a text input is the input's", () => {
+    vi.useFakeTimers();
+    try {
+      const { panel } = setup();
+      const input = view.createNode('input');
+      panel.appendChild(input);
+      vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+      const seen: string[] = [];
+      panel.addEventListener('longpress', () => seen.push('longpress'));
+      panel.addEventListener('contextmenu', (event) => {
+        seen.push('contextmenu');
+        event.preventDefault();
+      });
+      const touch = { pointerType: 'touch', pointerId: 4 };
+      pointer('pointerdown', 10, { ...touch, button: 0, buttons: 1 });
+      vi.advanceTimersByTime(600);
+      // Android's own menu there (its Paste) goes through untouched.
+      const browserMenu = new window.PointerEvent('contextmenu', {
+        ...touch,
+        bubbles: true,
+        cancelable: true,
+      });
+      el(input).dispatchEvent(browserMenu);
+      expect(browserMenu.defaultPrevented).toBe(false);
+      pointer('pointerup', 10, { ...touch, button: 0 });
+      expect(seen).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('is ignored outside the view', () => {

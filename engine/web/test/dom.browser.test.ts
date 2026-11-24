@@ -10,6 +10,7 @@ import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Engine, UiNode } from '../src/index.ts';
+import type { PointerEvent as UiPointerEvent } from '../src/ui/events.ts';
 import { wasmBytes } from './wasm.ts';
 
 declare global {
@@ -66,6 +67,91 @@ beforeEach(async () => {
 });
 
 describe('the DOM adapter', () => {
+  it('routes one context menu per gesture without changing the focused control', async () => {
+    const point = await page.evaluate(async () => {
+      const stage = window.stage(400, 300);
+      const { Engine, wasmUrl, element } = window.soundor;
+      const engine = await Engine.create({ wasmUrl });
+      engine.root.style = { padding: 10 };
+      const wrapper = engine.root.appendChild(engine.createView());
+      const slider = wrapper.appendChild(
+        engine.createView({ width: 80, height: 30 }),
+      );
+      slider.focusable = true;
+      slider.accessibility = {
+        role: 'adjustable',
+        label: 'Gain',
+        value: { min: 0, max: 100, now: 50 },
+      };
+      element(slider).id = 'gain';
+      const log: unknown[] = [];
+      const handle = (event: Event) => {
+        const e = event as UiPointerEvent;
+        log.push([
+          e.target === slider,
+          e.currentTarget === wrapper,
+          e.pageX,
+          e.pageY,
+          e.button,
+          e.pointerType,
+        ]);
+        e.preventDefault();
+      };
+      wrapper.addEventListener('contextmenu', handle);
+      document.addEventListener('contextmenu', () => log.push('escaped'));
+      engine.mount(stage);
+      engine.flushLayout();
+      slider.focus();
+      Object.assign(window, {
+        menuTest: {
+          log,
+          remove: () => wrapper.removeEventListener('contextmenu', handle),
+        },
+      });
+      const { left, top } = element(slider).getBoundingClientRect();
+      return { x: left + 5, y: top + 5 };
+    });
+    const gain = page.getByRole('slider', { name: 'Gain' });
+    await page.mouse.click(point.x, point.y, { button: 'right' });
+    await page.mouse.move(point.x + 120, point.y + 120);
+    await page.keyboard.press('Shift+F10');
+    await page.keyboard.press('ContextMenu');
+    expect(await gain.getAttribute('aria-valuenow')).toBe('50');
+    expect(await gain.evaluate((el) => el === document.activeElement)).toBe(
+      true,
+    );
+    const result = await page.evaluate(() => {
+      const { log, remove } = (
+        window as unknown as {
+          menuTest: { log: unknown[]; remove: () => void };
+        }
+      ).menuTest;
+      const target = document.querySelector('#gain')!;
+      // A browser-supplied non-pointer request is anchored to its DOM target.
+      const request = () =>
+        target.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      const handled = !request();
+      remove();
+      const unhandled = request();
+      return { log, handled, unhandled };
+    });
+    expect(result).toEqual({
+      log: [
+        [true, true, 15, 15, 2, 'mouse'],
+        [true, true, 10, 40, -1, ''],
+        [true, true, 10, 40, -1, ''],
+        [true, true, 10, 40, -1, ''],
+      ],
+      handled: true,
+      unhandled: true,
+    });
+  });
+
   it('shows the tree as nested elements where the engine laid them out', async () => {
     const result = await page.evaluate(async () => {
       const stage = window.stage(400, 300);

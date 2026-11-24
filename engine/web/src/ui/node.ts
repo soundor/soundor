@@ -55,6 +55,8 @@ export type UiElement = HTMLElement | SVGSVGElement;
 
 /** What a node needs of the view it belongs to. */
 export interface ViewLink {
+  gestures: import('../../../src/modules/ui/longPress.js').LongPresses;
+  suppressPointerClick(id: number): void;
   readonly animations: AnimationController;
   readonly rootElement: HTMLElement;
   /** The engine: the tree, its styles and its layout. */
@@ -1209,6 +1211,7 @@ export class UiNode extends TreeEventTarget {
    * differs once it is back.
    */
   #left(): void {
+    this.#view.gestures.cancelWithin(this);
     this.#indicators?.release();
     for (const child of this.#children) child.#left();
   }

@@ -1631,6 +1631,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return handled;
     }
 
+    void Surface::suppressPointerClick(int pointerId)
+    {
+        if (auto found = pointers.find(pointerId); found != pointers.end())
+            found->second.suppressClick = true;
+    }
+
+    bool Surface::canLongPress(NodeId target, int pointerId)
+    {
+        const auto found = pointers.find(pointerId);
+        return found != pointers.end() && found->second.captured == target && isConnected(target)
+               && ! get(target).inputDisabled() && (! lock || lock->pointerId != pointerId);
+    }
+
     bool Surface::route(PointerState& state, const PointerInput& input)
     {
         if (state.captured != noNode && ! isConnected(state.captured))
@@ -1676,6 +1689,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 {
                     state.captured = target;
                     state.clicks = std::max(1, input.clicks);
+                    state.suppressClick = false;
                 }
                 const bool prevented = dispatch(pointerEvent(Event::Type::PointerDown, target, input));
                 if (! isConnected(state.captured))
@@ -1719,8 +1733,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     // A click goes to the deepest node containing both where
                     // the press started and where it ended.
                     const NodeId released = hitTest(input.position);
-                    if (input.button == 0 && stillPressed && isConnected(pressed) && ! get(pressed).inputDisabled()
-                        && released != noNode && ! get(released).inputDisabled())
+                    if (input.button == 0 && stillPressed && ! state.suppressClick && isConnected(pressed)
+                        && ! get(pressed).inputDisabled() && released != noNode && ! get(released).inputDisabled())
                     {
                         const auto from = pathTo(pressed);
                         const auto to = pathTo(released);
@@ -1989,6 +2003,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.modifiers = input.modifiers;
         if (! get(event.target).inputDisabled() && dispatch(event))
             return true;
+        if (input.down && target != noNode && (input.modifiers & shortcut) == 0
+            && (input.key == "ContextMenu" || (input.key == "F10" && (input.modifiers & Modifier::Shift) != 0)))
+        {
+            // One request per press: a held key's repeats go where it did.
+            // Unless the request was canceled, the key goes on to the host,
+            // as a browser shows its own menu.
+            if (! input.repeat)
+                menuKeyHandled = anchoredRequest(Event::Type::ContextMenu, target, input.modifiers);
+            return menuKeyHandled;
+        }
         if (input.down && input.key == "Tab" && (input.modifiers & shortcut) == 0)
             return moveFocus((input.modifiers & Modifier::Shift) != 0);
         return false;
@@ -2000,6 +2024,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (handled || ! input.down || typed.empty())
             return handled;
         return text({ typed });
+    }
+
+    bool Surface::anchoredRequest(Event::Type type, NodeId target, Modifiers modifiers)
+    {
+        if (! isConnected(target) || get(target).inputDisabled())
+            return false;
+        const Rect box = bounds(target);
+        Event event = pointerEvent(type, target,
+                                   { .position = { box.x, box.y + box.height },
+                                     .screen = std::nullopt,
+                                     .pointerId = -1,
+                                     .type = PointerType::NoPointer,
+                                     .modifiers = modifiers });
+        event.movement = {};
+        return dispatch(event);
     }
 
     bool Surface::text(const TextInput& input)
@@ -2032,7 +2071,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.target = target;
         event.action = std::move(action);
         event.value = std::move(value);
-        return dispatch(event);
+        if (dispatch(event))
+            return true;
+        // The defaults of these actions are the events they ask for, which
+        // perform them whether or not a listener cancels the event.
+        const bool menu = event.action == "showContextMenu";
+        if ((! menu && event.action != "longpress") || ! isConnected(target) || get(target).inputDisabled())
+            return false;
+        anchoredRequest(menu ? Event::Type::ContextMenu : Event::Type::LongPress, target);
+        return true;
     }
 
     NodeId Surface::focused() noexcept

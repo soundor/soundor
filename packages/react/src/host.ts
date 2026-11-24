@@ -131,6 +131,7 @@ const EVENT_PROPS: Readonly<Record<string, string>> = {
   onClick: 'click',
   onDoubleClick: 'dblclick',
   onContextMenu: 'contextmenu',
+  onLongPress: 'longpress',
   onWheel: 'wheel',
   onKeyDown: 'keydown',
   onKeyUp: 'keyup',

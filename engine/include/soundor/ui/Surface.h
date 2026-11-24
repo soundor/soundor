@@ -293,6 +293,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             AccessibilityAction,
             FocusVisibleChange, // does not bubble
             DoubleClick,
+            LongPress,
         };
 
         Type type = Type::PointerMove;
@@ -562,6 +563,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Each returns whether the UI handled the input, so a backend can pass
         // unhandled keys on to the host.
         bool pointer(const PointerInput& input);
+        void suppressPointerClick(int pointerId);
+        [[nodiscard]] bool canLongPress(NodeId target, int pointerId);
         bool wheel(const WheelInput& input);
         bool key(const KeyInput& input);
         // A key as a platform delivers it: the key event first, then, when
@@ -666,8 +669,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             NodeId captured = noNode;    // the pointerdown target, while pressed
             std::vector<NodeId> hovered; // root ... deepest hovered node
             PointerInput last;           // where hover is refreshed from
-            int clicks = 1;              // the press's click count, while pressed
-            bool inside = false;         // in the view, as of the last input
+            bool suppressClick = false;
+            int clicks = 1;      // the press's click count, while pressed
+            bool inside = false; // in the view, as of the last input
         };
 
         [[nodiscard]] Node& get(NodeId id);
@@ -714,6 +718,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         bool moveFocus(bool backwards);
         bool dispatch(const Event& event);
         Event pointerEvent(Event::Type type, NodeId target, const PointerInput& input);
+        // A pointerless `type` event (a keyboard's or assistive technology's
+        // request) at target's bottom-left; whether it was canceled.
+        bool anchoredRequest(Event::Type type, NodeId target, Modifiers modifiers = 0);
         bool scrollBy(NodeId target, float deltaX, float deltaY);
         void keepCaretVisible(Node& node);
         void markChanged() noexcept
@@ -768,6 +775,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // pointer press: what focus moved now would show.
         bool focusShown = false;
         bool keyboardModality = true;
+        bool menuKeyHandled = false; // the last context menu key press's request was canceled
         void showFocus();
         // revision() when hover was last refreshed.
         std::uint64_t hoverRevision = 0;

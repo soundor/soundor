@@ -47,7 +47,7 @@ import {
   sourceAdapter,
 } from './adapter';
 import { bundlePaths, writeBundleResources } from './bundle';
-import { buildCrate, writeCrate } from './crate';
+import { buildCrate, runtimeCrateDir, writeCrate } from './crate';
 import { describePlugin, descriptorJson } from './descriptor';
 import {
   compilerDriver,
@@ -315,7 +315,11 @@ async function buildPlugin(
     crateManifest: join(crateDir, 'Cargo.toml'),
     libManifest: ctx.lib.manifest,
     rustTarget: rustTarget(target, arch),
-    runtimeVersion: packageVersion(PACKAGE_ROOT),
+    runtimeCrate: {
+      manifest: join(runtimeCrateDir(PACKAGE_ROOT), 'Cargo.toml'),
+      version: packageVersion(PACKAGE_ROOT),
+    },
+    sdk: ctx.lib.sdk,
     // `dev` goes on without a missing text; a release stops.
     ...(build.live === undefined
       ? {}
@@ -537,7 +541,11 @@ async function vst3Licenses(
     crateManifest: join(crateDir, 'Cargo.toml'),
     libManifest: ctx.lib.manifest,
     rustTarget: rustTarget(target, arch),
-    runtimeVersion: packageVersion(PACKAGE_ROOT),
+    runtimeCrate: {
+      manifest: join(runtimeCrateDir(PACKAGE_ROOT), 'Cargo.toml'),
+      version: packageVersion(PACKAGE_ROOT),
+    },
+    sdk: ctx.lib.sdk,
   });
 }
 

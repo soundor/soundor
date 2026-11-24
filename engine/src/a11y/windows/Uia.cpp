@@ -304,7 +304,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         UiaRect bounds(const Node& node) const { return screenBounds(node, geometry, origin); }
     };
 
-    class Session::Provider final : public IRawElementProviderSimple,
+    class Session::Provider final : public IRawElementProviderSimple2,
                                     public IRawElementProviderFragment,
                                     public IRawElementProviderFragmentRoot,
                                     public IInvokeProvider,
@@ -326,6 +326,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             *out = nullptr;
             if (iid == __uuidof(IUnknown) || iid == __uuidof(IRawElementProviderSimple))
                 *out = static_cast<IRawElementProviderSimple*>(this);
+            else if (iid == __uuidof(IRawElementProviderSimple2))
+                *out = static_cast<IRawElementProviderSimple2*>(this);
             else if (iid == __uuidof(IRawElementProviderFragment))
                 *out = static_cast<IRawElementProviderFragment*>(this);
             else if (iid == __uuidof(IRawElementProviderFragmentRoot) && id == noNode)
@@ -570,6 +572,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             return read([&](const Node&) { return fragment(state->focused ? focus() : noNode, out); });
         }
         HRESULT STDMETHODCALLTYPE Invoke() override { return ask(Action::Activate); }
+
+        HRESULT STDMETHODCALLTYPE ShowContextMenu() override { return ask(Action::ShowContextMenu); }
         HRESULT STDMETHODCALLTYPE SetValue(LPCWSTR value) override
         {
             if (value == nullptr)

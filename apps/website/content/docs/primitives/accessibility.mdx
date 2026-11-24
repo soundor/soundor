@@ -34,7 +34,7 @@ the platform's accessibility natively).
 | `accessibilityRole`         | `none`, `text`, `image`, `button`, `link`, `adjustable`, `checkbox`, `switch`, `togglebutton`, `radio`, `radiogroup`, `progressbar`, `search`, `combobox`, `menu`, `menubar`, `menuitem`, `listbox`, `option`, `scrollbar`, `spinbutton`, `tab`, `tablist`, `header`, `summary`, `keyboardkey`, `timer`, `toolbar`, `alert`, `dialog`. |
 | `accessibilityState`        | `disabled`, `readOnly`, `selected`, `checked` (`true`, `false`, `'mixed'`), `busy`, `expanded`.                                                                                                                                                                                                                                        |
 | `accessibilityValue`        | `min`, `max`, `now` (fractional values are fine) and `text` (`'-3.5 dB'`, read in place of the number).                                                                                                                                                                                                                                |
-| `accessibilityActions`      | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, or custom names with a `label`.                                                                                                                                                                             |
+| `accessibilityActions`      | The actions it responds to: `activate`, `increment`, `decrement`, `longpress`, `expand`, `collapse`, `escape`, `setValue`, `showContextMenu` ([Context menus](#context-menus)), or custom names with a `label`.                                                                                                                        |
 | `onAccessibilityAction`     | An action asked of this element: `event.actionName`, and `event.value` for `setValue`. `event.preventDefault()` keeps the runtime's own response (a Pressable's press, focusing) from following.                                                                                                                                       |
 
 ## Disabled and read-only controls
@@ -144,14 +144,62 @@ was announced.
 - `TextInput` is a text field with its current text and placeholder.
 - `Pressable` is one element, a `button` unless given another role,
   labelled by its text; it offers `activate` (its `onPress`) and, with
-  `onLongPress`, `longpress`; `disabled` makes it disabled to assistive
-  technology too (unless `accessibilityState.disabled` says otherwise).
+  `onLongPress`, `longpress` (delivered to `onLongPress` as a `longpress`
+  event whose `pointerType` is `''`); `disabled` makes it disabled to
+  assistive technology too (unless `accessibilityState.disabled` says
+  otherwise).
 - `TextInput` offers `activate` (start editing: keyboard focus), `focus`
   and `setValue` (replace its text, firing `input` and `change`).
 - `Modal` is a modal `dialog` (`accessibilityLabel` names it): while it
   shows, only it is perceived, with the portals opened from inside it.
   With `onRequestClose` it offers `escape` (VoiceOver's scrub), which asks it
   to close like Escape does.
+
+## Context menus
+
+An element offers a context menu only when its `accessibilityActions`
+include `showContextMenu`. An `onContextMenu` or `onContextMenuCapture`
+handler, on it or on an ancestor, never adds the action. The action keeps
+the element's role, value and other actions, and makes a plain `View` an
+element of its own (a group). Its default is a `contextmenu` event on the
+element, anchored at the bottom-left of its bounds
+([Context menus](/docs/primitives/events#context-menus)), so one
+`onContextMenu` serves the pointer, the keyboard and assistive technology.
+`preventDefault()` in `onAccessibilityAction` replaces that default:
+
+```tsx
+<View
+  focusable
+  accessibilityLabel="Track 1"
+  accessibilityActions={[{ name: 'showContextMenu' }]}
+  onAccessibilityAction={(event) => {
+    // Assistive technology gets a dialog instead; right-click, Shift+F10
+    // and a touch hold still reach onContextMenu.
+    if (event.actionName === 'showContextMenu') {
+      event.preventDefault();
+      openTrackDialog();
+    }
+  }}
+  onContextMenu={openMenu}
+/>
+```
+
+Each backend presents it as its platform's own action:
+
+| Platform | Presented as                                                                              |
+| -------- | ----------------------------------------------------------------------------------------- |
+| macOS    | `AXShowMenu` (`accessibilityPerformShowMenu`)                                             |
+| Windows  | UI Automation's `IRawElementProviderSimple2::ShowContextMenu`                             |
+| Linux    | An AT-SPI `Action` named `popup`, described "Show context menu" (or the action's `label`) |
+| iOS      | A VoiceOver action, "Show context menu" (or the action's `label`)                         |
+| Web      | No ARIA equivalent: a `contextmenu` the browser sends without a pointer or a key          |
+
+macOS and Windows name the action themselves, so a `label` is not shown
+there. On the web, a `contextmenu` event the browser sends without a
+pointer, and not for a key or press Soundor already made a request for (a
+screen reader's command, such as VoiceOver's VO-Shift-M), is this action: it is asked of the nearest element
+offering `showContextMenu`, and its default is the `contextmenu` event.
+Without such an element it is an ordinary request to the node it targets.
 
 Moving a screen reader's cursor does not move keyboard focus; only an
 explicit `focus` request does (or activating a text input), and only to a

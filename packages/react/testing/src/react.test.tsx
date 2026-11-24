@@ -310,6 +310,29 @@ describe('events', () => {
     expect(log).toEqual(['capture', 'inner 2', 'outer 12']);
   });
 
+  it('a pressable can open a context menu without firing its primary action', async () => {
+    const log: string[] = [];
+    await show(
+      <Pressable
+        onPress={() => log.push('press')}
+        onContextMenu={(event) => log.push(`menu ${event.button}`)}
+      >
+        <Text>Settings</Text>
+      </Pressable>,
+    );
+    const control = child(0);
+    const runtime = getTestRuntime();
+    runtime.pointerDown(control, { button: 2 });
+    runtime.pointerUp(control, { button: 2 });
+    control.focus();
+    runtime.pressKey('F10', { shiftKey: true });
+    runtime.pressKey('F10', { shiftKey: true, repeat: true });
+    runtime.releaseKey('F10', { shiftKey: true });
+    runtime.pointerDown(control);
+    runtime.pointerUp(control);
+    expect(log).toEqual(['menu 2', 'menu -1', 'press']);
+  });
+
   it('re-renders from state set in a handler', async () => {
     function Toggle() {
       const [on, setOn] = useState(false);
@@ -438,7 +461,7 @@ describe('Pressable state and long presses', () => {
     await advanceTime(1);
     expect(latest).toHaveBeenCalledOnce();
     expect(latest).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'pointerdown' }),
+      expect.objectContaining({ type: 'longpress' }),
     );
     expect(first).not.toHaveBeenCalled();
     await user.pointer({ target: button, keys: '[/MouseLeft]' });

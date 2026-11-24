@@ -28,6 +28,11 @@ path dependency:
 soundor = { path = "../.soundor/generated/rust/soundor" }
 ```
 
+The generated SDK's manifest always says `version = "0.0.0"`, whichever
+Soundor generated it, so updating Soundor never changes `Cargo.lock`: a
+path dependency's version resolves nothing. The plugin's third-party
+notices name the SDK at the version of the `soundor` package that wrote it.
+
 Run `soundor gen` after installing or upgrading npm packages or changing the
 config. Then Cargo and rust-analyzer work normally, without finding a package
 inside `node_modules`. Add third-party dependencies with Cargo as usual; choose

@@ -20,10 +20,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         };
         static_assert(roleNames.size() == static_cast<std::size_t>(Role::Option) + 1);
 
-        // By Action, up to SetValue.
-        constexpr std::array<std::string_view, 10> actionNames {
-            "activate", "increment", "decrement", "longpress", "expand",
-            "collapse", "escape",    "focus",     "blur",      "setValue",
+        // By Action, up to ShowContextMenu.
+        constexpr std::array<std::string_view, 11> actionNames {
+            "activate", "increment", "decrement", "longpress", "expand",          "collapse",
+            "escape",   "focus",     "blur",      "setValue",  "showContextMenu",
         };
         static_assert(actionNames.size() == static_cast<std::size_t>(Action::Custom));
     } // namespace

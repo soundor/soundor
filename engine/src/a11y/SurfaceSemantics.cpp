@@ -69,6 +69,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                 return *properties.role != Role::None;
             if (! properties.label.empty())
                 return true;
+            if (std::ranges::any_of(properties.actions, [](const ActionDescriptor& action)
+                                    { return action.action == Action::ShowContextMenu; }))
+                return true;
             switch (node.type())
             {
                 case ui::NodeType::Text:

@@ -87,6 +87,13 @@ export interface LibraryBuildContext {
   /** Absolute path to the crate's manifest, `lib/Cargo.toml`. */
   readonly manifest: string;
   /**
+   * The Soundor SDK the crate depends on, which `soundor gen` writes: its
+   * manifest, whose `version` stays 0.0.0 (so that `Cargo.lock` does not
+   * change at each release), and the version it is, this CLI's. A runtime
+   * that lists the crates it links gives that version to their notice.
+   */
+  readonly sdk: { readonly manifest: string; readonly version: string };
+  /**
    * Compiles the crate's library (incrementally: unchanged sources build in
    * a moment) and resolves to it. Rejects with the compiler's diagnostics,
    * which it has already logged.

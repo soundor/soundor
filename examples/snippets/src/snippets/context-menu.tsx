@@ -3,8 +3,8 @@ import { useState } from 'react';
 
 const ACTIONS = ['Copy', 'Paste', 'Reset to default'];
 
-// Right-click (or Ctrl-click) the track: onContextMenu gives the pointer's
-// position in the view, and a portal draws the menu there, above everything.
+// Right-click the track or focus it and press Shift+F10. onContextMenu gives
+// the menu's anchor in the view, and a portal draws the menu there.
 export default function ContextMenu() {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [last, setLast] = useState('nothing yet');
@@ -12,6 +12,9 @@ export default function ContextMenu() {
   return (
     <View style={{ alignItems: 'center', gap: 10 }}>
       <View
+        focusable
+        accessibilityLabel="Track options"
+        accessibilityActions={[{ name: 'showContextMenu' }]}
         onContextMenu={(event) => {
           event.preventDefault();
           setMenu({ x: event.pageX, y: event.pageY });
@@ -26,7 +29,9 @@ export default function ContextMenu() {
           backgroundColor: '#24262c',
         }}
       >
-        <Text style={{ color: '#e6e7ea' }}>Track 1 · right-click me</Text>
+        <Text style={{ color: '#e6e7ea' }}>
+          Track 1 · right-click or Shift+F10
+        </Text>
       </View>
       <Text style={{ color: '#8b8f98' }}>Last action: {last}</Text>
       {menu && (

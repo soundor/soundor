@@ -67,6 +67,10 @@ describe('runtime lifecycle', () => {
     const requests: LibraryBuildRequest[] = [];
     const lib: LibraryBuildContext = {
       manifest: '/p/lib/Cargo.toml',
+      sdk: {
+        manifest: '/p/.soundor/generated/rust/soundor/Cargo.toml',
+        version: '0.0.0-test',
+      },
       build: async (request) => {
         requests.push(request);
         return { path: '/p/library.wasm', target: request.target! };

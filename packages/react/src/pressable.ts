@@ -56,7 +56,7 @@ export interface PressableOptions {
    * Held down `delayLongPress` ms without moving away, or assistive
    * technology's 'longpress'.
    */
-  onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
+  onLongPress?: (event: PointerEvent) => void;
   /** Milliseconds before a press is a long press: 500 by default. */
   delayLongPress?: number;
   /** A press started: the pointer went down on it. */
@@ -150,9 +150,7 @@ export function usePressable(
     const undo = pressable(node, {
       onPress: call('onPress'),
       ...(longPresses && {
-        onLongPress: call<PointerEvent | AccessibilityActionEvent>(
-          'onLongPress',
-        ),
+        onLongPress: call<PointerEvent>('onLongPress'),
         delayLongPress,
       }),
       onPressIn: call('onPressIn'),

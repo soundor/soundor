@@ -495,6 +495,99 @@ TEST_SUITE("a11y semantics")
         CHECK(f.tree() == R"(view [adjustable "Gain" =0.25, text "Other", text "New"])");
     }
 
+    TEST_CASE("explicit showContextMenu exposes a plain view without changing its role")
+    {
+        A11yFixture f;
+        f.build(R"(
+            const view = createView();
+            view.accessibility = { actions: [{ name: 'showContextMenu' }] };
+            root.appendChild(view);
+        )");
+        const auto* root = f.adapter.tree.find(f.adapter.tree.root());
+        REQUIRE(root != nullptr);
+        REQUIRE(root->children.size() == 1);
+        const auto* view = f.adapter.tree.find(root->children.front());
+        REQUIRE(view != nullptr);
+        CHECK(view->role == a11y::Role::Group);
+        CHECK(view->supports(a11y::Action::ShowContextMenu));
+    }
+
+    TEST_CASE("context menu shortcuts and accessibility requests bubble from the same control")
+    {
+        A11yFixture f;
+        f.build(R"(
+            globalThis.wrapper = createView({ marginLeft: 10, marginTop: 20 });
+            globalThis.slider = createView({ width: 30, height: 40 });
+            slider.accessibility = { role: 'adjustable', label: 'Gain', hint: 'Drag',
+                value: { min: -60, max: 12, now: -3 },
+                actions: [{ name: 'increment' }, { name: 'decrement' }] };
+            slider.focusable = true;
+            wrapper.appendChild(slider);
+            root.appendChild(wrapper);
+            slider.focus();
+            globalThis.log = [];
+            globalThis.menu = e => {
+                log.push(`${e.target === slider}/${e.currentTarget === wrapper}:${e.pageX},${e.pageY}:${e.button}`);
+                e.preventDefault();
+            };
+            wrapper.addEventListener('contextmenu', menu, true);
+            globalThis.base = slider.accessibility;
+        )");
+        using a11y::Action;
+        const auto slider = f.element("Gain");
+        CHECK(f.tree() == "view [adjustable \"Gain\" =-3]");
+        CHECK(f.node("Gain").hint == "Drag");
+        CHECK(f.node("Gain").value.min == -60);
+        CHECK(f.node("Gain").value.max == 12);
+        CHECK_FALSE(f.node("Gain").supports(Action::ShowContextMenu));
+        f.run("slider.accessibility = { ...base, actions: [...base.actions, { name: 'showContextMenu' }, { name: "
+              "'longpress' }] };");
+        f.sync();
+        CHECK(f.node("Gain").supports(Action::ShowContextMenu));
+        CHECK(f.node("Gain").supports(Action::Increment));
+        CHECK(f.node("Gain").supports(Action::Decrement));
+        CHECK(f.adapter.tree.focus() == slider);
+
+        auto& surface = f.host.surface();
+        CHECK(surface.key({ .key = "F10", .code = "F10", .modifiers = ui::Modifier::Shift }));
+        CHECK(surface.key({ .key = "F10", .code = "F10", .repeat = true, .modifiers = ui::Modifier::Shift }));
+        CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+        CHECK(f.perform("Gain", Action::ShowContextMenu));
+        CHECK(f.eval("log.join(' ')").asString() == "true/true:10,60:-1 true/true:10,60:-1 true/true:10,60:-1");
+
+        f.run(R"(
+            slider.addEventListener('accessibilityaction', e => { log.push(e.actionName); e.preventDefault(); }, { once: true });
+            slider.addEventListener('keydown', e => { if (e.key === 'ContextMenu') e.preventDefault(); }, { once: true });
+            wrapper.addEventListener('longpress', e => log.push(`long:${e.pointerType}`));
+        )");
+        CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+        CHECK(f.eval("log.length").asNumber() == 3);
+        CHECK(f.perform("Gain", Action::ShowContextMenu));
+        CHECK(f.eval("log.at(-1)").asString() == "showContextMenu");
+        CHECK(f.eval("log.length").asNumber() == 4);
+        CHECK(f.perform("Gain", Action::LongPress));
+        CHECK(f.eval("log.at(-1)").asString() == "long:");
+        f.run("slider.accessibility = base;");
+        f.sync();
+        CHECK_FALSE(f.perform("Gain", Action::ShowContextMenu));
+        CHECK(f.element("Gain") == slider);
+        CHECK_FALSE(f.node("Gain").supports(Action::ShowContextMenu));
+        CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+
+        f.run("slider.accessibility = { ...base, actions: [...base.actions, { name: 'showContextMenu' }] };");
+        f.sync();
+        CHECK(f.node("Gain").supports(Action::ShowContextMenu));
+        // An uncanceled request leaves the key to the host, repeats included.
+        f.run("wrapper.removeEventListener('contextmenu', menu, true);");
+        CHECK_FALSE(surface.key({ .key = "F10", .code = "F10", .modifiers = ui::Modifier::Shift }));
+        CHECK_FALSE(surface.key({ .key = "F10", .code = "F10", .repeat = true, .modifiers = ui::Modifier::Shift }));
+        CHECK(f.perform("Gain", Action::ShowContextMenu));
+        f.run("wrapper.remove();");
+        CHECK_FALSE(f.host.performAccessibilityAction({ slider, Action::ShowContextMenu, {}, {} }));
+        f.sync();
+        CHECK(f.element("Gain") == a11y::noNode);
+    }
+
     TEST_CASE("actions reach the node's listeners, with fractional values")
     {
         A11yFixture f;
@@ -601,7 +694,7 @@ TEST_SUITE("a11y semantics")
                                      actions: [{ name: 'activate' }, { name: 'longpress' }] };
             pressable(button, {
                 onPress: (event) => log.push(`press:${event.type}:${event.actionName}`),
-                onLongPress: (event) => log.push(`long:${event.actionName}`),
+                onLongPress: (event) => log.push(`long:${event.type}`),
             });
             root.appendChild(button);
             globalThis.button = button;

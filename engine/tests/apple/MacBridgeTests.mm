@@ -237,6 +237,34 @@ TEST_SUITE("a11y macOS bridge")
         CHECK(f.eval("log.at(-1)").asString() == "reset");
     }
 
+    TEST_CASE("AXShowMenu is advertised separately from a slider's primary actions")
+    {
+        MacFixture f;
+        f.build(controls);
+        NSAccessibilityElement* knob = f.find("Gain");
+        CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+        // The fixture's listener cancels every action, which would keep the
+        // default contextmenu away: this one takes showContextMenu first.
+        f.run("knob.addEventListener('contextmenu', () => log.push('menu')); "
+              "knob.addEventListener('accessibilityaction', (e) => { if (e.actionName === 'showContextMenu') { "
+              "log.push('action'); e.stopImmediatePropagation(); } }, true); "
+              "knob.accessibility = { ...knob.accessibility, actions: [...knob.accessibility.actions, { name: "
+              "'showContextMenu' }] };");
+        f.tick();
+        CHECK([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+        CHECK([[knob accessibilityRole] isEqualToString:NSAccessibilitySliderRole]);
+        CHECK([knob accessibilityPerformShowMenu]);
+        CHECK([knob accessibilityPerformIncrement]);
+        f.tick();
+        // accessibilityaction, then its default; stopping propagation is not
+        // canceling.
+        CHECK(f.eval("log.join(' ')").asString() == "action menu increment");
+        f.run("describe();");
+        f.tick();
+        CHECK_FALSE([knob accessibilityPerformShowMenu]);
+        CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+    }
+
     TEST_CASE("setting a text input's value asks plugin code to")
     {
         MacFixture f;

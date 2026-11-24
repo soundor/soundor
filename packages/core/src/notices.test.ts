@@ -382,6 +382,22 @@ describe('crateNotices', () => {
     ]);
   });
 
+  it('names the version a 0.0.0 crate shipped in an npm package is', () => {
+    const root = tree({ 'serde/LICENSE': 'serde' });
+    const collection = crateNotices({
+      manifest: join(root, 'plugin/Cargo.toml'),
+      target: 'x86_64-unknown-linux-gnu',
+      cwd: root,
+      // The SDK `soundor gen` writes keeps its manifest's 0.0.0.
+      versions: { [join(root, 'serde', 'Cargo.toml')]: '0.20.0' },
+      run: cargo(root, graph(root)),
+    });
+    expect(collection.notices.map((notice) => notice.directory)).toEqual([
+      'rust/serde@0.20.0',
+    ]);
+    expect(collection.notices[0]!.version).toBe('0.20.0');
+  });
+
   it('applies overrides by crate name', () => {
     const root = tree({ 'serde/LICENSE': 'serde', 'u.txt': 'text' });
     const collection = crateNotices({

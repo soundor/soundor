@@ -21,7 +21,7 @@ export interface PressableHandlers {
   onPress?: (
     event: PointerEvent | KeyboardEvent | AccessibilityActionEvent,
   ) => void;
-  onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
+  onLongPress?: (event: PointerEvent) => void;
   delayLongPress?: number;
   onPressIn?: (event: PointerEvent) => void;
   onPressOut?: (event: PointerEvent) => void;
@@ -29,11 +29,6 @@ export interface PressableHandlers {
   onHoverOut?: (event: PointerEvent) => void;
   onStateChange?: (state: PressableState) => void;
 }
-
-/** How long a press lasts before it is a long press, by default (ms). */
-const LONG_PRESS_DELAY = 500;
-/** How far a press may move (logical pixels) and still be a long press. */
-const LONG_PRESS_SLOP = 10;
 
 /**
  * Makes `node` pressable: press with the primary button (released over it)
@@ -72,66 +67,34 @@ export function pressable(
       signal: controller.signal,
     });
 
-  // A long press: the press held, close to where it started, until a timer.
-  let longPress: {
-    timer: ReturnType<typeof setTimeout>;
-    x: number;
-    y: number;
-  } | null = null;
-  let longPressed = false;
-  const cancelLongPress = (): void => {
-    if (longPress !== null) clearTimeout(longPress.timer);
-    longPress = null;
-  };
-  controller.signal.addEventListener('abort', cancelLongPress);
+  const view = UiNode.viewOf(node);
+  if (handlers.delayLongPress !== undefined)
+    controller.signal.addEventListener(
+      'abort',
+      view.gestures.setDelay(node, handlers.delayLongPress),
+    );
 
   on<PointerEvent>('pointerdown', (event) => {
     if (event.button !== 0) return;
-    cancelLongPress();
-    longPressed = false;
     update({ pressed: true });
     handlers.onPressIn?.(event);
-    if (handlers.onLongPress !== undefined && state.pressed) {
-      const delay = handlers.delayLongPress ?? LONG_PRESS_DELAY;
-      longPress = {
-        x: event.pageX,
-        y: event.pageY,
-        timer: setTimeout(() => {
-          longPress = null;
-          if (!state.pressed) return;
-          longPressed = true;
-          handlers.onLongPress?.(event);
-        }, delay),
-      };
-    }
   });
-  on<PointerEvent>('pointermove', (event) => {
-    if (longPress === null) return;
-    const moved = Math.hypot(
-      event.pageX - longPress.x,
-      event.pageY - longPress.y,
-    );
-    if (moved > LONG_PRESS_SLOP) cancelLongPress();
-  });
+  if (handlers.onLongPress !== undefined)
+    on<PointerEvent>('longpress', (event) => {
+      if (event.pointerType !== '') view.suppressPointerClick(event.pointerId);
+      handlers.onLongPress?.(event);
+    });
   on<PointerEvent>('pointerup', (event) => {
-    cancelLongPress();
     if (!state.pressed) return;
     update({ pressed: false });
     handlers.onPressOut?.(event);
   });
   on<PointerEvent>('pointercancel', (event) => {
-    cancelLongPress();
-    longPressed = false;
     if (!state.pressed) return;
     update({ pressed: false });
     handlers.onPressOut?.(event);
   });
   on<PointerEvent>('click', (event) => {
-    // A long press is not also a press.
-    if (longPressed) {
-      longPressed = false;
-      return;
-    }
     handlers.onPress?.(event);
   });
   on<PointerEvent>('pointerenter', (event) => {
@@ -155,12 +118,6 @@ export function pressable(
     if (event.actionName === 'activate') {
       event.preventDefault();
       handlers.onPress?.(event);
-    } else if (
-      event.actionName === 'longpress' &&
-      handlers.onLongPress !== undefined
-    ) {
-      event.preventDefault();
-      handlers.onLongPress(event);
     }
   });
   on<KeyboardEvent>('keydown', (event) => {

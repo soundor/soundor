@@ -5,6 +5,11 @@
  * the project's config. A project's `lib/Cargo.toml` depends on it by
  * that path, so Cargo, rust-analyzer and `cargo test` work as with any path
  * dependency, with no registry and no `node_modules` layout to assume.
+ *
+ * Its manifest keeps the source's `version = "0.0.0"`: a path dependency's
+ * version resolves nothing, and one that followed the CLI's would rewrite
+ * every project's `Cargo.lock` at each release. What the SDK is, for its
+ * notice, is {@link rustSdk}'s version: this CLI's.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -18,6 +23,27 @@ import { renderPluginRs } from './codegen';
 
 /** Where the SDK goes, within `.soundor/generated`. */
 export const SDK_GENERATED_DIR = 'rust/soundor';
+
+/** A project's SDK: its generated manifest, and the version it is (this CLI's). */
+export function rustSdk(root: string): { manifest: string; version: string } {
+  return {
+    manifest: resolve(
+      root,
+      '.soundor',
+      'generated',
+      SDK_GENERATED_DIR,
+      'Cargo.toml',
+    ),
+    version: sdkVersion(),
+  };
+}
+
+function sdkVersion(): string {
+  const version = cliVersion();
+  if (version === undefined)
+    throw new Error('The soundor package has no version: reinstall it.');
+  return version;
+}
 
 /** This package's copy of the SDK: from `src/library/` or the bundled `dist/`. */
 export function sdkSourceDir(): string {
@@ -36,7 +62,7 @@ export function sdkSourceDir(): string {
 
 /**
  * The SDK's files for a project, under {@link SDK_GENERATED_DIR}: its
- * sources, its manifest at this CLI's version, its `LICENSE` (the notice a
+ * sources and manifest as shipped, its `LICENSE` (the notice a
  * plugin linking it ships), and `src/plugin.rs` from `config`.
  */
 export function rustSdkFiles(
@@ -46,10 +72,7 @@ export function rustSdkFiles(
   const files: CodegenFile[] = [
     {
       path: `${SDK_GENERATED_DIR}/Cargo.toml`,
-      contents: readFileSync(join(sourceDir, 'Cargo.toml'), 'utf8').replace(
-        /^version = "0\.0\.0"$/m,
-        `version = "${cliVersion()}"`,
-      ),
+      contents: readFileSync(join(sourceDir, 'Cargo.toml'), 'utf8'),
     },
     {
       path: `${SDK_GENERATED_DIR}/LICENSE`,

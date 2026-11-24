@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -25,7 +26,7 @@ import {
 } from './cargo';
 import { renderPluginRs, rustField } from './codegen';
 import { crateName, libraryScaffoldFiles } from './scaffold';
-import { rustSdkFiles, sdkSourceDir } from './sdk';
+import { rustSdk, rustSdkFiles, sdkSourceDir } from './sdk';
 
 const FIXTURE = resolve(__dirname, '../../rust/fixture/soundor.config.ts');
 const GOLDEN = resolve(__dirname, '../../rust/soundor/src/plugin.rs');
@@ -90,7 +91,7 @@ describe('the generated Rust contract', () => {
 });
 
 describe('the SDK a project gets', () => {
-  it('is the shipped sources at the CLI version, with its plugin.rs', async () => {
+  it('is the shipped sources, at version 0.0.0, with its plugin.rs', async () => {
     const config = await parseConfig({ path: FIXTURE });
     const files = rustSdkFiles(config);
     const paths = files.map((file) => file.path);
@@ -103,8 +104,17 @@ describe('the SDK a project gets', () => {
     ]);
     expect(paths.some((path) => path.includes('/tests/'))).toBe(false);
     const manifest = files.find((file) => file.path.endsWith('Cargo.toml'))!;
-    expect(manifest.contents).toContain(`version = "${cliVersion()}"`);
+    // Never this CLI's version: a project's Cargo.lock would change at each
+    // release. Its notice says what it is (rustSdk).
+    expect(manifest.contents).toContain('version = "0.0.0"');
+    expect(manifest.contents).toBe(
+      readFileSync(join(sdkSourceDir(), 'Cargo.toml'), 'utf8'),
+    );
     expect(sdkSourceDir()).toBe(resolve(__dirname, '../../rust/soundor'));
+    expect(rustSdk('/p')).toEqual({
+      manifest: resolve('/p/.soundor/generated/rust/soundor/Cargo.toml'),
+      version: cliVersion(),
+    });
   });
 
   it('is in the package npm publishes', async () => {

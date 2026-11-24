@@ -127,8 +127,11 @@ export class TreeEventTarget extends EventTarget {
       for (let i = path.length - 1; i > 0 && !state.stopped; --i)
         path[i]!.#invoke(event, state, CAPTURING_PHASE, true);
       // At the target, capturing listeners run before the others.
-      if (!state.stopped) this.#invoke(event, state, AT_TARGET, true);
-      if (!state.stopped) this.#invoke(event, state, AT_TARGET, false);
+      if (!state.stopped) {
+        this.#invoke(event, state, AT_TARGET, true);
+        if (!state.stoppedImmediately)
+          this.#invoke(event, state, AT_TARGET, false);
+      }
       if (event.bubbles) {
         for (let i = 1; i < path.length && !state.stopped; ++i)
           path[i]!.#invoke(event, state, BUBBLING_PHASE, false);
@@ -393,7 +396,7 @@ export class PointerEvent extends ModifierEvent {
   get pointerId(): number {
     return this.#init.pointerId;
   }
-  get pointerType(): string {
+  get pointerType(): NonNullable<PointerEventInit['pointerType']> {
     return this.#init.pointerType;
   }
   get pressure(): number {
