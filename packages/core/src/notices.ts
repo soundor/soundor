@@ -509,6 +509,12 @@ export interface CrateNoticesOptions {
    * (`Cargo.toml` paths): no notice of their own.
    */
   readonly exclude?: readonly string[];
+  /**
+   * What crates that ship inside an npm package are (their manifest's
+   * `version` is 0.0.0, so that a project's `Cargo.lock` does not change at
+   * each release), by `Cargo.toml` path: the version their notice names.
+   */
+  readonly versions?: Readonly<Record<string, string>>;
   readonly licenses?: ResolvedLicenses;
   readonly run?: RunTool;
 }
@@ -553,6 +559,12 @@ export function crateNotices(options: CrateNoticesOptions): NoticeCollection {
   const excluded = new Set(
     [options.manifest, ...(options.exclude ?? [])].map((path) => resolve(path)),
   );
+  const versions = new Map(
+    Object.entries(options.versions ?? {}).map(([path, version]) => [
+      resolve(path),
+      version,
+    ]),
+  );
 
   const linked = new Set<string>();
   const queue = rootId === undefined ? [] : [rootId];
@@ -574,6 +586,10 @@ export function crateNotices(options: CrateNoticesOptions): NoticeCollection {
   for (const entry of [...linked]
     .map((id) => byId.get(id)!)
     .filter((entry) => !excluded.has(resolve(entry.manifest_path)))
+    .map((entry) => ({
+      ...entry,
+      version: versions.get(resolve(entry.manifest_path)) ?? entry.version,
+    }))
     .sort(
       (a, b) =>
         a.name.localeCompare(b.name) || a.version.localeCompare(b.version),

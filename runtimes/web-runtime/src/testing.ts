@@ -80,6 +80,17 @@ export function fakeLibrary(root: string): FakeLibrary {
   const requests: LibraryBuildRequest[] = [];
   return {
     manifest: join(root, 'lib', 'Cargo.toml'),
+    sdk: {
+      manifest: join(
+        root,
+        '.soundor',
+        'generated',
+        'rust',
+        'soundor',
+        'Cargo.toml',
+      ),
+      version: '0.0.0-test',
+    },
     requests,
     build: async (request) => {
       requests.push(request);

@@ -48,10 +48,16 @@ export interface Vst3NoticesInput {
   /** The Rust target triple. */
   readonly rustTarget: string;
   /**
-   * This package's version: its `soundor-vst3` crate's, whose manifest says
-   * 0.0.0 (it is never published on its own).
+   * This package's `soundor-vst3` crate, whose manifest says 0.0.0 (it is
+   * never published on its own): its `Cargo.toml`, and the version it is,
+   * this package's.
    */
-  readonly runtimeVersion: string;
+  readonly runtimeCrate: {
+    readonly manifest: string;
+    readonly version: string;
+  };
+  /** The Soundor SDK the project's crate depends on (`ctx.lib.sdk`). */
+  readonly sdk: { readonly manifest: string; readonly version: string };
   /**
    * A development build's: told of components without a license text,
    * which otherwise fail the build.
@@ -104,24 +110,16 @@ export async function vst3Notices(
       target: input.rustTarget,
       cwd: input.root,
       exclude: [input.libManifest],
+      versions: {
+        [input.runtimeCrate.manifest]: input.runtimeCrate.version,
+        [input.sdk.manifest]: input.sdk.version,
+      },
       licenses,
     }),
     rustStdNotice({ cwd: input.root, licenses }),
   ];
-  const report = settleNotices(
+  return settleNotices(
     collections,
     input.onMissing === undefined ? {} : { onMissing: input.onMissing },
   );
-  return {
-    ...report,
-    notices: report.notices.map((notice) =>
-      notice.section === 'rust' && notice.name === 'soundor-vst3'
-        ? {
-            ...notice,
-            version: input.runtimeVersion,
-            directory: `rust/soundor-vst3@${input.runtimeVersion}`,
-          }
-        : notice,
-    ),
-  };
 }

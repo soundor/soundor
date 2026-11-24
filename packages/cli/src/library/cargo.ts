@@ -25,6 +25,8 @@ import {
   type ResolvedLicenses,
 } from '@soundor/core';
 
+import { rustSdk } from './sdk';
+
 /** The crate's manifest in a project, when it has one. */
 export function libraryManifest(root: string): string | undefined {
   const manifest = resolve(root, 'lib', 'Cargo.toml');
@@ -246,10 +248,12 @@ export function libraryNotices(
   target: string,
   licenses?: ResolvedLicenses,
 ): NoticeCollection {
+  const sdk = rustSdk(root);
   const crates = crateNotices({
     manifest,
     target,
     cwd: root,
+    versions: { [sdk.manifest]: sdk.version },
     ...(licenses === undefined ? {} : { licenses }),
   });
   const std = rustStdNotice({
@@ -274,6 +278,7 @@ export function libraryBuildContext(
   if (manifest === undefined) return undefined;
   return {
     manifest,
+    sdk: rustSdk(root),
     build: (request) =>
       buildLibrary({
         root,
