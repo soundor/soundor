@@ -197,7 +197,9 @@ On the web, Soundor makes every request from the input itself, as natively:
 a secondary click asks on its press (also on Windows, where browsers open
 their menu on release), Control-click on macOS too, and a touch hold after
 its 500 ms, in every browser (iOS Safari sends no `contextmenu` for one; on
-iOS the view also hides Safari's callout, except in text inputs). The
+iOS the view also hides Safari's callout, except in text inputs). As in a
+plugin's editor, text in the view cannot be selected, so a hold never
+starts a selection; text inputs keep theirs. The
 browser's own `contextmenu` for that input only says whether its menu may
 show: not if the request was canceled. A browser may still keep a gesture
 for itself (scrolling, text selection) before Soundor sees it, and a
