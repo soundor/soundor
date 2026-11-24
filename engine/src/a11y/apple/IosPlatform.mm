@@ -203,6 +203,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                     case Action::Collapse:
                         name = action.label.empty() ? @"Collapse" : string(action.label);
                         break;
+                    case Action::ShowMenu:
+                        name = string(action.label);
+                        break;
                     default:
                         continue;
                 }

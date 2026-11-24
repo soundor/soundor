@@ -169,6 +169,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 
     std::string_view actionName(Action action) noexcept
     {
+        if (action == Action::ShowMenu)
+            return "show-menu";
         const auto index = static_cast<std::size_t>(action);
         return index < actionNames.size() ? actionNames[index] : std::string_view {};
     }

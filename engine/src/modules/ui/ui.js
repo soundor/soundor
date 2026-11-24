@@ -26,6 +26,7 @@ import {
   Event,
   EventTarget,
   eventParent,
+  listenerPresenceChanged,
   trustEvent,
 } from 'soundor:internal/web/events';
 
@@ -1079,6 +1080,11 @@ export class UiNode extends EventTarget {
   /** Presented bounds relative to the view (zero when not connected). */
   getBoundingClientRect() {
     return native.bounds(this.#id);
+  }
+
+  [listenerPresenceChanged](type, present) {
+    if (type === 'contextmenu')
+      native.setContextMenuListener(this.#id, present);
   }
 
   [eventParent]() {
@@ -2168,7 +2174,7 @@ native.setListener((type, targetId, data) => {
     pointerType: data.pointerType,
     pressure: data.pressure,
     detail: data.detail,
-    isPrimary: true,
+    isPrimary: data.pointerType !== '',
     deltaX: data.deltaX,
     deltaY: data.deltaY,
     deltaMode: data.deltaMode,

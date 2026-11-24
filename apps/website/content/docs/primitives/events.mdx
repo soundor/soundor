@@ -64,10 +64,64 @@ put node event handlers on the content they render.
   modifiers change what it types by `code`: Option+S on macOS has the key
   `'ß'` and Shift+1 on a US layout `'!'`, but their codes are `'KeyS'` and
   `'Digit1'` ([Keyboard shortcuts](#keyboard-shortcuts)).
-- **`onContextMenu`** fires when the secondary button goes down, so a UI can
-  open its own menu ([Portal](/docs/primitives/portal#over-everything)).
+- **`onContextMenu`** is a [request to open a context menu](#context-menus).
 - **Double clicks** are the platform's: `onDoubleClick` fires right after
   the second click's `onClick` ([Double clicks](#double-clicks)).
+
+## Context menus
+
+`onContextMenu` is a semantic request, not simply a right-click event. It
+works alongside primary interactions such as `onPress`. Soundor delivers the
+same `contextmenu` event to `soundor:ui` listeners and to React's
+`onContextMenu` and `onContextMenuCapture` props.
+
+```tsx
+const handleContextMenu = (event: PointerEvent) => {
+  event.preventDefault(); // Suppress the browser's menu for this request.
+  openMenu({ x: event.pageX, y: event.pageY });
+};
+
+<View focusable onContextMenu={handleContextMenu}>
+  <Text>Track options</Text>
+</View>;
+
+<Pressable onPress={openSettings} onContextMenu={handleContextMenu}>
+  <Text>Settings</Text>
+</Pressable>;
+```
+
+Use `pageX`/`pageY` (the same view-relative logical pixels as
+`clientX`/`clientY`) to position a menu in a [portal](/docs/primitives/portal).
+For a pointer request, these are the pointer's coordinates. For a keyboard
+or accessibility request, they are the bottom-left of the target's bounds;
+`pointerType` is `''`, `button` and `pointerId` are `-1`, and no buttons are
+held. `offsetX`/`offsetY` are relative to the original target, even when an
+ancestor handles the request.
+
+The event captures and bubbles like other events. A wrapper can receive a
+request from an interactive child; a child can call `stopPropagation()` to
+keep ancestor bubble handlers from opening another menu. The keyboard
+shortcuts act on the focused node. A plain view can opt into keyboard focus
+with `focusable`. Preventing the shortcut's `keydown` cancels the request;
+when Soundor handles the shortcut, it consumes the browser's keyboard default
+to avoid a second menu. For a browser-delivered `contextmenu`, use
+`preventDefault()` to replace the browser's menu.
+
+| Runtime    | Pointer and keyboard                                              | Accessibility                                                                                                  |
+| ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| macOS      | Secondary click, Control-click, Shift+F10, Context Menu key       | AppKit's Show Menu action                                                                                      |
+| Linux      | Secondary click, Shift+F10, Context Menu key                      | AT-SPI's “Show context menu” action, in clients that offer it                                                  |
+| Windows    | Secondary click, Shift+F10, Context Menu key                      | UI Automation's `ShowContextMenu` where supported by the client                                                |
+| iOS engine | Depends on input supplied by the host                             | “Show context menu” in VoiceOver's actions                                                                     |
+| Web        | Native browser context-menu gestures, Shift+F10, Context Menu key | Browsers don't expose a separate ARIA context-menu action; requests delivered as DOM `contextmenu` are handled |
+
+Native runtimes add the action to accessible targets that can reach the
+handler, including accessible descendants of a wrapper. No separate action
+prop is needed. The target's role, name, value, and primary actions stay the
+same. An otherwise unexposed view stays out of the accessibility tree; use
+the usual [accessibility props](/docs/primitives/accessibility) if the view
+itself should be an accessible target. Browser or system shortcuts that are
+intercepted before reaching Soundor cannot be handled.
 
 ## Keyboard shortcuts
 

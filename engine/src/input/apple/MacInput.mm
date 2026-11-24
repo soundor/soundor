@@ -142,7 +142,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
             }
 
             bool focused() const override { return ! suspended && ownsFocus() && view.window.keyWindow; }
-            unsigned buttons() const override { return held; }
+            unsigned buttons() const override
+            {
+                return controlClick && (held & buttonMask(0)) != 0 ? (held & ~buttonMask(0)) | buttonMask(1) : held;
+            }
 
             std::optional<ui::Point> pointerOnScreen() const override
             {
@@ -255,6 +258,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                     pending.emplace_back(ui::PointerInput {
                         .phase = ui::PointerInput::Phase::Cancel, .position = last, .screen = std::nullopt });
                     held = 0;
+                    controlClick = false;
                 }
                 for (auto& [code, name] : heldKeys)
                     pending.emplace_back(
@@ -293,6 +297,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                 if (down)
                 {
                     requestFocus();
+                    if (button == 0)
+                        controlClick = (event.modifierFlags & NSEventModifierFlagControl) != 0;
                     held |= buttonMask(button);
                 }
                 else if (up)
@@ -310,7 +316,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                 input.screen =
                     ui::Point { static_cast<float>(screen.x) / scale(), static_cast<float>(top - screen.y) / scale() };
                 input.modifiers = modifiersOf(event.modifierFlags);
-                input.buttons = held;
+                input.buttons = buttons();
                 input.pressure = held != 0 ? 0.5F : 0;
                 if (down && before == 0)
                 {
@@ -322,7 +328,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
                 else if (type == NSEventTypeMouseExited)
                     input.phase = ui::PointerInput::Phase::Leave;
                 if (down || up)
-                    input.button = buttonOf(button);
+                    input.button = buttonOf(button == 0 && controlClick ? 1U : button);
+                if (up && button == 0)
+                    controlClick = false;
                 pending.emplace_back(std::move(input));
             }
 
@@ -478,6 +486,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::input::apple
             ui::Point last;
             ui::Point scrollAt;
             unsigned held = 0;
+            bool controlClick = false;
             bool suspended = false;
             bool restoreFocus = false;
             bool hasFocus = false;

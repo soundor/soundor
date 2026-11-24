@@ -495,6 +495,66 @@ TEST_SUITE("a11y semantics")
         CHECK(f.tree() == R"(view [adjustable "Gain" =0.25, text "Other", text "New"])");
     }
 
+    TEST_CASE("context menu shortcuts and accessibility requests bubble from the same control")
+    {
+        A11yFixture f;
+        f.build(R"(
+            globalThis.wrapper = createView({ marginLeft: 10, marginTop: 20 });
+            globalThis.slider = createView({ width: 30, height: 40 });
+            slider.accessibility = { role: 'adjustable', label: 'Gain', hint: 'Drag',
+                value: { min: -60, max: 12, now: -3 },
+                actions: [{ name: 'increment' }, { name: 'decrement' }] };
+            slider.focusable = true;
+            wrapper.appendChild(slider);
+            root.appendChild(wrapper);
+            slider.focus();
+            globalThis.log = [];
+            globalThis.menu = e => log.push(`${e.target === slider}/${e.currentTarget === wrapper}:${e.pageX},${e.pageY}:${e.button}`);
+            globalThis.controller = new AbortController();
+            wrapper.addEventListener('contextmenu', menu, { signal: controller.signal });
+        )");
+        using a11y::Action;
+        const auto slider = f.element("Gain");
+        CHECK(f.tree() == "view [adjustable \"Gain\" =-3]");
+        CHECK(f.node("Gain").hint == "Drag");
+        CHECK(f.node("Gain").value.min == -60);
+        CHECK(f.node("Gain").value.max == 12);
+        CHECK(f.node("Gain").supports(Action::ShowMenu));
+        CHECK(f.node("Gain").supports(Action::Increment));
+        CHECK(f.node("Gain").supports(Action::Decrement));
+        CHECK(f.adapter.tree.focus() == slider);
+
+        auto& surface = f.host.surface();
+        CHECK(surface.key({ .key = "F10", .code = "F10", .modifiers = ui::Modifier::Shift }));
+        CHECK(surface.key({ .key = "F10", .code = "F10", .repeat = true, .modifiers = ui::Modifier::Shift }));
+        CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+        CHECK(f.perform("Gain", Action::ShowMenu));
+        CHECK(f.eval("log.join(' ')").asString() == "true/true:10,60:-1 true/true:10,60:-1 true/true:10,60:-1");
+
+        f.run(R"(
+            slider.addEventListener('contextmenu', e => { log.push('inner'); e.stopPropagation(); }, { once: true });
+            slider.addEventListener('keydown', e => { if (e.key === 'ContextMenu') e.preventDefault(); }, { once: true });
+        )");
+        CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+        CHECK(f.eval("log.length").asNumber() == 3);
+        CHECK(f.perform("Gain", Action::ShowMenu));
+        CHECK(f.eval("log.at(-1)").asString() == "inner");
+        f.run("controller.abort();");
+        CHECK_FALSE(f.perform("Gain", Action::ShowMenu)); // also rejects a stale queued request
+        f.sync();
+        CHECK(f.element("Gain") == slider);
+        CHECK_FALSE(f.node("Gain").supports(Action::ShowMenu));
+        CHECK_FALSE(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+
+        f.run("wrapper.addEventListener('contextmenu', menu);");
+        f.sync();
+        CHECK(f.node("Gain").supports(Action::ShowMenu));
+        f.run("wrapper.remove();");
+        CHECK_FALSE(f.host.performAccessibilityAction({ slider, Action::ShowMenu, {}, {} }));
+        f.sync();
+        CHECK(f.element("Gain") == a11y::noNode);
+    }
+
     TEST_CASE("actions reach the node's listeners, with fractional values")
     {
         A11yFixture f;

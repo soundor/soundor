@@ -58,7 +58,9 @@ export interface EventProps {
    * The secondary button went down: where to open a custom menu
    * (`event.pageX/pageY`). preventDefault() keeps a browser's own away.
    */
+  /** A context menu request from the pointer, keyboard, or supported assistive technology. */
   onContextMenu?: (event: PointerEvent) => void;
+  /** Handles a context menu request in the capture phase. */
   onContextMenuCapture?: (event: PointerEvent) => void;
   /** A wheel or trackpad scrolled over the node. */
   onWheel?: (event: WheelEvent) => void;

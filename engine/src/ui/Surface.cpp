@@ -1989,6 +1989,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.modifiers = input.modifiers;
         if (! get(event.target).inputDisabled() && dispatch(event))
             return true;
+        if (input.down && target != noNode && (input.modifiers & shortcut) == 0
+            && (input.key == "ContextMenu" || (input.key == "F10" && (input.modifiers & Modifier::Shift) != 0)))
+        {
+            if (! input.repeat)
+                return requestContextMenu(target, input.modifiers);
+            return isConnected(target) && ! get(target).inputDisabled() && hasContextMenu(target);
+        }
         if (input.down && input.key == "Tab" && (input.modifiers & shortcut) == 0)
             return moveFocus((input.modifiers & Modifier::Shift) != 0);
         return false;
@@ -2000,6 +2007,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (handled || ! input.down || typed.empty())
             return handled;
         return text({ typed });
+    }
+
+    void Surface::setContextMenuListener(NodeId id, bool present)
+    {
+        if (Node* node = find(id); node != nullptr && node->contextMenuListener != present)
+        {
+            node->contextMenuListener = present;
+            ++changes;
+        }
+    }
+
+    bool Surface::hasContextMenu(NodeId target) noexcept
+    {
+        for (const Node* node = find(target); node != nullptr; node = node->parentNode)
+            if (node->contextMenuListener)
+                return true;
+        return false;
+    }
+
+    bool Surface::requestContextMenu(NodeId target, Modifiers modifiers)
+    {
+        if (! isConnected(target) || get(target).inputDisabled() || ! hasContextMenu(target))
+            return false;
+        const Rect box = bounds(target);
+        Event event = pointerEvent(Event::Type::ContextMenu, target,
+                                   { .position = { box.x, box.y + box.height },
+                                     .screen = std::nullopt,
+                                     .pointerId = -1,
+                                     .type = PointerType::NoPointer,
+                                     .modifiers = modifiers });
+        event.movement = {};
+        dispatch(event);
+        return true;
     }
 
     bool Surface::text(const TextInput& input)

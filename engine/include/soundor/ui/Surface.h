@@ -255,6 +255,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::shared_ptr<CanvasBuffer> canvasBuffer;
         Point scroll;
         a11y::Properties semantics;
+        bool contextMenuListener = false;
         NodeId semanticParent = noNode;
         std::string debugName;
         bool canFocus = false;
@@ -405,6 +406,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void setSelection(NodeId id, Selection selection);
         // What assistive technology is told about the node.
         void setAccessibility(NodeId id, a11y::Properties properties);
+        void setContextMenuListener(NodeId id, bool present);
+        [[nodiscard]] bool hasContextMenu(NodeId target) noexcept;
+        bool requestContextMenu(NodeId target, Modifiers modifiers = 0);
         // Reads `id` as a child of `parent` (noNode: of its own parent), as for
         // content a portal shows elsewhere than where it belongs.
         void setAccessibilityParent(NodeId id, NodeId parent);

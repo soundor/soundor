@@ -325,6 +325,35 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(requests[1].action == Action::Focus);
     }
 
+    TEST_CASE("UIA ShowContextMenu adds a request without changing a slider's range pattern")
+    {
+        Window window;
+        uia::Session session(window.handle, "Plugin");
+        auto update = tree();
+        auto& slider = update.nodes[1];
+        session.update(update, {}, true);
+        auto gain = navigate(root(session).Get(), NavigateDirection_FirstChild);
+        ComPtr<IRawElementProviderSimple2> menu;
+        REQUIRE(gain.As(&menu) == S_OK);
+        CHECK(menu->ShowContextMenu() == static_cast<HRESULT>(UIA_E_NOTSUPPORTED));
+
+        slider.actions.push_back({ Action::ShowMenu, "show-menu", "Show context menu" });
+        session.update(update, {}, true);
+        CHECK(menu->ShowContextMenu() == S_OK);
+        auto range = pattern<IRangeValueProvider>(gain.Get(), UIA_RangeValuePatternId);
+        double value = 0;
+        CHECK(range->get_Value(&value) == S_OK);
+        CHECK(value == -3.5);
+        const auto requests = session.takeRequests();
+        REQUIRE(requests.size() == 1);
+        CHECK(requests[0].action == Action::ShowMenu);
+        CHECK(requests[0].target == slider.id);
+
+        slider.actions.pop_back();
+        session.update(update, {}, true);
+        CHECK(menu->ShowContextMenu() == static_cast<HRESULT>(UIA_E_NOTSUPPORTED));
+    }
+
     TEST_CASE("toggle, selection, focus, disabled actions and unsupported patterns")
     {
         Window window;

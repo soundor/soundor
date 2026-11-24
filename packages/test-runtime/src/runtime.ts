@@ -405,8 +405,28 @@ export class TestRuntime {
       this.showFocus();
     }
     const event = new TestEvent('keydown', { key, code: '', ...init });
-    const target = this.focusedNode() ?? this.root;
+    const focused = this.focusedNode();
+    const target = focused ?? this.root;
     if (!target.inputDisabled) target.dispatchEvent(event);
+    if (
+      !event.defaultPrevented &&
+      !init['repeat'] &&
+      !init['ctrlKey'] &&
+      !init['altKey'] &&
+      !init['metaKey'] &&
+      (key === 'ContextMenu' || (key === 'F10' && init['shiftKey'])) &&
+      focused?.isConnected &&
+      !focused.inputDisabled
+    ) {
+      // This runtime has no layout; use the event's default coordinates.
+      this.fire(focused, 'contextmenu', {
+        button: -1,
+        buttons: 0,
+        pointerId: -1,
+        pointerType: '',
+        shiftKey: Boolean(init['shiftKey']),
+      });
+    }
     if (
       !event.defaultPrevented &&
       key === 'Tab' &&

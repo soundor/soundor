@@ -237,6 +237,26 @@ TEST_SUITE("a11y macOS bridge")
         CHECK(f.eval("log.at(-1)").asString() == "reset");
     }
 
+    TEST_CASE("AXShowMenu is advertised separately from a slider's primary actions")
+    {
+        MacFixture f;
+        f.build(controls);
+        NSAccessibilityElement* knob = f.find("Gain");
+        CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+        f.run("globalThis.menu = () => log.push('menu'); knob.addEventListener('contextmenu', menu);");
+        f.tick();
+        CHECK([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+        CHECK([[knob accessibilityRole] isEqualToString:NSAccessibilitySliderRole]);
+        CHECK([knob accessibilityPerformShowMenu]);
+        CHECK([knob accessibilityPerformIncrement]);
+        f.tick();
+        CHECK(f.eval("log.join(' ')").asString() == "menu increment");
+        f.run("knob.removeEventListener('contextmenu', menu);");
+        f.tick();
+        CHECK_FALSE([knob accessibilityPerformShowMenu]);
+        CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+    }
+
     TEST_CASE("setting a text input's value asks plugin code to")
     {
         MacFixture f;

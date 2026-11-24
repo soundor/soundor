@@ -459,6 +459,40 @@ TEST_SUITE("Linux AT-SPI")
             }));
     }
 
+    TEST_CASE("the context menu is an additional AT-SPI action and can be removed")
+    {
+        Bus bus;
+        atspi::Session session("Context menu", bus.address);
+        auto update = example();
+        auto& node = update.nodes[1];
+        node.actions.push_back({ Action::ShowMenu, "show-menu", "Show context menu" });
+        session.update(update, {}, true);
+        REQUIRE(eventually([&] { return session.active(); }));
+        const auto app = bus.applications().front();
+        constexpr auto path = "/org/a11y/atspi/accessible/n11";
+        constexpr auto action = "org.a11y.atspi.Action";
+        CHECK(printed(bus, app, path, action, "GetName", g_variant_new("(i)", 0)) == "('increment',)");
+        CHECK(printed(bus, app, path, action, "GetName", g_variant_new("(i)", 1)) == "('show-menu',)");
+        CHECK(printed(bus, app, path, action, "DoAction", g_variant_new("(i)", 1)) == "(true,)");
+        const auto requests = session.takeRequests();
+        REQUIRE(requests.size() == 1);
+        CHECK(requests[0].action == Action::ShowMenu);
+        CHECK(requests[0].target == node.id);
+
+        node.actions.pop_back();
+        update.full = false;
+        session.update(update, {}, true);
+        REQUIRE(eventually(
+            [&] {
+                return printed(bus, app, path, action, "GetActions", nullptr).find("Show context menu")
+                       == std::string::npos;
+            }));
+        CHECK(printed(bus, app, path, action, "DoAction", g_variant_new("(i)", 0)) == "(true,)");
+        const auto remaining = session.takeRequests();
+        REQUIRE(remaining.size() == 1);
+        CHECK(remaining[0].action == Action::Increment);
+    }
+
     TEST_CASE("focus-only updates, states, values, children and geometry send protocol events")
     {
         Bus bus;

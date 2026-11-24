@@ -221,6 +221,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                               });
             if (element.focusable)
                 offer(element, Action::Focus);
+            // Use the event ancestry, not the reading order: a transparent
+            // wrapper can handle the request from an accessible control.
+            if (! element.state.disabled && surface.hasContextMenu(node.id()))
+                element.actions.push_back(
+                    { Action::ShowMenu, std::string(actionName(Action::ShowMenu)), "Show context menu" });
 
             order.push_back(element.id);
             const bool whole =
@@ -359,6 +364,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         const Node* element = current.find(request.target);
         if (source == sources.end() || element == nullptr || ! surface.isConnected(source->second))
             return false;
+        if (request.action == Action::ShowMenu)
+            return element->supports(Action::ShowMenu) && surface.requestContextMenu(source->second);
         const bool custom = request.action == Action::Custom;
         std::string name = custom ? request.name : std::string(actionName(request.action));
         if (name.empty() || (custom && actionFromName(name) != Action::Custom))

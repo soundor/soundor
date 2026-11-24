@@ -70,6 +70,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             return ask(self, Action::Escape) ? YES : NO;
         }
 
+        BOOL performShowMenu(id self, SEL)
+        {
+            return ask(self, Action::ShowMenu) ? YES : NO;
+        }
+
         // Assistive technology setting a value or focus asks for it; the
         // bridge sets what is shown through NSAccessibilityElement's own
         // setters (superSet below).
@@ -104,6 +109,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 action = Action::Decrement;
             else if (selector == @selector(accessibilityPerformCancel))
                 action = Action::Escape;
+            else if (selector == @selector(accessibilityPerformShowMenu))
+                action = Action::ShowMenu;
             else if (selector == @selector(setAccessibilityValue:))
                 action = Action::SetValue;
             else if (selector == @selector(setAccessibilityFocused:))
@@ -133,6 +140,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                     ,
                     {
                         @selector(accessibilityPerformCancel), reinterpret_cast<IMP>(performCancel)
+                    }
+                    ,
+                    {
+                        @selector(accessibilityPerformShowMenu), reinterpret_cast<IMP>(performShowMenu)
                     }
                     ,
                     {

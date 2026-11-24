@@ -538,6 +538,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        jsi::Value setContextMenuListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                          std::size_t count)
+        {
+            return call(context, "setContextMenuListener", count, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setContextMenuListener(readId(args[0]), bind::toBoolean(context, args[1]));
+                            return jsi::Value::undefined();
+                        });
+        }
+
         jsi::Value setFocusable(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             return call(context, "setFocusable", count, 2,
@@ -1368,7 +1379,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         jsi::Value eventData(ContextState& context, const Event& event)
         {
-            static constexpr const char* pointerTypes[] = { "mouse", "pen", "touch" };
+            static constexpr const char* pointerTypes[] = { "mouse", "pen", "touch", "" };
             bind::ObjectBuilder data(context);
             data.set("related", jsi::Value(double(event.related)));
             data.set("modifiers", jsi::Value(double(event.modifiers)));
@@ -1466,6 +1477,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setDebugId", setDebugId, 2 },
             { "setScrollIndicators", setScrollIndicators, 2 },
             { "setAccessibility", setAccessibility, 2 },
+            { "setContextMenuListener", setContextMenuListener, 2 },
             { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },
             { "setSvgScene", setSvgScene, 2 },

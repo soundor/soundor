@@ -25,8 +25,9 @@ A tooltip is the trigger's box in surface coordinates and a portal:
   dropdown in a dialog) is on top of it.
 
 There is one overlay layer, shared by overlays. `soundor:ui` exports it as
-`overlayRoot`; React components render into it through `<Portal>`. A context menu is `onContextMenu`, the
-pointer's position and a portal:
+`overlayRoot`; React components render into it through `<Portal>`. Use the
+position from [`onContextMenu`](/docs/primitives/events#context-menus) to anchor
+a context menu in a portal:
 
 <Snippet name="context-menu" height={240} />
 

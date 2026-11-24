@@ -28,6 +28,7 @@ import {
   InputEvent,
   KeyboardEvent,
   PointerEvent,
+  TreeEventTarget,
   WheelEvent,
 } from './events.ts';
 import { Listeners } from './listeners.ts';
@@ -133,6 +134,7 @@ export class Engine implements ViewLink {
   readonly #committed = new WeakMap<UiNode, string>();
   readonly #controller = new AbortController();
   #focused: UiNode | null = null;
+  readonly #contextMenuKeys = new Set<string>();
   /**
    * Whether the focused node shows its focus, and whether the last input
    * was the keyboard's (or assistive technology's) rather than a pointer
@@ -1464,6 +1466,22 @@ export class Engine implements ViewLink {
    */
   #contextMenu(event: MouseEvent): void {
     event.stopPropagation();
+    // Keyboard-generated DOM events do not have a pointer. Older browsers
+    // send a MouseEvent with the default button, except for Control-click.
+    const pointer = event as globalThis.PointerEvent;
+    if (
+      event.button === -1 ||
+      (event.button === 0 && !event.ctrlKey && !pointer.pointerType)
+    ) {
+      const target =
+        nodeOf(event.target as Element | null, this.rootElement) ??
+        this.focusedNode();
+      if (target !== null && !target.inputDisabled) {
+        if (!target.dispatchEvent(this.#anchoredContextMenu(target, event)))
+          event.preventDefault();
+      }
+      return;
+    }
     const pointerId = (event as globalThis.PointerEvent).pointerId ?? 1;
     const captured = this.#pointers.get(pointerId)?.captured ?? null;
     const target =
@@ -1477,6 +1495,33 @@ export class Engine implements ViewLink {
       this.#pointerEvent('contextmenu', target, event, true, true),
     );
     if (!allowed) event.preventDefault();
+  }
+
+  #anchoredContextMenu(
+    target: UiNode,
+    event: MouseEvent | globalThis.KeyboardEvent,
+  ) {
+    const box = target.getBoundingClientRect();
+    const x = box.x;
+    const y = box.y + box.height;
+    const local = UiNode.localPoint(target, x, y);
+    return new PointerEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: x,
+      clientY: y,
+      screenX: x,
+      screenY: y,
+      offsetX: local.x,
+      offsetY: local.y,
+      pointerId: -1,
+      button: -1,
+      shiftKey: event.shiftKey,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    });
   }
 
   #pointerCancel(event: globalThis.PointerEvent): void {
@@ -1562,6 +1607,8 @@ export class Engine implements ViewLink {
 
   #key(event: globalThis.KeyboardEvent, down: boolean): void {
     if (event.isComposing) return;
+    if (!down && this.#contextMenuKeys.delete(event.key))
+      event.preventDefault();
     const shortcut = event.ctrlKey || event.altKey || event.metaKey;
     // Using the keyboard shows focus, as browsers do: not a shortcut, nor a
     // modifier pressed on its own.
@@ -1569,7 +1616,11 @@ export class Engine implements ViewLink {
       this.#keyboardModality = true;
       this.#showFocus();
     }
-    const target = this.focusedNode() ?? this.root;
+    const focused = this.focusedNode();
+    const target = focused ?? this.root;
+    const menuKey =
+      !shortcut &&
+      (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey));
     const allowed =
       target.inputDisabled ||
       target.dispatchEvent(
@@ -1588,9 +1639,27 @@ export class Engine implements ViewLink {
       );
     if (!allowed) {
       event.preventDefault();
+      if (down && menuKey) this.#contextMenuKeys.add(event.key);
       return;
     }
     if (!down) return;
+    if (
+      menuKey &&
+      focused !== null &&
+      target.isConnected &&
+      !target.inputDisabled &&
+      this.#pathTo(target).some((node) =>
+        TreeEventTarget.hasListener(node, 'contextmenu'),
+      )
+    ) {
+      // Replace the DOM default before dispatching so the browser cannot
+      // send a second contextmenu for this keystroke.
+      event.preventDefault();
+      this.#contextMenuKeys.add(event.key);
+      if (!event.repeat)
+        target.dispatchEvent(this.#anchoredContextMenu(target, event));
+      return;
+    }
     if (event.key === 'Tab' && !shortcut) {
       event.preventDefault();
       this.#moveFocus(event.shiftKey);
@@ -1668,6 +1737,7 @@ export class Engine implements ViewLink {
     if (this.#movingFocus) return;
     const next = event.relatedTarget as Node | null;
     if (next !== null && this.rootElement.contains(next)) return;
+    this.#contextMenuKeys.clear();
     this.focus(null, false);
   }
 }

@@ -47,6 +47,10 @@ function options(value: boolean | AddEventListenerOptions | undefined) {
 export class TreeEventTarget extends EventTarget {
   readonly #listeners = new Map<string, Entry[]>();
 
+  static hasListener(target: TreeEventTarget, type: string): boolean {
+    return (target.#listeners.get(type)?.length ?? 0) > 0;
+  }
+
   override addEventListener(
     type: string,
     listener: Listener | null,
