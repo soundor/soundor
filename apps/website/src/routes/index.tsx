@@ -120,10 +120,7 @@ function Home() {
               <ArrowRight aria-hidden className="size-3" />
             </Link>
             <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-              Audio plugins with a React UI,{' '}
-              <span className="bg-gradient-to-r from-fd-primary to-fd-foreground/60 bg-clip-text text-transparent">
-                in your DAW and the browser
-              </span>
+              Audio plugins with a React UI, in your DAW and the browser
             </h1>
             <p className="mt-5 max-w-2xl text-lg text-balance text-fd-muted-foreground">
               Write the interface in React and TypeScript and the sound in Rust.
