@@ -1,5 +1,35 @@
 # @soundor/engine
 
+## 0.11.0
+
+### Minor Changes
+
+- [#373](https://github.com/soundor/soundor/pull/373) [`2c5b9a4`](https://github.com/soundor/soundor/commit/2c5b9a45444421085bb3ef66613a0c5560e42ad5) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `listbox` and `option` accessibility roles across the native, web, and test runtimes. Use `accessibilityState.selected` to identify the chosen option and `disabled` for unavailable options.
+
+- [#372](https://github.com/soundor/soundor/pull/372) [`9ee70c5`](https://github.com/soundor/soundor/commit/9ee70c51428c98939957f3f2c96e458a32cbc141) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Honor `accessibilityState.disabled` for pointer activation, wheel, keyboard and focus across runtimes. Disabled subtrees still receive hover, but lose focus and cancel active presses. Use `accessibilityState.readOnly` to describe a read-only value without blocking input such as a “Copy value” context menu.
+
+- [#374](https://github.com/soundor/soundor/pull/374) [`453d4fe`](https://github.com/soundor/soundor/commit/453d4fe5661821ff20aebed3d6267980dba71b34) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `KeyboardEvent.code`, the physical key (`KeyS`, `Digit1`), in every runtime, so shortcuts such as Option+S on macOS or Shift+1 match whatever the key types. Natively it comes from the scan code, virtual key code or X11 keycode; Soundor Driver's keys and `user.keyboard` have the US key that types them.
+
+  Add `accessibilityKeyShortcuts` (`accessibility.keyShortcuts`), the shortcuts that act on an element as `aria-keyshortcuts` writes them: `aria-keyshortcuts` on the web, UI Automation's `AcceleratorKey`, AT-SPI's `keyshortcuts` attribute, and the help text on macOS and iOS.
+
+  Add `announce(message, { priority })` to `soundor:ui`, for a screen reader to speak what an action did: an ARIA live region on the web, UI Automation notification events, AT-SPI `object:announcement`, and AppKit's and UIKit's announcement notifications. `testView.announcements()` lists them in tests.
+
+### Patch Changes
+
+- [#381](https://github.com/soundor/soundor/pull/381) [`8282460`](https://github.com/soundor/soundor/commit/82824608da3c6749103f91f23f23a5def5224bd2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - With the GPU compositor, a WebGL canvas inside a rounded `overflow: 'hidden'` view keeps the view's rounded corners. The canvas's layer was clipped by an ancestor only where the canvas stuck out of the ancestor's box, so one that filled it was drawn with square corners. The layer's clip is now the canvas's own rounded box and its clipping ancestors' together, and a canvas that more than one rounded rectangle cuts is read back and drawn on the CPU. A canvas larger than a rounded clip is a GPU layer now, rather than read back.
+
+- [#375](https://github.com/soundor/soundor/pull/375) [`e151fd8`](https://github.com/soundor/soundor/commit/e151fd8d9050c572904e212d6ee4610d976af1c4) Thanks [@dm-balakin](https://github.com/dm-balakin)! - DevTools captures (`Capture.screenshot`, the Driver's and vitest-e2e's `screenshot()`) show WebGL and other GPU canvases again while the GPU compositor runs. The compositor marks a canvas's image as shown, so a capture skipped reading it back and drew stale pixels; a capture now reads back every GPU canvas.
+
+- [#394](https://github.com/soundor/soundor/pull/394) [`2526d5f`](https://github.com/soundor/soundor/commit/2526d5fa3e3653f4ed82d9f10308cbf97dc632bc) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Before building Skia, ANGLE or a Hermes flavor into Soundor's cache, the engine's CMake runs the program `SOUNDOR_DEPENDENCY_FETCH` names, if it is set, with the cache root and the install's path in it. The program either leaves the complete install there or nothing; if it fails, the configure stops instead of building. Soundor's CI uses it to fetch the builds its main branch published. Skia, ANGLE and Hermes are now always built without the compiler launcher the environment names (`CMAKE_<LANG>_COMPILER_LAUNCHER`), since an install is kept and shared.
+
+- [#381](https://github.com/soundor/soundor/pull/381) [`3e6ba0d`](https://github.com/soundor/soundor/commit/3e6ba0d44e6e189480719c78251d12a3e09e5cbd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Opening and closing an editor no longer leaves about 1 MB of font data behind each time. Each editor made its own font manager and its own typeface for every registered font, which copied the font file again, and Skia kept glyph caches for those typefaces after the editor closed. Editors open at the same time now share one font manager and one typeface per font file. When the last editor closes, the typefaces are released and Skia's font caches are purged.
+
+- [#381](https://github.com/soundor/soundor/pull/381) [`1c2355e`](https://github.com/soundor/soundor/commit/1c2355efc2bd49c78cfe09a66fd71199f8f2e5fc) Thanks [@dm-balakin](https://github.com/dm-balakin)! - An editor's GPU-drawn 2D canvases keep at most 32 MB of textures for later, down from 64 MB. What they keep is freed once it has gone unused for 10 seconds, not only when the cache is full.
+
+- [#381](https://github.com/soundor/soundor/pull/381) [`94a9f00`](https://github.com/soundor/soundor/commit/94a9f0099afb95fd60a4a012b084e4e960b72be8) Thanks [@dm-balakin](https://github.com/dm-balakin)! - On Linux, the editor no longer stays black with the GPU compositor until an input event or a resize. The first frame was presented before the host mapped its window, so the X server dropped it, and a UI that did not change was never presented again. The compositor's window now asks for its Expose events, and the editor presents again when the compositor needs it (`GpuCompositor::needsRedraw()`: placed or shown anew, or exposed), even without a UI change. A new compositor is placed and shown before its first frame.
+
+- [#381](https://github.com/soundor/soundor/pull/381) [`20ef0ae`](https://github.com/soundor/soundor/commit/20ef0ae64464b11fbf444d9dd1fc6f0b1441b13c) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Opening an editor starts far fewer threads, and editors open at the same time share one GPU device. ANGLE's worker pool had one thread per CPU for each editor's display, so each open started about a dozen threads, and their glibc arenas kept the memory they freed after the editor closed. A display's pool now has at most two threads (a patch to ANGLE). The editors open on one thread share one device, with one display and one pool. A display is reused when an editor is opened again, rather than ANGLE keeping one more per open.
+
 ## 0.10.0
 
 ### Minor Changes

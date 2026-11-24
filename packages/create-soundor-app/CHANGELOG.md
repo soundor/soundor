@@ -1,5 +1,9 @@
 # create-soundor-app
 
+## 0.20.0
+
+No changes in this release.
+
 ## 0.19.0
 
 ### Minor Changes
