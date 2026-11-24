@@ -81,6 +81,16 @@ function Plugins() {
                     </li>
                   ))}
                 </ul>
+                <p className="mt-5 text-sm text-fd-muted-foreground">
+                  Free and open source under the{' '}
+                  <a
+                    className="underline underline-offset-2 hover:text-fd-primary"
+                    href={plugin.license.url}
+                  >
+                    {plugin.license.name}
+                  </a>
+                  . What you make with it is yours.
+                </p>
                 <a
                   href={plugin.url}
                   className={buttonVariants({

@@ -36,24 +36,36 @@ const projects = [
     what: 'The framework: CLI, runtimes, engine and libraries',
     site: 'https://soundor.dev/',
     repo: 'https://github.com/soundor/soundor',
+    license: 'MIT',
+    notice: {
+      text: 'The engine’s dependencies keep their own licenses',
+      href: '/docs/engine#licenses-and-attribution',
+    },
   },
   {
     name: 'Soundor Components',
     what: 'UI components for Soundor plugins',
     site: 'https://components.soundor.dev/',
     repo: 'https://github.com/soundor/components',
+    license: 'MIT',
   },
   {
     name: 'Soundor Icons',
     what: 'Icon collections for Soundor and the browser',
     site: 'https://icons.soundor.dev/',
     repo: 'https://github.com/soundor/icons',
+    license: 'MIT',
+    notice: {
+      text: 'The icons keep their upstream licenses',
+      href: 'https://icons.soundor.dev/docs/licensing',
+    },
   },
   {
     name: 'Soundor Orbit',
     what: 'The official audio plugin',
     site: 'https://orbit.soundor.dev/',
     repo: 'https://github.com/soundor/orbit',
+    license: 'GNU AGPL v3',
   },
 ];
 
@@ -124,15 +136,16 @@ function Brand() {
       }
     >
       <p>
-        Soundor is an open-source framework and ecosystem for audio plugins. Its
-        software is released under the{' '}
+        Soundor is an open-source framework and ecosystem for audio plugins. The
+        framework is released under the{' '}
         <a href={`${repository.url}/blob/${repository.branch}/LICENSE`}>
           MIT License
         </a>
         , and we want as many people as possible to build with it, commercially
-        or not. These guidelines are about something else: the Soundor name and
-        logos, so that people can tell the official project from the many
-        projects built with it.
+        or not. Each of the <a href="#official">official projects</a> has its
+        own license, shown below. These guidelines are about something else: the
+        Soundor name and logos, so that people can tell the official project
+        from the many projects built with it.
       </p>
 
       <h2 id="logo-files">The logo files</h2>
@@ -157,6 +170,7 @@ function Brand() {
             <tr>
               <th className="py-2 pe-4 font-medium">Project</th>
               <th className="py-2 pe-4 font-medium">What it is</th>
+              <th className="py-2 pe-4 font-medium">License</th>
               <th className="py-2 font-medium">Links</th>
             </tr>
           </thead>
@@ -166,6 +180,22 @@ function Brand() {
                 <td className="py-2 pe-4 font-medium">{project.name}</td>
                 <td className="py-2 pe-4 text-fd-muted-foreground">
                   {project.what}
+                </td>
+                <td className="py-2 pe-4">
+                  <a
+                    className="underline underline-offset-2 hover:text-fd-primary"
+                    href={`${project.repo}/blob/main/LICENSE`}
+                  >
+                    {project.license}
+                  </a>
+                  {project.notice && (
+                    <a
+                      className="mt-1 block text-xs text-fd-muted-foreground underline underline-offset-2 hover:text-fd-primary"
+                      href={project.notice.href}
+                    >
+                      {project.notice.text}
+                    </a>
+                  )}
                 </td>
                 <td className="py-2 whitespace-nowrap">
                   <a
@@ -187,6 +217,11 @@ function Brand() {
           </tbody>
         </table>
       </div>
+      <p>
+        Soundor Orbit’s license covers the plugin, not what is made with it:
+        music and audio you record, mix or render with Orbit are yours, to
+        release, sell or license as you like.
+      </p>
       <img
         src={family}
         alt="The logos of Soundor, Soundor Orbit, Soundor Components and Soundor Icons, on light and dark backgrounds"
@@ -203,8 +238,7 @@ function Brand() {
           with it.
         </Rule>
         <Rule ok>
-          Modify and distribute the software, under the terms of the MIT
-          License.
+          Modify and distribute each project, under the terms of its license.
         </Rule>
         <Rule ok>
           Say that your project is <strong>“Built with Soundor”</strong>,{' '}
@@ -262,7 +296,7 @@ function Brand() {
       </ul>
       <p>
         If you publish a fork, give it a different name, say that it is based on
-        Soundor, and keep the MIT License’s copyright notice, as the license
+        Soundor, and keep its license and copyright notice, as the license
         requires.
       </p>
 
