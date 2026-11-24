@@ -65,10 +65,16 @@ export const STYLESHEET = `
 /* After touch, as mobile browsers show theirs: only while it scrolls. */
 .sd-scroll-indicator-touch { opacity: 0; transition: opacity 300ms; }
 .sd-scroll-indicator-showing { opacity: 1; transition: none; }
-.sd-input { background: transparent; appearance: none; text-overflow: clip; }
+/* A text input keeps iOS's own hold (the caret, Paste): it is the input's. */
+.sd-input {
+  background: transparent; appearance: none; text-overflow: clip;
+  -webkit-touch-callout: default;
+}
+/* No iOS callout (an image's Save) under a touch hold: it is the view's. */
 .sd-surface {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%;
   isolation: isolate; outline: none; cursor: default;
+  -webkit-touch-callout: none;
 }
 /* The two roots: the content, and over all of it the overlay layer, which
    lets the pointer through where nothing in it takes it. */

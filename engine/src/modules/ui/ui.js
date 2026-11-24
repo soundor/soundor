@@ -19,7 +19,11 @@ import {
   resetContext,
   setSourceResolver,
 } from 'soundor:internal/ui/canvas';
-import { LongPresses } from 'soundor:internal/ui/long-press';
+import {
+  canHold,
+  longPressed,
+  LongPresses,
+} from 'soundor:internal/ui/long-press';
 import { setNodeResolver } from 'soundor:internal/ui/resize';
 import { createWebGL2, resizeWebGL } from 'soundor:internal/ui/webgl';
 import { reportError } from 'soundor:internal/web/console';
@@ -2168,23 +2172,16 @@ native.setListener((type, targetId, data) => {
   if (event.defaultPrevented) return true;
   if (
     name === 'pointerdown' &&
-    event.button === 0 &&
-    event.buttons === 1 &&
-    target.isConnected
+    canHold(target, event.button, event.buttons, event.pointerType)
   ) {
     gestures.start(event.pointerId, target, event.pageX, event.pageY, () => {
-      const id = internals.id(target);
-      if (!native.canLongPress(id, event.pointerId)) return;
-      const held = trustEvent(new PointerEvent('longpress', event));
-      const canceled = !target.dispatchEvent(held);
-      const menuCanceled =
-        !canceled &&
-        event.pointerType === 'touch' &&
-        native.canLongPress(id, event.pointerId) &&
-        !target.dispatchEvent(
-          trustEvent(new PointerEvent('contextmenu', event)),
-        );
-      if (canceled || menuCanceled)
+      // Still this pointer's press, on a node that takes input (unlocked).
+      const available = () =>
+        native.canLongPress(internals.id(target), event.pointerId);
+      if (!available()) return;
+      const send = (type) =>
+        target.dispatchEvent(trustEvent(new PointerEvent(type, event)));
+      if (longPressed(event.pointerType, send, available))
         native.suppressPointerClick(event.pointerId);
     });
   }

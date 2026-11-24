@@ -590,11 +590,14 @@ export class TestRuntime {
     }
     if (button === 2 && !target.inputDisabled)
       this.fire(target, 'contextmenu', pointerInit);
+    // A long press, as the engine's recognizer (longPress.js) starts one: a
+    // touch held in a text input is the input's own.
     if (
       button === 0 &&
       !event.defaultPrevented &&
       target.isConnected &&
-      !target.inputDisabled
+      !target.inputDisabled &&
+      !(pointer.type === 'touch' && target.type === 'input')
     ) {
       let delay = 500;
       for (let at: TestNode | null = target; at; at = at.parent) {

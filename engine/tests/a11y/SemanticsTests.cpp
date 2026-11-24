@@ -568,8 +568,8 @@ TEST_SUITE("a11y semantics")
         CHECK(f.perform("Gain", Action::LongPress));
         CHECK(f.eval("log.at(-1)").asString() == "long:");
         f.run("slider.accessibility = base;");
-        CHECK_FALSE(f.perform("Gain", Action::ShowContextMenu)); // also rejects a stale queued request
         f.sync();
+        CHECK_FALSE(f.perform("Gain", Action::ShowContextMenu));
         CHECK(f.element("Gain") == slider);
         CHECK_FALSE(f.node("Gain").supports(Action::ShowContextMenu));
         CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));

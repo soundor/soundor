@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from '@soundor/react';
+import { Pressable, Text, TextInput, View } from '@soundor/react';
 import { getTestRuntime, type TestNode } from '@soundor/test-runtime';
 import { advanceTime, render } from '@soundor/testing-library/react';
 import type { ReactNode } from 'react';
@@ -174,6 +174,25 @@ describe('context menu requests', () => {
     await advanceTime(600);
     expect(log).toEqual([]);
     runtime().pointerCancel(7);
+  });
+
+  it("a touch held in a text input is the input's; other requests still come", async () => {
+    const log: string[] = [];
+    await show(
+      <View
+        onLongPress={(event) => log.push(describeEvent(event))}
+        onContextMenu={(event) => log.push(describeEvent(event))}
+      >
+        <TextInput value="Preset" />
+      </View>,
+    );
+    const input = child(0, 0);
+    await hold(input);
+    expect(log).toEqual([]);
+    await hold(input, 'mouse');
+    runtime().pointerDown(input, { button: 2 });
+    runtime().pointerUp(input, { button: 2 });
+    expect(log).toEqual(['longpress:mouse:0', 'contextmenu:mouse:2']);
   });
 
   it('a canceled keydown makes no request', async () => {

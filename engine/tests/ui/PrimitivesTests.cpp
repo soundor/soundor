@@ -605,6 +605,22 @@ TEST_SUITE("soundor:ui pressable")
         f.run("button.remove();");
         f.tickFor(std::chrono::milliseconds(525));
         CHECK(f.log().empty());
+        press(ui::PointerInput::Phase::Up, 0);
+
+        // A touch held in a text input is the input's own.
+        f.run(std::string(imports) + R"(
+            globalThis.field = createTextInput({ width: 40, height: 20 });
+            root.appendChild(field);
+            field.addEventListener('longpress', e => log.push(`field:${e.pointerType}`));
+        )");
+        press(ui::PointerInput::Phase::Down, 1);
+        f.tickFor(std::chrono::milliseconds(525));
+        press(ui::PointerInput::Phase::Up, 0);
+        CHECK(f.log().empty());
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        REQUIRE(f.tickUntil("log.length > 0"));
+        f.press(ui::PointerInput::Phase::Up, 10, 10, 0);
+        CHECK(f.log() == "capture:false:true field:mouse bubble"); // root logs it too
     }
 
     TEST_CASE("the state follows focus and blur")

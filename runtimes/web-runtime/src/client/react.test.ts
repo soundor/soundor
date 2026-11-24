@@ -336,6 +336,20 @@ describe('@soundor/react on the DOM soundor:ui', () => {
       }
       const reactRoot = render(h(Track));
       at(root.children[0]!);
+      // The press asks; the browser's contextmenu after it only answers.
+      const input = (type: string, buttons: number) =>
+        new window.PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          clientX: 120,
+          clientY: 45,
+          button: 2,
+          buttons,
+          pointerId: 1,
+          pointerType: 'mouse',
+        });
+      flushSync(() => view.rootElement.dispatchEvent(input('pointerdown', 2)));
+      view.rootElement.dispatchEvent(input('pointerup', 0));
       const native = new window.MouseEvent('contextmenu', {
         bubbles: true,
         cancelable: true,
@@ -343,7 +357,7 @@ describe('@soundor/react on the DOM soundor:ui', () => {
         clientY: 45,
         button: 2,
       });
-      flushSync(() => view.rootElement.dispatchEvent(native));
+      view.rootElement.dispatchEvent(native);
       expect(native.defaultPrevented).toBe(true);
       const menu = overlayRoot.children[0]!.children[0]!;
       expect(menu.layout).toMatchObject({ x: 120, y: 45 });

@@ -12,7 +12,11 @@
  * browser's (it honors `pointerEvents`), and text inputs edit natively.
  */
 
-import { LongPresses } from '../../../src/modules/ui/longPress.js';
+import {
+  canHold,
+  longPressed,
+  LongPresses,
+} from '../../../src/modules/ui/longPress.js';
 import {
   compileModule,
   EngineCore,
@@ -89,7 +93,8 @@ type AnnouncePriority = 'polite' | 'assertive';
 interface PointerState {
   captured: UiNode | null;
   suppressClick: boolean;
-  touchMenu: { canceled: boolean; until: number } | null;
+  /** macOS Control with the primary button: a secondary press, as natively. */
+  controlClick: boolean;
   hovered: UiNode[];
   /** The last input, where hover is refreshed from. */
   last: globalThis.PointerEvent | null;
@@ -136,10 +141,15 @@ export class Engine implements ViewLink {
   readonly #committed = new WeakMap<UiNode, string>();
   readonly #controller = new AbortController();
   #focused: UiNode | null = null;
-  #keyboardMenu: { key: string; canceled: boolean; until: number } | null =
-    null;
-  #lastTouchMenu: PointerState['touchMenu'] = null;
-  #lastTouchId = -1;
+  /**
+   * The context menu request the view made from input it saw (a secondary
+   * press, a menu key, a touch hold), until the browser's own `contextmenu`
+   * for that input answers it: canceled, it keeps the browser's menu away.
+   * Any new press or key ends it.
+   */
+  #menu: { canceled: boolean } | null = null;
+  /** The menu key held: what the browser sends meanwhile is its. */
+  #menuKey: { key: string; canceled: boolean } | null = null;
   readonly gestures = new LongPresses();
 
   suppressPointerClick(id: number): void {
@@ -1274,8 +1284,8 @@ export class Engine implements ViewLink {
       // The browser's, in CSS pixels; synthetic events may have none.
       movementX: (event.movementX ?? 0) / scale,
       movementY: (event.movementY ?? 0) / scale,
-      button: event.button,
-      buttons: event.buttons,
+      button: this.#button(event),
+      buttons: this.#buttons(event),
       pointerId: pointer.pointerId ?? 1,
       pointerType: (pointer.pointerType ?? 'mouse') as 'mouse',
       pressure: pointer.pressure ?? (event.buttons !== 0 ? 0.5 : 0),
@@ -1285,13 +1295,29 @@ export class Engine implements ViewLink {
     });
   }
 
+  /** Control-click's button is the secondary one, through its release. */
+  #button(event: MouseEvent): number {
+    const id = (event as globalThis.PointerEvent).pointerId ?? 1;
+    return event.button === 0 && this.#pointers.get(id)?.controlClick === true
+      ? 2
+      : event.button;
+  }
+
+  #buttons(event: MouseEvent): number {
+    const id = (event as globalThis.PointerEvent).pointerId ?? 1;
+    return (event.buttons & 1) !== 0 &&
+      this.#pointers.get(id)?.controlClick === true
+      ? (event.buttons & ~1) | 2
+      : event.buttons;
+  }
+
   #state(pointerId: number): PointerState {
     let state = this.#pointers.get(pointerId);
     if (state === undefined) {
       state = {
         captured: null,
         suppressClick: false,
-        touchMenu: null,
+        controlClick: false,
         hovered: [],
         last: null,
         inside: false,
@@ -1339,23 +1365,29 @@ export class Engine implements ViewLink {
   }
 
   #pointerDown(event: globalThis.PointerEvent): void {
-    this.#keyboardMenu = null;
-    this.#lastTouchMenu = null;
+    this.#menu = this.#menuKey = null;
     this.gestures.cancel(event.pointerId);
     // A click still waiting goes first: its browser click never came.
     this.#flushClick();
     // Focus a press moves is not shown (focusVisible()).
     this.#keyboardModality = false;
     const state = this.#state(event.pointerId);
-    if (state.captured === null)
+    if (state.captured === null) {
       state.pressedElement = event.target as Element | null;
+      // On macOS, Control with the primary button is the secondary one.
+      state.controlClick = event.button === 0 && event.ctrlKey && this.#mac();
+    }
     const hit = this.#hitTest(event);
     if (state.captured === null) this.#updateHover(state, event, hit);
     const target = state.captured ?? hit;
     this.#nativeDown = false;
     if (target === null) return;
+    // The secondary button asks for a context menu, as natively: after its
+    // pointerdown, canceled or not. The browser's own contextmenu answers.
+    const secondary = this.#button(event) === 2;
     if (target.inputDisabled) {
       event.preventDefault();
+      if (secondary) this.#menu = { canceled: true };
       return;
     }
     // Implicit capture until the last button is up, from before the
@@ -1363,7 +1395,6 @@ export class Engine implements ViewLink {
     if (state.captured === null) {
       state.captured = target;
       state.suppressClick = false;
-      state.touchMenu = null;
     }
     const press = this.#pointerEvent('pointerdown', target, event, true, true);
     const allowed = target.dispatchEvent(press);
@@ -1371,6 +1402,7 @@ export class Engine implements ViewLink {
     if (!allowed || target.inputDisabled) {
       event.preventDefault();
       if (state.captured !== null) this.#capture(event.pointerId);
+      if (secondary) this.#requestPointerMenu(target, event);
       return;
     }
     // Focus goes to the nearest focusable node, or nowhere.
@@ -1390,38 +1422,43 @@ export class Engine implements ViewLink {
     // arrives through the window.
     if (!this.#nativeDown) this.#capture(event.pointerId);
     this.focus(focusTarget?.isConnected ? focusTarget : null);
-    if (event.button === 0 && event.buttons === 1 && target.isConnected) {
-      if (event.pointerType === 'touch') {
-        state.touchMenu = this.#lastTouchMenu = {
-          canceled: false,
-          until: Infinity,
-        };
-        this.#lastTouchId = event.pointerId;
-      }
-      this.gestures.start(
-        event.pointerId,
-        target,
-        press.pageX,
-        press.pageY,
-        () => {
-          if (state.captured !== target || this.pointerLockNode() !== null)
-            return;
-          const touch = event.pointerType === 'touch';
-          const canceled = !target.dispatchEvent(
-            new PointerEvent('longpress', press),
-          );
-          const menuCanceled =
-            touch &&
-            !canceled &&
-            target.isConnected &&
-            !target.inputDisabled &&
-            !target.dispatchEvent(new PointerEvent('contextmenu', press));
-          if (touch && state.touchMenu !== null)
-            state.touchMenu.canceled = canceled || menuCanceled;
-          if (canceled || menuCanceled) state.suppressClick = true;
-        },
+    if (secondary) this.#requestPointerMenu(target, event);
+    if (!canHold(target, press.button, press.buttons, event.pointerType))
+      return;
+    this.gestures.start(
+      event.pointerId,
+      target,
+      press.pageX,
+      press.pageY,
+      () => {
+        if (state.captured !== target || this.pointerLockNode() !== null)
+          return;
+        const consumed = longPressed(
+          event.pointerType,
+          (type) => target.dispatchEvent(new PointerEvent(type, press)),
+          () => target.isConnected && !target.inputDisabled,
+        );
+        if (consumed) state.suppressClick = true;
+        // A touch hold's menu request, which the browser's (Android's) answers.
+        if (event.pointerType === 'touch') this.#menu = { canceled: consumed };
+      },
+    );
+  }
+
+  /** A secondary press's request, at the pressed node and the pointer. */
+  #requestPointerMenu(target: UiNode, event: globalThis.PointerEvent): void {
+    const canceled =
+      !target.isConnected ||
+      target.inputDisabled ||
+      !target.dispatchEvent(
+        this.#pointerEvent('contextmenu', target, event, true, true),
       );
-    }
+    this.#menu = { canceled };
+  }
+
+  #mac(): boolean {
+    const navigator = this.rootElement.ownerDocument.defaultView?.navigator;
+    return /^Mac/.test(navigator?.platform ?? '');
   }
 
   /** Keeps the pointer's input on the view until it is released. */
@@ -1456,8 +1493,6 @@ export class Engine implements ViewLink {
   #pointerUp(event: globalThis.PointerEvent): void {
     this.gestures.cancel(event.pointerId);
     const state = this.#state(event.pointerId);
-    if (state.touchMenu !== null)
-      state.touchMenu.until = event.timeStamp + 1000;
     const pressed = state.captured;
     const hit = this.#hitTest(event);
     const target = pressed ?? hit;
@@ -1479,7 +1514,7 @@ export class Engine implements ViewLink {
     const released = this.#hitTest(event);
     let common: UiNode | null = null;
     if (
-      event.button === 0 &&
+      this.#button(event) === 0 &&
       !state.suppressClick &&
       stillPressed &&
       pressed?.isConnected &&
@@ -1531,72 +1566,47 @@ export class Engine implements ViewLink {
   }
 
   /**
-   * The browser's request for a context menu (the secondary button, a long
-   * touch) as a Soundor `contextmenu` at the pressed node, or the node under
-   * the pointer. Preventing it keeps the browser's own menu away.
+   * The browser's `contextmenu`. Every input the view sees makes its own
+   * request (a secondary press, a menu key, a touch hold), so the browser's
+   * only answers it: canceled, the browser's menu stays away. One that comes
+   * from a pointer or a key the view made no request for (outside its nodes,
+   * a touch held in a text input) is the browser's own. One that comes from
+   * neither is assistive technology's (#requestMenu).
    */
   #contextMenu(event: MouseEvent): void {
     event.stopPropagation();
-    // Keyboard-generated DOM events do not have a pointer. Older browsers
-    // send a MouseEvent with the default button, except for Control-click.
     const pointer = event as globalThis.PointerEvent;
-    const id = pointer.pointerId > 0 ? pointer.pointerId : this.#lastTouchId;
-    const touchMenu = this.#pointers.get(id)?.touchMenu ?? this.#lastTouchMenu;
-    const touch =
-      pointer.pointerType === 'touch' ||
-      (
-        event as MouseEvent & {
-          sourceCapabilities?: { firesTouchEvents: boolean };
-        }
-      ).sourceCapabilities?.firesTouchEvents ||
-      (!('pointerType' in event) &&
-        event.buttons === 0 &&
-        event.button === 2 &&
-        touchMenu !== null);
-    if (touch && touchMenu !== null && event.timeStamp <= touchMenu.until) {
-      this.gestures.nativeHold(id);
-      if (touchMenu.canceled) event.preventDefault();
+    // A browser can recognize a touch hold before the view's timer.
+    if (pointer.pointerId !== undefined)
+      this.gestures.nativeHold(pointer.pointerId);
+    // While a menu key is held, anything the browser sends is the key's.
+    const menu = this.#menu ?? this.#menuKey;
+    if (menu !== null) {
+      if (this.#menuKey === null) this.#menu = null;
+      if (menu.canceled) event.preventDefault();
       return;
     }
+    // A hold with a delay of its own goes on: no browser menu meanwhile.
     if (
-      event.button === -1 ||
-      (event.button === 0 && !event.ctrlKey && !pointer.pointerType) ||
-      (this.#keyboardMenu !== null &&
-        !pointer.pointerType &&
-        event.buttons === 0 &&
-        event.detail === 0)
+      pointer.pointerId !== undefined &&
+      this.gestures.pending(pointer.pointerId)
     ) {
-      if (
-        this.#keyboardMenu !== null &&
-        event.isTrusted &&
-        event.timeStamp <= this.#keyboardMenu.until
-      ) {
-        if (this.#keyboardMenu.canceled) event.preventDefault();
-        return;
-      }
-      const target =
-        nodeOf(event.target as Element | null, this.rootElement) ??
-        this.focusedNode();
-      if (target !== null && !target.inputDisabled) {
-        if (!this.#requestMenu(target, event)) event.preventDefault();
-      }
-      return;
-    }
-    const pointerId = (event as globalThis.PointerEvent).pointerId ?? 1;
-    const captured = this.#pointers.get(pointerId)?.captured ?? null;
-    const target =
-      (captured?.isConnected ? captured : null) ?? this.#hitTest(event);
-    if (target === null) return;
-    if (target.inputDisabled) {
       event.preventDefault();
       return;
     }
-    if (event.ctrlKey && captured !== null)
-      this.suppressPointerClick(pointerId);
-    const allowed = target.dispatchEvent(
-      this.#pointerEvent('contextmenu', target, event, true, true),
+    const pressed = [...this.#pointers.values()].some(
+      (state) => state.captured !== null,
     );
-    if (!allowed) event.preventDefault();
+    if (pointer.pointerType || pressed) return;
+    const target =
+      nodeOf(event.target as Element | null, this.rootElement) ??
+      this.focusedNode();
+    if (
+      target !== null &&
+      !target.inputDisabled &&
+      !this.#requestMenu(target, event)
+    )
+      event.preventDefault();
   }
 
   /**
@@ -1656,8 +1666,6 @@ export class Engine implements ViewLink {
   #pointerCancel(event: globalThis.PointerEvent): void {
     this.gestures.cancel(event.pointerId);
     const state = this.#state(event.pointerId);
-    if (state.touchMenu !== null)
-      state.touchMenu.until = event.timeStamp + 1000;
     const target = state.captured;
     state.captured = null;
     this.#endLock(event.pointerId);
@@ -1739,10 +1747,13 @@ export class Engine implements ViewLink {
 
   #key(event: globalThis.KeyboardEvent, down: boolean): void {
     if (event.isComposing) return;
-    if (!down && this.#keyboardMenu?.key === event.key) {
-      this.#keyboardMenu.until = event.timeStamp + 100;
-      if (this.#keyboardMenu.canceled) event.preventDefault();
-    }
+    if (this.#menuKey !== null && event.key === this.#menuKey.key) {
+      // Its repeats answer as its press did; its release ends that, while
+      // the request waits on the browser's menu (Windows' comes on release).
+      if (this.#menuKey.canceled) event.preventDefault();
+      if (!down) this.#menuKey = null;
+      if (event.repeat || !down) return;
+    } else if (down) this.#menu = this.#menuKey = null;
     const shortcut = event.ctrlKey || event.altKey || event.metaKey;
     // Using the keyboard shows focus, as browsers do: not a shortcut, nor a
     // modifier pressed on its own.
@@ -1771,35 +1782,27 @@ export class Engine implements ViewLink {
           metaKey: event.metaKey,
         }),
       );
-    if (!allowed) {
-      event.preventDefault();
-      if (down && menuKey)
-        this.#keyboardMenu = {
-          key: event.key,
-          canceled: true,
-          until: Infinity,
-        };
-      return;
-    }
-    if (!down) return;
-    if (
-      menuKey &&
-      focused !== null &&
-      target.isConnected &&
-      !target.inputDisabled
-    ) {
-      if (event.repeat) {
-        event.preventDefault();
-        return;
-      }
-      const canceled = !target.dispatchEvent(
-        this.#anchoredContextMenu(target, event),
-      );
-      this.#keyboardMenu = { key: event.key, canceled, until: Infinity };
+    // The menu keys ask the focused node for a menu: keydown's default.
+    // With nothing focused there is no request, but the browser's menu for
+    // this key is still the key's, not assistive technology's.
+    if (down && menuKey) {
+      let canceled = !allowed;
+      if (allowed && focused?.isConnected && !focused.inputDisabled)
+        canceled = !focused.dispatchEvent(
+          this.#anchoredContextMenu(focused, event),
+        );
+      // Canceled, the key is too, and with it the browser's menu: nothing
+      // is left to answer. Otherwise the browser's menu answers it.
+      this.#menu = canceled ? null : { canceled };
+      this.#menuKey = { key: event.key, canceled };
       if (canceled) event.preventDefault();
       return;
     }
-    if (!event.repeat) this.#keyboardMenu = null;
+    if (!allowed) {
+      event.preventDefault();
+      return;
+    }
+    if (!down) return;
     if (event.key === 'Tab' && !shortcut) {
       event.preventDefault();
       this.#moveFocus(event.shiftKey);
@@ -1878,7 +1881,7 @@ export class Engine implements ViewLink {
     const next = event.relatedTarget as Node | null;
     if (next !== null && this.rootElement.contains(next)) return;
     this.gestures.clear();
-    this.#keyboardMenu = null;
+    this.#menu = this.#menuKey = null;
     this.focus(null, false);
   }
 }

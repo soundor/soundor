@@ -144,7 +144,11 @@ moving more than 10 logical pixels. Releasing or canceling the pointer,
 moving further, scrolling, pointer lock, the node leaving the tree, and
 `preventDefault()` on its `pointerdown` (which claims the press) end it
 first. `pointerType` says where it came from: `'touch'`, `'mouse'` or
-`'pen'`, and `''` for the accessibility `longpress` action.
+`'pen'`, and `''` for the accessibility `longpress` action. A touch held in
+a text input is never a long press: it is the input's own (the caret, the
+selection, a phone's Paste), so neither `longpress` nor `contextmenu`
+comes from it. A mouse held there, a secondary click and the keyboard still
+ask.
 
 Its default, for a touch long press only, is a `contextmenu` event at the
 same node and point, so `onContextMenu` alone opens a menu on a touch
@@ -188,10 +192,17 @@ never presses after its `onLongPress` ran.
 Touch long presses need a runtime that receives touch input: the web runtime
 does; the VST3 runtime's desktop editors get mouse input (a touch screen's
 emulated mouse included), so a held finger there is a mouse long press.
-Browsers may keep a gesture for themselves (scrolling, text selection, the
-system's menu) before Soundor sees it; where a browser sends no cancelable
-`contextmenu`, its own menu cannot be replaced. A shortcut the host or the
-system takes before the editor gets it cannot request a menu.
+
+On the web, Soundor makes every request from the input itself, as natively:
+a secondary click asks on its press (also on Windows, where browsers open
+their menu on release), Control-click on macOS too, and a touch hold after
+its 500 ms, in every browser (iOS Safari sends no `contextmenu` for one; on
+iOS the view also hides Safari's callout, except in text inputs). The
+browser's own `contextmenu` for that input only says whether its menu may
+show: not if the request was canceled. A browser may still keep a gesture
+for itself (scrolling, text selection) before Soundor sees it, and a
+shortcut the host or the system takes before the editor gets it cannot
+request a menu.
 
 ## Keyboard shortcuts
 

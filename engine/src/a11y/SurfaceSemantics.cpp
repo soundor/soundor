@@ -362,11 +362,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         const Node* element = current.find(request.target);
         if (source == sources.end() || element == nullptr || ! surface.isConnected(source->second))
             return false;
-        if (request.action == Action::ShowContextMenu
-            && std::ranges::none_of(surface.find(source->second)->accessibility().actions,
-                                    [](const ActionDescriptor& action)
-                                    { return action.action == Action::ShowContextMenu; }))
-            return false;
         const bool custom = request.action == Action::Custom;
         std::string name = custom ? request.name : std::string(actionName(request.action));
         if (name.empty() || (custom && actionFromName(name) != Action::Custom))

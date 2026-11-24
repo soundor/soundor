@@ -1,8 +1,40 @@
+// Long presses, the same in every runtime: the native one (ui.js) and the
+// web adapter (engine/web/src/ui/view.ts). Each runtime routes its pointers
+// here and dispatches the events; what a press must do to be a long press,
+// and what one does, is decided only here.
+
 const delay = 500;
 const slop = 10;
 
-// Input adapters own gesture targeting and event dispatch. This recognizer
-// only tracks a held primary pointer, its original point and its lifetime.
+/**
+ * Whether a press can become a long press: the primary button alone, on a
+ * node in the tree. A touch held in a text input is the input's own (its
+ * caret, its selection, a phone's Paste), never a long press.
+ */
+export function canHold(target, button, buttons, pointerType) {
+  return (
+    button === 0 &&
+    buttons === 1 &&
+    target.isConnected &&
+    !(pointerType === 'touch' && target.type === 'input')
+  );
+}
+
+/**
+ * What a recognized long press does: `longpress`, then, for a touch only,
+ * its default, `contextmenu`, unless `longpress` was canceled. `dispatch`
+ * sends one of them to the pressed node and returns whether it was not
+ * canceled; `available` says whether the node can still take input.
+ * Returns whether the press was consumed (either one canceled), so its
+ * release does not click. For a touch that is also whether the menu
+ * request was canceled.
+ */
+export function longPressed(pointerType, dispatch, available) {
+  if (!dispatch('longpress')) return true;
+  return pointerType === 'touch' && available() && !dispatch('contextmenu');
+}
+
+// A held primary pointer: its node, where it went down, and its timer.
 export class LongPresses {
   #pending = new Map();
   #delays = new WeakMap();
@@ -26,6 +58,11 @@ export class LongPresses {
     }
     const timer = setTimeout(() => this.#recognize(id), duration);
     this.#pending.set(id, { timer, target, x, y, recognized, duration });
+  }
+
+  /** Whether a press of this pointer may still become a long press. */
+  pending(id) {
+    return this.#pending.has(id);
   }
 
   // A browser may detect the same touch hold before our timer fires. Use

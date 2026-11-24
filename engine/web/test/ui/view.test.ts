@@ -810,31 +810,119 @@ describe('contextmenu', () => {
     return event;
   }
 
-  it("bridges the browser's request as a Soundor pointer event that bubbles", () => {
+  it("comes from the secondary press; the browser's only answers it", () => {
     const { root, button, events } = setup();
     const seen: string[] = [];
     root.addEventListener('contextmenu', (event) => {
       const e = event as unknown as Record<string, unknown>;
       seen.push(`${e['button']} ${e['pageX']} ${e['cancelable']}`);
     });
-    const allowed = contextMenu(10);
-    expect(events).toEqual(['contextmenu@button']);
-    expect(seen).toEqual(['2 10 true']);
-    // Nobody prevented it: the browser may show its own menu.
-    expect(allowed.defaultPrevented).toBe(false);
-
-    button.addEventListener('contextmenu', (event) => event.preventDefault());
-    expect(contextMenu(10).defaultPrevented).toBe(true);
-  });
-
-  it('goes to the pressed node while the pointer is captured', () => {
-    const { events } = setup();
     pointer('pointerdown', 10, { button: 2, buttons: 2 });
-    contextMenu(20);
     expect(events.filter((e) => !e.startsWith('pointerenter'))).toEqual([
       'pointerdown@button',
       'contextmenu@button',
     ]);
+    expect(seen).toEqual(['2 10 true']);
+    // Nobody prevented it: the browser may show its own menu, which comes
+    // on press or (Windows) after the release, and makes no second request.
+    pointer('pointerup', 10, { button: 2, buttons: 0 });
+    expect(contextMenu(20).defaultPrevented).toBe(false);
+    expect(seen).toHaveLength(1);
+
+    // Canceled, the browser's menu stays away; a canceled pointerdown
+    // still asks, as natively.
+    button.addEventListener('pointerdown', (event) => event.preventDefault());
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+    pointer('pointerdown', 10, { button: 2, buttons: 2 });
+    expect(contextMenu(10).defaultPrevented).toBe(true);
+    expect(seen).toHaveLength(2);
+    pointer('pointerup', 10, { button: 2, buttons: 0 });
+  });
+
+  it('is Control-click on macOS, which does not click', () => {
+    vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('MacIntel');
+    const { events } = setup();
+    const buttons: number[] = [];
+    view.root.addEventListener('pointerdown', (event) =>
+      buttons.push((event as UiPointerEvent).button),
+    );
+    pointer('pointerdown', 10, { button: 0, buttons: 1, ctrlKey: true });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(buttons).toEqual([2]);
+    expect(events).toContain('contextmenu@button');
+    expect(events).not.toContain('click@button');
+  });
+
+  it("comes from the menu keys; the browser's answers each press", () => {
+    const { button, events } = setup();
+    button.focusable = true;
+    button.focus();
+    let cancelKey = false;
+    button.addEventListener('keydown', (event) => {
+      if (cancelKey) event.preventDefault();
+    });
+    const key = (type: string, init: KeyboardEventInit) => {
+      const event = new window.KeyboardEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      view.rootElement.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const browserMenu = () => {
+      const event = new window.MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+      });
+      el(button).dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    key('keydown', { key: 'F10', shiftKey: true });
+    expect(browserMenu()).toBe(false);
+    key('keydown', { key: 'F10', shiftKey: true, repeat: true });
+    expect(browserMenu()).toBe(false); // a repeat answers, asks nothing
+    key('keyup', { key: 'F10', shiftKey: true });
+    key('keydown', { key: 'ContextMenu' });
+    key('keyup', { key: 'ContextMenu' });
+    expect(browserMenu()).toBe(false); // Windows' comes on release
+    expect(events.filter((e) => e === 'contextmenu@button')).toHaveLength(2);
+    // Canceling the key cancels its request, and the browser's menu.
+    cancelKey = true;
+    expect(key('keydown', { key: 'ContextMenu' })).toBe(true);
+    expect(browserMenu()).toBe(true);
+    expect(events.filter((e) => e === 'contextmenu@button')).toHaveLength(2);
+  });
+
+  it("a touch held in a text input is the input's", () => {
+    vi.useFakeTimers();
+    try {
+      const { panel } = setup();
+      const input = view.createNode('input');
+      panel.appendChild(input);
+      vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+      const seen: string[] = [];
+      panel.addEventListener('longpress', () => seen.push('longpress'));
+      panel.addEventListener('contextmenu', (event) => {
+        seen.push('contextmenu');
+        event.preventDefault();
+      });
+      const touch = { pointerType: 'touch', pointerId: 4 };
+      pointer('pointerdown', 10, { ...touch, button: 0, buttons: 1 });
+      vi.advanceTimersByTime(600);
+      // Android's own menu there (its Paste) goes through untouched.
+      const browserMenu = new window.PointerEvent('contextmenu', {
+        ...touch,
+        bubbles: true,
+        cancelable: true,
+      });
+      el(input).dispatchEvent(browserMenu);
+      expect(browserMenu.defaultPrevented).toBe(false);
+      pointer('pointerup', 10, { ...touch, button: 0 });
+      expect(seen).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('is ignored outside the view', () => {
