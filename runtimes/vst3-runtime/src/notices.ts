@@ -13,8 +13,9 @@
  *   licenses.json              the same, for tools
  */
 
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
+import { loweredCodeNotices } from '@soundor/engine';
 import {
   addedNotices,
   crateNotices,
@@ -73,6 +74,23 @@ export async function vst3Notices(
           { name: 'VST3 SDK' },
         ),
         ...addedNotices(licenses),
+        // The engine's lowering inlines Babel's helpers into the UI's code.
+        ...(input.ui === undefined
+          ? []
+          : loweredCodeNotices().map((component) => ({
+              section: 'javascript',
+              name: component.name,
+              version: component.version,
+              ...(component.license === undefined
+                ? {}
+                : { license: component.license }),
+              origin: 'found' as const,
+              directory: `javascript/${component.name}@${component.version}`,
+              files: component.files.map((file) => ({
+                path: basename(file),
+                source: file,
+              })),
+            }))),
       ],
       issues: [],
       unused: [],

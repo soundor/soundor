@@ -168,6 +168,47 @@ function packageRoot(): string {
   }
 }
 
+/** A component of the code the engine's lowering puts into what it lowers. */
+export interface LoweredCodeNotice {
+  readonly name: string;
+  readonly version: string;
+  /** An SPDX expression, when its package declares one. */
+  readonly license?: string;
+  /** Its license files: absolute paths. */
+  readonly files: readonly string[];
+}
+
+/**
+ * The notices of what `toNativeModule()` (`@soundor/engine/native-module`)
+ * adds to the code it lowers: Babel's helper functions (`@babel/helpers`),
+ * which its transforms inline. A build that ships lowered code ships these.
+ * From the notices the package carries beside its bundled lowering
+ * (`dist/licenses/`, written by its build); none before it is built.
+ */
+export function loweredCodeNotices(root = packageRoot()): LoweredCodeNotice[] {
+  const directory = join(root, 'dist', 'licenses');
+  const manifest = join(directory, 'licenses.json');
+  if (!existsSync(manifest)) return [];
+  const { components } = JSON.parse(readFileSync(manifest, 'utf8')) as {
+    components: {
+      name: string;
+      version: string;
+      license?: string;
+      files: string[];
+    }[];
+  };
+  return components
+    .filter((component) => component.name === '@babel/helpers')
+    .map((component) => ({
+      name: component.name,
+      version: component.version,
+      ...(component.license === undefined
+        ? {}
+        : { license: component.license }),
+      files: component.files.map((file) => join(directory, ...file.split('/'))),
+    }));
+}
+
 /** The engine's artifact for <target>, prepared (module comment). */
 export function engine(
   options: WebEngineOptions,

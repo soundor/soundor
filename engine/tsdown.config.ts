@@ -1,6 +1,11 @@
 import { writeFileSync } from 'node:fs';
 
-import { browser, node, withPreset } from '@soundor/tsdown-config';
+import {
+  browser,
+  node,
+  thirdPartyNotices,
+  withPreset,
+} from '@soundor/tsdown-config';
 import { defineConfig } from 'tsdown';
 
 import { loweringInputs } from './scripts/engine-inputs.mjs';
@@ -17,6 +22,10 @@ export default defineConfig([
       onlyImport: [],
       dts: { neverBundle: true, alwaysBundle: () => false },
     },
+    // Babel and what it uses ship inlined, so their notices ship beside it
+    // (dist/licenses/); the VST3 runtime takes @babel/helpers' from there
+    // for plugins, whose code gets Babel's helpers.
+    plugins: [thirdPartyNotices({ title: '@soundor/engine/native-module' })],
     onSuccess() {
       writeFileSync(
         new URL('./dist/lowering-inputs.json', import.meta.url),

@@ -324,6 +324,11 @@ npm package the ones the dependencies' own builds leave out
 Yoga's and those of the Emscripten system libraries it contains (musl's libc),
 in its archive and in the npm package (`webLicenses()`).
 
+The engine's lowering (`@soundor/engine/native-module`) inlines Babel and what
+it uses, so the npm package carries their notices in `dist/licenses/`. Babel's
+transforms put its helper functions into the code they lower, so a VST3
+plugin's notices include `@babel/helpers` (`loweredCodeNotices()`).
+
 **A plugin you distribute contains the engine**, whichever mode built it, and
 its build ships these notices on its own: the VST3 runtime copies the
 archive's into the bundle's `licenses/engine/`, the web runtime the

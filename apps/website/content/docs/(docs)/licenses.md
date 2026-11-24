@@ -29,7 +29,8 @@ licenses/
   engine/<component>/          what the engine contains (VST3: Skia, Hermes, ANGLE,
                                Yoga, ada...; web: the engine's core, Yoga, Emscripten's libc)
   vst3-sdk/                    Steinberg's VST3 SDK (VST3 only)
-  javascript/<package>@<ver>/  npm packages in the UI, and on the web the host page's
+  javascript/<package>@<ver>/  npm packages in the UI (on VST3 with @babel/helpers, whose
+                               helpers the engine's lowering adds), and on the web the host page's
   rust/<crate>@<ver>/          crates linked into the plugin, and Rust's std
   project/<name>/              your files with their own license, and what the config adds
 ```

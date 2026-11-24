@@ -30,6 +30,7 @@
     "@playwright/test": "catalog:",
     "@soundor/devtools-protocol": "workspace:^",
     "@soundor/devtools-server": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

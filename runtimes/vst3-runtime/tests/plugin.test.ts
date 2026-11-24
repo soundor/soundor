@@ -174,7 +174,8 @@ describe('the VST3 test plugin', () => {
     expect(format).toBe(1);
     const directories = components.map((component) => component.directory);
     // The engine's own, as its archive carries them, the adapter's SDK, and
-    // the crates linked into the binary. The UI imports no npm package.
+    // the crates linked into the binary. The UI imports no npm package; its
+    // lowered code has Babel's helpers.
     expect(directories).toEqual(
       expect.arrayContaining([
         'engine/engine',
@@ -187,9 +188,9 @@ describe('the VST3 test plugin', () => {
         expect.stringMatching(/^rust\/std@\d/),
       ]),
     );
-    expect(directories.some((entry) => entry.startsWith('javascript/'))).toBe(
-      false,
-    );
+    expect(
+      directories.filter((entry) => entry.startsWith('javascript/')),
+    ).toEqual([expect.stringMatching(/^javascript\/@babel\/helpers@\d/)]);
     for (const component of components)
       for (const file of component.files)
         expect(existsSync(`${licenses}/${file}`), file).toBe(true);

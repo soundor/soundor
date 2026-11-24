@@ -64,6 +64,18 @@ import {
 
 const MAIN = '@soundor/vst3-host';
 
+/**
+ * The notices of the third-party code the executable contains
+ * (cmake/Vst3HostDependencies.cmake copies them), in licenses/: staging and
+ * the tarball check refuse a package without any of them.
+ */
+export const THIRD_PARTY_NOTICES = [
+  'licenses/vst3sdk/LICENSE.txt',
+  'licenses/sdl/LICENSE.txt',
+  'licenses/imgui/LICENSE.txt',
+  'licenses/inter/LICENSE.txt',
+] as const;
+
 function targetNamed(name: string): Target {
   const target = targets.find((entry) => entry.target === name);
   if (!target)
@@ -102,9 +114,12 @@ export function stage(options: {
     throw new Error(`--commit is a full commit hash, not "${options.commit}"`);
   const licenses =
     options.licenses ?? join(dirname(dirname(options.executable)), 'licenses');
-  if (!existsSync(join(licenses, 'vst3sdk', 'LICENSE.txt')))
+  const missing = THIRD_PARTY_NOTICES.map((notice) =>
+    notice.slice('licenses/'.length),
+  ).filter((notice) => !existsSync(join(licenses, notice)));
+  if (missing.length > 0)
     throw new Error(
-      `${licenses} has no vst3sdk/LICENSE.txt; stage a CMake build of the host`,
+      `${licenses} has no ${missing.join(', ')}; stage a CMake build of the host`,
     );
   rmSync(options.out, { recursive: true, force: true });
   mkdirSync(join(options.out, dirname(target.executable)), { recursive: true });
@@ -242,7 +257,7 @@ export function generate(options: {
     copyFileSync(join(root, 'NOTICE.md'), join(directory, 'NOTICE.md'));
     writeFileSync(
       join(directory, 'README.md'),
-      `# ${target.package}\n\nThe ${target.target} executable of [${MAIN}](https://www.npmjs.com/package/${MAIN}), which installs it as an optional dependency of the same version. Install ${MAIN}, not this package.\n\nSoundor's code is MIT-licensed; the executable includes the VST3 SDK (MIT, see licenses/vst3sdk).\n`,
+      `# ${target.package}\n\nThe ${target.target} executable of [${MAIN}](https://www.npmjs.com/package/${MAIN}), which installs it as an optional dependency of the same version. Install ${MAIN}, not this package.\n\nSoundor's code is MIT-licensed. The executable includes the VST3 SDK (MIT), SDL (zlib), Dear ImGui (MIT) and the Inter font (OFL-1.1); their notices are in licenses/.\n`,
     );
     result.push(provenance);
   }
@@ -341,11 +356,7 @@ export function checkTarballs(
       )
         problems.push(`${target.executable} does not match its provenance`);
     }
-    for (const notice of [
-      'LICENSE',
-      'NOTICE.md',
-      'licenses/vst3sdk/LICENSE.txt',
-    ])
+    for (const notice of ['LICENSE', 'NOTICE.md', ...THIRD_PARTY_NOTICES])
       if (!read(notice)) problems.push(`it has no ${notice}`);
     const unexpected = entries
       .filter((entry) => entry.type === 'file')
