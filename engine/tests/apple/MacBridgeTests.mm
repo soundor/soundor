@@ -243,7 +243,11 @@ TEST_SUITE("a11y macOS bridge")
         f.build(controls);
         NSAccessibilityElement* knob = f.find("Gain");
         CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
+        // The fixture's listener cancels every action, which would keep the
+        // default contextmenu away: this one takes showContextMenu first.
         f.run("knob.addEventListener('contextmenu', () => log.push('menu')); "
+              "knob.addEventListener('accessibilityaction', (e) => { if (e.actionName === 'showContextMenu') { "
+              "log.push('action'); e.stopImmediatePropagation(); } }, true); "
               "knob.accessibility = { ...knob.accessibility, actions: [...knob.accessibility.actions, { name: "
               "'showContextMenu' }] };");
         f.tick();
@@ -252,7 +256,9 @@ TEST_SUITE("a11y macOS bridge")
         CHECK([knob accessibilityPerformShowMenu]);
         CHECK([knob accessibilityPerformIncrement]);
         f.tick();
-        CHECK(f.eval("log.join(' ')").asString() == "menu increment");
+        // accessibilityaction, then its default; stopping propagation is not
+        // canceling.
+        CHECK(f.eval("log.join(' ')").asString() == "action menu increment");
         f.run("describe();");
         f.tick();
         CHECK_FALSE([knob accessibilityPerformShowMenu]);
