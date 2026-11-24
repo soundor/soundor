@@ -1,5 +1,14 @@
 # @soundor/runtime-sdk
 
+## 0.20.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/core@0.20.0
+  - @soundor/config@0.20.0
+  - @soundor/expression@0.20.0
+
 ## 0.19.0
 
 ### Patch Changes

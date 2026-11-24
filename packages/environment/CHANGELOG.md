@@ -1,5 +1,19 @@
 # @soundor/environment
 
+## 0.20.0
+
+### Minor Changes
+
+- [#373](https://github.com/soundor/soundor/pull/373) [`2c5b9a4`](https://github.com/soundor/soundor/commit/2c5b9a45444421085bb3ef66613a0c5560e42ad5) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `listbox` and `option` accessibility roles across the native, web, and test runtimes. Use `accessibilityState.selected` to identify the chosen option and `disabled` for unavailable options.
+
+- [#372](https://github.com/soundor/soundor/pull/372) [`9ee70c5`](https://github.com/soundor/soundor/commit/9ee70c51428c98939957f3f2c96e458a32cbc141) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Honor `accessibilityState.disabled` for pointer activation, wheel, keyboard and focus across runtimes. Disabled subtrees still receive hover, but lose focus and cancel active presses. Use `accessibilityState.readOnly` to describe a read-only value without blocking input such as a “Copy value” context menu.
+
+- [#374](https://github.com/soundor/soundor/pull/374) [`453d4fe`](https://github.com/soundor/soundor/commit/453d4fe5661821ff20aebed3d6267980dba71b34) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `KeyboardEvent.code`, the physical key (`KeyS`, `Digit1`), in every runtime, so shortcuts such as Option+S on macOS or Shift+1 match whatever the key types. Natively it comes from the scan code, virtual key code or X11 keycode; Soundor Driver's keys and `user.keyboard` have the US key that types them.
+
+  Add `accessibilityKeyShortcuts` (`accessibility.keyShortcuts`), the shortcuts that act on an element as `aria-keyshortcuts` writes them: `aria-keyshortcuts` on the web, UI Automation's `AcceleratorKey`, AT-SPI's `keyshortcuts` attribute, and the help text on macOS and iOS.
+
+  Add `announce(message, { priority })` to `soundor:ui`, for a screen reader to speak what an action did: an ARIA live region on the web, UI Automation notification events, AT-SPI `object:announcement`, and AppKit's and UIKit's announcement notifications. `testView.announcements()` lists them in tests.
+
 ## 0.19.0
 
 No changes in this release.

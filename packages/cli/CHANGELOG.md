@@ -1,5 +1,16 @@
 # soundor
 
+## 0.20.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/core@0.20.0
+  - @soundor/config@0.20.0
+  - @soundor/driver@0.20.0
+  - @soundor/devtools-client@0.20.0
+  - @soundor/devtools-server@0.20.0
+
 ## 0.19.0
 
 ### Minor Changes

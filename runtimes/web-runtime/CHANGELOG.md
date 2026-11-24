@@ -1,5 +1,22 @@
 # @soundor/web-runtime
 
+## 0.16.0
+
+### Minor Changes
+
+- [#374](https://github.com/soundor/soundor/pull/374) [`453d4fe`](https://github.com/soundor/soundor/commit/453d4fe5661821ff20aebed3d6267980dba71b34) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `KeyboardEvent.code`, the physical key (`KeyS`, `Digit1`), in every runtime, so shortcuts such as Option+S on macOS or Shift+1 match whatever the key types. Natively it comes from the scan code, virtual key code or X11 keycode; Soundor Driver's keys and `user.keyboard` have the US key that types them.
+
+  Add `accessibilityKeyShortcuts` (`accessibility.keyShortcuts`), the shortcuts that act on an element as `aria-keyshortcuts` writes them: `aria-keyshortcuts` on the web, UI Automation's `AcceleratorKey`, AT-SPI's `keyshortcuts` attribute, and the help text on macOS and iOS.
+
+  Add `announce(message, { priority })` to `soundor:ui`, for a screen reader to speak what an action did: an ARIA live region on the web, UI Automation notification events, AT-SPI `object:announcement`, and AppKit's and UIKit's announcement notifications. `testView.announcements()` lists them in tests.
+
+### Patch Changes
+
+- Updated dependencies [[`8282460`](https://github.com/soundor/soundor/commit/82824608da3c6749103f91f23f23a5def5224bd2), [`e151fd8`](https://github.com/soundor/soundor/commit/e151fd8d9050c572904e212d6ee4610d976af1c4), [`2c5b9a4`](https://github.com/soundor/soundor/commit/2c5b9a45444421085bb3ef66613a0c5560e42ad5), [`2526d5f`](https://github.com/soundor/soundor/commit/2526d5fa3e3653f4ed82d9f10308cbf97dc632bc), [`9ee70c5`](https://github.com/soundor/soundor/commit/9ee70c51428c98939957f3f2c96e458a32cbc141), [`3e6ba0d`](https://github.com/soundor/soundor/commit/3e6ba0d44e6e189480719c78251d12a3e09e5cbd), [`1c2355e`](https://github.com/soundor/soundor/commit/1c2355efc2bd49c78cfe09a66fd71199f8f2e5fc), [`94a9f00`](https://github.com/soundor/soundor/commit/94a9f0099afb95fd60a4a012b084e4e960b72be8), [`453d4fe`](https://github.com/soundor/soundor/commit/453d4fe5661821ff20aebed3d6267980dba71b34), [`20ef0ae`](https://github.com/soundor/soundor/commit/20ef0ae64464b11fbf444d9dd1fc6f0b1441b13c)]:
+  - @soundor/engine@0.11.0
+  - soundor@0.20.0
+  - @soundor/runtime-sdk@0.20.0
+
 ## 0.15.0
 
 ### Minor Changes
