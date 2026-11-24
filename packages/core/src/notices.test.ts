@@ -183,6 +183,45 @@ describe('javascriptNotices', () => {
     expect(notices).toEqual([]);
   });
 
+  it("counts a file of the project's monorepo, outside the project, as its own", () => {
+    const repository = tree({
+      'pnpm-workspace.yaml': '',
+      'package.json': JSON.stringify({
+        name: 'orbit-workspace',
+        private: true,
+      }),
+      LICENSE: 'the repository',
+      'assets/brand/LICENSE.md': 'the logo',
+      'assets/brand/logo.svg': '',
+      'assets/shared.ts': '',
+      'apps/plugin/package.json': pkg('orbit', '0.1.0'),
+      'apps/plugin/src/main.tsx': '',
+    });
+    const { notices, issues } = javascriptNotices(
+      [
+        join(repository, 'apps/plugin/src/main.tsx'),
+        join(repository, 'assets/brand/logo.svg'),
+        join(repository, 'assets/shared.ts'),
+      ],
+      { root: join(repository, 'apps/plugin') },
+    );
+    expect(issues).toEqual([]);
+    expect(notices).toEqual([
+      {
+        section: 'project',
+        name: 'assets/brand',
+        origin: 'found',
+        directory: 'project/assets/brand',
+        files: [
+          {
+            path: 'LICENSE.md',
+            source: join(repository, 'assets/brand/LICENSE.md'),
+          },
+        ],
+      },
+    ]);
+  });
+
   it("takes a pnpm workspace package's notice from the workspace root, as pnpm publish does", () => {
     const workspace = tree({
       'pnpm-workspace.yaml': '',

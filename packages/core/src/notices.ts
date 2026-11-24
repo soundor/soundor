@@ -178,6 +178,12 @@ interface PackageInfo {
   readonly name: string;
   readonly version?: string;
   readonly license?: string;
+  /**
+   * A private package outside node_modules: one of the project's own
+   * repository (its monorepo's root, a shared package beside it), which
+   * npm never published.
+   */
+  readonly own: boolean;
 }
 
 function readJson(path: string): Record<string, unknown> | undefined {
@@ -210,7 +216,8 @@ function packageOf(file: string): PackageInfo | undefined {
   const parts = file.split(sep);
   const last = parts.lastIndexOf('node_modules');
   let root: string | undefined;
-  if (last !== -1 && last + 1 < parts.length) {
+  const installed = last !== -1 && last + 1 < parts.length;
+  if (installed) {
     const scoped = parts[last + 1]!.startsWith('@');
     root = parts.slice(0, last + (scoped ? 3 : 2)).join(sep);
   } else {
@@ -235,6 +242,7 @@ function packageOf(file: string): PackageInfo | undefined {
     name: manifest['name'],
     ...(typeof version === 'string' ? { version } : {}),
     ...(license === undefined ? {} : { license }),
+    own: !installed && manifest['private'] === true,
   };
 }
 
@@ -324,7 +332,23 @@ export function javascriptNotices(
     string,
     { info: PackageInfo; files: Set<string>; missing: string[] }
   >();
-  const project = new Map<string, Set<string>>();
+  // By folder: its name under project/ and its license files.
+  const project = new Map<string, { name: string; files: Set<string> }>();
+  // A file of the project's own with a license file nearer than `top`'s
+  // (whose root LICENSE is the project's own, never listed).
+  const ownFile = (file: string, top: string) => {
+    const found = nearestLicenseFiles(file, top).filter(
+      (license) => dirname(license) !== top && dirname(license) !== root,
+    );
+    if (found.length === 0) return;
+    const directory = dirname(found[0]!);
+    const entry = project.get(directory) ?? {
+      name: posix(relative(top, directory)),
+      files: new Set<string>(),
+    };
+    for (const license of found) entry.files.add(license);
+    project.set(directory, entry);
+  };
 
   for (const id of files) {
     const file = id.split('?')[0]!;
@@ -335,18 +359,18 @@ export function javascriptNotices(
       isInside(file, root) &&
       !relative(root, file).split(sep).includes('node_modules')
     ) {
-      const found = nearestLicenseFiles(file, root).filter(
-        (license) => dirname(license) !== root,
-      );
-      if (found.length === 0) continue;
-      const directory = dirname(found[0]!);
-      const entry = project.get(directory) ?? new Set<string>();
-      for (const license of found) entry.add(license);
-      project.set(directory, entry);
+      ownFile(file, root);
       continue;
     }
     const info = packageOf(file);
     if (info === undefined) continue;
+    // Also the project's own: a file of its repository outside the project
+    // (a monorepo's shared assets, a private package beside it), named
+    // from that package's root.
+    if (info.own) {
+      ownFile(file, info.root);
+      continue;
+    }
     const key = `${info.name}@${info.version ?? ''}`;
     const entry = packages.get(key) ?? {
       info,
@@ -396,10 +420,9 @@ export function javascriptNotices(
       files: noticeFiles([...found], info.root),
     });
   }
-  for (const [directory, found] of [...project].sort(([a], [b]) =>
-    a.localeCompare(b),
+  for (const [directory, { name, files: found }] of [...project].sort(
+    ([, a], [, b]) => a.name.localeCompare(b.name),
   )) {
-    const name = posix(relative(root, directory));
     notices.push({
       section: 'project',
       name,

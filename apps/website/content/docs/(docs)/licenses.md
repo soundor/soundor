@@ -62,7 +62,10 @@ version, license (an SPDX expression, when known), where the notice came from
 - **Your own files** need nothing. A file of yours with a license file next
   to it (say `src/fonts/Inter.ttf` beside `src/fonts/OFL.txt`) gets that
   notice under `project/`. The project's root `LICENSE` is yours and is never
-  listed.
+  listed. In a monorepo, files outside the project in a private package (the
+  repository's root `package.json`, a shared package of yours) are yours too:
+  a logo in `assets/brand/` beside its own `LICENSE.md` ships that notice as
+  `project/assets/brand/`.
 
 When a component's license text cannot be found, the build stops and names
 it, with the config that fixes it; `soundor dev` only warns, so a dependency
