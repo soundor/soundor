@@ -14,6 +14,8 @@ export interface OfficialPlugin {
   };
   /** Its own site. */
   readonly url: string;
+  /** The license of its code, and where its text is. */
+  readonly license: { readonly name: string; readonly url: string };
 }
 
 /** The official plugins, in the order the page lists them. */
@@ -31,5 +33,9 @@ export const officialPlugins: readonly OfficialPlugin[] = [
       height: 1200,
     },
     url: 'https://orbit.soundor.dev/',
+    license: {
+      name: 'GNU AGPL v3',
+      url: 'https://github.com/soundor/orbit/blob/main/LICENSE',
+    },
   },
 ];
