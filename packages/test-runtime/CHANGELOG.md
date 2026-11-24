@@ -1,5 +1,17 @@
 # @soundor/test-runtime
 
+## 0.21.0
+
+### Minor Changes
+
+- [#399](https://github.com/soundor/soundor/pull/399) [`dd95f57`](https://github.com/soundor/soundor/commit/dd95f571502f6856d9711b6c7168e3839bd33381) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Make `contextmenu` a semantic request that the engine recognizes on every view: a secondary click (Control-click on macOS), Shift+F10 or the Context Menu key on the focused node (the default of its `keydown`), a touch long press (the default of its `longpress`), and the new predefined `showContextMenu` accessibility action (the default of its `accessibilityaction`), presented as AXShowMenu, UI Automation's `ShowContextMenu`, AT-SPI's `popup` and a VoiceOver action. A listener never advertises the action: declare it in `accessibilityActions`. Long presses are now a `longpress` event on any view (`onLongPress` and `onLongPressCapture`), recognized once by the engine for views and `Pressable` alike. `Pressable`'s `onLongPress` now receives that `longpress` event (`pointerType` `''` for the accessibility action) rather than the `pointerdown` or `accessibilityaction` event. An uncanceled context menu key now goes on to the plugin's host. On the web, text in the view is no longer selectable (text inputs still are), as in a plugin's editor, so a touch hold does not start a selection.
+
+### Patch Changes
+
+- Updated dependencies [[`9268fba`](https://github.com/soundor/soundor/commit/9268fbad89a8290280cdd295dcb1ba816ea1de88), [`3dfce54`](https://github.com/soundor/soundor/commit/3dfce5403ba27da505118f4a28e666b099253b61)]:
+  - @soundor/core@0.21.0
+  - @soundor/expression@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes
