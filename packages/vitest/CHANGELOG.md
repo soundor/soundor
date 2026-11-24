@@ -1,5 +1,14 @@
 # @soundor/vitest
 
+## 0.21.0
+
+### Patch Changes
+
+- Updated dependencies [[`dd95f57`](https://github.com/soundor/soundor/commit/dd95f571502f6856d9711b6c7168e3839bd33381), [`9268fba`](https://github.com/soundor/soundor/commit/9268fbad89a8290280cdd295dcb1ba816ea1de88), [`3dfce54`](https://github.com/soundor/soundor/commit/3dfce5403ba27da505118f4a28e666b099253b61)]:
+  - @soundor/test-runtime@0.21.0
+  - @soundor/config@0.21.0
+  - @soundor/core@0.21.0
+
 ## 0.20.0
 
 ### Patch Changes

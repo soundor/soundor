@@ -1,6 +1,6 @@
 {
   "name": "@soundor/vst3-host",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A standalone VST3 host for tests and development: a native executable driven from Node.js, with or without the plugin's editor.",
   "license": "MIT",
   "repository": {
