@@ -140,6 +140,14 @@ export class TestRuntime {
   private committed = new WeakMap<TestNode, string>();
   readonly pointer = createPointerState();
   private readonly pointers = new Map([[0, this.pointer]]);
+  private readonly holdDelays = new WeakMap<TestNode, number>();
+  private readonly holds = new WeakMap<
+    ReturnType<typeof createPointerState>,
+    { timer: number; x: number; y: number; target: TestNode }
+  >();
+  private readonly suppressedClicks = new WeakSet<
+    ReturnType<typeof createPointerState>
+  >();
   private nextPointerId = 1;
 
   allocatePointerId(): number {
@@ -489,6 +497,18 @@ export class TestRuntime {
     this.assertNode(node);
     // Assistive technology moves focus as the keyboard does: shown.
     if (type === 'accessibilityaction') this.keyboardModality = true;
+    // Scrolling moves content under a held pointer: no long press in it.
+    if (type === 'scroll')
+      for (const pointer of this.pointers.values())
+        for (
+          let at = this.holds.get(pointer)?.target ?? null;
+          at;
+          at = at.parent
+        )
+          if (at === node) {
+            this.cancelHold(pointer);
+            break;
+          }
     const event = new TestEvent(
       type,
       {
@@ -534,7 +554,9 @@ export class TestRuntime {
         'Supported mouse buttons are primary, middle, and secondary',
       );
     const firstPress = pointer.buttons === 0;
+    this.cancelHold(pointer);
     if (firstPress) {
+      this.suppressedClicks.delete(pointer);
       // Which press of a series this is, as a platform counts them.
       const clicks = Number(init['detail'] ?? 1);
       if (!Number.isInteger(clicks) || clicks < 1)
@@ -568,13 +590,62 @@ export class TestRuntime {
     }
     if (button === 2 && !target.inputDisabled)
       this.fire(target, 'contextmenu', pointerInit);
+    if (
+      button === 0 &&
+      !event.defaultPrevented &&
+      target.isConnected &&
+      !target.inputDisabled
+    ) {
+      let delay = 500;
+      for (let at: TestNode | null = target; at; at = at.parent) {
+        const configured = this.holdDelays.get(at);
+        if (configured === undefined) continue;
+        delay = configured;
+        break;
+      }
+      this.holds.set(pointer, {
+        target,
+        x: Number(event['pageX'] ?? 0),
+        y: Number(event['pageY'] ?? 0),
+        timer: this.clock.setTimeout(() => {
+          this.holds.delete(pointer);
+          if (!target.isConnected || target.inputDisabled || pointer.locked)
+            return;
+          const held = this.fire(target, 'longpress', pointerInit);
+          const menu =
+            !held.defaultPrevented &&
+            pointer.type === 'touch' &&
+            target.isConnected &&
+            !target.inputDisabled
+              ? this.fire(target, 'contextmenu', pointerInit)
+              : null;
+          if (held.defaultPrevented || menu?.defaultPrevented)
+            this.suppressedClicks.add(pointer);
+        }, delay),
+      });
+    }
     return event;
+  }
+  private cancelHold(pointer: ReturnType<typeof createPointerState>) {
+    const hold = this.holds.get(pointer);
+    if (hold) this.clock.clearTimeout(hold.timer);
+    this.holds.delete(pointer);
   }
   pointerMove(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
     const pointer = this.pointers.get(Number(init['pointerId'] ?? 0));
     if (pointer?.down) this.assertNode(pointer.down);
     if (pointer) pointer.target = node;
+    const hold = pointer ? this.holds.get(pointer) : undefined;
+    if (
+      pointer &&
+      hold &&
+      Math.hypot(
+        Number(init['pageX'] ?? init['clientX'] ?? 0) - hold.x,
+        Number(init['pageY'] ?? init['clientY'] ?? 0) - hold.y,
+      ) > 10
+    )
+      this.cancelHold(pointer);
     return this.fire(pointer?.down ?? node, 'pointermove', {
       button: -1,
       pointerType: pointer?.type ?? 'mouse',
@@ -585,6 +656,7 @@ export class TestRuntime {
     this.assertNode(node);
     const id = Number(init['pointerId'] ?? 0);
     const pointer = this.pointers.get(id) ?? createPointerState();
+    this.cancelHold(pointer);
     if (pointer.down) this.assertNode(pointer.down);
     const button = Number(init['button'] ?? 0);
     if (![0, 1, 2].includes(button))
@@ -620,6 +692,7 @@ export class TestRuntime {
     if (
       pointer.buttons === 0 &&
       button === 0 &&
+      !this.suppressedClicks.has(pointer) &&
       stillPressed &&
       down?.isConnected &&
       !down.inputDisabled &&
@@ -643,6 +716,7 @@ export class TestRuntime {
     this.assertActive();
     const pointer = this.pointers.get(id);
     if (!pointer) return;
+    this.cancelHold(pointer);
     const down = pointer.down;
     if (down) this.assertNode(down);
     pointer.down = null;
@@ -767,6 +841,23 @@ export class TestRuntime {
   }
   defaultAction(node: TestNode, event: TestEvent) {
     if (event.type === 'accessibilityaction') {
+      const action = event['actionName'];
+      if (
+        (action === 'showContextMenu' || action === 'longpress') &&
+        node.isConnected &&
+        !node.inputDisabled
+      ) {
+        this.fire(
+          node,
+          action === 'showContextMenu' ? 'contextmenu' : 'longpress',
+          {
+            pointerType: '',
+            pointerId: -1,
+            button: -1,
+            buttons: 0,
+          },
+        );
+      }
       if (
         event['actionName'] === 'focus' ||
         (node.type === 'input' && event['actionName'] === 'activate')
@@ -852,10 +943,8 @@ export class TestRuntime {
       focused: node.focused,
       focusVisible: node.focusVisible,
     };
-    let originX = 0,
-      originY = 0;
-    let timer: number | undefined,
-      longPressed = false;
+    const delay = handlers['delayLongPress'];
+    if (typeof delay === 'number') this.holdDelays.set(node, delay);
     const call = (name: string, event: unknown) => {
       (handlers[name] as ((event: unknown) => void) | undefined)?.(event);
     };
@@ -869,57 +958,31 @@ export class TestRuntime {
       Object.assign(state, next);
       call('onStateChange', { ...state });
     };
-    const stop = () => {
-      if (timer !== undefined) this.clock.clearTimeout(timer);
-      timer = undefined;
-    };
     const listeners: Record<string, (event: TestEvent) => void> = {
       pointerdown: (event) => {
         if (event['button'] !== 0 && event['button'] !== undefined) return;
-        stop();
-        longPressed = false;
-        originX = Number(event['pageX'] ?? 0);
-        originY = Number(event['pageY'] ?? 0);
         change({ pressed: true });
         call('onPressIn', event);
-        if (handlers['onLongPress'])
-          timer = this.clock.setTimeout(
-            () => {
-              longPressed = true;
-              call('onLongPress', event);
-            },
-            Number(handlers['delayLongPress'] ?? 500),
-          );
       },
-      pointermove: (event) => {
-        if (
-          Math.hypot(
-            Number(event['pageX'] ?? 0) - originX,
-            Number(event['pageY'] ?? 0) - originY,
-          ) > 10
-        )
-          stop();
+      longpress: (event) => {
+        if (!handlers['onLongPress']) return;
+        const pointer = this.pointers.get(Number(event['pointerId']));
+        if (pointer) this.suppressedClicks.add(pointer);
+        call('onLongPress', event);
       },
       pointerup: (event) => {
-        stop();
         if (state.pressed) {
           change({ pressed: false });
           call('onPressOut', event);
         }
       },
       pointercancel: (event) => {
-        stop();
-        longPressed = false;
         if (state.pressed) {
           change({ pressed: false });
           call('onPressOut', event);
         }
       },
       click: (event) => {
-        if (longPressed) {
-          longPressed = false;
-          return;
-        }
         call('onPress', event);
       },
       pointerenter: (event) => {
@@ -947,15 +1010,9 @@ export class TestRuntime {
       },
       accessibilityaction: (event) => {
         if (event.target !== node || event.defaultPrevented) return;
-        const name =
-          event['actionName'] === 'activate'
-            ? 'onPress'
-            : event['actionName'] === 'longpress'
-              ? 'onLongPress'
-              : '';
-        if (name && handlers[name]) {
+        if (event['actionName'] === 'activate' && handlers['onPress']) {
           event.preventDefault();
-          call(name, event);
+          call('onPress', event);
         }
       },
     };
@@ -965,7 +1022,7 @@ export class TestRuntime {
     node.focusable = true;
     this.pressables.set(node, handlers);
     const cleanup = () => {
-      stop();
+      if (this.holdDelays.get(node) === delay) this.holdDelays.delete(node);
       Object.entries(listeners).forEach(([type, listener]) =>
         node.removeEventListener(type, listener),
       );

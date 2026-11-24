@@ -19,6 +19,7 @@ import {
   resetContext,
   setSourceResolver,
 } from 'soundor:internal/ui/canvas';
+import { LongPresses } from 'soundor:internal/ui/long-press';
 import { setNodeResolver } from 'soundor:internal/ui/resize';
 import { createWebGL2, resizeWebGL } from 'soundor:internal/ui/webgl';
 import { reportError } from 'soundor:internal/web/console';
@@ -26,7 +27,6 @@ import {
   Event,
   EventTarget,
   eventParent,
-  listenerPresenceChanged,
   trustEvent,
 } from 'soundor:internal/web/events';
 
@@ -1023,6 +1023,7 @@ export class UiNode extends EventTarget {
     if (before !== null && before !== undefined) expectNode(before, 'before');
     native.insertChild(this.#id, child.#id, before?.#id ?? 0);
     if (child === before) return child;
+    if (!this.isConnected) gestures.cancelWithin(child);
     if (child.#parent !== null) {
       const siblings = child.#parent.#children;
       siblings.splice(siblings.indexOf(child), 1);
@@ -1036,6 +1037,7 @@ export class UiNode extends EventTarget {
 
   removeChild(child) {
     expectNode(child, 'child');
+    gestures.cancelWithin(child);
     native.removeChild(this.#id, child.#id);
     this.#children.splice(this.#children.indexOf(child), 1);
     child.#parent = null;
@@ -1080,11 +1082,6 @@ export class UiNode extends EventTarget {
   /** Presented bounds relative to the view (zero when not connected). */
   getBoundingClientRect() {
     return native.bounds(this.#id);
-  }
-
-  [listenerPresenceChanged](type, present) {
-    if (type === 'contextmenu')
-      native.setContextMenuListener(this.#id, present);
   }
 
   [eventParent]() {
@@ -1480,10 +1477,7 @@ export function registerFont(family, source, descriptors = {}) {
     : Promise.reject(new Error(`registerFont(): ${error}`));
 }
 
-/** How long a press lasts before it is a long press, by default (ms). */
-const LONG_PRESS_DELAY = 500;
-/** How far a press may move (logical pixels) and still be a long press. */
-const LONG_PRESS_SLOP = 10;
+const gestures = new LongPresses();
 
 /**
  * Makes `node` pressable: press with the primary button (released over it)
@@ -1516,62 +1510,35 @@ export function pressable(node, handlers = {}) {
   const on = (type, listener) =>
     node.addEventListener(type, listener, { signal });
 
-  // A long press: the press held, close to where it started, until a timer.
-  let longPress = null;
-  let longPressed = false;
-  const cancelLongPress = () => {
-    if (longPress !== null) clearTimeout(longPress.timer);
-    longPress = null;
-  };
-  signal.addEventListener('abort', cancelLongPress);
+  if (handlers.delayLongPress !== undefined)
+    signal.addEventListener(
+      'abort',
+      gestures.setDelay(node, handlers.delayLongPress),
+    );
 
   on('pointerdown', (event) => {
     if (event.button !== 0) return;
-    cancelLongPress();
-    longPressed = false;
     update({ pressed: true });
     handlers.onPressIn?.(event);
-    if (handlers.onLongPress !== undefined && state.pressed) {
-      const delay = handlers.delayLongPress ?? LONG_PRESS_DELAY;
-      longPress = {
-        x: event.pageX,
-        y: event.pageY,
-        timer: setTimeout(() => {
-          longPress = null;
-          if (!state.pressed) return;
-          longPressed = true;
-          handlers.onLongPress?.(event);
-        }, delay),
-      };
-    }
   });
-  on('pointermove', (event) => {
-    if (longPress === null) return;
-    const moved = Math.hypot(
-      event.pageX - longPress.x,
-      event.pageY - longPress.y,
-    );
-    if (moved > LONG_PRESS_SLOP) cancelLongPress();
-  });
+  if (handlers.onLongPress !== undefined)
+    on('longpress', (event) => {
+      if (event.pointerType !== '')
+        native.suppressPointerClick(event.pointerId);
+      handlers.onLongPress(event);
+    });
   on('pointerup', (event) => {
-    cancelLongPress();
     if (!state.pressed) return;
     update({ pressed: false });
     handlers.onPressOut?.(event);
   });
   on('pointercancel', (event) => {
-    cancelLongPress();
-    longPressed = false;
     if (!state.pressed) return;
     update({ pressed: false });
     handlers.onPressOut?.(event);
   });
   on('click', (event) => {
     // A long press is not also a press.
-    if (longPressed) {
-      longPressed = false;
-      return;
-    }
     handlers.onPress?.(event);
   });
   on('pointerenter', (event) => {
@@ -1595,12 +1562,6 @@ export function pressable(node, handlers = {}) {
     if (event.actionName === 'activate') {
       event.preventDefault();
       handlers.onPress?.(event);
-    } else if (
-      event.actionName === 'longpress' &&
-      handlers.onLongPress !== undefined
-    ) {
-      event.preventDefault();
-      handlers.onLongPress(event);
     }
   });
   on('keydown', (event) => {
@@ -1904,6 +1865,7 @@ const EVENT_TYPES = [
   ['accessibilityaction', AccessibilityActionEvent, true, true],
   ['focusvisiblechange', FocusEvent, false, false],
   ['dblclick', PointerEvent, true, true],
+  ['longpress', PointerEvent, true, true],
 ];
 
 // ── Text editing: the default actions of an input's events ─────────────────
@@ -2189,7 +2151,42 @@ native.setListener((type, targetId, data) => {
     value: data.value,
   });
   trustEvent(event);
+  switch (name) {
+    case 'pointermove':
+      gestures.move(event.pointerId, event.pageX, event.pageY, event.buttons);
+      break;
+    case 'pointerdown':
+    case 'pointerup':
+    case 'pointercancel':
+      gestures.cancel(event.pointerId);
+      break;
+    case 'scroll':
+      gestures.cancelWithin(target);
+      break;
+  }
   target.dispatchEvent(event);
   if (event.defaultPrevented) return true;
+  if (
+    name === 'pointerdown' &&
+    event.button === 0 &&
+    event.buttons === 1 &&
+    target.isConnected
+  ) {
+    gestures.start(event.pointerId, target, event.pageX, event.pageY, () => {
+      const id = internals.id(target);
+      if (!native.canLongPress(id, event.pointerId)) return;
+      const held = trustEvent(new PointerEvent('longpress', event));
+      const canceled = !target.dispatchEvent(held);
+      const menuCanceled =
+        !canceled &&
+        event.pointerType === 'touch' &&
+        native.canLongPress(id, event.pointerId) &&
+        !target.dispatchEvent(
+          trustEvent(new PointerEvent('contextmenu', event)),
+        );
+      if (canceled || menuCanceled)
+        native.suppressPointerClick(event.pointerId);
+    });
+  }
   return defaultAction(target, event);
 });

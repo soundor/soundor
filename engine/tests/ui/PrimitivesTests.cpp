@@ -522,7 +522,7 @@ TEST_SUITE("soundor:ui pressable")
         PressFixture f;
         f.press(ui::PointerInput::Phase::Down, 10, 10);
         CHECK(f.tickUntil("log.length > 0"));
-        CHECK(f.log() == "long:pointerdown@10");
+        CHECK(f.log() == "long:longpress@10");
         // Held further, with the pointer captured outside: no second one.
         f.press(ui::PointerInput::Phase::Move, 15, 12);
         f.tickFor(std::chrono::milliseconds(60));
@@ -566,6 +566,44 @@ TEST_SUITE("soundor:ui pressable")
         f.press(ui::PointerInput::Phase::Down, 10, 10);
         f.run(std::string(imports) + "stop();");
         f.tickFor(std::chrono::milliseconds(60));
+        CHECK(f.log().empty());
+    }
+
+    TEST_CASE("ordinary views dispatch touch longpress then contextmenu unless explicitly canceled")
+    {
+        PressFixture f;
+        f.run(std::string(imports) + R"(
+            stop();
+            globalThis.cancel = false;
+            root.addEventListener('longpress', e => {
+                log.push(`capture:${e.target === button}:${e.currentTarget === root}`);
+                if (cancel) e.preventDefault();
+            }, true);
+            button.addEventListener('longpress', e => { log.push('target'); e.stopPropagation(); });
+            root.addEventListener('longpress', () => log.push('bubble'));
+            root.addEventListener('contextmenu', e => { log.push(`${e.pointerType}:${e.pageX}`); e.preventDefault(); });
+            button.addEventListener('click', () => log.push('click'));
+        )");
+        auto press = [&](ui::PointerInput::Phase phase, unsigned buttons)
+        {
+            auto input = pointer(phase, 10, 10, buttons, 0);
+            input.type = ui::PointerType::Touch;
+            input.pointerId = 9;
+            f.host.surface().pointer(input);
+        };
+        press(ui::PointerInput::Phase::Down, 1);
+        REQUIRE(f.tickUntil("log.length >= 3"));
+        press(ui::PointerInput::Phase::Up, 0);
+        CHECK(f.log() == "capture:true:true target touch:10");
+
+        f.run("globalThis.cancel = true;");
+        press(ui::PointerInput::Phase::Down, 1);
+        REQUIRE(f.tickUntil("log.length >= 2"));
+        press(ui::PointerInput::Phase::Up, 0);
+        CHECK(f.log() == "capture:true:true target");
+        press(ui::PointerInput::Phase::Down, 1);
+        f.run("button.remove();");
+        f.tickFor(std::chrono::milliseconds(525));
         CHECK(f.log().empty());
     }
 

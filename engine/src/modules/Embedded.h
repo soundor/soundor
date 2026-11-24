@@ -40,6 +40,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
     extern const ModuleCode uiModule;               // modules/ui/ui.js
     extern const ModuleCode uiFramesModule;         // modules/ui/frames.js
     extern const ModuleCode uiResizeModule;         // modules/ui/resize.js
+    extern const ModuleCode uiLongPressModule;      // modules/ui/longPress.js
     extern const ModuleCode uiCanvasModule;         // modules/ui/canvas.js
     extern const ModuleCode uiWebGLModule;          // gpu/webgl/webgl.js
     extern const ModuleCode uiWebGLGeneratedModule; // gpu/webgl/generated/webgl-generated.js

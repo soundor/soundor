@@ -131,6 +131,8 @@ function isElement(node: UiNode): boolean {
   if (semantics.modal) return true;
   if (semantics.role !== null) return semantics.role !== 'none';
   if (semantics.label !== '') return true;
+  if (semantics.actions.some((action) => action.name === 'showContextMenu'))
+    return true;
   if (node.type === 'text') return node.text !== '';
   return node.type === 'input';
 }

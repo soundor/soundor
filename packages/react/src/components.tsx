@@ -55,13 +55,22 @@ export interface EventProps {
   onDoubleClick?: (event: PointerEvent) => void;
   onDoubleClickCapture?: (event: PointerEvent) => void;
   /**
-   * The secondary button went down: where to open a custom menu
-   * (`event.pageX/pageY`). preventDefault() keeps a browser's own away.
+   * A request for a context menu: a secondary click (Control-click on
+   * macOS), Shift+F10 or the Context Menu key on the focused node, a touch
+   * long press, or the `showContextMenu` accessibility action. Open a menu
+   * at `event.pageX/pageY`; preventDefault() keeps a browser's own away.
+   * It does not offer `showContextMenu` to assistive technology: declare
+   * that in `accessibilityActions`.
    */
-  /** A context menu request from the pointer, keyboard, or supported assistive technology. */
   onContextMenu?: (event: PointerEvent) => void;
-  /** Handles a context menu request in the capture phase. */
   onContextMenuCapture?: (event: PointerEvent) => void;
+  /**
+   * The primary pointer held still on the node, or the `longpress`
+   * accessibility action (`pointerType` `''`). preventDefault() on a touch
+   * long press keeps the `contextmenu` that would follow it away.
+   */
+  onLongPress?: (event: PointerEvent) => void;
+  onLongPressCapture?: (event: PointerEvent) => void;
   /** A wheel or trackpad scrolled over the node. */
   onWheel?: (event: WheelEvent) => void;
   onWheelCapture?: (event: WheelEvent) => void;

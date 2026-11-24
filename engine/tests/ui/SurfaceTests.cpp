@@ -96,8 +96,9 @@ namespace
                                                              "contextmenu",
                                                              "accessibilityaction",
                                                              "focusvisiblechange",
-                                                             "dblclick" };
-                    static_assert(std::size(names) == static_cast<std::size_t>(Event::Type::DoubleClick) + 1,
+                                                             "dblclick",
+                                                             "longpress" };
+                    static_assert(std::size(names) == static_cast<std::size_t>(Event::Type::LongPress) + 1,
                                   "a name for every event type");
                     events.push_back(std::string(names[static_cast<int>(event.type)]) + "@"
                                      + std::to_string(event.target));

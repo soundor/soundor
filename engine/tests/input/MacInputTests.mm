@@ -75,13 +75,14 @@ namespace
             read();
         }
 
-        NSEvent* mouse(NSEventType type, float x = 10, float y = 20)
+        NSEvent* mouse(NSEventType type, float x = 10, float y = 20,
+                       NSEventModifierFlags modifiers = NSEventModifierFlagShift)
         {
             const NSPoint point = [native convertPoint:NSMakePoint(x * 2, y * 2) toView:nil];
             if (type == NSEventTypeMouseEntered || type == NSEventTypeMouseExited)
                 return [NSEvent enterExitEventWithType:type
                                               location:point
-                                         modifierFlags:NSEventModifierFlagShift
+                                         modifierFlags:modifiers
                                              timestamp:1
                                           windowNumber:window.windowNumber
                                                context:nil
@@ -90,7 +91,7 @@ namespace
                                               userData:nullptr];
             return [NSEvent mouseEventWithType:type
                                       location:point
-                                 modifierFlags:NSEventModifierFlagShift
+                                 modifierFlags:modifiers
                                      timestamp:1
                                   windowNumber:window.windowNumber
                                        context:nil
@@ -229,6 +230,22 @@ TEST_SUITE("native input: AppKit")
         CHECK(std::get<ui::PointerInput>(events[5]).phase == ui::PointerInput::Phase::Up);
         CHECK(std::get<ui::PointerInput>(events[6]).phase == ui::PointerInput::Phase::Leave);
         CHECK(f.input->buttons() == 0);
+    }
+
+    TEST_CASE("Control-click is secondary through release even if Control is lifted first")
+    {
+        Fixture f;
+        [f.native mouseDown:f.mouse(NSEventTypeLeftMouseDown, 10, 20, NSEventModifierFlagControl)];
+        CHECK(f.input->buttons() == 2);
+        [f.native mouseUp:f.mouse(NSEventTypeLeftMouseUp, 10, 20, 0)];
+        const auto events = f.read();
+        REQUIRE(events.size() == 2);
+        const auto& down = std::get<ui::PointerInput>(events[0]);
+        const auto& up = std::get<ui::PointerInput>(events[1]);
+        CHECK(down.button == 2);
+        CHECK(down.buttons == 2);
+        CHECK(up.button == 2);
+        CHECK(up.buttons == 0);
     }
 
     TEST_CASE("scroll phases and AppKit momentum preserve fractional axes and ordering")

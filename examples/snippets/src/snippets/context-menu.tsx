@@ -13,6 +13,8 @@ export default function ContextMenu() {
     <View style={{ alignItems: 'center', gap: 10 }}>
       <View
         focusable
+        accessibilityLabel="Track options"
+        accessibilityActions={[{ name: 'showContextMenu' }]}
         onContextMenu={(event) => {
           event.preventDefault();
           setMenu({ x: event.pageX, y: event.pageY });

@@ -337,7 +337,7 @@ TEST_SUITE("a11y Windows UIA")
         REQUIRE(gain.As(&menu) == S_OK);
         CHECK(menu->ShowContextMenu() == static_cast<HRESULT>(UIA_E_NOTSUPPORTED));
 
-        slider.actions.push_back({ Action::ShowMenu, "show-menu", "Show context menu" });
+        slider.actions.push_back({ Action::ShowContextMenu, "showContextMenu", {} });
         session.update(update, {}, true);
         CHECK(menu->ShowContextMenu() == S_OK);
         auto range = pattern<IRangeValueProvider>(gain.Get(), UIA_RangeValuePatternId);
@@ -346,7 +346,7 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(value == -3.5);
         const auto requests = session.takeRequests();
         REQUIRE(requests.size() == 1);
-        CHECK(requests[0].action == Action::ShowMenu);
+        CHECK(requests[0].action == Action::ShowContextMenu);
         CHECK(requests[0].target == slider.id);
 
         slider.actions.pop_back();

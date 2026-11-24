@@ -122,6 +122,9 @@ export function semanticSnapshot(roots: readonly TestNode[]): {
         (a.role !== undefined
           ? a.role !== 'none'
           : Boolean(a.label) ||
+            Boolean(
+              a.actions?.some((action) => action.name === 'showContextMenu'),
+            ) ||
             (node.type === 'text' && node.text !== '') ||
             node.type === 'input'));
     if (!element)

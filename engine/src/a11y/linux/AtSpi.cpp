@@ -839,9 +839,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     GVariantBuilder list;
                     g_variant_builder_init(&list, G_VARIANT_TYPE("a(sss)"));
                     for (const auto* action : offered)
-                        g_variant_builder_add(&list, "(sss)",
-                                              (action->label.empty() ? action->name : action->label).c_str(),
-                                              action->label.c_str(), "");
+                    {
+                        const char* label = action->label.empty()
+                                                ? (action->action == Action::ShowContextMenu ? "Show context menu"
+                                                                                             : action->name.c_str())
+                                                : action->label.c_str();
+                        g_variant_builder_add(&list, "(sss)", label, action->label.c_str(), "");
+                    }
                     return g_variant_new("(@a(sss))", g_variant_builder_end(&list));
                 }
                 gint32 index = -1;
@@ -854,9 +858,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 if (member == "GetDescription")
                     return g_variant_new("(s)", action.label.c_str());
                 if (member == "GetName")
-                    return g_variant_new("(s)", action.name.c_str());
+                    return g_variant_new("(s)",
+                                         action.action == Action::ShowContextMenu ? "popup" : action.name.c_str());
                 if (member == "GetLocalizedName")
-                    return g_variant_new("(s)", (action.label.empty() ? action.name : action.label).c_str());
+                    return g_variant_new("(s)", action.label.empty()
+                                                    ? (action.action == Action::ShowContextMenu ? "Show context menu"
+                                                                                                : action.name.c_str())
+                                                    : action.label.c_str());
                 if (member == "GetKeyBinding")
                     return g_variant_new("(s)", "");
             }

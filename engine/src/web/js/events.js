@@ -13,7 +13,6 @@ const BUBBLING_PHASE = 3;
 
 /** The method by which a target names its parent in an event path. */
 export const eventParent = Symbol('eventParent');
-export const listenerPresenceChanged = Symbol('listenerPresenceChanged');
 
 /** Lets EventTarget drive an event's dispatch state without making it public. */
 let dispatchState;
@@ -204,7 +203,6 @@ export class EventTarget {
       removed: false,
     };
     list.push(entry);
-    if (list.length === 1) this[listenerPresenceChanged]?.(key, true);
     signal?.addEventListener(
       'abort',
       () => this.removeEventListener(key, listener, { capture }),
@@ -216,8 +214,7 @@ export class EventTarget {
 
   removeEventListener(type, listener, options) {
     const { capture = false } = normalizeOptions(options);
-    const key = String(type);
-    const list = this.#listeners.get(key);
+    const list = this.#listeners.get(String(type));
     if (list === undefined) return;
     const index = list.findIndex(
       (entry) =>
@@ -226,7 +223,6 @@ export class EventTarget {
     if (index < 0) return;
     list[index].removed = true;
     list.splice(index, 1);
-    if (list.length === 0) this[listenerPresenceChanged]?.(key, false);
   }
 
   dispatchEvent(event) {

@@ -573,7 +573,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         }
         HRESULT STDMETHODCALLTYPE Invoke() override { return ask(Action::Activate); }
 
-        HRESULT STDMETHODCALLTYPE ShowContextMenu() override { return ask(Action::ShowMenu); }
+        HRESULT STDMETHODCALLTYPE ShowContextMenu() override { return ask(Action::ShowContextMenu); }
         HRESULT STDMETHODCALLTYPE SetValue(LPCWSTR value) override
         {
             if (value == nullptr)

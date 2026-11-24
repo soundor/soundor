@@ -8,6 +8,7 @@ import type {
   Style,
   ViewSize,
 } from '@soundor/engine/web';
+import { UiNode as EngineNode } from '@soundor/engine/web';
 import type * as Contract from 'soundor:ui';
 import {
   AccessibilityActionEvent,
@@ -266,6 +267,7 @@ describe('pressable', () => {
   describe('long press', () => {
     afterEach(() => {
       vi.useRealTimers();
+      vi.restoreAllMocks();
     });
 
     function setup(delayLongPress?: number) {
@@ -279,9 +281,20 @@ describe('pressable', () => {
         onLongPress: (event) => log.push(`long:${event.type}`),
         onPressOut: () => log.push('out'),
       });
+      const element = EngineNode.elementOf(node as unknown as EngineNode);
+      vi.spyOn(element.ownerDocument, 'elementFromPoint').mockReturnValue(
+        element,
+      );
       const send = (type: string, init: Record<string, number> = {}) =>
-        node.dispatchEvent(
-          new PointerEvent(type, { button: 0, bubbles: true, ...init }),
+        element.dispatchEvent(
+          new window.PointerEvent(type, {
+            button: 0,
+            buttons: type === 'pointerdown' || type === 'pointermove' ? 1 : 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+            bubbles: true,
+            ...init,
+          }),
         );
       return { log, send, undo };
     }
@@ -292,15 +305,13 @@ describe('pressable', () => {
       vi.advanceTimersByTime(499);
       expect(log).toEqual([]);
       vi.advanceTimersByTime(1);
-      expect(log).toEqual(['long:pointerdown']);
+      expect(log).toEqual(['long:longpress']);
       send('pointermove', { clientX: 5 });
       send('pointerup');
-      send('click');
-      expect(log).toEqual(['long:pointerdown', 'out']);
+      expect(log).toEqual(['long:longpress', 'out']);
       // The next press is an ordinary one.
       send('pointerdown');
       send('pointerup');
-      send('click');
       expect(log.slice(2)).toEqual(['out', 'press']);
       undo();
     });
@@ -309,7 +320,6 @@ describe('pressable', () => {
       const { log, send, undo } = setup(50);
       send('pointerdown');
       send('pointerup');
-      send('click');
       vi.advanceTimersByTime(100);
       expect(log).toEqual(['out', 'press']);
       log.length = 0;
@@ -330,6 +340,7 @@ describe('pressable', () => {
       send('pointerdown', { button: 2 });
       vi.advanceTimersByTime(100);
       expect(log).toEqual([]);
+      send('pointerup', { button: 2 });
 
       send('pointerdown');
       undo();
@@ -402,6 +413,8 @@ describe('accessibility', () => {
     expect(node.accessibilityParent).toBe(null);
   });
 
+  // An action's default (longpress's `longpress` event) is the view's, run
+  // where it dispatches the action; pressable() handles activate itself.
   it('lets assistive technology press a pressable', () => {
     const button = createView();
     root.appendChild(button);
@@ -420,12 +433,9 @@ describe('accessibility', () => {
       return event.defaultPrevented;
     };
     expect(act('activate')).toBe(true);
-    expect(act('longpress')).toBe(true);
+    expect(act('longpress')).toBe(false);
     expect(act('increment')).toBe(false);
-    expect(log).toEqual([
-      'press:accessibilityaction',
-      'long:accessibilityaction',
-    ]);
+    expect(log).toEqual(['press:accessibilityaction']);
     stop();
     button.remove();
   });

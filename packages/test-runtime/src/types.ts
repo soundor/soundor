@@ -292,6 +292,7 @@ export type AccessibilityActionName =
   | 'focus'
   | 'blur'
   | 'setValue'
+  | 'showContextMenu'
   | (string & {});
 
 export interface AccessibilityAction {

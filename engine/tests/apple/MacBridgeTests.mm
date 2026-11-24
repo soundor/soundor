@@ -243,7 +243,9 @@ TEST_SUITE("a11y macOS bridge")
         f.build(controls);
         NSAccessibilityElement* knob = f.find("Gain");
         CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
-        f.run("globalThis.menu = () => log.push('menu'); knob.addEventListener('contextmenu', menu);");
+        f.run("knob.addEventListener('contextmenu', () => log.push('menu')); "
+              "knob.accessibility = { ...knob.accessibility, actions: [...knob.accessibility.actions, { name: "
+              "'showContextMenu' }] };");
         f.tick();
         CHECK([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);
         CHECK([[knob accessibilityRole] isEqualToString:NSAccessibilitySliderRole]);
@@ -251,7 +253,7 @@ TEST_SUITE("a11y macOS bridge")
         CHECK([knob accessibilityPerformIncrement]);
         f.tick();
         CHECK(f.eval("log.join(' ')").asString() == "menu increment");
-        f.run("knob.removeEventListener('contextmenu', menu);");
+        f.run("describe();");
         f.tick();
         CHECK_FALSE([knob accessibilityPerformShowMenu]);
         CHECK_FALSE([knob isAccessibilitySelectorAllowed:@selector(accessibilityPerformShowMenu)]);

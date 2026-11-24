@@ -465,18 +465,19 @@ TEST_SUITE("Linux AT-SPI")
         atspi::Session session("Context menu", bus.address);
         auto update = example();
         auto& node = update.nodes[1];
-        node.actions.push_back({ Action::ShowMenu, "show-menu", "Show context menu" });
+        node.actions.push_back({ Action::ShowContextMenu, "showContextMenu", {} });
         session.update(update, {}, true);
         REQUIRE(eventually([&] { return session.active(); }));
         const auto app = bus.applications().front();
         constexpr auto path = "/org/a11y/atspi/accessible/n11";
         constexpr auto action = "org.a11y.atspi.Action";
         CHECK(printed(bus, app, path, action, "GetName", g_variant_new("(i)", 0)) == "('increment',)");
-        CHECK(printed(bus, app, path, action, "GetName", g_variant_new("(i)", 1)) == "('show-menu',)");
+        CHECK(printed(bus, app, path, action, "GetName", g_variant_new("(i)", 1)) == "('popup',)");
+        CHECK(printed(bus, app, path, action, "GetLocalizedName", g_variant_new("(i)", 1)) == "('Show context menu',)");
         CHECK(printed(bus, app, path, action, "DoAction", g_variant_new("(i)", 1)) == "(true,)");
         const auto requests = session.takeRequests();
         REQUIRE(requests.size() == 1);
-        CHECK(requests[0].action == Action::ShowMenu);
+        CHECK(requests[0].action == Action::ShowContextMenu);
         CHECK(requests[0].target == node.id);
 
         node.actions.pop_back();

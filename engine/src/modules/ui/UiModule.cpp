@@ -538,15 +538,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
-        jsi::Value setContextMenuListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
-                                          std::size_t count)
+        jsi::Value suppressPointerClick(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                        std::size_t count)
         {
-            return call(context, "setContextMenuListener", count, 2,
+            return call(context, "suppressPointerClick", count, 1,
                         [&](Surface& surface)
                         {
-                            surface.setContextMenuListener(readId(args[0]), bind::toBoolean(context, args[1]));
+                            surface.suppressPointerClick(bind::toInt32(context, args[0]));
                             return jsi::Value::undefined();
                         });
+        }
+
+        jsi::Value canLongPress(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "canLongPress", count, 2, [&](Surface& surface)
+                        { return jsi::Value(surface.canLongPress(readId(args[0]), bind::toInt32(context, args[1]))); });
         }
 
         jsi::Value setFocusable(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
@@ -1399,6 +1405,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 case Event::Type::Click:
                 case Event::Type::DoubleClick:
                 case Event::Type::ContextMenu:
+                case Event::Type::LongPress:
                     data.set("x", jsi::Value(double(event.position.x)));
                     data.set("y", jsi::Value(double(event.position.y)));
                     data.set("offsetX", jsi::Value(double(event.offset.x)));
@@ -1474,10 +1481,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setStyle", setStyle, 2 },
             { "setText", setText, 2 },
             { "setFocusable", setFocusable, 2 },
+            { "suppressPointerClick", suppressPointerClick, 1 },
+            { "canLongPress", canLongPress, 2 },
             { "setDebugId", setDebugId, 2 },
             { "setScrollIndicators", setScrollIndicators, 2 },
             { "setAccessibility", setAccessibility, 2 },
-            { "setContextMenuListener", setContextMenuListener, 2 },
             { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },
             { "setSvgScene", setSvgScene, 2 },
@@ -1563,6 +1571,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         js::registerNativeModule(context, "soundor:internal/ui", { initializeInternalModule, {}, {} });
         js::registerNativeModule(context, "soundor:internal/ui/resize",
                                  { {}, embedded::uiResizeModule.text(), embedded::uiResizeModule.bytecode });
+        js::registerNativeModule(context, "soundor:internal/ui/long-press",
+                                 { {}, embedded::uiLongPressModule.text(), embedded::uiLongPressModule.bytecode });
         js::registerNativeModule(context, "soundor:internal/ui/frames",
                                  { {}, embedded::uiFramesModule.text(), embedded::uiFramesModule.bytecode });
         js::registerNativeModule(context, "soundor:internal/ui/canvas",

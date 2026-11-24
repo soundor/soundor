@@ -495,6 +495,23 @@ TEST_SUITE("a11y semantics")
         CHECK(f.tree() == R"(view [adjustable "Gain" =0.25, text "Other", text "New"])");
     }
 
+    TEST_CASE("explicit showContextMenu exposes a plain view without changing its role")
+    {
+        A11yFixture f;
+        f.build(R"(
+            const view = createView();
+            view.accessibility = { actions: [{ name: 'showContextMenu' }] };
+            root.appendChild(view);
+        )");
+        const auto* root = f.adapter.tree.find(f.adapter.tree.root());
+        REQUIRE(root != nullptr);
+        REQUIRE(root->children.size() == 1);
+        const auto* view = f.adapter.tree.find(root->children.front());
+        REQUIRE(view != nullptr);
+        CHECK(view->role == a11y::Role::Group);
+        CHECK(view->supports(a11y::Action::ShowContextMenu));
+    }
+
     TEST_CASE("context menu shortcuts and accessibility requests bubble from the same control")
     {
         A11yFixture f;
@@ -509,9 +526,12 @@ TEST_SUITE("a11y semantics")
             root.appendChild(wrapper);
             slider.focus();
             globalThis.log = [];
-            globalThis.menu = e => log.push(`${e.target === slider}/${e.currentTarget === wrapper}:${e.pageX},${e.pageY}:${e.button}`);
-            globalThis.controller = new AbortController();
-            wrapper.addEventListener('contextmenu', menu, { signal: controller.signal });
+            globalThis.menu = e => {
+                log.push(`${e.target === slider}/${e.currentTarget === wrapper}:${e.pageX},${e.pageY}:${e.button}`);
+                e.preventDefault();
+            };
+            wrapper.addEventListener('contextmenu', menu, true);
+            globalThis.base = slider.accessibility;
         )");
         using a11y::Action;
         const auto slider = f.element("Gain");
@@ -519,7 +539,11 @@ TEST_SUITE("a11y semantics")
         CHECK(f.node("Gain").hint == "Drag");
         CHECK(f.node("Gain").value.min == -60);
         CHECK(f.node("Gain").value.max == 12);
-        CHECK(f.node("Gain").supports(Action::ShowMenu));
+        CHECK_FALSE(f.node("Gain").supports(Action::ShowContextMenu));
+        f.run("slider.accessibility = { ...base, actions: [...base.actions, { name: 'showContextMenu' }, { name: "
+              "'longpress' }] };");
+        f.sync();
+        CHECK(f.node("Gain").supports(Action::ShowContextMenu));
         CHECK(f.node("Gain").supports(Action::Increment));
         CHECK(f.node("Gain").supports(Action::Decrement));
         CHECK(f.adapter.tree.focus() == slider);
@@ -528,29 +552,38 @@ TEST_SUITE("a11y semantics")
         CHECK(surface.key({ .key = "F10", .code = "F10", .modifiers = ui::Modifier::Shift }));
         CHECK(surface.key({ .key = "F10", .code = "F10", .repeat = true, .modifiers = ui::Modifier::Shift }));
         CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
-        CHECK(f.perform("Gain", Action::ShowMenu));
+        CHECK(f.perform("Gain", Action::ShowContextMenu));
         CHECK(f.eval("log.join(' ')").asString() == "true/true:10,60:-1 true/true:10,60:-1 true/true:10,60:-1");
 
         f.run(R"(
-            slider.addEventListener('contextmenu', e => { log.push('inner'); e.stopPropagation(); }, { once: true });
+            slider.addEventListener('accessibilityaction', e => { log.push(e.actionName); e.preventDefault(); }, { once: true });
             slider.addEventListener('keydown', e => { if (e.key === 'ContextMenu') e.preventDefault(); }, { once: true });
+            wrapper.addEventListener('longpress', e => log.push(`long:${e.pointerType}`));
         )");
         CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
         CHECK(f.eval("log.length").asNumber() == 3);
-        CHECK(f.perform("Gain", Action::ShowMenu));
-        CHECK(f.eval("log.at(-1)").asString() == "inner");
-        f.run("controller.abort();");
-        CHECK_FALSE(f.perform("Gain", Action::ShowMenu)); // also rejects a stale queued request
+        CHECK(f.perform("Gain", Action::ShowContextMenu));
+        CHECK(f.eval("log.at(-1)").asString() == "showContextMenu");
+        CHECK(f.eval("log.length").asNumber() == 4);
+        CHECK(f.perform("Gain", Action::LongPress));
+        CHECK(f.eval("log.at(-1)").asString() == "long:");
+        f.run("slider.accessibility = base;");
+        CHECK_FALSE(f.perform("Gain", Action::ShowContextMenu)); // also rejects a stale queued request
         f.sync();
         CHECK(f.element("Gain") == slider);
-        CHECK_FALSE(f.node("Gain").supports(Action::ShowMenu));
-        CHECK_FALSE(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
+        CHECK_FALSE(f.node("Gain").supports(Action::ShowContextMenu));
+        CHECK(surface.key({ .key = "ContextMenu", .code = "ContextMenu" }));
 
-        f.run("wrapper.addEventListener('contextmenu', menu);");
+        f.run("slider.accessibility = { ...base, actions: [...base.actions, { name: 'showContextMenu' }] };");
         f.sync();
-        CHECK(f.node("Gain").supports(Action::ShowMenu));
+        CHECK(f.node("Gain").supports(Action::ShowContextMenu));
+        // An uncanceled request leaves the key to the host, repeats included.
+        f.run("wrapper.removeEventListener('contextmenu', menu, true);");
+        CHECK_FALSE(surface.key({ .key = "F10", .code = "F10", .modifiers = ui::Modifier::Shift }));
+        CHECK_FALSE(surface.key({ .key = "F10", .code = "F10", .repeat = true, .modifiers = ui::Modifier::Shift }));
+        CHECK(f.perform("Gain", Action::ShowContextMenu));
         f.run("wrapper.remove();");
-        CHECK_FALSE(f.host.performAccessibilityAction({ slider, Action::ShowMenu, {}, {} }));
+        CHECK_FALSE(f.host.performAccessibilityAction({ slider, Action::ShowContextMenu, {}, {} }));
         f.sync();
         CHECK(f.element("Gain") == a11y::noNode);
     }
@@ -661,7 +694,7 @@ TEST_SUITE("a11y semantics")
                                      actions: [{ name: 'activate' }, { name: 'longpress' }] };
             pressable(button, {
                 onPress: (event) => log.push(`press:${event.type}:${event.actionName}`),
-                onLongPress: (event) => log.push(`long:${event.actionName}`),
+                onLongPress: (event) => log.push(`long:${event.type}`),
             });
             root.appendChild(button);
             globalThis.button = button;

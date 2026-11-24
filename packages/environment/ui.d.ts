@@ -438,11 +438,12 @@ declare module 'soundor:ui' {
     | 'focus'
     | 'blur'
     | 'setValue'
+    | 'showContextMenu'
     | (string & {});
 
   export interface AccessibilityAction {
     name: AccessibilityActionName;
-    /** How a custom action is presented. */
+    /** A display label, on platforms that support overriding it. */
     label?: string;
   }
 
@@ -494,8 +495,22 @@ declare module 'soundor:ui' {
      * `detail` 2): a double click, as the platform counts them.
      */
     dblclick: PointerEvent;
-    /** The secondary button went down (or the platform's equivalent). */
+    /**
+     * A request for a context menu: the secondary button went down (or
+     * Control with the primary on macOS), Shift+F10 or the Context Menu key
+     * on the focused node, a touch long press (unless its `longpress` was
+     * canceled), or the `showContextMenu` accessibility action. Without a
+     * pointer (keyboard, accessibility) `pointerType` is `''`, `pointerId`
+     * and `button` are -1, and the position is the target's bottom-left.
+     */
     contextmenu: PointerEvent;
+    /**
+     * The primary pointer stayed down 500 ms (a pressable's
+     * `delayLongPress`) within 10 logical pixels, or the `longpress`
+     * accessibility action (`pointerType` `''`). A touch long press's
+     * default is a `contextmenu` event; preventDefault() cancels it.
+     */
+    longpress: PointerEvent;
     wheel: WheelEvent;
     keydown: KeyboardEvent;
     keyup: KeyboardEvent;
@@ -854,9 +869,9 @@ declare module 'soundor:ui' {
     ) => void;
     /**
      * The primary button stayed down `delayLongPress` ms, without moving
-     * away (with the pointerdown event), or assistive technology's 'longpress'.
+     * away, or assistive technology's 'longpress' action.
      */
-    onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
+    onLongPress?: (event: PointerEvent) => void;
     /** Milliseconds before a press is a long press: 500 by default. */
     delayLongPress?: number;
     onPressIn?: (event: PointerEvent) => void;

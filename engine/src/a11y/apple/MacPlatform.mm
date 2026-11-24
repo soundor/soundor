@@ -72,7 +72,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
 
         BOOL performShowMenu(id self, SEL)
         {
-            return ask(self, Action::ShowMenu) ? YES : NO;
+            return ask(self, Action::ShowContextMenu) ? YES : NO;
         }
 
         // Assistive technology setting a value or focus asks for it; the
@@ -110,7 +110,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             else if (selector == @selector(accessibilityPerformCancel))
                 action = Action::Escape;
             else if (selector == @selector(accessibilityPerformShowMenu))
-                action = Action::ShowMenu;
+                action = Action::ShowContextMenu;
             else if (selector == @selector(setAccessibilityValue:))
                 action = Action::SetValue;
             else if (selector == @selector(setAccessibilityFocused:))

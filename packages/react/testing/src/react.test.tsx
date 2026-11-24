@@ -461,7 +461,7 @@ describe('Pressable state and long presses', () => {
     await advanceTime(1);
     expect(latest).toHaveBeenCalledOnce();
     expect(latest).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'pointerdown' }),
+      expect.objectContaining({ type: 'longpress' }),
     );
     expect(first).not.toHaveBeenCalled();
     await user.pointer({ target: button, keys: '[/MouseLeft]' });

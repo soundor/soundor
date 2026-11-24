@@ -121,8 +121,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         Focus,
         Blur,
         SetValue, // with a number (a range) or a string (a text input)
-        Custom,   // named by the plugin
-        ShowMenu, // derived from contextmenu listeners, not declared by the plugin
+        ShowContextMenu,
+        Custom, // named by the plugin
     };
 
     // The action's name in `accessibilityActions` ("activate", "setValue").
