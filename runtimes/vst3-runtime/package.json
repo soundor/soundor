@@ -13,6 +13,7 @@
     "LICENSE",
     "dist",
     "rust/Cargo.toml",
+    "rust/LICENSE",
     "rust/src",
     "native/CMakeLists.txt",
     "native/cmake",

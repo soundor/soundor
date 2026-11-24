@@ -9,6 +9,8 @@
  * factory (built with `defineRuntime` in `@soundor/runtime-sdk`).
  */
 
+import type { Notice } from '@soundor/core';
+
 import type { LifecycleContext } from './context';
 import type { ResolvedSoundorConfig } from './types';
 
@@ -45,6 +47,16 @@ export interface DoctorReport {
 }
 
 /**
+ * What {@link Runtime.licenses} reports: the third-party notices a build
+ * would ship, in its `licenses/`.
+ */
+export interface LicensesReport {
+  readonly notices: readonly Notice[];
+  /** Config overrides that match nothing in the build, by path. */
+  readonly unused: readonly string[];
+}
+
+/**
  * The full lifecycle every runtime implements. All four methods share one shape
  * — `(config, ctx)` — so orchestration can dispatch by phase alone.
  */
@@ -76,6 +88,14 @@ export interface Runtime<Options extends object = object> {
     config: ResolvedSoundorConfig,
     ctx: LifecycleContext<Options>,
   ): Promise<DoctorReport>;
+  /**
+   * The third-party notices a production build would ship, without building
+   * it (`soundor licenses`). Optional: a runtime without it reports none.
+   */
+  licenses?(
+    config: ResolvedSoundorConfig,
+    ctx: LifecycleContext<Options>,
+  ): Promise<LicensesReport>;
 }
 
 /**

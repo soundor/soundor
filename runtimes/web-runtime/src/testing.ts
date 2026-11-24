@@ -90,6 +90,8 @@ export function fakeLibrary(root: string): FakeLibrary {
       await writeFile(path, Uint8Array.from([0, 97, 115, 109, 1, 0, 0, 0]));
       return { path, target: request.target ?? 'wasm32-unknown-unknown' };
     },
+    // A crate without dependencies, as the starter is.
+    notices: async () => ({ notices: [], issues: [], unused: [] }),
   };
 }
 

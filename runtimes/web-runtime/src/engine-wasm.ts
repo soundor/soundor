@@ -18,3 +18,18 @@ export async function engineWasmPath(): Promise<string> {
   const artifact = await engine({ target: 'web' });
   return artifact.files.wasm;
 }
+
+/**
+ * The notices of what the engine's module contains (the engine, Yoga and
+ * Emscripten's system libraries), by component.
+ */
+export async function engineWasmLicenses(): Promise<
+  readonly {
+    readonly name: string;
+    readonly license: string;
+    readonly files: readonly string[];
+  }[]
+> {
+  const artifact = await engine({ target: 'web' });
+  return artifact.licenses;
+}

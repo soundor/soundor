@@ -237,7 +237,10 @@ read the docs bundled with the installed package
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (`@soundor/environment`'s declarations copied, plus `soundor:parameters`
   and `soundor:native` from the config), paths, logger, errors, command
-  running. Its one dependency is `@soundor/environment`.
+  running, and third-party notices (`notices.ts`: what a build contains —
+  the UI bundle's `modules.json`, Cargo's resolve, prebuilt parts'
+  `licenses/` — laid out in its `licenses/`; the docs' `licenses.md`).
+  Its one dependency is `@soundor/environment`.
 - `packages/environment` — types only, the source of every declaration that
   is the same for all plugins: `soundor:ui`, `soundor:host`,
   `soundor:storage`, `soundor:fs`, asset imports and the runtime's Web

@@ -227,7 +227,105 @@ describe('validateConfig — validation rules', () => {
       state: {},
       native: {},
       signing: {},
+      licenses: { add: [], packages: {}, crates: {} },
     });
+  });
+
+  it('resolves licenses from the config directory, sorted by name', () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'soundor-licenses-'));
+    cleanups.push(dir);
+    mkdirSync(resolve(dir, 'licenses'));
+    writeFileSync(resolve(dir, 'licenses/tiny.txt'), 'MIT');
+    writeFileSync(resolve(dir, 'licenses/irs.txt'), 'CC BY 4.0');
+    const config = validateConfig(
+      {
+        ...base,
+        runtimes: [{ id: 'vst3', runtime: makeRuntime('vst3') }],
+        licenses: {
+          add: [
+            {
+              name: 'Hall impulse responses',
+              license: 'CC-BY-4.0',
+              file: './licenses/irs.txt',
+            },
+          ],
+          packages: {
+            'tiny-lib': { license: 'MIT', file: './licenses/tiny.txt' },
+            '@acme/internal': false,
+          },
+          crates: { std: { license: 'MIT', file: 'licenses/tiny.txt' } },
+        },
+      },
+      { root: dir },
+    );
+    expect(config.licenses).toEqual({
+      add: [
+        {
+          name: 'Hall impulse responses',
+          license: 'CC-BY-4.0',
+          file: resolve(dir, 'licenses/irs.txt'),
+        },
+      ],
+      packages: {
+        '@acme/internal': false,
+        'tiny-lib': { license: 'MIT', file: resolve(dir, 'licenses/tiny.txt') },
+      },
+      crates: {
+        std: { license: 'MIT', file: resolve(dir, 'licenses/tiny.txt') },
+      },
+    });
+    expect(Object.keys(config.licenses!.packages)).toEqual([
+      '@acme/internal',
+      'tiny-lib',
+    ]);
+  });
+
+  it('reports a missing license file, a bad name and a duplicate, with their paths', () => {
+    const dir = mkdtempSync(resolve(tmpdir(), 'soundor-licenses-'));
+    cleanups.push(dir);
+    writeFileSync(resolve(dir, 'a.txt'), 'A');
+    let error: ConfigError | undefined;
+    try {
+      validateConfig(
+        {
+          ...base,
+          runtimes: [{ id: 'vst3', runtime: makeRuntime('vst3') }],
+          licenses: {
+            add: [
+              { name: 'Samples', license: 'CC0-1.0', file: 'a.txt' },
+              { name: 'Samples', license: 'CC0-1.0', file: 'a.txt' },
+            ],
+            packages: { gone: { license: 'MIT', file: './missing.txt' } },
+          },
+        },
+        { root: dir },
+      );
+    } catch (caught) {
+      error = caught as ConfigError;
+    }
+    expect(error?.issues).toEqual([
+      {
+        path: 'licenses.add[1].name',
+        message: "'Samples' is added twice",
+      },
+      {
+        path: 'licenses.packages.gone.file',
+        message: `no such file: ${resolve(dir, 'missing.txt')}`,
+      },
+    ]);
+    const shape = expectValidation({
+      ...base,
+      runtimes: [{ id: 'vst3', runtime: makeRuntime('vst3') }],
+      licenses: {
+        add: [{ name: 'a/b', license: '', file: 'a.txt' }],
+        packages: { x: true },
+      },
+    });
+    expect(shape.issues.map((issue) => issue.path).sort()).toEqual([
+      'licenses.add[0].license',
+      'licenses.add[0].name',
+      'licenses.packages.x',
+    ]);
   });
 
   it('rejects a runtime entry with no implementation', () => {

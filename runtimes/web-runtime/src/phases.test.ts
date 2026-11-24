@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
@@ -18,6 +19,7 @@ import {
   webDev,
   webDoctor,
   webGen,
+  webLicenses,
   webRuntime,
 } from './index';
 import {
@@ -241,6 +243,26 @@ describe('webGen', () => {
   });
 });
 
+describe('webLicenses', () => {
+  it('reports what a build would ship, writing no build', async () => {
+    const root = await preparedProject();
+    const ctx = makeCtx(root, { mode: 'production' });
+    const report = await webLicenses(testConfig, ctx, {
+      clientDir: SOURCE_CLIENT_DIR,
+    });
+    const directories = report.notices.map((notice) => notice.directory);
+    expect(directories).toEqual(
+      expect.arrayContaining([
+        'engine/engine',
+        'engine/yoga',
+        expect.stringMatching(/^javascript\/preact@/),
+      ]),
+    );
+    expect(report.unused).toEqual([]);
+    expect(existsSync(ctx.paths.dist)).toBe(false);
+  });
+});
+
 describe('webBuild', () => {
   it('builds a static site with relative URLs into ctx.paths.dist only', async () => {
     const root = await preparedProject();
@@ -269,6 +291,27 @@ describe('webBuild', () => {
     expect(
       (await listFiles(root)).some((file) => file.startsWith('runtimes/')),
     ).toBe(false);
+  });
+
+  it("ships the build's third-party notices in licenses/", async () => {
+    const root = await preparedProject();
+    const ctx = makeCtx(root, { mode: 'production' });
+    await webBuild(testConfig, ctx, { clientDir: SOURCE_CLIENT_DIR });
+    const files = await listFiles(join(ctx.paths.dist, 'licenses'));
+    expect(files).toContain('THIRD-PARTY-NOTICES.txt');
+    expect(files).toContain('licenses.json');
+    expect(files).toContain('engine/yoga/LICENSE');
+    expect(
+      files.some((file) => /^javascript\/preact@[^/]+\/LICENSE$/.test(file)),
+    ).toBe(true);
+    expect(ctx.logger.lines).toContainEqual(
+      expect.objectContaining({
+        level: 'info',
+        message: expect.stringMatching(
+          /^Licenses: \d+ components .* -> licenses\/$/,
+        ),
+      }),
+    );
   });
 
   it('keeps the output directory free of stale files', async () => {

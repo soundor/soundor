@@ -9,7 +9,9 @@ import type {
   CodegenSink,
   FileSystemHost,
   Logger,
+  NoticeCollection,
   ProjectPaths,
+  ResolvedLicenses,
 } from '@soundor/core';
 
 import type { SigningContext } from './signing';
@@ -18,8 +20,8 @@ import type { RuntimeConfig } from './types';
 /** Build/run mode. */
 export type RuntimeMode = 'debug' | 'production';
 
-/** The five lifecycle phases every runtime implements. */
-export type RuntimePhase = 'gen' | 'dev' | 'build' | 'doctor';
+/** The lifecycle phases; every runtime implements all but `licenses`. */
+export type RuntimePhase = 'gen' | 'dev' | 'build' | 'doctor' | 'licenses';
 
 /** Credentials for one development session. Never log or embed in artifacts. */
 export interface DevToolsConnection {
@@ -90,6 +92,16 @@ export interface LibraryBuildContext {
    * which it has already logged.
    */
   build(request: LibraryBuildRequest): Promise<LibraryArtifact>;
+  /**
+   * The third-party notices of what the library links for `target`: the
+   * crates Cargo resolves for it (not the project's own) and Rust's
+   * standard library, with the config's `licenses` applied. Nothing is
+   * compiled.
+   */
+  notices(
+    target: string,
+    licenses?: ResolvedLicenses,
+  ): Promise<NoticeCollection>;
   /**
    * Set by `soundor dev`: calls `listener` after the crate's sources change
    * (debounced), so that the runtime can build it again. Returns a function
@@ -169,7 +181,10 @@ export interface LifecycleContext<Options extends object = object> {
   readonly logger: Logger;
   readonly fs: FileSystemHost;
   readonly codegen: CodegenSink;
-  /** The plugin UI bundle, for `dev` and `build` of projects with a UI. */
+  /**
+   * The plugin UI bundle, for `dev`, `build` and `licenses` of projects with
+   * a UI.
+   */
   readonly ui?: UiBundleContext;
   /**
    * The project's Rust crate (`lib/`), for `dev` and `build`; undefined

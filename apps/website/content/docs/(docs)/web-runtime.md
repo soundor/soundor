@@ -621,7 +621,9 @@ export default defineSoundorConfig({
 ## Static builds and iframes
 
 `soundor build web` writes a self-contained static site to
-`.soundor/dist/web/`. All its URLs are relative, so it works under any path
+`.soundor/dist/web/`, with the [third-party notices](/docs/licenses) of
+everything it contains in `licenses/` (the host's panel links to
+`licenses/THIRD-PARTY-NOTICES.txt`). All its URLs are relative, so it works under any path
 (`https://example.com/docs/examples/gain/`), and in an iframe with no code on
 the parent page:
 

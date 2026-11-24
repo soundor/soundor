@@ -16,7 +16,7 @@ import {
 } from '@soundor/core';
 
 import type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
-import type { DoctorReport, Runtime } from './runtime';
+import type { DoctorReport, LicensesReport, Runtime } from './runtime';
 import { resolveSigning } from './signing';
 import type { ResolvedSoundorConfig, RuntimeConfig } from './types';
 
@@ -78,7 +78,7 @@ export async function runPhase(
   phase: RuntimePhase,
   config: ResolvedSoundorConfig,
   input: DispatchContextInput,
-): Promise<void | DoctorReport> {
+): Promise<void | DoctorReport | LicensesReport | undefined> {
   const ctx: LifecycleContext = {
     phase,
     mode: input.mode ?? 'debug',
@@ -112,6 +112,8 @@ export async function runPhase(
         return await runtime.build(config, ctx);
       case 'doctor':
         return await runtime.doctor(config, ctx);
+      case 'licenses':
+        return await runtime.licenses?.(config, ctx);
     }
   } catch (error) {
     if (isSoundorError(error)) throw error;

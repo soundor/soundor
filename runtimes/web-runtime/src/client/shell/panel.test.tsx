@@ -20,7 +20,9 @@ import { Panel, type PanelProps } from './panel';
 afterEach(() => document.body.replaceChildren());
 
 function setup(
-  props: Partial<Pick<PanelProps, 'open' | 'inspect' | 'parameters'>> & {
+  props: Partial<
+    Pick<PanelProps, 'open' | 'inspect' | 'parameters' | 'notices'>
+  > & {
     inputs?: readonly { id: string; label: string }[];
   } = {},
 ) {
@@ -40,6 +42,7 @@ function setup(
       audio={fake.audio}
       parameters={props.parameters ?? createParameterStore([], [])}
       inspect={props.inspect ?? false}
+      {...(props.notices === undefined ? {} : { notices: props.notices })}
     />,
   );
   const panel = container.querySelector<HTMLElement>('#panel')!;
@@ -61,6 +64,19 @@ describe('the panel', () => {
     fireEvent.keyDown(getByLabelText(panel, 'Input'), { key: 'Escape' });
     fireEvent.keyDown(getByLabelText(panel, 'Input'), { key: 'Enter' });
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("links a build's third-party notices, and nothing without them", () => {
+    const { panel } = setup({ notices: 'licenses/THIRD-PARTY-NOTICES.txt' });
+    expect(
+      getByRole(panel, 'link', { name: 'Third-party notices' }).getAttribute(
+        'href',
+      ),
+    ).toBe('licenses/THIRD-PARTY-NOTICES.txt');
+    document.body.replaceChildren();
+    expect(
+      queryByRole(setup().panel, 'link', { name: 'Third-party notices' }),
+    ).toBeNull();
   });
 
   it('says when a plugin declares no parameters', () => {

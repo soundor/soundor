@@ -9,6 +9,7 @@
     "dev",
     "build",
     "doctor",
+    "licenses",
     "---Project---",
     "config",
     "create-soundor-app",

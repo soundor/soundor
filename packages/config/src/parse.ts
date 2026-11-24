@@ -28,5 +28,5 @@ export async function parseConfig(
   const path = options.path ?? locateConfig(options.cwd ?? process.cwd());
   checkProjectConfigVersion(dirname(resolve(path)));
   const raw = await loadConfigModule(path);
-  return validateConfig(raw);
+  return validateConfig(raw, { root: dirname(resolve(path)) });
 }

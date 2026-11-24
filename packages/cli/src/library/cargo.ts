@@ -15,7 +15,15 @@ import type {
   LibraryBuildContext,
   LibraryArtifact,
 } from '@soundor/config';
-import { EnvError, RuntimeError, type Logger } from '@soundor/core';
+import {
+  crateNotices,
+  EnvError,
+  RuntimeError,
+  rustStdNotice,
+  type Logger,
+  type NoticeCollection,
+  type ResolvedLicenses,
+} from '@soundor/core';
 
 /** The crate's manifest in a project, when it has one. */
 export function libraryManifest(root: string): string | undefined {
@@ -227,6 +235,34 @@ export function watchLibrary(
   };
 }
 
+/**
+ * The notices of what the crate's library links for `target`: its crates
+ * (not itself) and Rust's standard library, from the project, whose
+ * `rust-toolchain.toml` applies.
+ */
+export function libraryNotices(
+  root: string,
+  manifest: string,
+  target: string,
+  licenses?: ResolvedLicenses,
+): NoticeCollection {
+  const crates = crateNotices({
+    manifest,
+    target,
+    cwd: root,
+    ...(licenses === undefined ? {} : { licenses }),
+  });
+  const std = rustStdNotice({
+    cwd: root,
+    ...(licenses === undefined ? {} : { licenses }),
+  });
+  return {
+    notices: [...crates.notices, ...std.notices],
+    issues: [...crates.issues, ...std.issues],
+    unused: [...crates.unused, ...std.unused],
+  };
+}
+
 /** The `ctx.lib` the CLI gives runtimes, or undefined without a crate. */
 export function libraryBuildContext(
   root: string,
@@ -247,6 +283,8 @@ export function libraryBuildContext(
         ...(signal === undefined ? {} : { signal }),
         ...(options.spawn === undefined ? {} : { spawn: options.spawn }),
       }),
+    notices: async (target, licenses) =>
+      libraryNotices(root, manifest, target, licenses),
     ...(options.watch === true
       ? {
           onChange: (listener: () => void) =>

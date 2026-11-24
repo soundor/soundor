@@ -216,7 +216,8 @@ export function checkStage(stage, expected) {
  * The WebAssembly core's stage (node/src/web.ts writes it): its module, as
  * its metadata describes it, built from this checkout's web inputs
  * (expected.webFingerprint) at the planned commit, and the license notices
- * of what it compiles (the engine, Yoga). Nothing else.
+ * of what it compiles (the engine, Yoga, Emscripten's system libraries).
+ * Nothing else.
  */
 function checkWebStage(stage, metadata, expected) {
   const problems = [];
@@ -269,7 +270,7 @@ function checkWebStage(stage, metadata, expected) {
     )
       problems.push(`${wasm.path} does not match files.wasm`);
   }
-  for (const component of ['engine', 'yoga'])
+  for (const component of ['engine', 'yoga', 'emscripten'])
     if (!files(join(stage, 'licenses', component)).length)
       problems.push(`no license notice for ${component}`);
   if (problems.length)

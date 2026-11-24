@@ -234,6 +234,9 @@ function Shell(options: ShellOptions & { readonly requests: EditorRequests }) {
         parameters={options.parameters}
         parameterGroups={options.parameterGroups}
         inspect={options.presentation === 'dev'}
+        {...(options.presentation === 'dev'
+          ? {}
+          : { notices: 'licenses/THIRD-PARTY-NOTICES.txt' })}
       />
     </>
   );

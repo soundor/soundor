@@ -22,11 +22,13 @@ import {
   describeNativeApi,
   describeState,
   EnvError,
+  logNotices,
   probeCommand,
   runCommand,
   type CommandProbe,
   type CommandRunner,
   type DoctorReport,
+  type LicensesReport,
   type LifecycleContext,
   type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
@@ -40,6 +42,7 @@ import {
 import {
   adapterDirectory,
   adapterManifest,
+  packageVersion,
   resolveAdapter,
   sourceAdapter,
 } from './adapter';
@@ -59,6 +62,7 @@ import {
   windowsLinkArguments,
   type MsvcLinker,
 } from './link';
+import { vst3Notices } from './notices';
 import { resolveVst3Options, type Vst3Options } from './options';
 import {
   adapterArchiveName,
@@ -177,30 +181,29 @@ async function engineMetadata(artifact: NativeEngineArtifact): Promise<{
   };
 }
 
-async function buildPlugin(
-  config: ResolvedSoundorConfig,
+const NO_LIBRARY =
+  "The project has no Rust library (lib/Cargo.toml), which holds the plugin's processor and controller. Run `soundor gen` to create missing Rust starter files.";
+
+/** The engine and the adapter a build of `variant` links. */
+async function linkedParts(
   ctx: Ctx,
-  build: BuildOptions,
+  variant: Variant,
   deps: Vst3PhaseDeps,
-): Promise<string> {
-  const { arch, target } = machine(deps);
-  if (ctx.lib === undefined)
-    throw new EnvError(
-      "The project has no Rust library (lib/Cargo.toml), which holds the plugin's processor and controller. Run `soundor gen` to create missing Rust starter files.",
-    );
-  const options = resolveVst3Options(ctx.options);
-  const run = deps.run ?? runCommand;
-  const cache = join(ctx.paths.cache, build.label);
-  const mode = options.engineMode;
+): Promise<{
+  readonly artifact: NativeEngineArtifact;
+  readonly adapter: Awaited<ReturnType<typeof resolveAdapter>>;
+}> {
+  const { target } = machine(deps);
+  const mode = resolveVst3Options(ctx.options).engineMode;
   const artifact = await (
     deps.engine ??
-    ((variant: Variant, engineMode: 'prebuilt' | 'source') =>
+    ((engineVariantName: Variant, engineMode: 'prebuilt' | 'source') =>
       engine({
         target,
-        variant: engineVariant(target, variant),
+        variant: engineVariant(target, engineVariantName),
         mode: engineMode,
       }))
-  )(build.variant, mode);
+  )(variant, mode);
   ctx.logger.info(
     `Engine: ${artifact.version} ${artifact.variant} for ${target} (${artifact.mode}: ${artifact.reason})`,
   );
@@ -208,12 +211,55 @@ async function buildPlugin(
     mode === 'source'
       ? (deps.sourceAdapter ?? sourceAdapter)
       : (deps.adapter ?? resolveAdapter)
-  )(PACKAGE_ROOT, target, build.variant, artifact, {
+  )(PACKAGE_ROOT, target, variant, artifact, {
     log: (message) => ctx.logger.info(message),
   });
-  ctx.logger.info(
-    `Adapter: ${build.variant} for ${target} (${adapter.reason})`,
-  );
+  ctx.logger.info(`Adapter: ${variant} for ${target} (${adapter.reason})`);
+  return { artifact, adapter };
+}
+
+/** Writes the crate Cargo builds for the project (crate.ts). */
+async function writePluginCrate(
+  config: ResolvedSoundorConfig,
+  description: ReturnType<typeof describePlugin>,
+  libManifest: string,
+  crateDir: string,
+  embedded: {
+    readonly files: readonly { path: string; file: string }[];
+    readonly uiDirectory: string;
+    readonly logFile: string;
+  },
+): Promise<void> {
+  const native = describeNativeApi(config.native);
+  if (!native.ok)
+    throw new EnvError(
+      'Invalid native API: run `soundor gen` for the details.',
+    );
+  await writeCrate(crateDir, {
+    libManifest,
+    packageRoot: PACKAGE_ROOT,
+    descriptor: `${JSON.stringify(description)}\n`,
+    controllerDescriptor: describeController(
+      native.model,
+      describeState(config.state, config.native),
+      config.parameters.length,
+    ),
+    ...embedded,
+  });
+}
+
+async function buildPlugin(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+  build: BuildOptions,
+  deps: Vst3PhaseDeps,
+): Promise<string> {
+  const { arch, target } = machine(deps);
+  if (ctx.lib === undefined) throw new EnvError(NO_LIBRARY);
+  const options = resolveVst3Options(ctx.options);
+  const run = deps.run ?? runCommand;
+  const cache = join(ctx.paths.cache, build.label);
+  const { artifact, adapter } = await linkedParts(ctx, build.variant, deps);
   const metadata = await engineMetadata(artifact);
 
   // The UI, in the engine's form; embedded unless a live build reads it.
@@ -239,21 +285,8 @@ async function buildPlugin(
   }
 
   const description = describePlugin(config, options);
-  const native = describeNativeApi(config.native);
-  if (!native.ok)
-    throw new EnvError(
-      'Invalid native API: run `soundor gen` for the details.',
-    );
   const crateDir = join(cache, 'crate');
-  await writeCrate(crateDir, {
-    libManifest: ctx.lib.manifest,
-    packageRoot: PACKAGE_ROOT,
-    descriptor: `${JSON.stringify(description)}\n`,
-    controllerDescriptor: describeController(
-      native.model,
-      describeState(config.state, config.native),
-      config.parameters.length,
-    ),
+  await writePluginCrate(config, description, ctx.lib.manifest, crateDir, {
     files: build.live === undefined ? await embeddedFiles(uiDir) : [],
     uiDirectory: build.live?.uiDirectory ?? '',
     logFile: build.live?.logFile ?? '',
@@ -270,6 +303,25 @@ async function buildPlugin(
     logger: ctx.logger,
     signal: ctx.signal,
   });
+
+  // What the binary contains, now that Cargo has resolved its crates; before
+  // the old bundle goes, so a missing notice keeps it.
+  const notices = await vst3Notices({
+    config,
+    root: ctx.paths.root,
+    engineDirectory: artifact.directory,
+    adapterDirectory: adapter.directory,
+    ...(ctx.ui === undefined ? {} : { ui: ctx.ui }),
+    crateManifest: join(crateDir, 'Cargo.toml'),
+    libManifest: ctx.lib.manifest,
+    rustTarget: rustTarget(target, arch),
+    runtimeVersion: packageVersion(PACKAGE_ROOT),
+    // `dev` goes on without a missing text; a release stops.
+    ...(build.live === undefined
+      ? {}
+      : { onMissing: (error: Error) => ctx.logger.warn(error.message) }),
+  });
+  logNotices(ctx.logger, notices, 'Contents/Resources/licenses/');
 
   await build.beforeReplace?.();
   ctx.signal.throwIfAborted();
@@ -300,16 +352,7 @@ async function buildPlugin(
     paths,
     description,
     ...(target === 'macos-universal' ? { macos: { minimumOs } } : {}),
-    licenses: [
-      {
-        name: 'vst3sdk',
-        directory: join(adapter.directory, 'licenses', 'vst3sdk'),
-      },
-      {
-        name: 'soundor-engine',
-        directory: join(artifact.directory, 'licenses'),
-      },
-    ],
+    notices: notices.notices,
   });
   // macOS: signed last, as nothing may write into a bundle after it.
   if (target === 'macos-universal') {
@@ -461,6 +504,40 @@ function waitForAbort(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) resolve();
     else signal.addEventListener('abort', () => resolve(), { once: true });
+  });
+}
+
+/**
+ * `licenses`: the notices a release build would ship, without building it:
+ * the release engine and adapter (downloaded once, as a build does), and
+ * the crate a build generates, written but not compiled, for Cargo to
+ * resolve.
+ */
+async function vst3Licenses(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+  deps: Vst3PhaseDeps = {},
+): Promise<LicensesReport> {
+  const { arch, target } = machine(deps);
+  if (ctx.lib === undefined) throw new EnvError(NO_LIBRARY);
+  const { artifact, adapter } = await linkedParts(ctx, 'release', deps);
+  const crateDir = join(ctx.paths.cache, 'licenses', 'crate');
+  const description = describePlugin(config, resolveVst3Options(ctx.options));
+  await writePluginCrate(config, description, ctx.lib.manifest, crateDir, {
+    files: [],
+    uiDirectory: '',
+    logFile: '',
+  });
+  return vst3Notices({
+    config,
+    root: ctx.paths.root,
+    engineDirectory: artifact.directory,
+    adapterDirectory: adapter.directory,
+    ...(ctx.ui === undefined ? {} : { ui: ctx.ui }),
+    crateManifest: join(crateDir, 'Cargo.toml'),
+    libManifest: ctx.lib.manifest,
+    rustTarget: rustTarget(target, arch),
+    runtimeVersion: packageVersion(PACKAGE_ROOT),
   });
 }
 
@@ -846,6 +923,7 @@ export const vst3Runtime = defineRuntime<Vst3Options>({
   dev: (config, ctx) => vst3Dev(config, ctx),
   build: (config, ctx) => vst3Build(config, ctx),
   doctor: (config, ctx) => vst3Doctor(config, ctx),
+  licenses: (config, ctx) => vst3Licenses(config, ctx),
 });
 
-export { vst3Build, vst3Dev, vst3Gen };
+export { vst3Build, vst3Dev, vst3Gen, vst3Licenses };

@@ -36,8 +36,8 @@ export function sdkSourceDir(): string {
 
 /**
  * The SDK's files for a project, under {@link SDK_GENERATED_DIR}: its
- * sources, its manifest at this CLI's version, and `src/plugin.rs` from
- * `config`.
+ * sources, its manifest at this CLI's version, its `LICENSE` (the notice a
+ * plugin linking it ships), and `src/plugin.rs` from `config`.
  */
 export function rustSdkFiles(
   config: ResolvedSoundorConfig,
@@ -50,6 +50,10 @@ export function rustSdkFiles(
         /^version = "0\.0\.0"$/m,
         `version = "${cliVersion()}"`,
       ),
+    },
+    {
+      path: `${SDK_GENERATED_DIR}/LICENSE`,
+      contents: readFileSync(join(sourceDir, 'LICENSE'), 'utf8'),
     },
   ];
   const sources = resolve(sourceDir, 'src');

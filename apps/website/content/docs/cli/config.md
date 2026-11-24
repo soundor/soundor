@@ -514,6 +514,37 @@ rejects anything that looks like it. Ad-hoc signing is enough to use a plugin
 on the Mac that built it; distributing one needs a Developer ID identity and
 notarization (see [signing and distributing on macOS](/docs/vst3-runtime#signing-and-distributing-on-macos)).
 
+### `licenses`
+
+Third-party notices the build cannot find on its own. Every build ships the
+notices of what it contains in `licenses/`, found from the build itself (see
+[Third-party notices](/docs/licenses)); this adds to them and corrects them.
+Optional.
+
+```ts
+licenses: {
+  add: [
+    { name: 'Hall impulse responses', license: 'CC-BY-4.0', file: './licenses/irs.txt' },
+  ],
+  packages: {
+    'tiny-color-lib': { license: 'MIT', file: './licenses/tiny-color-lib.txt' },
+    '@acme/internal-ui': false,
+  },
+  crates: {
+    'dsp-kernels': { license: 'BSD-3-Clause', file: './licenses/dsp-kernels.txt' },
+  },
+},
+```
+
+| Field      | Meaning                                                                                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `add`      | Notices for what the build cannot see (samples loaded at run time, data a crate embeds, copied code): `name` (its folder under `licenses/project/`), `license`, `file`. |
+| `packages` | By npm package name: `{ license, file }` replaces the notice found, for every version in the build; `false` ships none (a private package of your own).                 |
+| `crates`   | The same by Rust crate name; `std` is Rust's standard library.                                                                                                          |
+
+`license` is an SPDX expression; `file` is relative to the config and must
+exist. An override that matches nothing in the build gets a warning.
+
 ## License
 
 MIT

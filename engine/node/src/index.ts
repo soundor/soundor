@@ -64,9 +64,12 @@ import {
   buildFromSource,
   checkModule,
   localBuild,
+  webLicenses,
+  type EngineLicense,
 } from './web.ts';
 
 export type { EngineErrorCode } from './errors.ts';
+export type { EngineLicense } from './web.ts';
 export type { EngineTarget, NativeTarget, NativeVariant } from './targets.ts';
 
 /** Where an artifact comes from (module comment). */
@@ -105,6 +108,12 @@ export interface WebEngineArtifact extends PreparedArtifact {
     /** The WebAssembly core, `soundor-core.wasm`, for `@soundor/engine/web`. */
     readonly wasm: string;
   };
+  /**
+   * The notices of what the module contains, for whatever ships it: the
+   * engine's, Yoga's and Emscripten's system libraries' (this package's,
+   * whichever way the module was prepared).
+   */
+  readonly licenses: readonly EngineLicense[];
 }
 
 export interface NativeEngineArtifact extends PreparedArtifact {
@@ -328,7 +337,11 @@ function unavailable(reason: string, hint: string): never {
 }
 
 async function web(run: Run): Promise<WebEngineArtifact> {
-  const base = { target: 'web' as const, version: run.version };
+  const base = {
+    target: 'web' as const,
+    version: run.version,
+    licenses: webLicenses(run.root),
+  };
   const given = run.env['SOUNDOR_ENGINE_WASM'];
   if (given) {
     checkModule(given, 'SOUNDOR_ENGINE_WASM');

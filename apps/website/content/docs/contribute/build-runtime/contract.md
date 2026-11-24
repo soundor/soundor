@@ -33,7 +33,8 @@ flowchart TD
 
 `ctx.ui.dir` contains the bundle and its assets. `ctx.ui.module` identifies
 `bundle.mjs`, the UI as one ES2023 module, with `bundle.mjs.map` next to it in
-development. `soundor:*` imports are left for runtime resolution, except
+development, and `modules.json`, the files it kept after tree shaking, from
+which a runtime gathers its third-party notices (`readUiModules`). `soundor:*` imports are left for runtime resolution, except
 [`soundor:env`](/docs/api/env), which the CLI embeds from explicit config and
 the build mode. A runtime needs no extra native service for that module. Other npm
 dependencies have been inlined. A runtime whose engine runs another form makes

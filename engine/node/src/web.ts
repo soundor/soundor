@@ -8,15 +8,15 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   copyFileSync,
-  cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { webInputs } from '../../scripts/engine-inputs.mjs';
 import { PROTOCOL_VERSION } from '../../web/src/protocol.ts';
@@ -29,6 +29,49 @@ export { PROTOCOL_VERSION };
 
 /** The module's file name, in archives and stages. */
 export const WASM_FILE = 'soundor-core.wasm';
+
+/** A component of the WebAssembly core and its notice files. */
+export interface EngineLicense {
+  /** Its folder in a `licenses/` directory. */
+  readonly name: string;
+  /** Its license, as an SPDX expression. */
+  readonly license: string;
+  /** Absolute paths. */
+  readonly files: readonly string[];
+}
+
+/**
+ * The notices of what the WebAssembly core contains, from this package
+ * (the same version's module): the engine's own, Yoga's, and Emscripten's
+ * system libraries' (licenses/README.md). The package carries all of them;
+ * CI checks that a web archive does (engine-prebuilts.mjs).
+ */
+export function webLicenses(root: string): EngineLicense[] {
+  const directory = (name: string, license: string): EngineLicense => {
+    const path = join(root, 'licenses', name);
+    return {
+      name,
+      license,
+      files: existsSync(path)
+        ? readdirSync(path)
+            .sort()
+            .map((file) => join(path, file))
+        : [],
+    };
+  };
+  return [
+    {
+      name: 'engine',
+      license: 'MIT',
+      files: [join(root, 'LICENSE'), join(root, 'NOTICE.md')].filter((file) =>
+        existsSync(file),
+      ),
+    },
+    directory('yoga', 'MIT'),
+    // Emscripten's own code, and musl's libc.
+    directory('emscripten', '(MIT OR NCSA) AND MIT'),
+  ].filter((license) => license.files.length > 0);
+}
 
 /** What a valid module file is. */
 export interface CheckedModule {
@@ -234,23 +277,18 @@ export async function buildFromSource(
       const stage = stageDirectory(root);
       const partial = `${stage}.${randomUUID()}.partial`;
       try {
-        mkdirSync(join(partial, 'licenses', 'engine'), { recursive: true });
+        mkdirSync(partial, { recursive: true });
         copyFileSync(built, join(partial, WASM_FILE));
-        copyFileSync(
-          join(root, 'LICENSE'),
-          join(partial, 'licenses', 'engine', 'LICENSE'),
-        );
-        copyFileSync(
-          join(root, 'NOTICE.md'),
-          join(partial, 'licenses', 'engine', 'NOTICE.md'),
-        );
-        cpSync(
-          join(root, 'licenses', 'yoga'),
-          join(partial, 'licenses', 'yoga'),
-          {
+        for (const license of webLicenses(root)) {
+          mkdirSync(join(partial, 'licenses', license.name), {
             recursive: true,
-          },
-        );
+          });
+          for (const file of license.files)
+            copyFileSync(
+              file,
+              join(partial, 'licenses', license.name, basename(file)),
+            );
+        }
         writeFileSync(
           join(partial, 'soundor-engine.json'),
           `${JSON.stringify(metadata, null, 2)}\n`,

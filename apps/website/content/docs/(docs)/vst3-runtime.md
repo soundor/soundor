@@ -204,10 +204,13 @@ Acme Reverb.vst3/
     x86_64-win/Acme Reverb.vst3      Windows
     Resources/
       moduleinfo.json
-      licenses/           the notices of everything inside: VST3 SDK, engine, Skia, Hermes...
+      licenses/           the notices of everything inside: the engine (Skia, Hermes...),
+                          the VST3 SDK, the UI's npm packages, the Rust crates
 ```
 
-The binary needs nothing beside it: the UI is embedded. It exports only
+`licenses/` holds the [third-party notices](/docs/licenses) of everything the
+binary contains, found from what the build used: distribute it with the
+plugin. The binary needs nothing beside it: the UI is embedded. It exports only
 VST3's three entry points (`GetPluginFactory`, and `ModuleEntry` and
 `ModuleExit` on Linux, `bundleEntry` and `bundleExit` on macOS, `InitDll`
 and `ExitDll` on Windows); everything else (the SDK, the engine, Rust's

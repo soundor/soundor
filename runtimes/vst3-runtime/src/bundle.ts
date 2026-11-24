@@ -8,16 +8,17 @@
  *       x86_64-win/<Name>.vst3      Windows (a DLL)
  *       Resources/
  *         moduleinfo.json      the module's classes, for hosts that scan without loading
- *         licenses/            the notices of what the binary contains
+ *         licenses/            the notices of what the binary contains (notices.ts)
  *
  * The identity hosts keep in projects is the class ids inside, never the
  * file name: renaming the bundle keeps the plugin, a new plugin.id makes
  * another one.
  */
 
-import { existsSync } from 'node:fs';
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+import { writeNotices, type Notice } from '@soundor/runtime-sdk';
 
 import type { describePlugin } from './descriptor';
 import type { Vst3Target } from './targets';
@@ -143,10 +144,8 @@ export async function writeBundleResources(options: {
   readonly description: Description;
   /** macOS: the bundle's Info.plist and PkgInfo, for this minimum version. */
   readonly macos?: { readonly minimumOs: string };
-  readonly licenses: readonly {
-    readonly name: string;
-    readonly directory: string;
-  }[];
+  /** The third-party notices of what the binary contains (notices.ts). */
+  readonly notices: readonly Notice[];
 }): Promise<void> {
   const { paths } = options;
   await rm(paths.resources, { recursive: true, force: true });
@@ -166,11 +165,7 @@ export async function writeBundleResources(options: {
     );
     await writeFile(join(paths.contents, 'PkgInfo'), 'BNDL????');
   }
-  for (const license of options.licenses)
-    if (existsSync(license.directory))
-      await cp(
-        license.directory,
-        join(paths.resources, 'licenses', license.name),
-        { recursive: true },
-      );
+  await writeNotices(join(paths.resources, 'licenses'), options.notices, {
+    title: options.description.plugin.name,
+  });
 }
