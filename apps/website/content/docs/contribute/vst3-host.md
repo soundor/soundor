@@ -62,7 +62,8 @@ The executable's third-party code:
 
 All are fetched at configure time, checked by SHA-256, compiled into private
 static targets, and their archives kept in the user cache (`SOUNDOR_CACHE`). Their
-license notices ship in every platform package. The windows editors attach to are
+license notices ship in every platform package: staging and the tarball check
+(`scripts/release.ts`, `THIRD_PARTY_NOTICES`) refuse one without any of them. The windows editors attach to are
 native (X11 through `libX11.so.6` loaded in UI mode only, Cocoa, Win32).
 
 On Linux, every build links the C++ runtime statically, so a source build needs

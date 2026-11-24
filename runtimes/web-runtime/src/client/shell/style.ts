@@ -135,6 +135,8 @@ input.soundor-field[type="number"] { width: 72px; }
 .soundor-param input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--sd-accent); }
 .soundor-param select { grid-column: 1 / -1; width: 100%; }
 .soundor-empty { color: var(--sd-muted); }
+.soundor-notices { display: inline-block; margin: 12px 16px; color: var(--sd-muted); font-size: 11px; }
+.soundor-notices:hover, .soundor-notices:focus-visible { color: inherit; }
 .soundor-inspector summary { cursor: pointer; color: var(--sd-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .soundor-inspector pre {
   margin: 10px 0 0; font: 11px/1.5 ui-monospace, 'SF Mono', Menlo, monospace;

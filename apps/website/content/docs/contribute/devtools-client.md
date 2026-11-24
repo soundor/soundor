@@ -10,7 +10,9 @@ with Vite.
 The extracted dashboard preserves its UI, keyboard controls, authentication,
 tree inspection, accessibility, control ownership, logs, animations and metrics.
 The shared protocol supplies browser types; production connects to the real
-DevTools backend.
+DevTools backend. React ships inlined in the build, so its notices ship in
+`dist/licenses/` (the shared `thirdPartyNotices()` plugin), which the header
+links to.
 
 ```sh
 pnpm turbo run build --filter=@soundor/devtools-client...

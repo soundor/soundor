@@ -84,12 +84,14 @@ export { defineSoundorConfig } from './define';
 export { DEFAULT_EDITOR_SIZE, resolveEditor } from './editor';
 export { parseConfig } from './parse';
 export { validateConfig as resolveConfig } from './schema';
+export type { ValidateConfigOptions } from './schema';
 export type { ParseConfigOptions } from './parse';
 
 // Runtime contract
 export type {
   DoctorCheck,
   DoctorReport,
+  LicensesReport,
   DevToolsCapabilities,
   RuntimeCapabilities,
   Runtime,
@@ -118,6 +120,13 @@ export type {
   LibraryArtifact,
   UiBundleContext,
 } from './context';
+
+// Third-party notices
+export type {
+  AddedLicenseConfig,
+  LicenseOverrideConfig,
+  LicensesConfig,
+} from './licenses';
 
 // Code signing
 export {

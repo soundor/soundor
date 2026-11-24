@@ -116,7 +116,7 @@ export function isSourceCheckout(packageRoot: string): boolean {
   return existsSync(join(packageRoot, 'native', 'tests', 'CMakeLists.txt'));
 }
 
-function packageVersion(packageRoot: string): string {
+export function packageVersion(packageRoot: string): string {
   return (
     JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
       version: string;

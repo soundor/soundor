@@ -320,6 +320,18 @@ The engine is MIT licensed. Its dependencies are permissive (BSD, MIT,
 Apache-2.0, zlib, IJG and similar) but require their notices to accompany
 binaries: every prebuilt archive carries all of them in `licenses/`, and the
 npm package the ones the dependencies' own builds leave out
-(`engine/licenses`, see its README). **A plugin you distribute
-contains the engine**, so distribute those notices with it, whichever mode
-built it.
+(`engine/licenses`, see its README). The WebAssembly core's are the engine's,
+Yoga's and those of the Emscripten system libraries it contains (musl's libc),
+in its archive and in the npm package (`webLicenses()`).
+
+The engine's lowering (`@soundor/engine/native-module`) inlines Babel and what
+it uses, so the npm package carries their notices in `dist/licenses/`. Babel's
+transforms put its helper functions into the code they lower, so a VST3
+plugin's notices include `@babel/helpers` (`loweredCodeNotices()`).
+
+**A plugin you distribute contains the engine**, whichever mode built it, and
+its build ships these notices on its own: the VST3 runtime copies the
+archive's into the bundle's `licenses/engine/`, the web runtime the
+WebAssembly core's into `licenses/engine/` of its site, beside the notices of
+everything else the plugin contains. See
+[Third-party notices](/docs/licenses).

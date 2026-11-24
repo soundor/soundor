@@ -1,5 +1,5 @@
 // Generated platform packages, their tarballs, and the resumable publisher.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
@@ -13,6 +13,7 @@ import {
   pack,
   plannedHost,
   publish,
+  stage,
   verify,
 } from '../../scripts/release.ts';
 import { readTarball } from '../../src/npm.ts';
@@ -80,6 +81,9 @@ describe('platform packages', () => {
       'NOTICE.md',
       'README.md',
       'bin/soundor-vst3-host',
+      'licenses/imgui/LICENSE.txt',
+      'licenses/inter/LICENSE.txt',
+      'licenses/sdl/LICENSE.txt',
       'licenses/vst3sdk/LICENSE.txt',
       'package.json',
       'soundor-vst3-host.json',
@@ -87,6 +91,23 @@ describe('platform packages', () => {
     expect(
       entries.find((e) => e.path === 'bin/soundor-vst3-host')!.mode & 0o111,
     ).toBe(0o111);
+  });
+
+  test('refuse to stage a build without every third-party notice', () => {
+    const build = temporary();
+    const target = targets[0]!;
+    artifact(build, target);
+    rmSync(join(build, 'licenses', 'sdl'), { recursive: true });
+    rmSync(join(build, 'licenses', 'inter'), { recursive: true });
+    expect(() =>
+      stage({
+        executable: join(build, target.executable),
+        target: target.target,
+        commit: COMMIT,
+        out: temporary(),
+        root: packageCopy(),
+      }),
+    ).toThrow(/has no sdl\/LICENSE\.txt, inter\/LICENSE\.txt/);
   });
 
   test('refuse a set built from different commits or sources', () => {

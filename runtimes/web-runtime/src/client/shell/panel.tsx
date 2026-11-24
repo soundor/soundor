@@ -24,6 +24,11 @@ export interface PanelProps {
   readonly parameters: ParameterStore;
   /** Shows the host state (the `dev` presentation). */
   readonly inspect: boolean;
+  /**
+   * Where the build's third-party notices are (`licenses/` of a production
+   * build), linked at the end of the panel; none in `dev`.
+   */
+  readonly notices?: string;
 }
 
 /**
@@ -97,6 +102,16 @@ export function Panel(props: PanelProps) {
             <pre>{JSON.stringify(snapshot, round, 2)}</pre>
           </details>
         ) : null}
+        {props.notices === undefined ? null : (
+          <a
+            class="soundor-notices"
+            href={props.notices}
+            target="_blank"
+            rel="noopener"
+          >
+            Third-party notices
+          </a>
+        )}
       </div>
     </aside>
   );

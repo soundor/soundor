@@ -71,6 +71,7 @@ describe('runtime lifecycle', () => {
         requests.push(request);
         return { path: '/p/library.wasm', target: request.target! };
       },
+      notices: async () => ({ notices: [], issues: [], unused: [] }),
     };
 
     const vst3Runtime = defineRuntime<{ format: string }>({

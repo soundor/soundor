@@ -71,7 +71,7 @@ function webStage(edit = (metadata) => metadata) {
     JSON.stringify(metadata),
   );
   writeFileSync(join(directory, 'soundor-core.wasm'), wasmModule);
-  for (const component of ['engine', 'yoga']) {
+  for (const component of ['engine', 'yoga', 'emscripten']) {
     mkdirSync(join(directory, 'licenses', component), { recursive: true });
     writeFileSync(join(directory, 'licenses', component, 'LICENSE'), component);
   }

@@ -69,11 +69,13 @@ export function artifact(
   mkdirSync(join(directory, dirname(target.executable)), { recursive: true });
   writeFileSync(join(directory, target.executable), bytes);
   chmodSync(join(directory, target.executable), 0o755);
-  mkdirSync(join(directory, 'licenses', 'vst3sdk'), { recursive: true });
-  writeFileSync(
-    join(directory, 'licenses', 'vst3sdk', 'LICENSE.txt'),
-    'MIT License\n',
-  );
+  for (const component of ['vst3sdk', 'sdl', 'imgui', 'inter']) {
+    mkdirSync(join(directory, 'licenses', component), { recursive: true });
+    writeFileSync(
+      join(directory, 'licenses', component, 'LICENSE.txt'),
+      `${component} license\n`,
+    );
+  }
   const { bytes: _, ...rest } = fields;
   const provenance: Provenance = {
     format: 1,

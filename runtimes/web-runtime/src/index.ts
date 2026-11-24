@@ -10,14 +10,17 @@
  */
 
 import { stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import {
   ConfigError,
   defineRuntime,
   EnvError,
+  logNotices,
   RuntimeError,
+  writeNotices,
   type DoctorReport,
+  type LicensesReport,
   type LifecycleContext,
   type Logger,
   type ResolvedSoundorConfig,
@@ -27,10 +30,13 @@ import {
   createServer as viteCreateServer,
   type InlineConfig,
   type Logger as ViteLogger,
+  type Plugin,
 } from 'vite';
 
 import { generateWebSources } from './codegen';
 import { buildWebDoctorReport } from './doctor';
+import { engineWasmLicenses } from './engine-wasm';
+import { modulesCollector, webNotices } from './notices';
 import { resolveWebOptions, type WebOptions } from './options';
 import { HOST_DIR } from './paths';
 import { PROCESSOR_MODULE, soundorWebPlugin } from './plugin';
@@ -54,6 +60,8 @@ export interface WebPhaseDeps {
   readonly build?: typeof viteBuild;
   /** This package's browser code (defaults to the installed one). */
   readonly clientDir?: string;
+  /** The engine module's notices (defaults to the installed engine's). */
+  readonly engineLicenses?: typeof engineWasmLicenses;
 }
 
 type Ctx = LifecycleContext<WebOptions>;
@@ -154,15 +162,74 @@ export async function webBuild(
   }
   const processor = await buildLibrary(ctx);
   const build = deps.build ?? viteBuild;
+  const modules = new Set<string>();
   try {
     await build({
-      ...viteConfig(config, ctx, deps, processor),
+      ...viteConfig(config, ctx, deps, processor, [modulesCollector(modules)]),
       mode: 'production',
     });
   } catch (error) {
     throw viteFailure('build the Web host', 'build', error);
   }
+  const notices = await noticesOf(config, ctx, modules, deps);
+  await writeNotices(join(ctx.paths.dist, 'licenses'), notices.notices, {
+    title: config.plugin.name,
+  });
+  logNotices(ctx.logger, notices, 'licenses/');
   ctx.logger.info(`Built the Web host -> ${ctx.paths.dist}`);
+}
+
+/** What a web build of the project contains that has a notice (notices.ts). */
+async function noticesOf(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+  pageModules: Iterable<string>,
+  deps: WebPhaseDeps,
+): Promise<LicensesReport> {
+  return webNotices({
+    config,
+    root: ctx.fs.resolve(),
+    pageModules,
+    ...(ctx.ui === undefined ? {} : { ui: ctx.ui }),
+    ...(ctx.lib === undefined ? {} : { lib: ctx.lib }),
+    rustTarget: WASM_TARGET,
+    engineLicenses: await (deps.engineLicenses ?? engineWasmLicenses)(),
+  });
+}
+
+/**
+ * `licenses` — the notices a build would ship, without building: the host
+ * page is bundled in memory to see what it contains, the Rust library is
+ * not compiled (Cargo resolves its crates).
+ */
+export async function webLicenses(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+  deps: WebPhaseDeps = {},
+): Promise<LicensesReport> {
+  resolveWebOptions(ctx.options);
+  await validateProject(ctx);
+  const build = deps.build ?? viteBuild;
+  const modules = new Set<string>();
+  try {
+    await build({
+      // Never into the build's directory, though nothing is written.
+      ...viteConfig(
+        config,
+        ctx,
+        deps,
+        undefined,
+        [modulesCollector(modules)],
+        ctx.fs.resolve('.soundor', 'cache', 'licenses', RUNTIME_ID),
+      ),
+      mode: 'production',
+      logLevel: 'warn',
+      build: { write: false },
+    });
+  } catch (error) {
+    throw viteFailure('bundle the Web host', 'build', error);
+  }
+  return noticesOf(config, ctx, modules, deps);
 }
 
 /** `doctor` — Node.js, Vite, Rust and managed-host migration. */
@@ -181,6 +248,7 @@ export const webRuntime = defineRuntime<WebOptions>({
   dev: (config, ctx) => webDev(config, ctx),
   build: (config, ctx) => webBuild(config, ctx),
   doctor: webDoctor,
+  licenses: (config, ctx) => webLicenses(config, ctx),
 });
 
 export default webRuntime;
@@ -192,7 +260,9 @@ function viteConfig(
   config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps,
-  processor: string,
+  processor: string | undefined,
+  extra: readonly Plugin[] = [],
+  outDir: string = ctx.paths.dist,
 ): InlineConfig {
   const hostDir = HOST_DIR;
   return {
@@ -208,14 +278,15 @@ function viteConfig(
         projectRoot: ctx.fs.resolve(),
         inputs: ctx.options.inputs,
         genDir: ctx.paths.gen,
-        outDir: ctx.paths.dist,
+        outDir,
         clientDir: deps.clientDir,
         ui: ctx.ui,
-        processor,
+        ...(processor === undefined ? {} : { processor }),
         pluginName: config.plugin.name,
         environmentMode:
           ctx.mode === 'production' ? 'production' : 'development',
       }),
+      ...extra,
     ],
   };
 }

@@ -115,6 +115,41 @@ export type { EnvironmentValues, EnvironmentMode } from './env';
 
 export { resolveSetter, type ValueOrUpdater } from './setter';
 
+export type {
+  AddedLicense,
+  CrateNoticesOptions,
+  JavascriptNoticesOptions,
+  LicenseOverride,
+  Notice,
+  NoticeCollection,
+  NoticeFile,
+  NoticeManifest,
+  NoticeOrigin,
+  ResolvedLicenses,
+  RunTool,
+  RustStdNoticeOptions,
+} from './notices';
+export {
+  LicenseNoticeError,
+  NO_LICENSES,
+  UI_MODULES_FILE,
+  addedNotices,
+  crateNotices,
+  describeNotice,
+  directoryNotices,
+  isLicenseFile,
+  logNotices,
+  javascriptNotices,
+  noticeManifest,
+  readUiModules,
+  renderNoticesText,
+  rustStdNotice,
+  settleNotices,
+  sortNotices,
+  summarizeNotices,
+  writeNotices,
+} from './notices';
+
 export { FactoryPresets } from './presets';
 export type {
   FactoryPreset,

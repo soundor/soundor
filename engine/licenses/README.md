@@ -18,6 +18,14 @@ in `cmake/SoundorDependencies.cmake`:
 | `hermes/quickjs-ng`    | Hermes (Linux)    | QuickJS-NG at its pinned revision (libunicode tables)                                   |
 | `ada`                  | the engine        | ada-url/ada `v3.4.4`                                                                    |
 | `yoga`                 | the engine        | facebook/yoga at its pinned revision                                                    |
+| `emscripten`           | the WebAssembly core | Emscripten's `LICENSE` and musl's `COPYRIGHT` (its libc), at the pinned Emscripten (`wasm/emscripten.json`) |
+
+The WebAssembly core (`soundor-core.wasm`) contains the engine's own core,
+Yoga, and the parts of Emscripten's system libraries it uses: musl's libc,
+whose notice is in `emscripten/`, and LLVM's libc++, libc++abi and
+compiler-rt, whose LLVM exception asks for no notice in compiled form. Its
+notices are `webLicenses()` (`node/src/web.ts`), which the web archive and
+the web runtime both use.
 
 Skia's skcms is Skia's own code, under Skia's license. JSI ships with Hermes
 under its license. When a pin changes, update the matching notices here; the

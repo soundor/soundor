@@ -12,6 +12,8 @@
  * - `bundle.mjs.map` — its source map, in development.
  * - `assets/<id>` — every image and font the bundle uses, named by content hash.
  * - `manifest.json` — the bundle's assets, for tooling.
+ * - `modules.json` — the files the bundle contains after tree shaking
+ *   (absolute paths), from which runtimes gather its third-party notices.
  * - `build-id` — a hash of the build, written last: when it changes, a complete
  *   new build is on disk (`soundor dev` reloads the plugin UI on it).
  *
@@ -22,9 +24,13 @@
 import { createHash } from 'node:crypto';
 import { existsSync, watch as watchFiles } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { extname, join, relative, resolve } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 
-import { renderEnvironmentModule, type EnvironmentValues } from '@soundor/core';
+import {
+  renderEnvironmentModule,
+  UI_MODULES_FILE,
+  type EnvironmentValues,
+} from '@soundor/core';
 import { build, type TsdownPlugin } from 'tsdown';
 
 export type UiBundleMode = 'development' | 'production';
@@ -130,6 +136,22 @@ function assetPlugin(
   };
 }
 
+/**
+ * Records the modules the bundle renders code of: what tree shaking kept,
+ * for its third-party notices.
+ */
+function modulesPlugin(modules: Set<string>): TsdownPlugin {
+  return {
+    name: 'soundor:modules',
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle))
+        if (output.type === 'chunk')
+          for (const [id, module] of Object.entries(output.modules))
+            if (module.renderedLength > 0) modules.add(id.split('?')[0]!);
+    },
+  };
+}
+
 /** Bundles the project's UI, or returns undefined when it has none. */
 export async function bundleUi(
   options: BundleUiOptions,
@@ -139,6 +161,7 @@ export async function bundleUi(
   const production = options.mode === 'production';
   const outDir = resolve(options.outDir);
   const assets = new Map<string, { asset: UiAsset; bytes: Uint8Array }>();
+  const modules = new Set<string>();
 
   if (options.clean ?? true) await rm(outDir, { recursive: true, force: true });
   await build({
@@ -190,6 +213,7 @@ export async function bundleUi(
         },
       },
       assetPlugin(options.root, assets),
+      modulesPlugin(modules),
     ],
   });
 
@@ -218,6 +242,18 @@ export async function bundleUi(
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
   await writeFile(join(outDir, 'manifest.json'), manifestText);
+  await writeFile(
+    join(outDir, UI_MODULES_FILE),
+    `${JSON.stringify(
+      {
+        modules: [...modules]
+          .filter((id) => !id.startsWith('\0') && isAbsolute(id))
+          .sort(),
+      },
+      null,
+      2,
+    )}\n`,
+  );
 
   // Last, and atomically: whoever sees a new id sees the complete build.
   const buildId = createHash('sha256')

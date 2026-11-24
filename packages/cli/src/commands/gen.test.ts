@@ -69,6 +69,7 @@ describe('runGen', () => {
             { path: 'presets.d.ts', status: 'created' },
             // The Rust SDK, with the contract the processing gets.
             { path: 'rust/soundor/Cargo.toml', status: 'created' },
+            { path: 'rust/soundor/LICENSE', status: 'created' },
             { path: 'rust/soundor/src/audio.rs', status: 'created' },
             { path: 'rust/soundor/src/compile_tests.rs', status: 'created' },
             { path: 'rust/soundor/src/context.rs', status: 'created' },

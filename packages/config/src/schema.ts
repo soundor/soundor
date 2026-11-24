@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { audioSchema, checkAudio } from './audio';
 import { checkEditor, editorSchema, resolveEditor } from './editor';
 import { type ConfigIssue, ConfigError } from './errors';
+import { licensesSchema, resolveLicenses } from './licenses';
 import { resolveParameters } from './parameter-model';
 import type { ResolvedParameter } from './parameters';
 import { resolvePresets } from './presets';
@@ -133,6 +134,7 @@ const soundorConfigSchema = z.strictObject({
   state: z.unknown().optional(),
   presets: z.unknown().optional(),
   signing: signingSchema.optional(),
+  licenses: licensesSchema.optional(),
 });
 
 /**
@@ -154,12 +156,23 @@ function formatPath(path: readonly PropertyKey[]): string {
   return out;
 }
 
+export interface ValidateConfigOptions {
+  /**
+   * The config's directory, which paths in it are relative to (default: the
+   * working directory).
+   */
+  readonly root?: string;
+}
+
 /**
  * Validates and normalizes a raw, evaluated config value into a deterministic
  * {@link ResolvedSoundorConfig}. Throws {@link ConfigError} of kind `validation` with
  * structured issues on any failure.
  */
-export function validateConfig(raw: unknown): ResolvedSoundorConfig {
+export function validateConfig(
+  raw: unknown,
+  options: ValidateConfigOptions = {},
+): ResolvedSoundorConfig {
   const result = soundorConfigSchema.safeParse(raw);
   if (!result.success) {
     const issues: ConfigIssue[] = result.error.issues.flatMap((issue) =>
@@ -185,6 +198,11 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
   const issues: ConfigIssue[] = [];
 
   if (data.env) issues.push(...environmentIssues(data.env));
+  const licenses = resolveLicenses(
+    data.licenses,
+    options.root ?? process.cwd(),
+    issues,
+  );
 
   checkUniqueIds(data.runtimes, (r) => r.id, 'runtimes', 'runtime', issues);
   const parameters = resolveParameters(
@@ -246,6 +264,7 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
 
   return {
     ...normalize(data, parameters),
+    licenses,
     ...(data.presets === undefined ? {} : { presets }),
   };
 }

@@ -43,10 +43,13 @@ it.each(['ts', 'js'])(
       join(dependency, 'package.json'),
       JSON.stringify({
         name: 'browser-source',
+        version: '1.0.0',
+        license: 'MIT',
         type: 'module',
         exports: './index.js',
       }),
     );
+    await writeFile(join(dependency, 'LICENSE'), 'BROWSER_SOURCE_LICENSE');
     await writeFile(
       join(dependency, 'index.js'),
       'export const label = "INSTALLED_BROWSER_DEPENDENCY";',
@@ -75,6 +78,22 @@ export default [defineInput({ id, label, start({ context, destination }) {
     expect(code).toContain('LOCAL_INPUT_MODULE');
     expect(code).not.toMatch(/from\s*['"]browser-source/);
     expect(code).not.toContain(root);
+    // Its notice ships with the build, beside the runtime's own packages'.
+    expect(
+      await readFile(
+        join(
+          ctx.paths.dist,
+          'licenses/javascript/browser-source@1.0.0/LICENSE',
+        ),
+        'utf8',
+      ),
+    ).toBe('BROWSER_SOURCE_LICENSE');
+    const notices = await readFile(
+      join(ctx.paths.dist, 'licenses/THIRD-PARTY-NOTICES.txt'),
+      'utf8',
+    );
+    expect(notices).toContain('browser-source 1.0.0 (MIT)');
+    expect(notices).toContain('preact');
   },
 );
 

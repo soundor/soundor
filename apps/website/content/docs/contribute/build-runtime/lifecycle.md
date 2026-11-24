@@ -1,6 +1,6 @@
 ---
 title: 'Lifecycle and tooling'
-description: 'Implement the four phases, development sessions, signing and optional DevTools support.'
+description: 'Implement the four phases, the optional licenses report, development sessions, signing and optional DevTools support.'
 ---
 
 ## Purpose
@@ -24,21 +24,44 @@ flowchart TD
     descriptor --> config["config.runtimes"]
     config --> dispatch["resolveRuntime and runPhase"]
     dispatch --> method["method(config, ctx)"]
-    method --> result["Promise<void>, or doctor report"]
+    method --> result["Promise<void>, doctor or licenses report"]
 ```
 
-All four methods are required. They receive the parsed `SoundorConfig` and a
-`LifecycleContext<Options>`:
+All four methods are required; a fifth, `licenses`, is optional. They receive
+the parsed `SoundorConfig` and a `LifecycleContext<Options>`:
 
-| Phase    | Responsibility                                                       | Result                  |
-| -------- | -------------------------------------------------------------------- | ----------------------- |
-| `gen`    | Emit deterministic relative paths and contents through `ctx.codegen` | `Promise<void>`         |
-| `dev`    | Run the long-lived development workflow until `ctx.signal` aborts    | `Promise<void>`         |
-| `build`  | Produce production output under `ctx.paths.dist`                     | `Promise<void>`         |
-| `doctor` | Diagnose toolchain and environment readiness                         | `Promise<DoctorReport>` |
+| Phase      | Responsibility                                                                    | Result                    |
+| ---------- | --------------------------------------------------------------------------------- | ------------------------- |
+| `gen`      | Emit deterministic relative paths and contents through `ctx.codegen`              | `Promise<void>`           |
+| `dev`      | Run the long-lived development workflow until `ctx.signal` aborts                 | `Promise<void>`           |
+| `build`    | Produce production output under `ctx.paths.dist`                                  | `Promise<void>`           |
+| `doctor`   | Diagnose toolchain and environment readiness                                      | `Promise<DoctorReport>`   |
+| `licenses` | Optional: the third-party notices a production build would ship, without building | `Promise<LicensesReport>` |
 
 A doctor report contains `checks`, each with `label`, `status` (`ok`, `warn` or
 `fail`), optional `detail`, and an actionable `suggestion` when useful.
+
+### Third-party notices
+
+A runtime's `build` ships the [third-party notices](/docs/licenses) of what its
+output contains, in a `licenses/` folder, and `licenses` reports the same
+without building (`soundor licenses`). `@soundor/runtime-sdk` has the parts
+(from `@soundor/core`):
+
+| Helper                          | What it gives                                                                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `readUiModules`                 | The files the UI bundle kept after tree shaking (`ctx.ui.dir`'s `modules.json`).                                                       |
+| `javascriptNotices`             | The notices of npm packages and project files among those files, and any your own bundler adds (collect its `generateBundle` modules). |
+| `ctx.lib.notices`               | The crates the project's library links for a target, and Rust's std; the CLI runs Cargo.                                               |
+| `crateNotices`, `rustStdNotice` | The same for a crate the runtime builds itself (the VST3 runtime's generated crate).                                                   |
+| `directoryNotices`              | A prebuilt part's own `licenses/`, as it is.                                                                                           |
+| `addedNotices`                  | What `config.licenses` adds.                                                                                                           |
+| `settleNotices`                 | Fails with every component that has no text, naming the config that fixes it.                                                          |
+| `writeNotices`, `logNotices`    | Writes the folder (`THIRD-PARTY-NOTICES.txt`, `licenses.json`), and logs its summary and unused overrides.                             |
+
+Apply `config.licenses` (resolved, its files absolute) to every collector.
+Notices are collected before the old output is replaced, so a missing text
+keeps the previous build.
 
 ### Context
 
@@ -50,8 +73,8 @@ A doctor report contains `checks`, each with `label`, `status` (`ok`, `warn` or
 | `fs`                       | Filesystem interface, replaceable in tests                       |
 | `logger`                   | Structured runtime logger; use its pipe for subprocess output    |
 | `codegen`                  | Collection sink for generated sources                            |
-| `lib`                      | Optional Rust library build context for dev/build                |
-| `ui`                       | Optional CLI-produced bundle, supplied to dev/build              |
+| `lib`                      | Optional Rust library build context for dev/build/licenses       |
+| `ui`                       | Optional CLI-produced bundle, supplied to dev/build/licenses     |
 | `session`                  | Optional development terminal integration                        |
 | `signing`                  | Signing policy already resolved by the CLI's dispatcher          |
 | `devtools`                 | Optional credentials for an active supported debug session       |
@@ -87,6 +110,8 @@ for the host. Use `staticlib` for native plugin linking. `LibraryArtifact` gives
 the compiled `path` and `target`. The CLI owns Cargo compilation and its cache
 in `.soundor/cache/lib/`; runtimes link or load the artifact. During development,
 subscribe through `ctx.lib.onChange` and stop the subscription during cleanup.
+`ctx.lib.notices(target, config.licenses)` resolves, without compiling, the
+third-party notices of what the library links for `target`.
 This build service is separate from the public `native.methods` and
 `native.events` UI-to-host API, whose names stay unchanged.
 

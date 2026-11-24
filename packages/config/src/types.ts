@@ -1,4 +1,4 @@
-import type { EnvironmentValues } from '@soundor/core';
+import type { EnvironmentValues, ResolvedLicenses } from '@soundor/core';
 /**
  * Soundor configuration model.
  *
@@ -12,6 +12,7 @@ import type { NativeApiDeclaration } from '@soundor/core';
 
 import type { AudioConfig } from './audio';
 import type { EditorConfig, ResolvedEditorConfig } from './editor';
+import type { LicensesConfig } from './licenses';
 import type {
   CheckedParameters,
   ParameterDeclarations,
@@ -180,6 +181,12 @@ export interface SoundorConfig<
   state?: StateDeclarations;
   /** Code signing; runtimes read the resolved settings from `ctx.signing`. */
   signing?: SigningConfig;
+  /**
+   * Third-party notices the build cannot find on its own. Every build ships
+   * those of what it contains, in `licenses/`; this adds to them and
+   * overrides them.
+   */
+  licenses?: LicensesConfig;
 }
 
 /**
@@ -210,4 +217,6 @@ export interface ResolvedSoundorConfig {
   /** Application data persisted with the plugin; never host parameters. */
   state?: StateDeclarations;
   signing?: SigningConfig;
+  /** Resolved `licenses`, its files absolute; none by default. */
+  licenses?: ResolvedLicenses;
 }

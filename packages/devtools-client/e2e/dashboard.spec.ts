@@ -47,6 +47,15 @@ test('production assets, bootstrap, inspector controls, reload and reconnect', a
     expect(
       (await page.request.get(server.url + '/assets/not-found.js')).status(),
     ).toBe(404);
+    // The notices of the React it bundles, linked from its header.
+    const notices = page.getByRole('link', { name: 'Third-party notices' });
+    const href = await notices.getAttribute('href');
+    expect(href).toBe('/licenses/THIRD-PARTY-NOTICES.txt');
+    const text = await (await page.request.get(server.url + href)).text();
+    expect(text).toContain('react-dom 19');
+    expect(text).toContain(
+      'Copyright (c) Meta Platforms, Inc. and affiliates.',
+    );
     await page.goto(server.url + '/inspect/tree');
     await expect(
       page.getByRole('heading', { name: 'Soundor DevTools' }),

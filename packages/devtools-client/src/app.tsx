@@ -28,6 +28,14 @@ export function App({ inspector }: { inspector: Inspector }) {
         <span id="status" role="status">
           {ui.status}
         </span>
+        <a
+          className="notices"
+          href="/licenses/THIRD-PARTY-NOTICES.txt"
+          target="_blank"
+          rel="noopener"
+        >
+          Third-party notices
+        </a>
       </header>
       <form
         id="auth"

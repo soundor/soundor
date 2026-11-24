@@ -247,7 +247,7 @@ function formatBuildFailureMessage(
   ].join('\n');
 }
 
-function resolveConfigPath(cwd: string, configPath?: string): string {
+export function resolveConfigPath(cwd: string, configPath?: string): string {
   if (configPath === undefined) return locateConfig(cwd);
   return isAbsolute(configPath) ? configPath : resolve(cwd, configPath);
 }

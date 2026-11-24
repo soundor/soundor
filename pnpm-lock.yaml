@@ -1163,6 +1163,9 @@ importers:
       '@soundor/devtools-server':
         specifier: workspace:^
         version: link:../devtools-server
+      '@soundor/tsdown-config':
+        specifier: workspace:^
+        version: link:../../configs/tsdown-config
       '@soundor/typescript-config':
         specifier: workspace:^
         version: link:../../configs/typescript-config

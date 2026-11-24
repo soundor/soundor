@@ -24,9 +24,13 @@ import {
 } from '../../../.github/scripts/engine-prebuilts.mjs';
 import { webInputs } from '../../scripts/engine-inputs.mjs';
 import { withLock } from '../src/cache.ts';
-import { type EngineContext, engine } from '../src/index.ts';
+import {
+  type EngineContext,
+  engine,
+  loweredCodeNotices,
+} from '../src/index.ts';
 import { hostTarget } from '../src/targets.ts';
-import { PROTOCOL_VERSION } from '../src/web.ts';
+import { PROTOCOL_VERSION, webLicenses } from '../src/web.ts';
 
 const work = mkdtempSync(join(tmpdir(), 'soundor-engine-node-'));
 after(() => rmSync(work, { recursive: true, force: true }));
@@ -482,10 +486,10 @@ describe('prebuilt web artifacts', () => {
     const directory = fresh('stage');
     const module = wasm();
     writeFileSync(join(directory, 'soundor-core.wasm'), module);
-    mkdirSync(join(directory, 'licenses', 'engine'), { recursive: true });
-    mkdirSync(join(directory, 'licenses', 'yoga'));
-    writeFileSync(join(directory, 'licenses', 'engine', 'LICENSE'), 'MIT');
-    writeFileSync(join(directory, 'licenses', 'yoga', 'LICENSE'), 'MIT');
+    for (const component of ['engine', 'yoga', 'emscripten']) {
+      mkdirSync(join(directory, 'licenses', component), { recursive: true });
+      writeFileSync(join(directory, 'licenses', component, 'LICENSE'), 'MIT');
+    }
     writeFileSync(
       join(directory, 'soundor-engine.json'),
       JSON.stringify({
@@ -1016,5 +1020,68 @@ describe('locks', () => {
       await withLock(lock, () => 'taken', { timeout: 2000 }),
       'taken',
     );
+  });
+});
+
+describe("the WebAssembly core's notices", () => {
+  test('are the engine, Yoga and Emscripten, from the package', () => {
+    const root = join(import.meta.dirname, '..', '..');
+    const licenses = webLicenses(root);
+    assert.deepEqual(
+      licenses.map((license) => [license.name, license.license]),
+      [
+        ['engine', 'MIT'],
+        ['yoga', 'MIT'],
+        ['emscripten', '(MIT OR NCSA) AND MIT'],
+      ],
+    );
+    assert.deepEqual(
+      licenses.find((license) => license.name === 'emscripten')!.files,
+      [
+        join(root, 'licenses', 'emscripten', 'LICENSE'),
+        join(root, 'licenses', 'emscripten', 'musl-COPYRIGHT'),
+      ],
+    );
+  });
+});
+
+describe("the lowering's notices", () => {
+  test("are Babel's helpers, from the notices the package's build writes", () => {
+    const root = fresh('lowering');
+    const licenses = join(root, 'dist', 'licenses');
+    mkdirSync(join(licenses, 'javascript', '@babel', 'helpers@8.1.2'), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(licenses, 'licenses.json'),
+      JSON.stringify({
+        format: 1,
+        components: [
+          {
+            name: '@babel/core',
+            version: '8.1.2',
+            license: 'MIT',
+            files: ['javascript/@babel/core@8.1.2/LICENSE'],
+          },
+          {
+            name: '@babel/helpers',
+            version: '8.1.2',
+            license: 'MIT',
+            files: ['javascript/@babel/helpers@8.1.2/LICENSE'],
+          },
+        ],
+      }),
+    );
+    assert.deepEqual(loweredCodeNotices(root), [
+      {
+        name: '@babel/helpers',
+        version: '8.1.2',
+        license: 'MIT',
+        files: [
+          join(licenses, 'javascript', '@babel', 'helpers@8.1.2', 'LICENSE'),
+        ],
+      },
+    ]);
+    assert.deepEqual(loweredCodeNotices(fresh('unbuilt')), []);
   });
 });

@@ -14,6 +14,7 @@ import { devCommand } from './commands/dev';
 import { doctorCommand } from './commands/doctor';
 import { driverCommand } from './commands/driver';
 import { genCommand } from './commands/gen';
+import { licensesCommand } from './commands/licenses';
 
 const main = defineCommand({
   meta: {
@@ -26,6 +27,7 @@ const main = defineCommand({
     build: buildCommand,
     doctor: doctorCommand,
     driver: driverCommand,
+    licenses: licensesCommand,
   },
 });
 

@@ -256,6 +256,31 @@ describe('bundleUi', () => {
     });
   });
 
+  it('names the files the bundle kept in modules.json, for its notices', async () => {
+    await write('src/used.ts', 'export const used = "USED";');
+    await write('src/unused.ts', 'export const unused = "UNUSED";');
+    await write('src/logo.png', PNG);
+    await write('src/unused.png', Uint8Array.from([...PNG, 9]));
+    await write(
+      'src/main.ts',
+      `import { used } from './used'; import { unused } from './unused';
+       import logo from './logo.png'; import other from './unused.png';
+       void unused; void other;
+       globalThis.ui = [used, logo];`,
+    );
+    const { result } = await bundle();
+    const { modules } = JSON.parse(
+      await readFile(join(result.dir, 'modules.json'), 'utf8'),
+    ) as { modules: string[] };
+    expect(modules).toEqual(
+      [
+        join(root, 'src/logo.png'),
+        join(root, 'src/main.ts'),
+        join(root, 'src/used.ts'),
+      ].sort(),
+    );
+  });
+
   it('bundles SVG by content identity and MIME type, excluding tree-shaken SVGs', async () => {
     const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><path d="M0 0h20v10H0z"/></svg>';

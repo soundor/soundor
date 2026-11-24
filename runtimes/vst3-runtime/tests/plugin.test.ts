@@ -163,6 +163,42 @@ describe('the VST3 test plugin', () => {
     ]);
   });
 
+  it('ships the third-party notices of what it contains', () => {
+    const licenses = `${plugin}/Contents/Resources/licenses`;
+    const { format, components } = JSON.parse(
+      readFileSync(`${licenses}/licenses.json`, 'utf8'),
+    ) as {
+      format: number;
+      components: { directory: string; files: string[] }[];
+    };
+    expect(format).toBe(1);
+    const directories = components.map((component) => component.directory);
+    // The engine's own, as its archive carries them, the adapter's SDK, and
+    // the crates linked into the binary. The UI imports no npm package; its
+    // lowered code has Babel's helpers.
+    expect(directories).toEqual(
+      expect.arrayContaining([
+        'engine/engine',
+        'engine/hermes',
+        'engine/skia',
+        'engine/yoga',
+        'vst3-sdk',
+        expect.stringMatching(/^rust\/soundor@\d/),
+        expect.stringMatching(/^rust\/soundor-vst3@\d/),
+        expect.stringMatching(/^rust\/std@\d/),
+      ]),
+    );
+    expect(
+      directories.filter((entry) => entry.startsWith('javascript/')),
+    ).toEqual([expect.stringMatching(/^javascript\/@babel\/helpers@\d/)]);
+    for (const component of components)
+      for (const file of component.files)
+        expect(existsSync(`${licenses}/${file}`), file).toBe(true);
+    expect(
+      readFileSync(`${licenses}/THIRD-PARTY-NOTICES.txt`, 'utf8'),
+    ).toContain('Third-party notices: Soundor VST3 Test');
+  });
+
   it('reports the Rust processor tail with the editor closed', async () => {
     const host = await open();
     expect((await host.getInfo()).tailSamples).toBe(48000);

@@ -64,9 +64,12 @@ import {
   buildFromSource,
   checkModule,
   localBuild,
+  webLicenses,
+  type EngineLicense,
 } from './web.ts';
 
 export type { EngineErrorCode } from './errors.ts';
+export type { EngineLicense } from './web.ts';
 export type { EngineTarget, NativeTarget, NativeVariant } from './targets.ts';
 
 /** Where an artifact comes from (module comment). */
@@ -105,6 +108,12 @@ export interface WebEngineArtifact extends PreparedArtifact {
     /** The WebAssembly core, `soundor-core.wasm`, for `@soundor/engine/web`. */
     readonly wasm: string;
   };
+  /**
+   * The notices of what the module contains, for whatever ships it: the
+   * engine's, Yoga's and Emscripten's system libraries' (this package's,
+   * whichever way the module was prepared).
+   */
+  readonly licenses: readonly EngineLicense[];
 }
 
 export interface NativeEngineArtifact extends PreparedArtifact {
@@ -157,6 +166,47 @@ function packageRoot(): string {
       throw new Error('@soundor/engine cannot find its package.json');
     directory = parent;
   }
+}
+
+/** A component of the code the engine's lowering puts into what it lowers. */
+export interface LoweredCodeNotice {
+  readonly name: string;
+  readonly version: string;
+  /** An SPDX expression, when its package declares one. */
+  readonly license?: string;
+  /** Its license files: absolute paths. */
+  readonly files: readonly string[];
+}
+
+/**
+ * The notices of what `toNativeModule()` (`@soundor/engine/native-module`)
+ * adds to the code it lowers: Babel's helper functions (`@babel/helpers`),
+ * which its transforms inline. A build that ships lowered code ships these.
+ * From the notices the package carries beside its bundled lowering
+ * (`dist/licenses/`, written by its build); none before it is built.
+ */
+export function loweredCodeNotices(root = packageRoot()): LoweredCodeNotice[] {
+  const directory = join(root, 'dist', 'licenses');
+  const manifest = join(directory, 'licenses.json');
+  if (!existsSync(manifest)) return [];
+  const { components } = JSON.parse(readFileSync(manifest, 'utf8')) as {
+    components: {
+      name: string;
+      version: string;
+      license?: string;
+      files: string[];
+    }[];
+  };
+  return components
+    .filter((component) => component.name === '@babel/helpers')
+    .map((component) => ({
+      name: component.name,
+      version: component.version,
+      ...(component.license === undefined
+        ? {}
+        : { license: component.license }),
+      files: component.files.map((file) => join(directory, ...file.split('/'))),
+    }));
 }
 
 /** The engine's artifact for <target>, prepared (module comment). */
@@ -328,7 +378,11 @@ function unavailable(reason: string, hint: string): never {
 }
 
 async function web(run: Run): Promise<WebEngineArtifact> {
-  const base = { target: 'web' as const, version: run.version };
+  const base = {
+    target: 'web' as const,
+    version: run.version,
+    licenses: webLicenses(run.root),
+  };
   const given = run.env['SOUNDOR_ENGINE_WASM'];
   if (given) {
     checkModule(given, 'SOUNDOR_ENGINE_WASM');

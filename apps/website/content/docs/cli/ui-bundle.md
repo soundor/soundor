@@ -25,7 +25,9 @@ runtime runs:
   bundle still uses after tree shaking are shipped: a library's font helper
   that the plugin never calls adds none.
 
-Each build is `bundle.mjs` (and `bundle.mjs.map` in development). The web
+Each build is `bundle.mjs` (and `bundle.mjs.map` in development), with
+`modules.json`, the files it kept after tree shaking: runtimes find the
+[third-party notices](/docs/licenses) of its packages and assets from it. The web
 runtime loads it as it is. The VST3 runtime lowers it into the module form its
 engine runs, with that engine's own lowering, and its release builds compile
 the result to Hermes bytecode.
