@@ -135,17 +135,10 @@ function Brand() {
         projects built with it.
       </p>
 
-      <h2 id="status">What these guidelines are</h2>
+      <h2 id="logo-files">The logo files</h2>
       <p>
-        Soundor is not a registered trademark. These guidelines are the
-        project’s requests to the community, not a claim of exclusive legal
-        rights, and they do not take away anything that the MIT License or the
-        law already allows you.
-      </p>
-      <p>
-        The logo files are a separate matter: they are original artwork, and the
-        copies published with this notice come with their own terms, described
-        in{' '}
+        The logos are original artwork, and the copies published with this
+        notice come with their own terms, described in{' '}
         <a href={brandLicense}>
           <code>assets/brand/LICENSE.md</code>
         </a>{' '}

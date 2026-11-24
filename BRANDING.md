@@ -31,7 +31,5 @@ Please:
   endorses or is affiliated with it unless we agreed to it;
 - don't use the official logos, or look-alikes, as your product's logo or icon.
 
-Soundor is not a registered trademark, and these are the project's requests,
-not a claim of exclusive rights. The logo files in [`assets/brand`](assets/brand)
-come with their own [notice](assets/brand/LICENSE.md), separate from the MIT
-License. Questions: [open an issue](https://github.com/soundor/soundor/issues).
+The logo files in [`assets/brand`](assets/brand) come with their own
+[notice](assets/brand/LICENSE.md), separate from the MIT License. Questions: [open an issue](https://github.com/soundor/soundor/issues).
