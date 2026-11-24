@@ -37,6 +37,10 @@ const projects = [
     site: 'https://soundor.dev/',
     repo: 'https://github.com/soundor/soundor',
     license: 'MIT',
+    notice: {
+      text: 'The engine’s dependencies keep their own licenses',
+      href: '/docs/engine#licenses-and-attribution',
+    },
   },
   {
     name: 'Soundor Components',
@@ -50,7 +54,11 @@ const projects = [
     what: 'Icon collections for Soundor and the browser',
     site: 'https://icons.soundor.dev/',
     repo: 'https://github.com/soundor/icons',
-    license: 'MIT; the icons keep their upstream licenses',
+    license: 'MIT',
+    notice: {
+      text: 'The icons keep their upstream licenses',
+      href: 'https://icons.soundor.dev/docs/licensing',
+    },
   },
   {
     name: 'Soundor Orbit',
@@ -180,6 +188,14 @@ function Brand() {
                   >
                     {project.license}
                   </a>
+                  {project.notice && (
+                    <a
+                      className="mt-1 block text-xs text-fd-muted-foreground underline underline-offset-2 hover:text-fd-primary"
+                      href={project.notice.href}
+                    >
+                      {project.notice.text}
+                    </a>
+                  )}
                 </td>
                 <td className="py-2 whitespace-nowrap">
                   <a
