@@ -24,8 +24,9 @@ import { highlightFlow } from '@/components/home/highlight';
 import { workflowSteps } from '@/components/home/steps';
 import { Workflow } from '@/components/home/workflow';
 import { OrbitDemo } from '@/components/orbit-demo';
+import { SiteFooter } from '@/components/site-footer';
 import { baseOptions } from '@/lib/layout.shared';
-import { repository, soundorVersion } from '@/lib/shared';
+import { soundorVersion } from '@/lib/shared';
 
 export const Route = createFileRoute('/')({
   loader: () => highlightFlow(),
@@ -119,10 +120,7 @@ function Home() {
               <ArrowRight aria-hidden className="size-3" />
             </Link>
             <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-              Audio plugins with a React UI,{' '}
-              <span className="bg-gradient-to-r from-fd-primary to-fd-foreground/60 bg-clip-text text-transparent">
-                in your DAW and the browser
-              </span>
+              Audio plugins with a React UI, in your DAW and the browser
             </h1>
             <p className="mt-5 max-w-2xl text-lg text-balance text-fd-muted-foreground">
               Write the interface in React and TypeScript and the sound in Rust.
@@ -365,48 +363,9 @@ function Home() {
           </section>
         </div>
       </main>
-      <Footer />
-    </HomeLayout>
-  );
-}
-
-function Footer() {
-  return (
-    <footer role="contentinfo" className="border-t">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8 text-sm text-fd-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <SiteFooter>
         <p>Soundor is before 1.0: APIs can change between minor releases.</p>
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
-          <Link
-            className="hover:text-fd-foreground"
-            to="/docs/$"
-            params={{ _splat: '' }}
-          >
-            Docs
-          </Link>
-          <Link
-            className="hover:text-fd-foreground"
-            to="/changelog/$"
-            params={{ _splat: '' }}
-          >
-            Changelog
-          </Link>
-          <a className="hover:text-fd-foreground" href={repository.url}>
-            GitHub
-          </a>
-          <a
-            className="hover:text-fd-foreground"
-            href="https://components.soundor.dev/"
-          >
-            Components
-          </a>
-          <a
-            className="hover:text-fd-foreground"
-            href="https://icons.soundor.dev/"
-          >
-            Icons
-          </a>
-        </nav>
-      </div>
-    </footer>
+      </SiteFooter>
+    </HomeLayout>
   );
 }
