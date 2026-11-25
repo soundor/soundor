@@ -254,8 +254,11 @@ When the release plan publishes `@soundor/vst3-host`, `.github/workflows/release
 
 A failed publish is followed by another query: a version another run
 published meanwhile counts if it has the same identity. After publishing,
-`release.ts verify` polls missing versions every five seconds for up to five
-minutes, allowing npm's processing to finish. Each visible package must pass the
+`release.ts verify` polls missing versions for up to 20 minutes, allowing
+npm's processing to finish, which has taken over five: five seconds after
+publishing, then twice as long between reads each time, up to 30 seconds.
+`release.ts publish` waits the same way for a version whose metadata npm
+serves before its tarball. Each visible package must pass the
 existing integrity and provenance checks; registry errors and conflicting builds
 fail immediately. Re-running the failed
 jobs reuses the run's artifacts. A run that fails before the Changesets step
