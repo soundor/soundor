@@ -398,7 +398,40 @@ describe('publishing', () => {
       );
       await vi.advanceTimersByTimeAsync(100);
       await result;
-      expect(fetcher).toHaveBeenCalledTimes(15);
+      // Reads at 0, 25, 75 (twice as long a wait) and 100 (the deadline).
+      expect(fetcher).toHaveBeenCalledTimes(12);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('waits twice as long between reads each time, up to the maximum', async () => {
+    const tarballs = checkTarballs(packed(), { version: '0.3.0' });
+    vi.useFakeTimers();
+    try {
+      const reads: number[] = [];
+      const start = Date.now();
+      const fetcher = vi.fn<() => Promise<Response>>(async () => {
+        reads.push(Date.now() - start);
+        return new Response(null, { status: 404 });
+      });
+      const messages: string[] = [];
+      // oxlint-disable-next-line vitest/valid-expect
+      const result = expect(
+        verify(tarballs.slice(0, 1), {
+          timeoutMs: 700,
+          pollIntervalMs: 50,
+          maxPollIntervalMs: 200,
+          fetcher,
+          log: (message) => messages.push(message),
+        }),
+      ).rejects.toThrow(/Not on npm yet after 700ms:.*linux-x64-gnu/);
+      await vi.advanceTimersByTimeAsync(700);
+      await result;
+      expect(reads).toEqual([0, 50, 150, 350, 550, 700]);
+      expect(messages[0]).toMatch(
+        /^Waiting for npm publication \(0ms so far, next read in 50ms\): @soundor\/vst3-host-linux-x64-gnu@0\.3\.0$/,
+      );
     } finally {
       vi.useRealTimers();
     }

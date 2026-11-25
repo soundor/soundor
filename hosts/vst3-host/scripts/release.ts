@@ -471,8 +471,20 @@ type RegistryState = 'missing' | 'tarball-pending' | 'matching';
 interface RegistryOptions {
   registry?: string;
   fetcher?: Fetch;
+  /** How long to wait for npm to serve every version, in all. */
   timeoutMs?: number;
+  /** The first wait between reads; each next one is twice as long, up to
+      `maxPollIntervalMs`. */
   pollIntervalMs?: number;
+  maxPollIntervalMs?: number;
+}
+
+function duration(ms: number): string {
+  if (ms < 1_000) return `${ms}ms`;
+  const seconds = Math.round(ms / 1_000);
+  return seconds < 60
+    ? `${seconds}s`
+    : `${Math.floor(seconds / 60)}m${seconds % 60 ? ` ${seconds % 60}s` : ''}`;
 }
 
 function packageVersion({ target, provenance }: CheckedTarball): string {
@@ -529,12 +541,17 @@ async function waitForRegistry(
   {
     registry = NPM_REGISTRY,
     fetcher = fetch,
-    timeoutMs = 5 * 60_000,
+    // npm has taken over 5 minutes to serve a published version's tarball:
+    // read often at first, when most appear, then less, for long enough.
+    timeoutMs = 20 * 60_000,
     pollIntervalMs = 5_000,
+    maxPollIntervalMs = 30_000,
   }: RegistryOptions,
   log: (message: string) => void,
 ): Promise<Map<CheckedTarball, RegistryState>> {
-  const deadline = Date.now() + timeoutMs;
+  const start = Date.now();
+  const deadline = start + timeoutMs;
+  let interval = pollIntervalMs;
   const states = new Map<CheckedTarball, RegistryState>();
   let pending = tarballs;
   while (pending.length) {
@@ -561,12 +578,14 @@ async function waitForRegistry(
     const remaining = deadline - Date.now();
     if (remaining <= 0)
       throw new Error(
-        `Not on npm yet after ${timeoutMs}ms: ${names.join(', ')}`,
+        `Not on npm yet after ${duration(timeoutMs)}: ${names.join(', ')}`,
       );
-    log(`Waiting for npm publication: ${names.join(', ')}`);
-    await new Promise<void>((resolve) =>
-      setTimeout(resolve, Math.min(pollIntervalMs, remaining)),
+    const wait = Math.min(interval, remaining);
+    log(
+      `Waiting for npm publication (${duration(Date.now() - start)} so far, next read in ${duration(wait)}): ${names.join(', ')}`,
     );
+    await new Promise<void>((resolve) => setTimeout(resolve, wait));
+    interval = Math.min(interval * 2, maxPollIntervalMs);
     pending = waiting;
   }
   return states;
@@ -626,9 +645,12 @@ export async function publish(
     every target must be on npm and verifiably the expected build. */
 export async function verify(
   tarballs: CheckedTarball[],
-  options: RegistryOptions = {},
+  {
+    log = console.log,
+    ...options
+  }: RegistryOptions & { log?: (message: string) => void } = {},
 ): Promise<void> {
-  await waitForRegistry(tarballs, true, options, console.log);
+  await waitForRegistry(tarballs, true, options, log);
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────
