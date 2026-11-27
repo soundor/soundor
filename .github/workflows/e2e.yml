@@ -90,6 +90,17 @@ jobs:
           pattern: engine-prebuilt-${{ inputs.engine-commit || github.sha }}-${{ matrix.target }}*
           merge-multiple: true
           path: ${{ runner.temp }}/engine-artifacts
+      # Its WebAssembly core too, for drawing.test.ts's web build (Linux
+      # only): this job has no Emscripten to build it.
+      - name: Download this checkout's engine WebAssembly core
+        if: inputs.build-engine && runner.os == 'Linux'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.engine-run-id || github.run_id }}
+          pattern: engine-prebuilt-${{ inputs.engine-commit || github.sha }}-web
+          merge-multiple: true
+          path: ${{ runner.temp }}/engine-artifacts
       - name: Select this checkout's engine artifacts
         if: inputs.build-engine
         env:
@@ -120,6 +131,17 @@ jobs:
       - name: Platform dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get install -y --no-install-recommends libx11-dev xvfb
+      # Chromium for drawing.test.ts, which compares what the native renderer
+      # and the browser draw (Linux only); its system libraries from apt.
+      - name: Cache Playwright's Chromium
+        if: runner.os == 'Linux'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Playwright's Chromium
+        if: runner.os == 'Linux'
+        run: pnpm --filter soundor-e2e exec playwright install --with-deps chromium
       - name: Use Ninja
         if: runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"

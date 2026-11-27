@@ -71,6 +71,8 @@ export interface ViewLink {
   onLayout(listener: () => void): () => void;
   /** CSS pixels per logical pixel (the host may scale the view). */
   scale(): number;
+  /** The engine's origin on the page (the root's top left corner). */
+  origin(): { readonly left: number; readonly top: number };
   focusedNode(): UiNode | null;
   /** Whether the focused node shows its focus (UiNode.focusVisible). */
   focusVisible(): boolean;
@@ -1443,7 +1445,7 @@ export class UiNode extends TreeEventTarget {
       return { x, y, width: 0, height: 0 };
     }
     const box = this.#rect();
-    const root = this.#view.rootElement.getBoundingClientRect();
+    const root = this.#view.origin();
     const scale = this.#view.scale();
     return {
       x: (box.left - root.left) / scale,

@@ -1426,3 +1426,51 @@ describe('announce', () => {
     }
   });
 });
+
+describe('the device-pixel origin', () => {
+  it('moves the root and the overlay onto a device pixel, and measures from there', () => {
+    view = new UiView({ document });
+    view.mount(document.body);
+    const child = view.createNode('view');
+    view.root.appendChild(child);
+    // The page puts the view between device pixels at 125 %: at 125.5 and
+    // 62.75 device pixels, which go to 126 and 63.
+    vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(1.25);
+    let at = new DOMRect(100.4, 50.2, 400, 300);
+    const rects = new Map<Element, () => DOMRect>([
+      [view.rootElement, () => at],
+      [el(child), () => new DOMRect(at.x + 0.4 + 20, at.y + 0.2 + 10, 50, 25)],
+    ]);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        return rects.get(this)?.() ?? new DOMRect();
+      },
+    );
+    Object.defineProperty(view.rootElement, 'offsetWidth', {
+      value: 400,
+      configurable: true,
+    });
+    const shift = (node: UiNode) => [
+      parseFloat(el(node).style.left),
+      parseFloat(el(node).style.top),
+    ];
+    view.measure();
+    for (const node of [view.root, view.overlay]) {
+      const [x, y] = shift(node);
+      expect(x).toBeCloseTo(0.4);
+      expect(y).toBeCloseTo(0.2);
+    }
+    expect(view.origin().left).toBeCloseTo(100.8);
+    expect(view.origin().top).toBeCloseTo(50.4);
+    const box = child.getBoundingClientRect();
+    expect(box.x).toBeCloseTo(20);
+    expect(box.y).toBeCloseTo(10);
+
+    // Moved by the page without a resize of its own: back on the grid.
+    at = new DOMRect(100.8, 50.4, 400, 300);
+    window.dispatchEvent(new Event('resize'));
+    expect(el(view.root).style.left).toBe('');
+    expect(el(view.root).style.top).toBe('');
+    expect(view.origin().left).toBeCloseTo(100.8);
+  });
+});

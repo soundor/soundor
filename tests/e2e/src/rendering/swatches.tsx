@@ -4,6 +4,7 @@ import magenta from '../assets/magenta.svg';
 import { Panel } from '../ui/panel';
 import { swatch, text } from '../ui/theme';
 import { CanvasSwatch } from './canvas-swatch';
+import { PixelGrid } from './pixel-grid';
 import { swatchStyle } from './swatch-style';
 import { WebglSwatch } from './webgl-swatch';
 
@@ -26,6 +27,7 @@ export function Swatches() {
           accessibilityLabel="Image swatch"
           style={swatchStyle}
         />
+        <PixelGrid />
       </View>
       <Text debugId="text.sample" style={text.body}>
         Text: Soundor ÄÖÜ ✓ 0123456789

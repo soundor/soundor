@@ -98,6 +98,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return style;
         }
 
+        // `style` with its border and outline widths as they are drawn at
+        // `scale` (snapBorderWidth()).
+        Style snappedWidths(Style style, float scale)
+        {
+            for (float* width : { &style.borderWidth.top, &style.borderWidth.right, &style.borderWidth.bottom,
+                                  &style.borderWidth.left, &style.outlineWidth, &style.outlineOffset })
+                *width = snapBorderWidth(*width, scale);
+            return style;
+        }
+
         void applyStyle(YGNodeRef node, const Style& style)
         {
             constexpr YGDisplay displays[] = { YGDisplayFlex, YGDisplayNone };
@@ -199,6 +209,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
     } // namespace
 
+    float snapBorderWidth(float width, float scale) noexcept
+    {
+        if (width == 0 || ! std::isfinite(width) || ! (scale > 0))
+            return width;
+        // Up to a rounding error, as browsers count: 0.8 at 1.25 is one device pixel.
+        constexpr double tolerance = 1e-4;
+        const double pixels = std::max(1.0, std::floor(std::abs(double { width }) * scale + tolerance));
+        return static_cast<float>(std::copysign(pixels / scale, width));
+    }
+
     std::shared_ptr<Clipboard> memoryClipboard()
     {
         return std::make_shared<MemoryClipboard>();
@@ -207,6 +227,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     // What Yoga's C callbacks need of a node.
     struct NodeAccess
     {
+        static YGNodeRef yoga(Node& node) noexcept { return node.yoga; }
+        static Rect& frame(Node& node) noexcept { return node.snappedFrame; }
+
         static YGSize measureText(YGNodeConstRef yoga, float width, YGMeasureMode widthMode, float height,
                                   YGMeasureMode heightMode)
         {
@@ -317,20 +340,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return vectorScene ? &vectorScene->snapshot() : nullptr;
     }
 
-    Rect Node::frame() const noexcept
-    {
-        return { YGNodeLayoutGetLeft(yoga), YGNodeLayoutGetTop(yoga), YGNodeLayoutGetWidth(yoga),
-                 YGNodeLayoutGetHeight(yoga) };
-    }
-
     Rect Node::paddingBox() const noexcept
     {
         const float left = YGNodeLayoutGetBorder(yoga, YGEdgeLeft);
         const float top = YGNodeLayoutGetBorder(yoga, YGEdgeTop);
         const float right = YGNodeLayoutGetBorder(yoga, YGEdgeRight);
         const float bottom = YGNodeLayoutGetBorder(yoga, YGEdgeBottom);
-        return { left, top, std::max(0.0f, YGNodeLayoutGetWidth(yoga) - left - right),
-                 std::max(0.0f, YGNodeLayoutGetHeight(yoga) - top - bottom) };
+        return { left, top, std::max(0.0f, snappedFrame.width - left - right),
+                 std::max(0.0f, snappedFrame.height - top - bottom) };
     }
 
     Rect Node::contentBox() const noexcept
@@ -339,8 +356,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const float top = YGNodeLayoutGetBorder(yoga, YGEdgeTop) + YGNodeLayoutGetPadding(yoga, YGEdgeTop);
         const float right = YGNodeLayoutGetBorder(yoga, YGEdgeRight) + YGNodeLayoutGetPadding(yoga, YGEdgeRight);
         const float bottom = YGNodeLayoutGetBorder(yoga, YGEdgeBottom) + YGNodeLayoutGetPadding(yoga, YGEdgeBottom);
-        return { left, top, std::max(0.0f, YGNodeLayoutGetWidth(yoga) - left - right),
-                 std::max(0.0f, YGNodeLayoutGetHeight(yoga) - top - bottom) };
+        return { left, top, std::max(0.0f, snappedFrame.width - left - right),
+                 std::max(0.0f, snappedFrame.height - top - bottom) };
     }
 
     // ── Surface: the tree ────────────────────────────────────────────────────
@@ -352,7 +369,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             options.textEngine = approximateTextEngine();
         if (options.clipboard == nullptr)
             options.clipboard = memoryClipboard();
-        YGConfigSetPointScaleFactor(config.get(), pixelScale);
+        // Yoga lays out unrounded: snapToPixels() rounds every frame after it.
+        YGConfigSetPointScaleFactor(config.get(), 0);
         rootNode = &get(createNode(NodeType::View));
         overlayNode = &get(createNode(NodeType::View));
     }
@@ -506,6 +524,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         Node& node = get(id);
         ++counted.styleChanges;
+        node.setWidths = { .border = style.borderWidth,
+                           .outline = style.outlineWidth,
+                           .outlineOffset = style.outlineOffset };
+        restyle(node, snappedWidths(style, pixelScale));
+    }
+
+    void Surface::restyle(Node& node, const Style& style)
+    {
         if (node.nodeStyle == style)
             return;
         const Style before = std::exchange(node.nodeStyle, style);
@@ -1061,10 +1087,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (scale <= 0 || scale == pixelScale)
             return;
         pixelScale = scale;
-        YGConfigSetPointScaleFactor(config.get(), scale);
-        // Snapping changed everywhere: lay the whole trees out again.
-        YGNodeStyleSetWidth(rootNode->yoga, YGUndefined);
-        YGNodeStyleSetWidth(overlayNode->yoga, YGUndefined);
+        // Borders and outlines are whole device pixels wide, so some of them
+        // change, and what is inside a border moves. The rest of the layout
+        // does not depend on the scale (text is measured in logical pixels):
+        // only its rounding to the grid changes.
+        for (const auto& [id, node] : nodes)
+        {
+            const Node::Widths& set = node->setWidths;
+            if (set.border == Edges<float> {} && set.outline == 0 && set.outlineOffset == 0)
+                continue;
+            Style style = node->nodeStyle;
+            style.borderWidth = set.border;
+            style.outlineWidth = set.outline;
+            style.outlineOffset = set.outlineOffset;
+            restyle(*node, snappedWidths(style, scale));
+        }
+        snapPending = true;
         markChanged();
         invalidAll = true;
     }
@@ -1079,21 +1117,237 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             YGNodeStyleSetWidth(tree->yoga, viewSize.width);
             YGNodeStyleSetHeight(tree->yoga, viewSize.height);
             if (! YGNodeIsDirty(tree->yoga))
+            {
+                if (snapPending)
+                    snapToPixels(*tree);
                 continue;
+            }
             const auto started = std::chrono::steady_clock::now();
             YGNodeCalculateLayout(tree->yoga, viewSize.width, viewSize.height, YGDirectionLTR);
             ++counted.layoutPasses;
             counted.layoutNanoseconds += static_cast<std::uint64_t>(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - started)
                     .count());
+            snapToPixels(*tree);
             laidOut = true;
         }
+        laidOut = laidOut || snapPending;
+        snapPending = false;
         if (! laidOut)
             return;
         // An input's width may have changed: keep its caret in view.
         for (auto& [id, node] : nodes)
             if (node->nodeType == NodeType::Input)
                 keepCaretVisible(*node);
+    }
+
+    namespace
+    {
+        // Within this of a grid line or of halfway (in device pixels), a
+        // value is taken to be there: float error never decides a rounding.
+        constexpr double gridTolerance = 1e-4;
+
+        // One rule for every edge of every node: to the nearest grid line,
+        // halves up. Siblings with the same exact edge land on the same line.
+        double snapEdge(double value, double scale) noexcept
+        {
+            return std::floor((value * scale) + 0.5 + gridTolerance) / scale;
+        }
+
+        double snapLengthUp(double value, double scale) noexcept
+        {
+            return std::ceil((value * scale) - gridTolerance) / scale;
+        }
+
+        // A box's place on one axis: exact, and rounded to the grid.
+        struct Span
+        {
+            double start = 0; // where it is in the view
+            double length = 0;
+            double snappedStart = 0;
+            double snappedEnd = 0;
+        };
+
+        // Whether nothing laid out beside the child on this axis abuts it, so
+        // that its size can change by a device pixel without opening a gap.
+        bool standsAlone(YGNodeConstRef parent, YGNodeConstRef child, bool horizontal) noexcept
+        {
+            if (YGNodeStyleGetPositionType(child) == YGPositionTypeAbsolute)
+                return true;
+            const YGFlexDirection direction = YGNodeStyleGetFlexDirection(parent);
+            const bool mainIsHorizontal = direction == YGFlexDirectionRow || direction == YGFlexDirectionRowReverse;
+            if (horizontal != mainIsHorizontal) // the cross axis: one line, or lines beside each other
+                return YGNodeStyleGetFlexWrap(parent) == YGWrapNoWrap;
+            for (std::size_t i = 0; i < YGNodeGetChildCount(parent); ++i)
+            {
+                YGNodeConstRef sibling = YGNodeGetChild(const_cast<YGNodeRef>(parent), i);
+                if (sibling != child && YGNodeStyleGetDisplay(sibling) != YGDisplayNone
+                    && YGNodeStyleGetPositionType(sibling) != YGPositionTypeAbsolute)
+                    return false;
+            }
+            return true;
+        }
+
+        // One child on one axis, before it is rounded.
+        struct Placing
+        {
+            double start = 0;
+            double length = 0;
+            bool centred = false;  // in its parent, with nothing beside it
+            bool fixed = false;    // drawn from its own pixels at this size: never resized
+            bool measured = false; // text or an input: never narrower than measured
+        };
+
+        // Rounds layout to the device-pixel grid (Surface::snapToPixels()).
+        //
+        // Each edge goes to the grid where it is in the view: a box is never
+        // moved by its parent's rounding, and boxes with the same exact edges
+        // get the same pixels. Boxes centred in one parent, with nothing
+        // beside them, share one rounded centre instead: the parent's, or
+        // half a device pixel from it where a box that cannot be resized
+        // needs it. The others are sized to fit it, to the nearest whole
+        // number of device pixels as odd or even as it needs: so they stay
+        // concentric, at the cost of up to one device pixel of size. What is
+        // drawn from its own pixels (an image, a canvas, a vector scene) at a
+        // whole number of device pixels keeps its size, so it stays crisp.
+        struct Snapping
+        {
+            double scale;
+
+            [[nodiscard]] double pixels(double length) const noexcept { return length * scale; }
+
+            [[nodiscard]] static bool whole(double devicePixels) noexcept
+            {
+                return std::abs(devicePixels - std::round(devicePixels)) <= gridTolerance;
+            }
+
+            [[nodiscard]] static bool odd(double devicePixels) noexcept
+            {
+                return std::fmod(std::abs(std::round(devicePixels)), 2.0) != 0;
+            }
+
+            [[nodiscard]] Span edges(const Placing& at, bool atLeastMeasured) const noexcept
+            {
+                Span span { at.start, at.length, snapEdge(at.start, scale), snapEdge(at.start + at.length, scale) };
+                if (atLeastMeasured) // never narrower than measured, or text would wrap or be cut off
+                    span.snappedEnd = std::max(span.snappedEnd, span.snappedStart + snapLengthUp(at.length, scale));
+                return span;
+            }
+
+            // A box's size in device pixels by itself, wherever it is: the
+            // same style gets the same size in every place.
+            [[nodiscard]] double ownPixels(const Placing& at) const noexcept
+            {
+                const double exact = pixels(at.length);
+                return at.measured ? std::ceil(exact - gridTolerance) : std::round(exact);
+            }
+
+            // A centred box, on `centre` (on the grid or halfway between two
+            // of its lines: odd sizes fit there).
+            [[nodiscard]] Span centred(const Placing& at, double centre) const noexcept
+            {
+                const double exact = pixels(at.length);
+                double size = ownPixels(at);
+                const bool wantOdd = ! whole(pixels(centre));
+                if (odd(size) != wantOdd)
+                {
+                    if (at.fixed) // its size stays: as near the centre as the grid allows
+                    {
+                        const double start = snapEdge(centre - (size / scale / 2), scale);
+                        return { at.start, at.length, start, start + (size / scale) };
+                    }
+                    size += at.measured || exact >= size - gridTolerance ? 1 : -1;
+                }
+                const double half = size / scale / 2;
+                return { at.start, at.length, centre - half, centre + half };
+            }
+
+            // Where the boxes centred in a parent whose box is `parent` put
+            // their centre: on the grid for even sizes, halfway for odd ones.
+            // Their own sizes decide which, never the parent's place: the
+            // first that keeps its size, or else the first of them. So each
+            // keeps its size wherever the parent lands (a parent's rounded
+            // size depends on its place), and the centre is the parent's, or
+            // half a device pixel from it.
+            [[nodiscard]] double sharedCentre(const Span& parent, const std::vector<Placing>& children) const noexcept
+            {
+                const double parentCentre = (parent.snappedStart + parent.snappedEnd) / 2;
+                const bool parentOdd = odd(pixels(parent.snappedEnd - parent.snappedStart));
+                const Placing* decides = nullptr;
+                for (const Placing& child : children)
+                    if (child.centred && (child.fixed || decides == nullptr))
+                    {
+                        decides = &child;
+                        if (child.fixed)
+                            break;
+                    }
+                if (decides == nullptr)
+                    return parentCentre;
+                const bool wantOdd = odd(ownPixels(*decides));
+                if (wantOdd == parentOdd)
+                    return parentCentre;
+                // Half a device pixel towards where the parent's exact centre is.
+                const double exactCentre = parent.start + (parent.length / 2);
+                return parentCentre + ((exactCentre < parentCentre ? -0.5 : 0.5) / scale);
+            }
+
+            void children(Node& node, const Span& x, const Span& y) const
+            {
+                YGNodeRef parent = NodeAccess::yoga(node);
+                const auto kids = node.children();
+                std::vector<Placing> across(kids.size());
+                std::vector<Placing> down(kids.size());
+                for (std::size_t i = 0; i < kids.size(); ++i)
+                {
+                    YGNodeRef yoga = NodeAccess::yoga(*kids[i]);
+                    const NodeType type = kids[i]->type();
+                    const bool drawnFromPixels =
+                        type == NodeType::Image || type == NodeType::Canvas || type == NodeType::Svg;
+                    const auto place = [&](const Span& in, double offset, double length, bool horizontal)
+                    {
+                        Placing at { in.start + offset, length };
+                        at.fixed = drawnFromPixels && whole(pixels(length));
+                        at.measured = type == NodeType::Text || type == NodeType::Input;
+                        at.centred = pixels(length) > gridTolerance
+                                     && std::abs((at.start + (length / 2)) - (in.start + (in.length / 2))) * scale
+                                            <= gridTolerance
+                                     && standsAlone(parent, yoga, horizontal);
+                        return at;
+                    };
+                    across[i] = place(x, YGNodeLayoutGetLeft(yoga), YGNodeLayoutGetWidth(yoga), true);
+                    down[i] = place(y, YGNodeLayoutGetTop(yoga), YGNodeLayoutGetHeight(yoga), false);
+                }
+                const double centreX = sharedCentre(x, across);
+                const double centreY = sharedCentre(y, down);
+                for (std::size_t i = 0; i < kids.size(); ++i)
+                {
+                    const Span cx =
+                        across[i].centred ? centred(across[i], centreX) : edges(across[i], across[i].measured);
+                    const Span cy = down[i].centred ? centred(down[i], centreY) : edges(down[i], down[i].measured);
+                    NodeAccess::frame(*kids[i]) = { static_cast<float>(cx.snappedStart - x.snappedStart),
+                                                    static_cast<float>(cy.snappedStart - y.snappedStart),
+                                                    static_cast<float>(cx.snappedEnd - cx.snappedStart),
+                                                    static_cast<float>(cy.snappedEnd - cy.snappedStart) };
+                    children(*kids[i], cx, cy);
+                }
+            }
+
+            void tree(Node& root) const
+            {
+                YGNodeRef yoga = NodeAccess::yoga(root);
+                const Span x = edges({ YGNodeLayoutGetLeft(yoga), YGNodeLayoutGetWidth(yoga) }, false);
+                const Span y = edges({ YGNodeLayoutGetTop(yoga), YGNodeLayoutGetHeight(yoga) }, false);
+                NodeAccess::frame(root) = { static_cast<float>(x.snappedStart), static_cast<float>(y.snappedStart),
+                                            static_cast<float>(x.snappedEnd - x.snappedStart),
+                                            static_cast<float>(y.snappedEnd - y.snappedStart) };
+                children(root, x, y);
+            }
+        };
+    } // namespace
+
+    void Surface::snapToPixels(Node& tree)
+    {
+        Snapping { pixelScale }.tree(tree);
     }
 
     Presentation Surface::presentation(NodeId id)

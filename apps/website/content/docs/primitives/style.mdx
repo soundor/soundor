@@ -40,6 +40,19 @@ on the Web:
 - **Clipping and scrolling:** `overflow` ([Overflow](#overflow)).
 - **Input:** `pointerEvents` lets the pointer through a node, its children,
   or both; `cursor` sets its shape ([Cursor](#cursor)).
+- **Pixel grid:** every edge is rounded to the nearest device pixel where it
+  is on the screen, so boxes stay crisp at any display scale, and nodes with
+  the same style get the same pixels. Boxes centred in one parent (by
+  `alignItems`, `justifyContent`, auto margins, or absolutely positioned in
+  the middle) share one centre exactly: where their sizes differ by an odd
+  number of device pixels, a view's size is rounded the other way, or one
+  device pixel added, to fit it (a 20 px disc in a 26 px ring is 31 device
+  pixels at 150 %, not 30). An
+  `Image`, `Canvas` or `Svg` that is a whole number of device pixels keeps its
+  size, so it stays sharp, and may sit half a device pixel from its parent's
+  centre instead. Border and outline widths, and the outline's offset, are
+  whole device pixels, rounded down, at least one, as CSS has them: `1` is one
+  device pixel at 125 % and 150 %, `2` is two at 125 % and three at 150 %.
 
 Both runtimes lay a style out the same, with the same Yoga, given the same text
 sizes; see

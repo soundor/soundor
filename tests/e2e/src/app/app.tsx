@@ -3,6 +3,7 @@ import { plugin } from 'soundor:host';
 
 import { Controls } from '../controls/controls';
 import { NativePanel } from '../native/native-panel';
+import { Drawing } from '../rendering/drawing';
 import { Swatches } from '../rendering/swatches';
 import { ScrollList } from '../scrolling/scroll-list';
 import { colors, text } from '../ui/theme';
@@ -33,6 +34,7 @@ export function App() {
         <WebApisPanel />
         <ScrollList />
       </View>
+      <Drawing />
     </View>
   );
 }

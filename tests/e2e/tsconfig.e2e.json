@@ -15,5 +15,10 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo"
   },
-  "include": ["e2e", "scripts", "playwright.config.ts"]
+  "include": [
+    "e2e",
+    "scripts",
+    "playwright.config.ts",
+    "src/rendering/drawing-tiles.ts"
+  ]
 }

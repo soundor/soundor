@@ -241,6 +241,8 @@ export class Engine implements ViewLink {
   #layoutQueued = false;
   /** The size and scale the view is laid out at, as last measured. */
   #layoutSize: ViewSize = this.#size;
+  /** How far the root and overlay are moved to put the origin on a device pixel. */
+  #origin = { x: 0, y: 0 };
   #disposed = false;
 
   /**
@@ -505,6 +507,50 @@ export class Engine implements ViewLink {
     return node;
   }
 
+  /**
+   * Where the engine's origin is on the page: the root's top left corner,
+   * which #alignOrigin() puts on a device pixel. Positions in the view are
+   * measured from it.
+   */
+  origin(): { readonly left: number; readonly top: number } {
+    const box = this.rootElement.getBoundingClientRect();
+    const scale = this.scale();
+    return {
+      left: box.left + this.#origin.x * scale,
+      top: box.top + this.#origin.y * scale,
+    };
+  }
+
+  /**
+   * Puts the engine's origin on a device pixel. The engine rounds every edge
+   * to the device-pixel grid counted from the view's top left corner, which
+   * the page may put between two device pixels (a view centred in it); the
+   * browser would then round each element again, its own way, and boxes laid
+   * out to line up would not. The root and the overlay move by less than a
+   * device pixel, with `left` and `top`: a `translate` would move what
+   * Chromium has already put on device pixels off them again.
+   */
+  #alignOrigin(): void {
+    const window = this.rootElement.ownerDocument.defaultView;
+    const ratio = window?.devicePixelRatio ?? 1;
+    const scale = this.scale();
+    const box = this.rootElement.getBoundingClientRect();
+    const shift = (at: number): number => {
+      const device = at * ratio;
+      const off = Math.round(device) - device;
+      return Math.abs(off) < 1e-3 ? 0 : off / ratio / scale;
+    };
+    const x = shift(box.left);
+    const y = shift(box.top);
+    if (x === this.#origin.x && y === this.#origin.y) return;
+    this.#origin = { x, y };
+    for (const node of [this.root, this.overlay]) {
+      const { style } = elementOf(node);
+      style.left = x === 0 ? '' : `${x}px`;
+      style.top = y === 0 ? '' : `${y}px`;
+    }
+  }
+
   /** CSS pixels per logical pixel: the host may scale the viewport. */
   scale(): number {
     const width = this.rootElement.offsetWidth;
@@ -648,6 +694,7 @@ export class Engine implements ViewLink {
    * scales the view, which no observer sees.
    */
   measure(): void {
+    this.#alignOrigin();
     const size = this.size();
     if (size !== this.#layoutSize && !this.#disposed) {
       // Edges are on device pixels: at another scale, all of them move.
@@ -1161,6 +1208,17 @@ export class Engine implements ViewLink {
       this.#resizes.observe(element);
     }
     this.#watchDensity();
+    // The page can move the view without resizing it (re-centring it in a
+    // resized window, scrolling): its origin goes back on a device pixel.
+    const realign = () => this.#alignOrigin();
+    element.ownerDocument.defaultView?.addEventListener('resize', realign, {
+      signal: this.#controller.signal,
+    });
+    element.ownerDocument.addEventListener('scroll', realign, {
+      capture: true,
+      passive: true,
+      signal: this.#controller.signal,
+    });
     // A press the view did not capture (a text input's) can move and end
     // outside it; inside, the view's own listeners have it.
     const window = element.ownerDocument.defaultView;
@@ -1255,7 +1313,7 @@ export class Engine implements ViewLink {
     relatedTarget: UiNode | null = null,
     detail = 0,
   ): PointerEvent {
-    const root = this.rootElement.getBoundingClientRect();
+    const root = this.origin();
     const scale = this.scale();
     const x = (event.clientX - root.left) / scale;
     const y = (event.clientY - root.top) / scale;
@@ -1468,7 +1526,7 @@ export class Engine implements ViewLink {
 
   #pointerMove(event: globalThis.PointerEvent): void {
     const scale = this.scale();
-    const root = this.rootElement.getBoundingClientRect();
+    const root = this.origin();
     this.gestures.move(
       event.pointerId,
       (event.clientX - root.left) / scale,

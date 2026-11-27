@@ -747,6 +747,50 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   is one notification, and what the listeners change is laid out in the
   same tick's frame. The last size told lives with the context's binding,
   so a reloaded runtime starts afresh.
+- **The pixel grid:** Yoga lays out unrounded (its point scale factor is
+  0); `Surface::snapToPixels()` then rounds each tree, after Yoga laid it
+  out or the scale changed (a new scale does not lay out again: text is
+  measured in logical pixels). Each frame is stored relative to its parent's
+  rounded box (`Node::frame()`).
+  - Every edge is rounded where it is in the view, to the nearest device
+    pixel, halves up, by one rule for every node: nodes with the same exact
+    edges get the same pixels whatever their type, and a box is never moved
+    by its parent's rounding. (Yoga rounded a node's offset in its parent
+    apart from the parent's place, and rounded every measured node, `Svg`,
+    `Image` and `Canvas` too, down as text.)
+  - Children exactly centred in their parent's box, with nothing beside them
+    on that axis (absolutely positioned; on the cross axis of a line that
+    does not wrap; on the main axis as the only child in the flow), share
+    one rounded centre, on the grid for even sizes and halfway between two
+    lines for odd ones. Their own sizes decide which, never the parent's
+    place (whose rounded size depends on it): the first of them that keeps
+    its size, or else the first of them; the centre is the parent's, or half
+    a device pixel from it. So a centred box has the same size wherever its
+    parent lands. An `Image`, `Canvas` or `Svg` at a whole number of device
+    pixels keeps its size (it is drawn from its own pixels: resized it would
+    blur or stretch) and sits as near that centre as the grid allows; every
+    other one is its own size rounded, or the nearest size of the other
+    parity, so off by up to one device pixel.
+  - Text and inputs are rounded up to at least their measured size, never
+    below, so they do not wrap or clip.
+  - Border widths, outline widths and outline offsets are "snapped as a
+    border width", CSS's rule (`snapBorderWidth()`): a whole number of
+    device pixels, rounded down, at least one when not zero (a negative
+    offset as its size). `Surface::setStyle()` keeps the widths it was given
+    (`Node::setWidths`) and stores the snapped ones in the node's style,
+    which Yoga, the renderer and the inspector read; `setScale()` snaps them
+    again, laying out again where a border changed. The browser applies the
+    same rule to the widths the DOM adapter writes, so both draw the same.
+  - The web runtime's DOM adapter puts the view's origin on a device pixel
+    (`#alignOrigin()`: the root and the overlay moved by less than one, with
+    `left` and `top`) on every measure, window resize and scroll, since the
+    page may put the view between two; positions in the view are measured
+    from `origin()`. Not with `translate`: Chromium puts a translated
+    subtree's edges on device pixels before it moves them, which moves them
+    off again.
+  - The E2E suite's `drawing.test.ts` compares what the native renderer and
+    Chromium (headed, at a real device scale) draw of the same tiles, text
+    aside, at 125 %, 137.5 % and 150 %.
 - **The safe area and the editor's size:** with the size, the backend gives
   the Surface the view's safe area (`Surface::setSafeArea`, nullopt for the
   whole view; layout never reads it) and the size of the editor it shows
