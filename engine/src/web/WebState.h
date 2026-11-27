@@ -77,7 +77,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
 
         [[nodiscard]] std::shared_ptr<js::detail::PendingPromise> takeOperation(std::uint64_t id);
 
-        // The worker thread for blocking file work, started on first use.
+        // The worker thread for blocking file work: the module's, which every
+        // runtime shares, started on first use.
         platform::WorkerThread& worker();
 
         Services services;
@@ -91,7 +92,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         std::optional<platform::HostSnapshot> lastHostSnapshot;
 
     private:
-        std::unique_ptr<platform::WorkerThread> fileWorker;
+        platform::WorkerThread* fileWorker = nullptr;
     };
 
     // The platform state of `context`, or nullptr when the platform layer is

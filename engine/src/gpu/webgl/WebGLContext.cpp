@@ -527,6 +527,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         if (glGetGraphicsResetStatusEXT() == GL_NO_ERROR)
             return false;
         resetLoss = true;
+        // The GPU's, not this context's: no editor after it gets this device.
+        device().markLost();
         return true;
     }
 

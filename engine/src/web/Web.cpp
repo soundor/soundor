@@ -1,11 +1,14 @@
 #include "web/Web.h"
 
 #include "modules/Embedded.h"
+#include "platform/ModuleResources.h"
 #include "web/Functions.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <utility>
 
@@ -150,6 +153,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     {
         for (auto& [id, token] : cancellations)
             token->cancel();
+        // What this runtime wrote is written when it is gone, as when it had
+        // a worker of its own.
+        if (fileWorker != nullptr)
+            fileWorker->finish();
     }
 
     double State::now() const
@@ -198,10 +205,49 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         }
     }
 
+    namespace
+    {
+        // The module's file worker, which every runtime's file work shares
+        // (ModuleResources.h). Never destroyed: releaseModuleResources() ends
+        // it, once every job posted has run.
+        struct FileWorker
+        {
+            std::mutex mutex;
+            std::unique_ptr<platform::WorkerThread> thread;
+        };
+
+        FileWorker& fileWorkerHolder()
+        {
+            static auto* const shared = new FileWorker(); // NOLINT(cppcoreguidelines-owning-memory)
+            return *shared;
+        }
+
+        platform::WorkerThread& moduleFileWorker()
+        {
+            FileWorker& holder = fileWorkerHolder();
+            const std::scoped_lock lock(holder.mutex);
+            if (holder.thread == nullptr)
+            {
+                holder.thread = std::make_unique<platform::WorkerThread>("soundor-files");
+                platform::releaseWithModule(
+                    []
+                    {
+                        std::unique_ptr<platform::WorkerThread> ended;
+                        {
+                            FileWorker& kept = fileWorkerHolder();
+                            const std::scoped_lock released(kept.mutex);
+                            ended = std::move(kept.thread);
+                        }
+                    });
+            }
+            return *holder.thread;
+        }
+    } // namespace
+
     platform::WorkerThread& State::worker()
     {
         if (fileWorker == nullptr)
-            fileWorker = std::make_unique<platform::WorkerThread>();
+            fileWorker = &moduleFileWorker();
         return *fileWorker;
     }
 

@@ -1331,8 +1331,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     {
                         if (! webgl.unavailable.empty())
                             return string(ctx, webgl.unavailable);
+                        // No editor's device (CPU composition): the one this
+                        // thread's runtimes share, kept as the editors' is.
                         std::string why;
-                        webgl.device = Device::create({ .policy = webgl.allowSoftware ? DevicePolicy::AllowSoftware
+                        webgl.device = Device::shared({ .policy = webgl.allowSoftware ? DevicePolicy::AllowSoftware
                                                                                       : DevicePolicy::HardwareOnly },
                                                       &why);
                         if (webgl.device == nullptr)

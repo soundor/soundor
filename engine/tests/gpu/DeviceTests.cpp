@@ -1,9 +1,12 @@
 #include "GpuTestSupport.h"
 
+#include <soundor/platform/ModuleResources.h>
+
 #include <array>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -113,6 +116,13 @@ namespace
                 ++count;
         }
         return count;
+    }
+
+    // All of this process's threads.
+    int threads()
+    {
+        const auto tasks = std::filesystem::directory_iterator("/proc/self/task");
+        return static_cast<int>(std::distance(begin(tasks), end(tasks)));
     }
 #endif
 } // namespace
@@ -254,9 +264,11 @@ TEST_SUITE("gpu::Device")
         CHECK(eglGetCurrentContext() == outer->handle());
     }
 
-    TEST_CASE("editors on one thread share a device, and one opened again reuses the display")
+    TEST_CASE("editors on one thread share a device, kept until the module releases it")
     {
         const gpu::Device::Options options { .policy = gpu::DevicePolicy::AllowSoftware };
+        // From a clean start: what earlier tests kept goes.
+        platform::releaseModuleResources();
         std::string failure;
         auto first = gpu::Device::shared(options, &failure);
         if (first == nullptr)
@@ -274,11 +286,19 @@ TEST_SUITE("gpu::Device")
         CHECK(independent != first);
         CHECK(independent->display() != first->display());
 
+        // The last editor closed, then one opened: the same device, nothing
+        // of it started anew (#404).
+        const gpu::Device* const kept = first.get();
         void* const display = first->display();
         first.reset();
         second.reset();
-        // The last editor closed, then one opened: ANGLE's display again,
+        auto reopened = gpu::Device::shared(options);
+        CHECK(reopened.get() == kept);
+        reopened.reset();
+
+        // Released with the module: then a new one, on ANGLE's display again,
         // initialized anew, not one more left behind.
+        platform::releaseModuleResources();
         const auto again = gpu::Device::shared(options);
         REQUIRE(again != nullptr);
         CHECK(again->display() == display);
@@ -286,6 +306,21 @@ TEST_SUITE("gpu::Device")
         REQUIRE_MESSAGE(context.get() != nullptr, failure);
         const gpu::CurrentContext current(*context);
         CHECK(current.ok());
+    }
+
+    TEST_CASE("a lost shared device is not given to the next editor")
+    {
+        const gpu::Device::Options options { .policy = gpu::DevicePolicy::AllowSoftware };
+        auto lost = gpu::Device::shared(options);
+        if (lost == nullptr)
+            return;
+        lost->markLost();
+        const auto next = gpu::Device::shared(options);
+        REQUIRE(next != nullptr);
+        CHECK(next != lost);
+        CHECK_FALSE(next->lost());
+        // The editor still on the lost one keeps it until it closes.
+        CHECK(lost->display() != nullptr);
     }
 
 #if defined(__linux__)
@@ -319,6 +354,35 @@ TEST_SUITE("gpu::Device")
         }
         // Joined when the device goes.
         CHECK(threadsNamed("ANGLE-Worker") == before);
+    }
+
+    TEST_CASE("an editor opened again starts none of the shared device's threads; the module's release ends them")
+    {
+        platform::releaseModuleResources();
+        const int before = threads();
+        const gpu::Device::Options options { .policy = gpu::DevicePolicy::AllowSoftware };
+        const auto open = [&]
+        {
+            const auto device = gpu::Device::shared(options);
+            if (device == nullptr)
+                return false;
+            std::string failure;
+            const auto context = gpu::Context::create(device, {}, &failure);
+            REQUIRE_MESSAGE(context.get() != nullptr, failure);
+            const gpu::CurrentContext current(*context);
+            REQUIRE(current.ok());
+            return true;
+        };
+        if (! open())
+            return;
+        const int kept = threads();
+        MESSAGE("threads: " << before << " before the device, " << kept << " with it");
+        // Closed and opened again, three times: no thread more.
+        for (int round = 0; round < 3; ++round)
+            REQUIRE(open());
+        CHECK(threads() == kept);
+        platform::releaseModuleResources();
+        CHECK(threads() == before);
     }
 #endif
 }

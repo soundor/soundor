@@ -69,9 +69,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 const gpu::CurrentContext current(*context, surface);
                 // A GPU reset (or a removed GPU) loses its contexts: the
                 // editor falls back to the CPU.
-                if (! current.ok() || glGetGraphicsResetStatusEXT() != GL_NO_ERROR)
+                if (! current.ok())
                 {
                     lose();
+                    return;
+                }
+                if (glGetGraphicsResetStatusEXT() != GL_NO_ERROR)
+                {
+                    lose();
+                    // The next editor gets a new device, not this one.
+                    shared->markLost();
                     return;
                 }
                 bool changed = renderer->upload(frame, stats);
@@ -84,7 +91,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 if (eglSwapBuffers(shared->display(), surface) != EGL_TRUE)
                 {
                     if (eglGetError() == EGL_CONTEXT_LOST)
+                    {
                         lose();
+                        shared->markLost();
+                    }
                     return;
                 }
                 stale = false;

@@ -51,6 +51,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/platform/FileLog.cpp
   src/platform/Http.cpp
   src/platform/Resources.cpp
+  src/platform/ModuleResources.cpp
   src/platform/WorkerThread.cpp
   src/processor/RustController.cpp
   src/processor/RustProcessor.cpp

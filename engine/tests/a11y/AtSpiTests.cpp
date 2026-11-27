@@ -2,6 +2,8 @@
 #include "a11y/linux/AtSpi.h"
 #include "a11y/linux/Mapping.h"
 
+#include <soundor/platform/ModuleResources.h>
+
 #include <doctest/doctest.h>
 #include <gio/gio.h>
 #include <glib/gstdio.h>
@@ -9,6 +11,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <functional>
 #include <iterator>
 #include <mutex>
@@ -381,6 +384,44 @@ TEST_SUITE("Linux AT-SPI")
             temporary.update(example(), {}, false);
             REQUIRE(eventually([&] { return temporary.active(); }));
         }
+    }
+    TEST_CASE("editors opened one after another share one thread, which the module's release ends")
+    {
+        const auto threads = []
+        {
+            const auto tasks = std::filesystem::directory_iterator("/proc/self/task");
+            return std::distance(begin(tasks), end(tasks));
+        };
+        Bus bus;
+        // GLib's own D-Bus worker starts with the process's first connection
+        // and stays: once started, only the session's thread is counted.
+        {
+            atspi::Session warm("Warm", bus.address);
+            warm.update(example(), {}, false);
+            REQUIRE(eventually([&] { return warm.active(); }));
+        }
+        platform::releaseModuleResources();
+        const auto before = threads();
+        {
+            atspi::Session first("First", bus.address);
+            first.update(example(), {}, false);
+            REQUIRE(eventually([&] { return first.active(); }));
+        }
+        const auto kept = threads();
+        CHECK(kept == before + 1);
+        for (int i = 0; i < 3; ++i)
+        {
+            atspi::Session again("Again", bus.address);
+            again.update(example(), {}, false);
+            REQUIRE(eventually([&] { return again.active(); }));
+            CHECK(threads() == kept);
+        }
+        platform::releaseModuleResources();
+        CHECK(threads() == before);
+        // And one opened after it works, on a thread started again.
+        atspi::Session after("After", bus.address);
+        after.update(example(), {}, false);
+        CHECK(eventually([&] { return after.active(); }));
     }
     TEST_CASE("missing service and closing pending connections are safe")
     {
