@@ -1,8 +1,11 @@
 #include <soundor/ui/Surface.h>
+#include <soundor/ui/Text.h>
 
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <iterator>
 #include <optional>
 #include <stdexcept>
@@ -419,6 +422,303 @@ TEST_SUITE("ui::Surface layout")
         CHECK(offsetAt(*engine, text, layout.lines[0], style, 0) == 0);
         CHECK(offsetAt(*engine, text, layout.lines[0], style, 17) == 2); // nearer the boundary after "on"
         CHECK(offsetAt(*engine, text, layout.lines[1], style, 1000) == text.size());
+    }
+}
+
+namespace
+{
+    // A wrapper moved by `offset` (logical pixels), so what it holds lands
+    // anywhere against the device-pixel grid; its child is `box`.
+    struct Offset
+    {
+        Offset(float scale, float offset, const Style& boxStyle)
+        {
+            surface.setSize({ 200, 200 });
+            surface.setScale(scale);
+            Style style;
+            style.alignItems = Align::FlexStart;
+            style.padding = { Length::points(offset), Length::points(0), Length::points(0), Length::points(offset) };
+            surface.setStyle(wrapper, style);
+            surface.insertChild(surface.root().id(), wrapper);
+            surface.setStyle(box, boxStyle);
+            surface.insertChild(wrapper, box);
+        }
+
+        NodeId add(NodeType type, const Style& style)
+        {
+            const NodeId id = surface.createNode(type);
+            surface.setStyle(id, style);
+            surface.insertChild(box, id);
+            return id;
+        }
+
+        // Where a node's box's centre is in the view, in device pixels.
+        Point centre(NodeId id)
+        {
+            const Rect at = surface.bounds(id);
+            return { (at.x + (at.width / 2)) * surface.scale(), (at.y + (at.height / 2)) * surface.scale() };
+        }
+
+        Surface surface;
+        NodeId wrapper = surface.createNode(NodeType::View);
+        NodeId box = surface.createNode(NodeType::View);
+    };
+
+    Style centring(float size)
+    {
+        Style style = sized(size, size);
+        style.alignItems = Align::Center;
+        style.justifyContent = Justify::Center;
+        return style;
+    }
+
+    Style absolute(float size)
+    {
+        Style style = sized(size, size);
+        style.position = Position::Absolute;
+        return style;
+    }
+
+    bool onGrid(float value, float scale)
+    {
+        const float device = value * scale;
+        return std::abs(device - std::round(device)) < 1e-3F;
+    }
+
+    constexpr std::array fractionalScales { 1.25F, 1.5F, 1.75F };
+
+    // 0 to 0.95 logical pixels, by 0.05.
+    constexpr std::array<float, 20> offsets()
+    {
+        std::array<float, 20> all {};
+        for (std::size_t i = 0; i < all.size(); ++i)
+            all[i] = static_cast<float>(i) * 0.05F;
+        return all;
+    }
+} // namespace
+
+TEST_SUITE("ui::Surface pixel grid")
+{
+    TEST_CASE("boxes centred in one parent share its centre exactly at a fractional scale")
+    {
+        for (const float scale : fractionalScales)
+            for (const float offset : offsets())
+            {
+                CAPTURE(scale);
+                CAPTURE(offset);
+                // A ring centred over a disc (issue 405): 26 is 32.5 device
+                // pixels at 1.25, and 26 and 20 differ by an odd number of
+                // them at 1.5; each is sized to fit the box's centre.
+                Offset f(scale, offset, centring(30));
+                const NodeId ring = f.add(NodeType::View, absolute(26));
+                const NodeId disc = f.add(NodeType::View, sized(20, 20));
+                Style label;
+                label.position = Position::Absolute;
+                label.text.fontSize = 10;
+                const NodeId text = f.add(NodeType::Text, label);
+                f.surface.setText(text, "Gain");
+                for (const NodeId id : { ring, text })
+                {
+                    CHECK(f.centre(id).x == doctest::Approx(f.centre(disc).x));
+                    CHECK(f.centre(id).y == doctest::Approx(f.centre(disc).y));
+                }
+                // The box's own rounding depends on its place: within half a
+                // device pixel of its centre.
+                CHECK(std::abs(f.centre(disc).x - f.centre(f.box).x) <= 0.5F + 1e-3F);
+                // A size is off by at most a device pixel.
+                CHECK(std::abs((f.surface.bounds(ring).width - 26) * scale) <= 1 + 1e-3F);
+                CHECK(std::abs((f.surface.bounds(disc).width - 20) * scale) <= 1 + 1e-3F);
+            }
+    }
+
+    TEST_CASE("a centred box has the same size wherever its parent lands")
+    {
+        for (const float scale : fractionalScales)
+        {
+            CAPTURE(scale);
+            // The sizes at the first offset, which every other must have.
+            Rect ring0;
+            Rect disc0;
+            bool first = true;
+            for (const float offset : offsets())
+            {
+                CAPTURE(offset);
+                Offset f(scale, offset, centring(30));
+                const Rect ring = f.surface.bounds(f.add(NodeType::View, absolute(26)));
+                const Rect disc = f.surface.bounds(f.add(NodeType::View, sized(20, 20)));
+                if (first)
+                {
+                    ring0 = ring;
+                    disc0 = disc;
+                    first = false;
+                }
+                CHECK(ring.width == doctest::Approx(ring0.width));
+                CHECK(ring.height == doctest::Approx(ring0.height));
+                CHECK(disc.width == doctest::Approx(disc0.width));
+                CHECK(disc.height == doctest::Approx(disc0.height));
+            }
+        }
+    }
+
+    TEST_CASE("what is drawn from its own pixels keeps a whole size, and what is centred with it follows")
+    {
+        for (const float scale : { 1.0F, 1.25F, 1.5F, 2.0F })
+            for (const float offset : offsets())
+            {
+                CAPTURE(scale);
+                CAPTURE(offset);
+                // A 16 px icon in a 25 px button, with a highlight behind it.
+                Offset f(scale, offset, centring(25));
+                const NodeId highlight = f.add(NodeType::View, absolute(20));
+                const NodeId icon = f.add(NodeType::Image, sized(16, 16));
+                const float iconPixels = 16 * scale;
+                if (std::abs(iconPixels - std::round(iconPixels)) < 1e-3F)
+                {
+                    CHECK(f.surface.bounds(icon).width == doctest::Approx(16));
+                    CHECK(f.surface.bounds(icon).height == doctest::Approx(16));
+                }
+                CHECK(f.centre(highlight).x == doctest::Approx(f.centre(icon).x));
+                CHECK(f.centre(highlight).y == doctest::Approx(f.centre(icon).y));
+                // Within half a device pixel of the button's centre.
+                CHECK(std::abs(f.centre(icon).x - f.centre(f.box).x) <= 0.5F + 1e-3F);
+            }
+    }
+
+    TEST_CASE("boxes side by side still meet when one of them is centred")
+    {
+        for (const float scale : fractionalScales)
+            for (const float offset : offsets())
+            {
+                CAPTURE(scale);
+                CAPTURE(offset);
+                Style row = sized(31, 10);
+                row.flexDirection = FlexDirection::Row;
+                Offset f(scale, offset, row);
+                const NodeId a = f.add(NodeType::View, sized(10.3F, 10));
+                const NodeId b = f.add(NodeType::View, sized(10.4F, 10)); // centred: 10.3 + 10.4 / 2 = 15.5
+                const NodeId c = f.add(NodeType::View, sized(10.3F, 10));
+                const Rect left = f.surface.bounds(a);
+                const Rect middle = f.surface.bounds(b);
+                const Rect right = f.surface.bounds(c);
+                CHECK(left.x + left.width == doctest::Approx(middle.x));
+                CHECK(middle.x + middle.width == doctest::Approx(right.x));
+            }
+    }
+
+    TEST_CASE("nodes with the same style land on the same pixels, whatever their type")
+    {
+        for (const float scale : fractionalScales)
+            for (const float offset : offsets())
+            {
+                CAPTURE(scale);
+                CAPTURE(offset);
+                Offset f(scale, offset, sized(30, 30));
+                Style style = absolute(40);
+                style.inset.left = style.inset.top = Length::points(-5);
+                const NodeId view = f.add(NodeType::View, style);
+                for (const NodeType type : { NodeType::Svg, NodeType::Canvas, NodeType::Image })
+                {
+                    const NodeId other = f.add(type, style);
+                    CHECK(f.surface.bounds(other).x == f.surface.bounds(view).x);
+                    CHECK(f.surface.bounds(other).y == f.surface.bounds(view).y);
+                    CHECK(f.surface.bounds(other).width == f.surface.bounds(view).width);
+                }
+            }
+    }
+
+    TEST_CASE("every edge is on the grid where it is in the view, and text is never narrower than measured")
+    {
+        for (const float scale : fractionalScales)
+            for (const float offset : offsets())
+            {
+                CAPTURE(scale);
+                CAPTURE(offset);
+                Offset f(scale, offset, centring(100));
+                const NodeId view = f.add(NodeType::View, sized(33.3F, 17.7F));
+                Style textStyle;
+                textStyle.text.fontSize = 13.3F;
+                const NodeId text = f.add(NodeType::Text, textStyle);
+                f.surface.setText(text, "Cutoff");
+                const Size measured = approximateTextEngine()->layout("Cutoff", textStyle.text, 1000).size;
+                for (const NodeId id : { f.box, view, text })
+                {
+                    const Rect at = f.surface.bounds(id);
+                    CHECK(onGrid(at.x, scale));
+                    CHECK(onGrid(at.y, scale));
+                    CHECK(onGrid(at.x + at.width, scale));
+                    CHECK(onGrid(at.y + at.height, scale));
+                }
+                CHECK(f.surface.bounds(text).width >= measured.width);
+                CHECK(f.surface.bounds(text).height >= measured.height);
+            }
+    }
+
+    TEST_CASE("a new scale rounds the frames again without laying out again")
+    {
+        Offset f(1, 0.4F, sized(30, 30));
+        const NodeId child = f.add(NodeType::View, sized(10.4F, 10));
+        CHECK(f.surface.bounds(f.box).x == 0);
+        CHECK(f.surface.bounds(child).width == 11);
+        const auto passes = f.surface.statistics().layoutPasses;
+        f.surface.setScale(1.25F); // the box at 0.5 device pixels: up, to 1
+        CHECK(f.surface.bounds(f.box).x == doctest::Approx(0.8F));
+        CHECK(f.surface.bounds(child).width == doctest::Approx(10.4F));
+        CHECK(f.surface.statistics().layoutPasses == passes);
+    }
+
+    TEST_CASE("border and outline widths are whole device pixels, as CSS snaps them")
+    {
+        // What Chromium computes at each device scale (getComputedStyle()).
+        struct Case
+        {
+            float width, scale, devicePixels;
+        };
+        constexpr std::array cases {
+            Case { 0.1F, 1, 1 },     Case { 1.5F, 1, 1 },       Case { 2.5F, 1, 2 },
+            Case { 1, 1.25F, 1 },    Case { 1.5F, 1.25F, 1 },   Case { 1.6F, 1.25F, 2 },
+            Case { 0.8F, 1.25F, 1 }, Case { 2.4F, 1.25F, 3 },   Case { 3, 1.25F, 3 },
+            Case { 1, 1.375F, 1 },   Case { 1.5F, 1.375F, 2 },  Case { 1.4545454F, 1.375F, 2 },
+            Case { 3, 1.375F, 4 },   Case { 0.5F, 1.5F, 1 },    Case { 1.3333333F, 1.5F, 2 },
+            Case { 2, 1.5F, 3 },     Case { -0.1F, 1.25F, -1 }, Case { -2, 1.5F, -3 },
+            Case { 0, 1.25F, 0 },
+        };
+        for (const Case& c : cases)
+        {
+            CAPTURE(c.width);
+            CAPTURE(c.scale);
+            CHECK(snapBorderWidth(c.width, c.scale) * c.scale == doctest::Approx(c.devicePixels));
+        }
+    }
+
+    TEST_CASE("a border is laid out and drawn as wide as it is snapped, and snapped again at a new scale")
+    {
+        Offset f(1.25F, 0, sized(40, 40));
+        Style ringed = sized(20, 20);
+        ringed.borderWidth = { 1, 1, 1, 1 };
+        ringed.outlineWidth = 1.5F;
+        ringed.outlineOffset = -1;
+        const NodeId ring = f.add(NodeType::View, ringed);
+        const NodeId inside = f.surface.createNode(NodeType::View);
+        f.surface.setStyle(inside, sized(4, 4));
+        f.surface.insertChild(ring, inside);
+        f.surface.layout();
+        const Node& node = *f.surface.find(ring);
+        CHECK(node.style().borderWidth.left == doctest::Approx(0.8F));
+        CHECK(node.style().outlineWidth == doctest::Approx(0.8F));
+        CHECK(node.style().outlineOffset == doctest::Approx(-0.8F));
+        CHECK(f.surface.find(inside)->frame().x == doctest::Approx(0.8F));
+
+        f.surface.setScale(1.5F);
+        f.surface.layout();
+        CHECK(node.style().borderWidth.left == doctest::Approx(2.0F / 3));
+        CHECK(node.style().outlineWidth == doctest::Approx(4.0F / 3));
+        CHECK(f.surface.find(inside)->frame().x == doctest::Approx(2.0F / 3));
+
+        f.surface.setScale(2);
+        f.surface.layout();
+        CHECK(node.style().borderWidth.left == 1);
+        CHECK(node.style().outlineWidth == 1.5F);
+        CHECK(f.surface.find(inside)->frame().x == 1);
     }
 }
 

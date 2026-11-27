@@ -226,7 +226,12 @@ declare module 'soundor:ui' {
     paddingRight?: Percentage;
     paddingBottom?: Percentage;
     paddingLeft?: Percentage;
-    /** The border's width on every side, in logical pixels; borderColor paints it. */
+    /**
+     * The border's width on every side, in logical pixels; borderColor
+     * paints it. Drawn and laid out as CSS does at the display's scale: a
+     * whole number of device pixels, rounded down, at least one (1 is one
+     * device pixel at 125 %, 2 is three at 150 %).
+     */
     borderWidth?: number;
     borderHorizontalWidth?: number;
     borderVerticalWidth?: number;
@@ -326,14 +331,16 @@ declare module 'soundor:ui' {
     /**
      * A line around the node, in logical pixels, drawn outside its border
      * and following its corners, as CSS's `outline`: it takes no room in
-     * layout and is not hit. 0 (the default) draws none.
+     * layout and is not hit. 0 (the default) draws none. Whole device
+     * pixels, as `borderWidth`.
      */
     outlineWidth?: number;
     /** The outline's color: any CSS color. Black by default. */
     outlineColor?: Color;
     /**
      * How far the outline is from the border, in logical pixels: 0 by
-     * default, inside the node when negative.
+     * default, inside the node when negative. Whole device pixels, as
+     * `borderWidth`.
      */
     outlineOffset?: number;
     /**

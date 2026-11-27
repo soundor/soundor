@@ -130,6 +130,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     class Surface;
     class Renderer;
 
+    // A border width, an outline's width or its offset as it is drawn at
+    // `scale` device pixels per logical pixel, by CSS's rule ("snapped as a
+    // border width"): a whole number of device pixels, rounded down, and at
+    // least one device pixel when it is not zero; a negative offset as its
+    // size is.
+    [[nodiscard]] float snapBorderWidth(float width, float scale) noexcept;
+
     // How scrollTo() and scrollIntoView() move: at once, or over a moment.
     enum class ScrollBehavior : std::uint8_t
     {
@@ -180,6 +187,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             return stacked.empty() ? childNodes : stacked;
         }
+        // The style as it is laid out and drawn: the one set, with its border
+        // and outline widths on device pixels (snapBorderWidth()).
         [[nodiscard]] const Style& style() const noexcept { return nodeStyle; }
         [[nodiscard]] const Style& presentedStyle() const noexcept
         {
@@ -194,8 +203,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
         // Whether Tab and Shift+Tab stop at it when it is focusable.
         [[nodiscard]] bool tabStop() const noexcept { return isTabStop; }
-        // The layout box relative to the parent's, once laid out.
-        [[nodiscard]] Rect frame() const noexcept;
+        // The layout box relative to the parent's, once laid out: its edges
+        // on the device-pixel grid (see Surface::scale()).
+        [[nodiscard]] Rect frame() const noexcept { return snappedFrame; }
         // The box inside the border, including padding, relative to frame().
         [[nodiscard]] Rect paddingBox() const noexcept;
         // The box inside the border and padding, relative to frame().
@@ -242,6 +252,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId nodeId;
         NodeType nodeType;
         YGNode* yoga;
+        // Yoga's layout box, its edges rounded to the device-pixel grid
+        // where they are in the view (Surface::snapToPixels()).
+        Rect snappedFrame;
         std::unique_ptr<render::VectorScene> vectorScene;
         Node* parentNode = nullptr;
         std::vector<Node*> childNodes;
@@ -249,6 +262,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::vector<Node*> stacked;
         Style nodeStyle;
         Style visualStyle;
+        // The widths the style was set with, which nodeStyle has snapped to
+        // the device-pixel grid: a new scale snaps them again.
+        struct Widths
+        {
+            Edges<float> border;
+            float outline = 0;
+            float outlineOffset = 0;
+        } setWidths;
         PropertyMask presentationMask = 0;
         std::string textContent;
         std::string imageSource;
@@ -467,7 +488,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // The view's size in logical pixels; the root fills it.
         void setSize(Size size);
         [[nodiscard]] Size size() const noexcept { return viewSize; }
-        // Device pixels per logical pixel; layout snaps to device pixels.
+        // Device pixels per logical pixel; layout snaps to device pixels, and
+        // border and outline widths to whole numbers of them.
         void setScale(float scale);
         [[nodiscard]] float scale() const noexcept { return pixelScale; }
         // The part of the view always shown whole, in its logical pixels:
@@ -669,6 +691,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         friend class Renderer;
         friend struct NodeAccess;
 
+        // Round the tree's frames to the device-pixel grid, after Yoga laid
+        // it out or the scale changed.
+        void snapToPixels(Node& tree);
+
         struct PointerState
         {
             NodeId captured = noNode;    // the pointerdown target, while pressed
@@ -683,6 +709,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] bool isRoot(const Node& node) const noexcept { return &node == rootNode || &node == overlayNode; }
         void detach(Node& child);
         void restack(Node& parent);
+        // Gives `node` the style it is laid out and drawn with (see setStyle()).
+        void restyle(Node& node, const Style& style);
         [[nodiscard]] NodeId hitTest(Node& node, Point point, Point origin);
         [[nodiscard]] std::vector<NodeId> pathTo(NodeId id);
         void updateHover(PointerState& state, const PointerInput& input, NodeId target);
@@ -759,6 +787,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::uint64_t changes = 1;
         std::vector<NodeId> invalidNodes;
         bool invalidAll = true;
+        // The scale changed: the frames are rounded again at the next layout.
+        bool snapPending = false;
         std::vector<NodeId> canvasNodes;
         EventSink sink;
         std::map<int, PointerState> pointers;

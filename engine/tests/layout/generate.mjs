@@ -8,7 +8,8 @@
 import { writeFileSync } from 'node:fs';
 
 const TREES = 180;
-const SCALES = [1, 1.5, 2];
+// 1.25 and 1.5: where whole logical pixels are off the device-pixel grid.
+const SCALES = [1, 1.25, 1.5, 2];
 
 function random(seed) {
   let state = (seed * 2654435761) >>> 0 || 1;
@@ -182,15 +183,53 @@ function tree(seed) {
   return root;
 }
 
-const entries = [];
-for (let seed = 1; seed <= TREES; seed++)
-  entries.push({
-    tree: tree(seed),
-    frames: Object.fromEntries(SCALES.map((scale) => [scale, []])),
-  });
+// Written by hand: a ring centred over a disc in one box (issue 405), the box
+// at places off the grid, where rounding each node on its own put them apart.
+const centred = (offset) => ({
+  type: 'view',
+  style: { paddingLeft: offset, paddingTop: offset, alignItems: 'flex-start' },
+  children: [
+    {
+      type: 'view',
+      style: {
+        width: 30,
+        height: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      children: [
+        {
+          type: 'view',
+          style: {
+            position: 'absolute',
+            width: 26,
+            height: 26,
+            borderWidth: 2,
+          },
+          children: [],
+        },
+        { type: 'view', style: { width: 20, height: 20 }, children: [] },
+        {
+          type: 'text',
+          text: 'Gain',
+          style: { position: 'absolute', fontSize: 10 },
+          children: [],
+        },
+      ],
+    },
+  ],
+});
+
+const trees = [];
+for (let seed = 1; seed <= TREES; seed++) trees.push(tree(seed));
+for (const offset of [0.2, 0.4, 0.6, 0.8]) trees.push(centred(offset));
+const entries = trees.map((tree) => ({
+  tree,
+  frames: Object.fromEntries(SCALES.map((scale) => [scale, []])),
+}));
 
 writeFileSync(
   new URL('./corpus.json', import.meta.url),
   `${JSON.stringify({ view: [800, 600], scales: SCALES, entries })}\n`,
 );
-console.log(`${TREES} trees at ${SCALES.length} scales`);
+console.log(`${entries.length} trees at ${SCALES.length} scales`);

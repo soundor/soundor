@@ -35,8 +35,14 @@ captures, with the CPU compositor and with the platform's), `layout`,
 `input`, `accessibility`, `native`, `javascript`, `audio`, `session` (saved
 state, presets, the editor closed and opened again, instances), `memory`
 (on Linux, the editor opened and closed again and again leaves no memory or
-threads behind in the host, read from `/proc`) and `parity` (the same Rust
-as the VST3 and as WebAssembly, sample for sample). The web
+threads behind in the host, read from `/proc`), `parity` (the same Rust
+as the VST3 and as WebAssembly, sample for sample) and `drawing` (on Linux,
+a tile for each thing the engine paints, text aside, as the native renderer
+draws it and as Chromium draws the web build, at 125 %, 137.5 % and 150 %:
+pixel for pixel, but for a few antialiased ones). `drawing` builds the web
+build itself, and runs Chromium headed, at a real device scale
+(`--force-device-scale-factor`): Playwright's emulated scale puts edges on
+CSS pixels, which no display does. The web
 suite covers drawing, the checks, controls through ARIA, the controller and
 the processor's streams, the host's audio inputs, and no WebGL.
 
@@ -58,7 +64,8 @@ it; `SOUNDOR_REQUIRE_GPU=1` makes it fail instead.
 The E2E group (`e2e.yml`) runs the VST3 suite on Linux, macOS and Windows,
 with the engine and the host Verify selected, when `soundor-e2e` is affected:
 a change to the engine, a runtime, the host, the React renderer or anything
-else the plugin is built with. The web suite runs in the Workspace job, with
+else the plugin is built with; on Linux, it installs Playwright's Chromium for
+`drawing`. The web suite runs in the Workspace job, with
 the other browser tests. A failure keeps the suite's reports
 (`.soundor/test-results/`: a screenshot, the UI's tree and the host's log),
 never the plugin.
