@@ -431,7 +431,7 @@ namespace
     // anywhere against the device-pixel grid; its child is `box`.
     struct Offset
     {
-        Offset(float scale, float offset, const Style& box)
+        Offset(float scale, float offset, const Style& boxStyle)
         {
             surface.setSize({ 200, 200 });
             surface.setScale(scale);
@@ -440,8 +440,8 @@ namespace
             style.padding = { Length::points(offset), Length::points(0), Length::points(0), Length::points(offset) };
             surface.setStyle(wrapper, style);
             surface.insertChild(surface.root().id(), wrapper);
-            surface.setStyle(this->box, box);
-            surface.insertChild(wrapper, this->box);
+            surface.setStyle(box, boxStyle);
+            surface.insertChild(wrapper, box);
         }
 
         NodeId add(NodeType type, const Style& style)

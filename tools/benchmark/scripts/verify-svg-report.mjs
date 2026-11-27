@@ -43,8 +43,9 @@ for (const run of report.runs) {
       assert.equal(phase.renderScale.max, 2);
       assert.equal(phase.surface.svgSceneUpdates, 0);
       assert.equal(phase.surface.svgPathParses, 0);
-      // Each changed point scale re-snaps the two existing Yoga roots.
-      assert.equal(phase.surface.layoutPasses, 2);
+      // A new scale rounds the frames to its pixels again without laying
+      // out again: only a border whose snapped width changes would.
+      assert.equal(phase.surface.layoutPasses, 0);
       assert(phase.layersRasterized > 0);
     }
   }
