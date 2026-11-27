@@ -1,5 +1,17 @@
 # @soundor/web-runtime
 
+## 0.18.0
+
+### Minor Changes
+
+- [#412](https://github.com/soundor/soundor/pull/412) [`c37104c`](https://github.com/soundor/soundor/commit/c37104c55db30244bf3b7d4eff6bdaf5e2a67bfb) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The Web host's panel has a preset selector, as a DAW's program selector for the plugin's factory presets: it shows the selected preset (marked modified once its values change, or Custom), follows what the UI, the controller or History selects, and loads a preset without a History entry, as a host's program change does. Choosing the modified preset loads it again. It shows only when the config declares presets.
+
+### Patch Changes
+
+- Updated dependencies [[`a666ac6`](https://github.com/soundor/soundor/commit/a666ac66281a256200ecbc1163074ca51412e89d), [`8518428`](https://github.com/soundor/soundor/commit/851842840dcb5f0c3b34f3dd1d50c6b09c495102), [`fa075ce`](https://github.com/soundor/soundor/commit/fa075ce7b067bc1e4847f94f70d59673b07026d6)]:
+  - @soundor/engine@0.12.1
+  - @soundor/runtime-sdk@0.21.1
+
 ## 0.17.0
 
 ### Minor Changes

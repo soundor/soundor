@@ -1,5 +1,13 @@
 # @soundor/vst3-host
 
+## 0.2.4
+
+### Patch Changes
+
+- [#408](https://github.com/soundor/soundor/pull/408) [`85c15fd`](https://github.com/soundor/soundor/commit/85c15fdf8fcfee219cf0381bbc0638e2053ab5a9) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Keep the editor scale requested through `launchHost` or `openEditor` when the display reports a different scale. Editors opened without an explicit scale still follow the display, including after switching presentations.
+- Updated dependencies []:
+  - @soundor/core@0.21.1
+
 ## 0.2.3
 
 ### Patch Changes
