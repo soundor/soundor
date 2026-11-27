@@ -51,7 +51,7 @@ export interface LaunchOptions extends ProcessingSetup {
   /** UI mode: open the plugin's editor in a native window. Default false
       (headless: no window, no display needed). */
   editor?: boolean;
-  /** The editor's content scale (Windows, Linux). Default: the window's. */
+  /** Fixed editor content scale (Windows, Linux). Omit to follow the display. */
   scale?: number;
   /** How the editor is shown (with `editor: true`): `editor` (the default),
       a window that is the editor alone, or `host`, with the host interface.
@@ -591,6 +591,8 @@ export class Vst3Host {
       opens again there, at the same size). */
   async openEditor(
     options: RequestOptions & {
+      /** Fixed content scale (Windows, Linux). A presentation switch keeps the
+          previous scale preference unless a new scale is supplied. */
       scale?: number;
       presentation?: Presentation;
     } = {},

@@ -1569,7 +1569,7 @@ namespace soundor::vst3host
         };
         callbacks.scaleChanged = [this, generation](double next)
         {
-            if (generation != editorGeneration_ || view_ == nullptr)
+            if (generation != editorGeneration_ || view_ == nullptr || requestedEditorScale_)
                 return;
             scale_ = next;
             if (auto support = U::cast<IPlugViewContentScaleSupport>(view_))
@@ -1596,7 +1596,8 @@ namespace soundor::vst3host
         view->setFrame(frame_);
         // Scale: the requested one, else the window's (Windows' DPI). On
         // macOS views are in points and the factor is not used.
-        scale_ = scale.value_or(window->scale());
+        requestedEditorScale_ = scale;
+        scale_ = requestedEditorScale_.value_or(window->scale());
 #if ! defined(__APPLE__)
         if (auto support = U::cast<IPlugViewContentScaleSupport>(view))
             support->setContentScaleFactor(static_cast<IPlugViewContentScaleSupport::ScaleFactor>(scale_));
@@ -1632,6 +1633,7 @@ namespace soundor::vst3host
         view_ = nullptr;
         frame_ = nullptr;
         window_.reset();
+        requestedEditorScale_.reset();
     }
 
     void Plugin::previewEditorSize(int width, int height)

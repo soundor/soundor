@@ -68,6 +68,41 @@ describe.runIf(hasDisplay || process.env.SOUNDOR_VST3_HOST_REQUIRE_UI === '1')(
       expect(outputs[0]![0]![63]).toBe(1);
     });
 
+    test.runIf(process.platform === 'linux')(
+      'keeps a requested editor scale after mapping on a 2× display',
+      async () => {
+        const host = await launch('Fixture Gain', {
+          editor: true,
+          presentation: 'editor',
+          scale: 1,
+          env: { SDL_VIDEO_DRIVER: 'x11', SDL_VIDEO_X11_SCALING_FACTOR: '2' },
+        });
+        const expectScale = async (scale: number) => {
+          // Wait for UI loop iterations so SDL has handled the map events.
+          const ticks = async () =>
+            (await host.getParameter(EDITOR_TICKS)).normalized;
+          const before = await ticks();
+          await expect.poll(ticks).not.toBe(before);
+          expect(await host.getEditor()).toMatchObject({ open: true, scale });
+          expect((await host.getParameter(EDITOR_SCALE)).normalized).toBe(
+            scale / 4,
+          );
+        };
+        await expectScale(1);
+
+        await host.openEditor({ presentation: 'host' });
+        await expectScale(1);
+
+        await host.closeEditor();
+        await host.openEditor();
+        await expectScale(2);
+
+        await host.closeEditor();
+        await host.openEditor({ scale: 1 });
+        await expectScale(1);
+      },
+    );
+
     test('follows the plugin resizing itself, and resizes it within its limits', async () => {
       const host = await launch('Fixture Gain', { editor: true });
       const resized = new Promise<EditorInfo>((resolve) =>

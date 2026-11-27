@@ -180,7 +180,7 @@ namespace soundor::vst3host
         Json requestEditorSize(int width, int height);
         Json editorInfo() const;
         [[nodiscard]] bool editorOpen() const { return view_ != nullptr; }
-        [[nodiscard]] double editorScale() const { return scale_; }
+        [[nodiscard]] std::optional<double> requestedEditorScale() const { return requestedEditorScale_; }
 
         // ── For live audio and the host interface (main thread unless noted)
 
@@ -316,6 +316,7 @@ namespace soundor::vst3host
         IPtr<IPlugView> view_;
         IPtr<PlugFrame> frame_;
         std::unique_ptr<EditorWindow> window_;
+        std::optional<double> requestedEditorScale_;
         double scale_ = 1;
         bool resizing_ = false;
         int editorGeneration_ = 0;
