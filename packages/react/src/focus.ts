@@ -85,7 +85,10 @@ function canFocus(node: UiNode | null): node is UiNode {
   return node !== null && node.isConnected && node.focusable && displayed(node);
 }
 
-/** The focusable members of `scope`, in sequential (tree) order. */
+/**
+ * The focusable members of `scope`, in sequential (tree) order, Tab stops
+ * or not.
+ */
 function members(scope: Scope): UiNode[] {
   const order: UiNode[] = [];
   const collect = (node: UiNode): void => {
@@ -137,17 +140,25 @@ function onKeyDown(event: KeyboardEvent): void {
   if (event.ctrlKey || event.altKey || event.metaKey) return;
   // The runtime would move focus through the whole view.
   event.preventDefault();
+  // From a member that is not a Tab stop, Tab goes on from where it is.
   const order = members(trap);
-  if (order.length === 0) return;
+  const size = order.length;
+  const back = event.shiftKey;
   const current = focusedNode();
-  const index = current === null ? -1 : order.indexOf(current);
-  const next =
-    index < 0
-      ? event.shiftKey
-        ? order.length - 1
-        : 0
-      : (index + (event.shiftKey ? order.length - 1 : 1)) % order.length;
-  order[next]!.focus();
+  const at = current === null ? -1 : order.indexOf(current);
+  let index = at < 0 ? (back ? 0 : size - 1) : at;
+  for (let step = 0; step < size; step++) {
+    index = (index + (back ? size - 1 : 1)) % size;
+    if (order[index]!.tabStop) {
+      order[index]!.focus();
+      return;
+    }
+  }
+}
+
+/** The scope's first Tab stop. */
+function firstTabStop(scope: Scope): UiNode | null {
+  return members(scope).find((node) => node.tabStop) ?? null;
 }
 
 /** Focus that leaves the trapping scope is taken back into it. */
@@ -165,7 +176,7 @@ function onFocus(event: FocusEvent): void {
   try {
     const back = canFocus(trap.lastFocused)
       ? trap.lastFocused
-      : (members(trap)[0] ?? null);
+      : firstTabStop(trap);
     if (back !== null) back.focus();
     else target.blur();
   } finally {
@@ -179,11 +190,11 @@ export interface FocusScopeProps {
   children?: ReactNode;
   /**
    * Keeps focus inside: Tab and Shift+Tab cycle through the scope's
-   * focusable nodes, and focus moved outside comes back (focus outside when
+   * Tab stops, and focus moved outside comes back (focus outside when
    * the trap starts is dropped). The innermost trapping scope wins.
    */
   trapped?: boolean;
-  /** On mount, focuses the first focusable node unless focus is inside. */
+  /** On mount, focuses the first Tab stop unless focus is inside. */
   autoFocus?: boolean;
   /** On unmount, gives focus back to the node that had it on mount. */
   restoreFocus?: boolean;
@@ -227,7 +238,7 @@ export function FocusScope({
     if (mount.autoFocus) {
       const current = focusedNode();
       if (current === null || !within(current, scope))
-        members(scope)[0]?.focus();
+        firstTabStop(scope)?.focus();
     }
     return () => {
       if (!mount.restoreFocus) return;

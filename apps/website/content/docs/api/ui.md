@@ -94,7 +94,9 @@ A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
   ([Style](/docs/primitives/style));
 - `layout` (its box in its parent's) and `getBoundingClientRect()` (in the
   view's), in logical pixels ([coordinates](/docs/primitives/events#coordinates));
-- `focusable`, `focused`, `focusVisible` (whether it should show its
+- `focusable`, `tabStop` (false: focusable, but skipped by Tab:
+  [Roving focus](/docs/primitives/events#roving-focus)), `focused`,
+  `focusVisible` (whether it should show its
   focus: [Focus rings](/docs/primitives/events#focus-rings)), `focus()`,
   `blur()`, and the `focusvisiblechange` event;
 - `debugId`, the name [DevTools](/docs/cli/devtools) shows and

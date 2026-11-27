@@ -203,7 +203,9 @@ Without such an element it is an ordinary request to the node it targets.
 
 Moving a screen reader's cursor does not move keyboard focus; only an
 explicit `focus` request does (or activating a text input), and only to a
-focusable element.
+focusable element. A node with `tabStop={false}` is one: it leaves the Tab
+order only, and its role, name and state describe it as before
+([Roving focus](/docs/primitives/events#roving-focus)).
 
 ## Examples
 

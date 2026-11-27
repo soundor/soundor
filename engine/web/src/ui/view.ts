@@ -752,6 +752,8 @@ export class Engine implements ViewLink {
   }
 
   #moveFocus(backwards: boolean): boolean {
+    // Every focusable node, so that Tab from one that is not a Tab stop goes
+    // on from where it is in the tree.
     const order: UiNode[] = [];
     const collect = (node: UiNode): void => {
       if (
@@ -764,15 +766,9 @@ export class Engine implements ViewLink {
     };
     collect(this.root);
     collect(this.overlay);
-    if (order.length === 0) return false;
-    const index = order.indexOf(this.focusedNode()!);
-    const next =
-      index < 0
-        ? backwards
-          ? order.length - 1
-          : 0
-        : (index + (backwards ? order.length - 1 : 1)) % order.length;
-    this.focus(order[next]!);
+    const next = nextTabStop(order, this.focusedNode(), backwards);
+    if (next === null) return false;
+    this.focus(next);
     return true;
   }
 
@@ -1912,4 +1908,24 @@ function describe(value: unknown): string {
       'object'
     );
   return typeof value;
+}
+
+/**
+ * The Tab stop after (or before) `current` in `order`, every focusable node
+ * in tree order, wrapping; from either end when `current` is not in it.
+ * Null when none is a Tab stop. As natively (`Surface::moveFocus`).
+ */
+function nextTabStop(
+  order: readonly UiNode[],
+  current: UiNode | null,
+  backwards: boolean,
+): UiNode | null {
+  const size = order.length;
+  const at = current === null ? -1 : order.indexOf(current);
+  let index = at < 0 ? (backwards ? 0 : size - 1) : at;
+  for (let step = 0; step < size; step++) {
+    index = (index + (backwards ? size - 1 : 1)) % size;
+    if (order[index]!.tabStop) return order[index]!;
+  }
+  return null;
 }

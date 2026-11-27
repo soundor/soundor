@@ -721,7 +721,8 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   - **Clicks:** a `click` goes to the deepest node common to press and release.
   - **Focus:** a press focuses the nearest `focusable` node unless
     `pointerdown` is prevented. Tab and Shift+Tab cycle through focusable
-    nodes. `Surface::focusVisible()` is CSS's `:focus-visible`: the Surface
+    nodes that are Tab stops (`Surface::setTabStop`, `node.tabStop`); from
+    one that is not, they go on from where it is in the tree. `Surface::focusVisible()` is CSS's `:focus-visible`: the Surface
     remembers whether the last input was a pointer press or the keyboard (or
     assistive technology), and focus a press moved is not shown until a key
     other than a shortcut or a lone modifier is pressed; a text input always

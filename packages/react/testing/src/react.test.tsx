@@ -386,6 +386,42 @@ describe('TextInput', () => {
 });
 
 describe('Pressable', () => {
+  it('tabStop={false}: focused by a press, skipped by Tab', async () => {
+    await show(
+      <View>
+        <Pressable accessibilityLabel="first" onPress={() => {}} />
+        <Pressable
+          accessibilityLabel="item"
+          tabStop={false}
+          onPress={() => {}}
+        />
+        <Pressable accessibilityLabel="last" onPress={() => {}} />
+      </View>,
+    );
+    const user = userEvent.setup(),
+      [first, item, last] = ['first', 'item', 'last'].map((name) =>
+        screen.getByRole('button', { name }),
+      );
+    expect([item!.focusable, item!.tabStop, first!.tabStop]).toEqual([
+      true,
+      false,
+      true,
+    ]);
+    await user.tab();
+    await user.tab();
+    expect(last!.focused).toBe(true);
+    await user.click(item!);
+    expect(item!.focused).toBe(true);
+    await show(
+      <View>
+        <Pressable accessibilityLabel="first" onPress={() => {}} />
+        <Pressable accessibilityLabel="item" onPress={() => {}} />
+        <Pressable accessibilityLabel="last" onPress={() => {}} />
+      </View>,
+    );
+    expect(item!.tabStop).toBe(true);
+  });
+
   it('presses, and styles and renders by its state', async () => {
     const onPress = vi.fn<(...args: unknown[]) => void>();
     await show(

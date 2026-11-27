@@ -388,7 +388,12 @@ export class TestRuntime {
       !hidden.has(node)
     );
   }
+  /** The Tab order: the focusable nodes Tab stops at, in tree order. */
   focusOrder(): TestNode[] {
+    return this.focusableOrder().filter((node) => node.tabStop);
+  }
+  /** Every node that can take focus, Tab stop or not, in tree order. */
+  private focusableOrder(): TestNode[] {
     const hidden = semanticSnapshot([this.root, this.overlayRoot]).hidden;
     const order: TestNode[] = [];
     const walk = (node: TestNode) => {
@@ -442,19 +447,19 @@ export class TestRuntime {
       !init['altKey'] &&
       !init['metaKey']
     ) {
-      const order = this.focusOrder(),
-        index = order.indexOf(this.focusedNode()!);
-      const back = Boolean(init['shiftKey']);
-      if (order.length)
-        this.moveFocus(
-          order[
-            index < 0
-              ? back
-                ? order.length - 1
-                : 0
-              : (index + (back ? order.length - 1 : 1)) % order.length
-          ]!,
-        );
+      // From a node that is not a Tab stop, Tab goes on from where it is.
+      const order = this.focusableOrder(),
+        size = order.length,
+        back = Boolean(init['shiftKey']),
+        at = order.indexOf(this.focusedNode()!);
+      let index = at < 0 ? (back ? 0 : size - 1) : at;
+      for (let step = 0; step < size; step++) {
+        index = (index + (back ? size - 1 : 1)) % size;
+        if (order[index]!.tabStop) {
+          this.moveFocus(order[index]!);
+          break;
+        }
+      }
     }
     return event;
   }

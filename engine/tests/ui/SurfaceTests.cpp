@@ -658,6 +658,43 @@ TEST_SUITE("ui::Surface hit testing")
 
 TEST_SUITE("ui::Surface input")
 {
+    TEST_CASE("Tab skips a node that is not a Tab stop, which a press or focus() still focuses")
+    {
+        Row f;
+        f.surface.setFocusable(f.a, true);
+        f.surface.setFocusable(f.b, true);
+        f.surface.setFocusable(f.inner, true);
+        f.surface.setTabStop(f.b, false);
+        CHECK(f.surface.find(f.b)->focusable());
+        CHECK_FALSE(f.surface.find(f.b)->tabStop());
+        CHECK(f.surface.find(f.a)->tabStop());
+
+        f.surface.key(key("Tab"));
+        CHECK(f.surface.focused() == f.a);
+        f.surface.key(key("Tab"));
+        CHECK(f.surface.focused() == f.inner);
+        f.surface.key(key("Tab", Modifier::Shift));
+        CHECK(f.surface.focused() == f.a);
+
+        // From it, Tab goes on from where it is in the tree.
+        f.surface.focus(f.b);
+        CHECK(f.surface.focused() == f.b);
+        f.surface.key(key("Tab", Modifier::Shift));
+        CHECK(f.surface.focused() == f.a);
+        f.surface.pointer(down(175, 75));
+        f.surface.pointer(up(175, 75));
+        CHECK(f.surface.focused() == f.b);
+        f.surface.key(key("Tab"));
+        CHECK(f.surface.focused() == f.inner);
+
+        // With no Tab stop, Tab leaves focus where it is.
+        f.surface.setTabStop(f.a, false);
+        f.surface.setTabStop(f.inner, false);
+        f.surface.focus(f.b);
+        f.surface.key(key("Tab"));
+        CHECK(f.surface.focused() == f.b);
+    }
+
     TEST_CASE("disabled subtrees swallow activation and wheel, keep hover, and lose focus and capture")
     {
         Row f;

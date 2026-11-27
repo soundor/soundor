@@ -192,6 +192,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         [[nodiscard]] const std::string& text() const noexcept { return textContent; }
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
+        // Whether Tab and Shift+Tab stop at it when it is focusable.
+        [[nodiscard]] bool tabStop() const noexcept { return isTabStop; }
         // The layout box relative to the parent's, once laid out.
         [[nodiscard]] Rect frame() const noexcept;
         // The box inside the border, including padding, relative to frame().
@@ -258,6 +260,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId semanticParent = noNode;
         std::string debugName;
         bool canFocus = false;
+        bool isTabStop = true;
         bool drawsScrollIndicators = true;
         bool verticalBarGrown = false;
         bool horizontalBarGrown = false;
@@ -393,6 +396,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Text and input nodes.
         void setText(NodeId id, std::string text);
         void setFocusable(NodeId id, bool focusable);
+        // Off: still focusable by a press or focus(), but Tab skips it.
+        void setTabStop(NodeId id, bool tabStop);
         void setDebugId(NodeId id, std::string debugId);
         void setScrollIndicators(NodeId id, bool shown);
         // Image nodes.
@@ -714,7 +719,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void scrollingChanged(Node& node);
         void endScrollbarDrag();
         void reconcileDisabledInput();
-        void collectFocusable(Node& node, std::vector<NodeId>& out);
+        void collectFocusable(Node& node, std::vector<const Node*>& out);
         bool moveFocus(bool backwards);
         bool dispatch(const Event& event);
         Event pointerEvent(Event::Type type, NodeId target, const PointerInput& input);

@@ -9,10 +9,11 @@ layout is as if it were not there.
 <Snippet name="focus-scope" height={220} />
 
 - **`trapped`:** Tab and Shift+Tab cycle through the scope's focusable
-  nodes, wrapping at the ends, and focus moved outside comes back. The
+  nodes that are Tab stops (not those with `tabStop={false}`), wrapping at
+  the ends, and focus moved outside comes back. The
   innermost trapping scope wins.
-- **`autoFocus`:** on mount, focuses the first focusable node, unless focus is
-  already inside.
+- **`autoFocus`:** on mount, focuses the first focusable node that is a Tab
+  stop, unless focus is already inside.
 - **`restoreFocus`:** on unmount, gives focus back to the node that had it on
   mount, if that node is still there and focusable.
 
