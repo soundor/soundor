@@ -1,5 +1,28 @@
 # @soundor/engine
 
+## 0.12.1
+
+### Patch Changes
+
+- [#411](https://github.com/soundor/soundor/pull/411) [`a666ac6`](https://github.com/soundor/soundor/commit/a666ac66281a256200ecbc1163074ca51412e89d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - An editor opened again no longer starts the GPU device's threads and the engine's own again. A process that opened and closed a plugin's editor all session (as a DAW does) grew with every open, because the memory each opening's threads had freed stayed in glibc arenas the next ones did not use: reported at about 180 MB over 60 opens of a WebGL editor on Linux.
+
+  - The GPU device the editors share (ANGLE's display, its worker threads, and the driver's device and threads) is kept when the last editor closes, until the plugin is unloaded, and so is the device WebGL uses where the editor composites on the CPU (`SOUNDOR_RENDERER=cpu`), which was made for each runtime. It is still made when an editor first opens, never when the plugin loads. A device a GPU reset lost is not given to the next editor.
+  - On Linux, the editors' accessibility (AT-SPI) work runs on one thread the plugin keeps, `soundor-a11y`, instead of one per editor, and file and storage work on one, `soundor-files`, instead of one per runtime. A runtime's teardown still waits until what it wrote is written.
+  - The VST3 adapter ends them when the host unloads the plugin (`ModuleExit`, `ExitDll` or `bundleExit`), through the engine's new `platform::releaseModuleResources()`.
+
+  Hermes's threads (its collector and time-limit monitor) still start with each editor's runtime, and Mesa's swapchain threads with each window.
+
+- [#410](https://github.com/soundor/soundor/pull/410) [`8518428`](https://github.com/soundor/soundor/commit/851842840dcb5f0c3b34f3dd1d50c6b09c495102) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Round layout to the device-pixel grid by where each edge is in the view, instead of with Yoga's rounding, so boxes laid out to line up stay lined up at a fractional scale (125 %, 150 %), and the native renderer and the browser draw the same pixels:
+
+  - Boxes centred in one parent share one centre exactly, and keep the same size wherever the parent lands; where their sizes would differ by an odd number of device pixels, a view's size is rounded the other way, or one device pixel added, to fit it. An `Image`, `Canvas` or `Svg` at a whole number of device pixels keeps its size, so it stays sharp.
+  - Nodes with the same style land on the same pixels whatever their type: an `Svg`, `Image` or `Canvas` was rounded down like text, a pixel away from a `View` styled the same.
+  - Border widths, outline widths and outline offsets are whole device pixels, rounded down and at least one, as CSS has them: the native renderer drew a 1 px border at 125 % as 1.25 device pixels with soft edges, where the browser draws one. What is inside a border moves with it.
+  - In the browser, the view's origin is put on a device pixel when the page places it between two (a view centred in the page), so the browser does not round each element again.
+
+  Text is still never narrower than measured, now by up to one device pixel less than before. Frames change by at most one device pixel.
+
+- [#407](https://github.com/soundor/soundor/pull/407) [`fa075ce`](https://github.com/soundor/soundor/commit/fa075ce7b067bc1e4847f94f70d59673b07026d6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A focusable node can leave the Tab order and stay focusable, for roving focus in composite widgets (lists, radio groups, toolbars): `tabStop={false}` on a `View` or `Pressable`, and `node.tabStop` in `soundor:ui`. A press, `focus()` and assistive technology still focus it, it still receives keys and has `focusVisible`, and its semantics are unchanged; Tab and Shift+Tab skip it in every runtime and in a `FocusScope`, and from it go on to the next Tab stop in tree order. `FocusScope`'s `autoFocus` focuses the first Tab stop.
+
 ## 0.12.0
 
 ### Minor Changes

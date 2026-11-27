@@ -1,5 +1,14 @@
 # @soundor/test-runtime
 
+## 0.21.1
+
+### Patch Changes
+
+- [#407](https://github.com/soundor/soundor/pull/407) [`fa075ce`](https://github.com/soundor/soundor/commit/fa075ce7b067bc1e4847f94f70d59673b07026d6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A focusable node can leave the Tab order and stay focusable, for roving focus in composite widgets (lists, radio groups, toolbars): `tabStop={false}` on a `View` or `Pressable`, and `node.tabStop` in `soundor:ui`. A press, `focus()` and assistive technology still focus it, it still receives keys and has `focusVisible`, and its semantics are unchanged; Tab and Shift+Tab skip it in every runtime and in a `FocusScope`, and from it go on to the next Tab stop in tree order. `FocusScope`'s `autoFocus` focuses the first Tab stop.
+- Updated dependencies []:
+  - @soundor/core@0.21.1
+  - @soundor/expression@0.21.1
+
 ## 0.21.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @soundor/core
 
+## 0.21.1
+
+### Patch Changes
+
+- Updated dependencies [[`8518428`](https://github.com/soundor/soundor/commit/851842840dcb5f0c3b34f3dd1d50c6b09c495102), [`fa075ce`](https://github.com/soundor/soundor/commit/fa075ce7b067bc1e4847f94f70d59673b07026d6)]:
+  - @soundor/environment@0.21.1
+
 ## 0.21.0
 
 ### Minor Changes

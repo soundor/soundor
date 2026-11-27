@@ -1,5 +1,12 @@
 # @soundor/vitest-e2e
 
+## 0.21.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/driver@0.21.1
+
 ## 0.21.0
 
 ### Patch Changes

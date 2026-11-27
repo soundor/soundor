@@ -1,5 +1,21 @@
 # @soundor/vst3-runtime
 
+## 0.2.1
+
+### Patch Changes
+
+- [#411](https://github.com/soundor/soundor/pull/411) [`a666ac6`](https://github.com/soundor/soundor/commit/a666ac66281a256200ecbc1163074ca51412e89d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - An editor opened again no longer starts the GPU device's threads and the engine's own again. A process that opened and closed a plugin's editor all session (as a DAW does) grew with every open, because the memory each opening's threads had freed stayed in glibc arenas the next ones did not use: reported at about 180 MB over 60 opens of a WebGL editor on Linux.
+
+  - The GPU device the editors share (ANGLE's display, its worker threads, and the driver's device and threads) is kept when the last editor closes, until the plugin is unloaded, and so is the device WebGL uses where the editor composites on the CPU (`SOUNDOR_RENDERER=cpu`), which was made for each runtime. It is still made when an editor first opens, never when the plugin loads. A device a GPU reset lost is not given to the next editor.
+  - On Linux, the editors' accessibility (AT-SPI) work runs on one thread the plugin keeps, `soundor-a11y`, instead of one per editor, and file and storage work on one, `soundor-files`, instead of one per runtime. A runtime's teardown still waits until what it wrote is written.
+  - The VST3 adapter ends them when the host unloads the plugin (`ModuleExit`, `ExitDll` or `bundleExit`), through the engine's new `platform::releaseModuleResources()`.
+
+  Hermes's threads (its collector and time-limit monitor) still start with each editor's runtime, and Mesa's swapchain threads with each window.
+
+- Updated dependencies [[`a666ac6`](https://github.com/soundor/soundor/commit/a666ac66281a256200ecbc1163074ca51412e89d), [`8518428`](https://github.com/soundor/soundor/commit/851842840dcb5f0c3b34f3dd1d50c6b09c495102), [`fa075ce`](https://github.com/soundor/soundor/commit/fa075ce7b067bc1e4847f94f70d59673b07026d6)]:
+  - @soundor/engine@0.12.1
+  - @soundor/runtime-sdk@0.21.1
+
 ## 0.2.0
 
 ### Minor Changes

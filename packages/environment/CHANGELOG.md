@@ -1,5 +1,20 @@
 # @soundor/environment
 
+## 0.21.1
+
+### Patch Changes
+
+- [#410](https://github.com/soundor/soundor/pull/410) [`8518428`](https://github.com/soundor/soundor/commit/851842840dcb5f0c3b34f3dd1d50c6b09c495102) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Round layout to the device-pixel grid by where each edge is in the view, instead of with Yoga's rounding, so boxes laid out to line up stay lined up at a fractional scale (125 %, 150 %), and the native renderer and the browser draw the same pixels:
+
+  - Boxes centred in one parent share one centre exactly, and keep the same size wherever the parent lands; where their sizes would differ by an odd number of device pixels, a view's size is rounded the other way, or one device pixel added, to fit it. An `Image`, `Canvas` or `Svg` at a whole number of device pixels keeps its size, so it stays sharp.
+  - Nodes with the same style land on the same pixels whatever their type: an `Svg`, `Image` or `Canvas` was rounded down like text, a pixel away from a `View` styled the same.
+  - Border widths, outline widths and outline offsets are whole device pixels, rounded down and at least one, as CSS has them: the native renderer drew a 1 px border at 125 % as 1.25 device pixels with soft edges, where the browser draws one. What is inside a border moves with it.
+  - In the browser, the view's origin is put on a device pixel when the page places it between two (a view centred in the page), so the browser does not round each element again.
+
+  Text is still never narrower than measured, now by up to one device pixel less than before. Frames change by at most one device pixel.
+
+- [#407](https://github.com/soundor/soundor/pull/407) [`fa075ce`](https://github.com/soundor/soundor/commit/fa075ce7b067bc1e4847f94f70d59673b07026d6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A focusable node can leave the Tab order and stay focusable, for roving focus in composite widgets (lists, radio groups, toolbars): `tabStop={false}` on a `View` or `Pressable`, and `node.tabStop` in `soundor:ui`. A press, `focus()` and assistive technology still focus it, it still receives keys and has `focusVisible`, and its semantics are unchanged; Tab and Shift+Tab skip it in every runtime and in a `FocusScope`, and from it go on to the next Tab stop in tree order. `FocusScope`'s `autoFocus` focuses the first Tab stop.
+
 ## 0.21.0
 
 ### Minor Changes

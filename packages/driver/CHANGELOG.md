@@ -1,5 +1,13 @@
 # @soundor/driver
 
+## 0.21.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/devtools-protocol@0.21.1
+  - @soundor/devtools-server@0.21.1
+
 ## 0.21.0
 
 ### Patch Changes
