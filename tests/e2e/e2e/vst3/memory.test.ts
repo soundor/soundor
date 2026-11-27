@@ -23,6 +23,28 @@ async function footprint(pid: number) {
   };
 }
 
+/** The host's threads, by id and name: a thread started again has a new id. */
+async function threads(pid: number) {
+  const ids = await readdir(`/proc/${pid}/task`);
+  const named = await Promise.all(
+    ids.map(async (id) => {
+      const name = await readFile(`/proc/${pid}/task/${id}/comm`, 'utf8').catch(
+        () => '',
+      );
+      return [id, name.trim()] as const;
+    }),
+  );
+  return new Map(named);
+}
+
+/**
+ * What the engine keeps between editors (#404): the GPU device's threads
+ * (ANGLE's; the driver's are named by each driver) and the engine's own.
+ * Hermes's start with each editor's runtime, and Mesa's swapchain threads
+ * with each window.
+ */
+const kept = /^(ANGLE-|soundor-a11y$|soundor-files$)/;
+
 async function reopen(plugin: Vst3Plugin) {
   await plugin.host.closeEditor();
   await plugin.openEditor();
@@ -30,10 +52,13 @@ async function reopen(plugin: Vst3Plugin) {
   await expect(plugin.getByDebugId('note')).toHaveText('Note: none');
 }
 
-// Each open makes a runtime, a GPU context, fonts and canvases, and
-// starts the editor's threads; each close must end them. Before the fixes
-// for #376 and #377, PSS grew by about 1 MB (fonts, glyphs) plus up to
-// 14 MB (a dozen ANGLE workers' glibc arenas) per open.
+// Each open makes a runtime, a GPU context, fonts and canvases (one of them
+// WebGL's), and starts the runtime's threads; each close must end them.
+// Before the fixes for #376 and #377, PSS grew by about 1 MB (fonts, glyphs)
+// plus up to 14 MB (a dozen ANGLE workers' glibc arenas) per open. Before
+// #404's, every open started the GPU device's threads (ANGLE's, the
+// driver's) and the engine's again, and glibc kept what each opening's
+// threads had freed in arenas the next ones did not use.
 test.skipIf(process.platform !== 'linux')(
   'an editor opened and closed again and again leaves no memory or threads behind',
   async () => {
@@ -48,9 +73,16 @@ test.skipIf(process.platform !== 'linux')(
 
     await plugin.host.closeEditor();
     const before = await footprint(pid!);
+    const closed = await threads(pid!);
     await plugin.openEditor();
+    await expect(plugin.getByDebugId('note')).toHaveText('Note: none');
     const open = await footprint(pid!);
-    const rounds = 15;
+    // Warm, an open starts none of what the engine keeps: the same threads.
+    const restarted = [...(await threads(pid!))]
+      .filter(([id, name]) => kept.test(name) && !closed.has(id))
+      .map(([, name]) => name);
+    expect(restarted, 'threads started again by a warm open').toEqual([]);
+    const rounds = 30;
     for (let round = 0; round < rounds; round += 1) await reopen(plugin);
     await plugin.host.closeEditor();
     const after = await footprint(pid!);
@@ -65,8 +97,8 @@ test.skipIf(process.platform !== 'linux')(
     );
     expect(after.threads).toBe(before.threads);
     // Allocator and driver noise, not a leak per open. Measured on Linux
-    // (Vulkan, 4 CPUs): 10 opens grew it by 7.5 MB before those fixes; 15
-    // opens grow it by 2 to 3 MB now.
+    // (Vulkan, 4 CPUs): 10 opens grew it by 7.5 MB before the fixes for #376
+    // and #377; 15 opens grew it by 2 to 3 MB after them.
     expect(
       after.anonymous - before.anonymous,
       `anonymous memory grew from ${megabytes(before.anonymous)} to ${megabytes(after.anonymous)}`,

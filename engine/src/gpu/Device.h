@@ -3,6 +3,7 @@
 #include <soundor/Abi.h>
 #include <soundor/Config.h>
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -56,7 +57,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     // that created it (the UI thread): contexts are made, used and destroyed
     // there. Each Device has a display of its own, so destroying one never
     // affects another (another plugin, a test's); except OpenGL ones. The
-    // editors of one thread share theirs (shared()).
+    // editors of one thread share theirs (shared()), which the module keeps.
     class Device
     {
     public:
@@ -72,10 +73,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // A device that `options` accepts, or null (with the reason in
         // `failure`) when there is none.
         [[nodiscard]] static std::shared_ptr<Device> create(const Options& options, std::string* failure = nullptr);
-        // The device another caller on this thread holds for the same
-        // `options`, or a new one: editors open at the same time share one
-        // device (one GPU device, one ANGLE display and worker pool, and the
-        // driver's memory for them), rather than one each.
+        // The device this thread has for `options`, or a new one: editors
+        // share one device (one GPU device, one ANGLE display and worker
+        // pool, and the driver's threads and memory for them), rather than
+        // one each. It is kept when the last editor closes, until
+        // platform::releaseModuleResources(), so an editor opened again
+        // starts none of it anew; a lost one (markLost()) is made again.
         [[nodiscard]] static std::shared_ptr<Device> shared(const Options& options, std::string* failure = nullptr);
 
         ~Device();
@@ -87,6 +90,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         [[nodiscard]] void* display() const noexcept { return eglDisplay; }
         // Whether the calling thread is the device's.
         [[nodiscard]] bool onOwnerThread() const noexcept { return std::this_thread::get_id() == owner; }
+        // A context of it was lost to a GPU reset (or a removed GPU): shared()
+        // gives the next editor a new device instead.
+        void markLost() noexcept { gone = true; }
+        [[nodiscard]] bool lost() const noexcept { return gone; }
 
     private:
         Device() = default;
@@ -96,5 +103,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         std::intptr_t displayKey = 0;
         DeviceInfo deviceInfo;
         std::thread::id owner = std::this_thread::get_id();
+        std::atomic<bool> gone { false };
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

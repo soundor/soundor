@@ -1,6 +1,7 @@
 #include "gpu/Device.h"
 
 #include "gpu/Egl.h"
+#include "platform/ModuleResources.h"
 
 #include <algorithm>
 #include <array>
@@ -220,27 +221,67 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         return nullptr;
     }
 
-    std::shared_ptr<Device> Device::shared(const Options& options, std::string* failure)
+    namespace
     {
+        // The devices shared() keeps. Never destroyed (ModuleResources.h):
+        // releaseModuleResources() terminates them.
         struct Held
         {
-            Options options;
+            Device::Options options;
             std::thread::id thread;
-            std::weak_ptr<Device> device;
+            std::shared_ptr<Device> device;
         };
-        static std::mutex mutex;
-        static std::vector<Held> held;
-        const std::scoped_lock lock(mutex);
-        std::erase_if(held, [](const Held& entry) { return entry.device.expired(); });
+
+        struct Kept
+        {
+            std::mutex mutex;
+            std::vector<Held> held;
+        };
+
+        Kept& kept()
+        {
+            static auto* const shared = new Kept(); // NOLINT(cppcoreguidelines-owning-memory)
+            return *shared;
+        }
+
+        void releaseKept()
+        {
+            std::vector<Held> released;
+            {
+                const std::scoped_lock lock(kept().mutex);
+                released.swap(kept().held);
+            }
+            // Terminated here unless something still holds one.
+        }
+    } // namespace
+
+    std::shared_ptr<Device> Device::shared(const Options& options, std::string* failure)
+    {
+        Kept& store = kept();
+        std::vector<Held> lost;
+        const std::scoped_lock lock(store.mutex);
+        // A lost GPU (a reset, a removed GPU) is made again for the next
+        // editor; the editors still using the lost one let it go.
+        for (auto entry = store.held.begin(); entry != store.held.end();)
+            if (entry->device->lost())
+            {
+                lost.push_back(std::move(*entry));
+                entry = store.held.erase(entry);
+            }
+            else
+                ++entry;
         const auto thread = std::this_thread::get_id();
-        for (const Held& entry : held)
+        for (const Held& entry : store.held)
             if (entry.thread == thread && entry.options.policy == options.policy
                 && entry.options.backend == options.backend && entry.options.presentation == options.presentation)
-                if (auto device = entry.device.lock())
-                    return device;
+                return entry.device;
         auto device = create(options, failure);
         if (device != nullptr)
-            held.push_back({ options, thread, device });
+        {
+            if (store.held.empty())
+                platform::releaseWithModule([] { releaseKept(); });
+            store.held.push_back({ options, thread, device });
+        }
         return device;
     }
 

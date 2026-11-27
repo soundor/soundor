@@ -10,10 +10,13 @@
 #include "Descriptor.h"
 #include "Processor.h"
 
+#include <soundor/platform/ModuleResources.h>
+
 #include <pluginterfaces/gui/iplugview.h>
 #include <pluginterfaces/vst/ivstaudioprocessor.h>
 #include <pluginterfaces/vst/ivsteditcontroller.h>
 #include <pluginterfaces/vst/vsttypes.h>
+#include <public.sdk/source/main/moduleinit.h>
 #include <public.sdk/source/main/pluginfactory.h>
 
 using namespace Steinberg;
@@ -32,6 +35,12 @@ namespace Steinberg
 
 extern "C" SMTG_EXPORT_SYMBOL IPluginFactory* PLUGIN_API GetPluginFactory()
 {
+    // What the engine keeps between editors (the GPU device, its threads)
+    // ends before the module is unloaded: DeinitModule, which ModuleExit,
+    // ExitDll and bundleExit call. Not a static destructor, which on Windows
+    // would wait for those threads under the loader lock. Registered here,
+    // before anything can open an editor, rather than as the module loads.
+    static const ModuleTerminator releaseEngine([] { soundor::platform::releaseModuleResources(); });
     if (gPluginFactory != nullptr)
     {
         gPluginFactory->addRef();

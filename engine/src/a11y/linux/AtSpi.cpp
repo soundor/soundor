@@ -2,14 +2,18 @@
 
 #include "a11y/linux/Interfaces.h"
 #include "a11y/linux/Mapping.h"
+#include "platform/ModuleResources.h"
 
 #include <gio/gio.h>
+#include <pthread.h>
 
 #include <algorithm>
 #include <atomic>
 #include <charconv>
 #include <cmath>
+#include <condition_variable>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <ranges>
 #include <thread>
@@ -106,6 +110,77 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         }
     } // namespace
 
+    // The thread every session's D-Bus work runs on, and its GLib context:
+    // the module's (soundor/platform/ModuleResources.h), so an editor opened
+    // again starts no thread. Its async operations, method calls and signals
+    // dispatch on this context, the thread's default while it runs.
+    class EventLoop
+    {
+    public:
+        EventLoop() : context(g_main_context_new()), thread([this] { run(); }) {}
+
+        ~EventLoop()
+        {
+            stopping = true;
+            g_main_context_wakeup(context);
+            thread.join();
+            g_main_context_unref(context);
+        }
+
+        EventLoop(const EventLoop&) = delete;
+        EventLoop& operator=(const EventLoop&) = delete;
+
+        // The module's, started on first use.
+        static EventLoop& shared()
+        {
+            Holder& holder = held();
+            const std::scoped_lock lock(holder.mutex);
+            if (holder.loop == nullptr)
+            {
+                holder.loop = std::make_unique<EventLoop>();
+                platform::releaseWithModule(
+                    []
+                    {
+                        std::unique_ptr<EventLoop> ended;
+                        {
+                            Holder& kept = held();
+                            const std::scoped_lock released(kept.mutex);
+                            ended = std::move(kept.loop);
+                        }
+                    });
+            }
+            return *holder.loop;
+        }
+
+        GMainContext* const context;
+
+    private:
+        struct Holder
+        {
+            std::mutex mutex;
+            std::unique_ptr<EventLoop> loop;
+        };
+
+        // Never destroyed (ModuleResources.h): releaseModuleResources() ends it.
+        static Holder& held()
+        {
+            static auto* const holder = new Holder(); // NOLINT(cppcoreguidelines-owning-memory)
+            return *holder;
+        }
+
+        void run()
+        {
+            pthread_setname_np(pthread_self(), "soundor-a11y");
+            g_main_context_push_thread_default(context);
+            while (! stopping)
+                g_main_context_iteration(context, TRUE);
+            g_main_context_pop_thread_default(context);
+        }
+
+        std::atomic<bool> stopping { false };
+        std::thread thread;
+    };
+
     class Session::Impl
     {
     public:
@@ -113,20 +188,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             : pluginName(std::move(label)),
               address(std::move(busAddress)),
               sessionAddress(std::move(sessionBus)),
-              context(g_main_context_new()),
+              context(EventLoop::shared().context),
               cancel(g_cancellable_new()),
-              worker([this] { run(); })
+              metadata(g_dbus_node_info_new_for_xml(introspection, nullptr)),
+              timer(g_timeout_source_new(20))
         {
+            // Our source, attached to the module's context: the DAW needs no
+            // GLib loop.
+            g_source_set_callback(timer, pulse, this, nullptr);
+            g_source_attach(timer, context);
         }
 
         ~Impl()
         {
             closing = true;
             g_cancellable_cancel(cancel);
-            g_main_context_wakeup(context);
-            worker.join();
+            // On the loop's thread, now and then at every pulse until it is
+            // done: what is in flight completes there, and nothing that holds
+            // this session may be left on the context when it is gone.
+            {
+                std::unique_lock lock(mutex);
+                // A pulse may have closed it already: then nothing is attached.
+                if (! closed)
+                {
+                    closer = g_idle_source_new();
+                    g_source_set_callback(closer, closeStep, this, nullptr);
+                    g_source_attach(closer, context);
+                }
+                closedChanged.wait(lock, [this] { return closed; });
+            }
+            if (closer != nullptr)
+                g_source_unref(closer);
+            g_source_unref(timer);
+            g_dbus_node_info_unref(metadata);
             g_object_unref(cancel);
-            g_main_context_unref(context);
         }
 
         Impl(const Impl&) = delete;
@@ -171,31 +266,41 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         [[nodiscard]] bool active() const { return registered; }
 
     private:
-        void run()
+        // Closing, on the loop's thread: disconnects, and once every async
+        // operation has completed (they complete on this context, cancelled
+        // or not), takes the timer off the context and lets the destructor go
+        // on. Callbacks GLib had already queued for an object or a signal
+        // subscription that disconnect() ended check for that and do nothing.
+        static gboolean closeStep(gpointer data)
         {
-            g_main_context_push_thread_default(context);
-            metadata = g_dbus_node_info_new_for_xml(introspection, nullptr);
-            // Our source, attached to our context: the DAW needs no GLib loop.
-            GSource* timer = g_timeout_source_new(20);
-            g_source_set_callback(timer, pulse, this, nullptr);
-            g_source_attach(timer, context);
-            while (! closing)
-                g_main_context_iteration(context, TRUE);
+            auto& self = *static_cast<Impl*>(data);
+            self.close();
+            return G_SOURCE_REMOVE;
+        }
+
+        void close()
+        {
+            if (finished)
+                return;
             disconnect();
-            // Cancellable async operations always complete on this context.
-            // Drain them before any callback code or userdata can disappear.
-            while (pending != 0)
-                g_main_context_iteration(context, TRUE);
+            if (pending != 0)
+                return; // the next pulse tries again
+            finished = true;
             g_source_destroy(timer);
-            g_source_unref(timer);
-            g_dbus_node_info_unref(metadata);
-            g_main_context_pop_thread_default(context);
+            const std::scoped_lock lock(mutex);
+            // Whichever ran this, neither runs again.
+            if (closer != nullptr)
+                g_source_destroy(closer);
+            closed = true;
+            closedChanged.notify_all();
         }
 
         static gboolean pulse(gpointer data)
         {
             auto& self = *static_cast<Impl*>(data);
-            if (! self.closing)
+            if (self.closing)
+                self.close();
+            else
                 self.poll();
             return G_SOURCE_CONTINUE;
         }
@@ -973,13 +1078,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         GCancellable* cancel;
         std::atomic<bool> closing { false };
         std::atomic<bool> registered { false };
+        bool closed = false; // under `mutex`
         std::mutex mutex;
         std::vector<Update> updates;
         std::vector<ActionRequest> requests;
         std::vector<Announcement> announcements;
         std::uint64_t generation = 0;
-        // Everything below belongs exclusively to the owned event thread.
-        GDBusNodeInfo* metadata = nullptr;
+        std::condition_variable closedChanged;
+        GSource* closer = nullptr; // under `mutex`
+        GDBusNodeInfo* metadata;
+        GSource* timer;
+        // Everything below belongs exclusively to the loop's thread.
         GDBusConnection* connection = nullptr;
         std::string busName;
         std::string parentBus;
@@ -996,7 +1105,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         std::unordered_map<NodeId, std::vector<guint>> objects;
         ViewGeometry geometry;
         bool windowFocused = false;
-        std::thread worker;
+        bool finished = false;
     };
 
     Session::Session(std::string name, std::string address, std::string sessionAddress)

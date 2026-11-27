@@ -52,8 +52,11 @@ no numeric step, so Value.MinimumIncrement is zero.
 
 ## Connections and editor lifetime
 
-Each editor owns a private accessibility-bus connection, a GMainContext and a
-worker thread. It discovers the bus through org.a11y.Bus.GetAddress on a private
+Each editor owns a private accessibility-bus connection. The editors' bus work
+runs on one GMainContext and its thread (`soundor-a11y`), which the plugin's
+module keeps from the first editor's opening until it is unloaded
+(`platform::releaseModuleResources()`), so an editor opened again starts no
+thread. It discovers the bus through org.a11y.Bus.GetAddress on a private
 session-bus connection, or uses AT_SPI_BUS_ADDRESS when provided by the desktop.
 No process-shared g_bus_get connection, host GLib loop, process-global GLib
 configuration or environment modification is required.
@@ -65,14 +68,16 @@ reference follow the registration protocol. Registry restarts and bus closures
 trigger re-registration/reconnection while retaining the semantic mirror.
 
 The UI thread submits plain semantic updates. Bus callbacks only read the mirror
-on the owned context. Actions enter a bounded queue and are dispatched through
+on that context. Actions enter a bounded queue and are dispatched through
 RuntimeHost::performAccessibilityAction on the UI thread. Full resets invalidate
 queued actions from older tree generations. The audio thread uses none of this.
 
 Closing marks the adapter as closing, rejects actions, cancels pending work,
-unregisters objects, closes its private connection and drains completions on its
-context before joining the worker and releasing callback state. Another editor's
-connection is unaffected. Missing services remain inactive and retry without
+unregisters objects and closes its private connection, on the context's thread,
+then waits there until every pending completion has run before it takes its
+sources off the context and releases callback state. Callbacks GLib had
+already queued for an unregistered object or signal subscription do nothing.
+Another editor's connection is unaffected. Missing services remain inactive and retry without
 blocking the UI on normal bus calls. Closing a connection also unregisters the
 application from the AT-SPI registry. GIO is never manually unloaded.
 

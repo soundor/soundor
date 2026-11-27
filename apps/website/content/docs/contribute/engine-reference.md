@@ -600,7 +600,10 @@ Anything that would block, such as network or file I/O, is asynchronous. Work
 runs on backend or worker threads and carries only an operation id and plain
 C++ results back. The UI thread settles the promise in `tick()`. A runtime torn
 down mid-operation is therefore safe: in-flight requests are cancelled, file
-writes already started complete, and late results are dropped.
+writes already started complete, and late results are dropped. File work runs
+on the module's one worker (`soundor-files`), which every runtime shares; a
+runtime's teardown waits for the jobs it posted, so what it wrote is written
+once it is gone.
 
 ### `soundor:host`, `soundor:storage`, `soundor:fs`
 
@@ -1039,12 +1042,18 @@ its headers.
 
 - **`gpu::Device`:** a GPU device and ANGLE's EGL display over it. Each device
   has a display of its own, so destroying one never affects another plugin's.
-  The editors open on one thread share theirs (`Device::shared()`, which
-  `GpuCompositor::createDevice()` uses): one GPU device, display and worker
-  pool for all of them, rather than one each. ANGLE keeps every display it
+  The editors of one thread share theirs (`Device::shared()`, which
+  `GpuCompositor::createDevice()` uses, and WebGL where the compositor has no
+  device): one GPU device, display and worker pool for all of them, rather
+  than one each. It is made when the first editor opens, not when the module
+  loads (hosts load plugins that never show an editor), and kept when the
+  last one closes, until the module's release (see "What the module keeps"):
+  an editor opened again starts none of ANGLE's threads or the driver's. A
+  device a GPU reset lost (`markLost()`, from the compositor or a WebGL
+  context) is not given to the next editor. ANGLE keeps every display it
   handed out for the process's life, so a display's key is used again once
-  the display is terminated: an editor opened again initializes the display
-  it had. It belongs to the thread that created it (the UI
+  the display is terminated: a device made again initializes the display it
+  had. It belongs to the thread that created it (the UI
   thread); debug builds assert that its contexts are used there only.
 - **Which device:** the platform's backend: Metal, Direct3D 11 or Vulkan.
   `DevicePolicy` says whether software renderers (SwiftShader, llvmpipe,
@@ -1312,7 +1321,8 @@ would pass its own view the same way. Call `tick(host)` after every
 | iOS      | Soundor's Apple bridge              | implemented; simulator build checked, no iOS runtime or device validation yet |
 
 Linux uses [`src/a11y/linux/`](/docs/contribute/linux-accessibility), a native C++
-AT-SPI adapter with an editor-owned GMainContext and private GDBus connections.
+AT-SPI adapter with private GDBus connections per editor, on a GMainContext and
+thread the module keeps.
 It answers from a mirror of this same semantic tree and queues actions for
 `tick()`; it never reaches UI objects from bus callbacks.
 
@@ -1807,6 +1817,21 @@ on the context's thread when its jobs drain (`ContextState::runFinalizers`). A h
 with ten plugin editors open has ten of these threads. With a time limit,
 Hermes has one more thread per plugin binary (its `time-limit-monitor`),
 asleep until a deadline passes, when it asks the engine to stop.
+
+What the engine keeps for the plugin module rather than an editor (the GPU
+device, the accessibility thread on Linux, the file worker) is in
+`<soundor/platform/ModuleResources.h>`: made when first needed, never when the
+module loads, and ended by `platform::releaseModuleResources()`, which the
+runtime's adapter calls before the module is unloaded (the VST3 adapter from
+`DeinitModule`, through the SDK's `ModuleTerminator`), with no editor or
+runtime left. Starting and ending these threads with every editor left each
+opening's allocations in other glibc arenas, so a host opening and closing an
+editor grew with every open (by about 180 MB over 60 opens of a WebGL editor,
+on one machine). Their holders are leaked
+statics, never static destructors: those would end the threads during exit
+or unloading, after the libraries they use are gone, or under Windows' loader
+lock, where waiting for a thread deadlocks. Hermes's threads (above) still
+start with each context.
 
 A context's heap, with its jobs, is released when the context is destroyed;
 the `Runtime` and its `Context`s may go in any order. Destroying everything and

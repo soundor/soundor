@@ -21,16 +21,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
     class WorkerThread
     {
     public:
-        WorkerThread();
+        // `name`: the thread's, where the platform names threads (Linux; at
+        // most 15 characters), as tools that list threads show it.
+        explicit WorkerThread(const char* name = nullptr);
         ~WorkerThread();
 
         WorkerThread(const WorkerThread&) = delete;
         WorkerThread& operator=(const WorkerThread&) = delete;
 
         void post(std::function<void()> job);
+        // Returns once every job posted before it has run. Not from a job.
+        void finish();
 
     private:
-        void run();
+        void run(const char* name);
 
         std::mutex mutex;
         std::condition_variable wake;

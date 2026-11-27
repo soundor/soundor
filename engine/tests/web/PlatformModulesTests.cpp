@@ -1,8 +1,11 @@
 #include "WebTestSupport.h"
 
+#include <soundor/platform/ModuleResources.h>
+
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <random>
 #include <string>
@@ -208,6 +211,36 @@ TEST_SUITE("soundor:storage")
         const std::string stored = readFile(data.path / "storage.json");
         CHECK(stored.find("\"k19\": \"19\"") != std::string::npos);
     }
+
+#if defined(__linux__)
+    TEST_CASE("runtimes made one after another share the module's file worker")
+    {
+        const auto threads = []
+        {
+            const auto tasks = fs::directory_iterator("/proc/self/task");
+            return std::distance(begin(tasks), end(tasks));
+        };
+        TempDir data;
+        const auto write = [&](int value)
+        {
+            WebFixture f(withData(data.path));
+            CHECK(await(f, fsImports, "await fs.writeText('n.txt', '" + std::to_string(value) + "'); return 'ok';")
+                      .asString()
+                  == "ok");
+        };
+        platform::releaseModuleResources();
+        const auto before = threads();
+        write(1);
+        const auto kept = threads();
+        CHECK(kept == before + 1);
+        for (int value = 2; value <= 4; ++value)
+            write(value);
+        CHECK(threads() == kept);
+        CHECK(readFile(data.path / "files" / "n.txt") == "4");
+        platform::releaseModuleResources();
+        CHECK(threads() == before);
+    }
+#endif
 }
 
 namespace
