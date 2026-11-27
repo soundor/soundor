@@ -450,6 +450,8 @@ function applyProps(
     next['focusable'] !== undefined
   )
     node.focusable = Boolean(next['focusable']);
+  if (next['tabStop'] !== previous?.['tabStop'])
+    node.tabStop = next['tabStop'] !== false;
 
   if (previous === null || !sameAccessibilityProps(previous, next)) {
     const accessibility = accessibilityOf(next);

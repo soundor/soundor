@@ -129,6 +129,36 @@ describe('events and input', () => {
     expect(r.focusedNode()).toBeNull();
     r.dispose();
   });
+  it('skips nodes that are not Tab stops, and goes on from one', () => {
+    const r = createTestRuntime(),
+      a = r.create('input'),
+      item = r.create('view'),
+      b = r.create('input');
+    item.focusable = true;
+    item.tabStop = false;
+    r.root.appendChild(a);
+    r.root.appendChild(item);
+    r.root.appendChild(b);
+    expect(r.focusOrder()).toEqual([a, b]);
+    r.pressKey('Tab');
+    r.pressKey('Tab');
+    expect(r.focusedNode()).toBe(b);
+    item.focus();
+    expect(r.focusedNode()).toBe(item);
+    r.pressKey('Tab', { shiftKey: true });
+    expect(r.focusedNode()).toBe(a);
+    r.pointerDown(item);
+    r.pointerUp(item);
+    expect(r.focusedNode()).toBe(item);
+    r.pressKey('Tab');
+    expect(r.focusedNode()).toBe(b);
+    // With no Tab stop, Tab leaves focus where it is.
+    a.tabStop = b.tabStop = false;
+    item.focus();
+    r.pressKey('Tab');
+    expect(r.focusedNode()).toBe(item);
+    r.dispose();
+  });
   it('shows focus the keyboard moved, and a pressed node from a key on', () => {
     const r = createTestRuntime(),
       a = r.create('view'),

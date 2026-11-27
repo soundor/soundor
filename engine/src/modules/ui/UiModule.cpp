@@ -565,6 +565,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        jsi::Value setTabStop(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "setTabStop", count, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setTabStop(readId(args[0]), bind::toBoolean(context, args[1]));
+                            return jsi::Value::undefined();
+                        });
+        }
+
         jsi::Value setDebugId(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             return call(context, "setDebugId", count, 2,
@@ -1481,6 +1491,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setStyle", setStyle, 2 },
             { "setText", setText, 2 },
             { "setFocusable", setFocusable, 2 },
+            { "setTabStop", setTabStop, 2 },
             { "suppressPointerClick", suppressPointerClick, 1 },
             { "canLongPress", canLongPress, 2 },
             { "setDebugId", setDebugId, 2 },

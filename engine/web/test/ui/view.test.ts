@@ -980,6 +980,41 @@ describe('focus', () => {
     expect(view.focusedNode()).toBe(other);
   });
 
+  it('skips a node that is not a Tab stop, which a press or focus() still focuses', () => {
+    const { panel, button, other } = setup();
+    panel.focusable = button.focusable = other.focusable = true;
+    button.tabStop = false;
+    expect([panel.tabStop, button.tabStop]).toEqual([true, false]);
+    const tab = (shiftKey = false) =>
+      el(view.focusedNode() ?? view.root).dispatchEvent(
+        new window.KeyboardEvent('keydown', {
+          key: 'Tab',
+          shiftKey,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+    tab();
+    expect(view.focusedNode()).toBe(other);
+    tab(true);
+    expect(view.focusedNode()).toBe(panel);
+    // From it, Tab goes on from where it is in the tree.
+    button.focus();
+    expect(view.focusedNode()).toBe(button);
+    tab(true);
+    expect(view.focusedNode()).toBe(panel);
+    button.focus();
+    tab();
+    expect(view.focusedNode()).toBe(other);
+    // With no Tab stop, Tab leaves focus where it is.
+    panel.tabStop = other.tabStop = false;
+    button.focus();
+    tab();
+    expect(view.focusedNode()).toBe(button);
+  });
+
   it('sends keys to the focused node, or the root', () => {
     const { other, events } = setup();
     const key = (target: EventTarget) =>

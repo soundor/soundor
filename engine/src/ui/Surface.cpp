@@ -948,6 +948,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         ++changes;
     }
 
+    void Surface::setTabStop(NodeId id, bool tabStop)
+    {
+        // Only Tab reads it: nothing to draw, nor for assistive technology.
+        get(id).isTabStop = tabStop;
+    }
+
     void Surface::setDebugId(NodeId id, std::string debugId)
     {
         Node& node = get(id);
@@ -2160,33 +2166,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         dispatch(visible);
     }
 
-    void Surface::collectFocusable(Node& node, std::vector<NodeId>& out)
+    void Surface::collectFocusable(Node& node, std::vector<const Node*>& out)
     {
         if (node.nodeStyle.display == Display::None || node.semantics.state.disabled)
             return;
         if (node.canFocus)
-            out.push_back(node.nodeId);
+            out.push_back(&node);
         for (Node* child : node.childNodes)
             collectFocusable(*child, out);
     }
 
     bool Surface::moveFocus(bool backwards)
     {
-        std::vector<NodeId> order;
+        // Every focusable node, so that Tab from one that is not a Tab stop
+        // goes on from where it is in the tree.
+        std::vector<const Node*> order;
         collectFocusable(*rootNode, order);
         collectFocusable(*overlayNode, order);
-        if (order.empty())
-            return false;
-        const auto current = std::find(order.begin(), order.end(), focused());
-        std::size_t next = 0;
-        if (current == order.end())
-            next = backwards ? order.size() - 1 : 0;
-        else
+        const NodeId current = focused();
+        const auto at =
+            std::find_if(order.begin(), order.end(), [current](const Node* node) { return node->nodeId == current; });
+        const std::size_t size = order.size();
+        // Outside the order, Tab starts from either end.
+        std::size_t index =
+            at == order.end() ? (backwards ? 0 : size - 1) : static_cast<std::size_t>(at - order.begin());
+        for (std::size_t step = 0; step < size; ++step)
         {
-            const auto index = static_cast<std::size_t>(current - order.begin());
-            next = backwards ? (index + order.size() - 1) % order.size() : (index + 1) % order.size();
+            index = backwards ? (index + size - 1) % size : (index + 1) % size;
+            if (order[index]->isTabStop)
+            {
+                focus(order[index]->nodeId);
+                return true;
+            }
         }
-        focus(order[next]);
-        return true;
+        return false;
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

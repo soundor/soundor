@@ -33,10 +33,19 @@ afterEach(() => {
 /** The focusable nodes by name: `<Field name="a" />`. */
 const nodes = new Map<string, TestNode>();
 
-function Field({ name, hidden = false }: { name: string; hidden?: boolean }) {
+function Field({
+  name,
+  hidden = false,
+  tabStop,
+}: {
+  name: string;
+  hidden?: boolean;
+  tabStop?: boolean;
+}) {
   return (
     <View
       focusable
+      tabStop={tabStop}
       accessibilityLabel={name}
       style={hidden ? { display: 'none' } : undefined}
       ref={(node) => {
@@ -143,6 +152,28 @@ describe('FocusScope', () => {
       </FocusScope>,
     );
     expect([await tab(), await tab(), await tab()]).toEqual(['a', 'b', 'a']);
+  });
+
+  it('skips nodes that are not Tab stops, and goes on from one', async () => {
+    await show(
+      <FocusScope trapped autoFocus>
+        <Field name="skipped" tabStop={false} />
+        <Field name="a" />
+        <Field name="item" tabStop={false} />
+        <Field name="b" />
+      </FocusScope>,
+    );
+    expect(focusedName()).toBe('a');
+    expect([await tab(), await tab(), await tab(true)]).toEqual([
+      'b',
+      'a',
+      'b',
+    ]);
+    node('item').focus();
+    expect(focusedName()).toBe('item');
+    expect(await tab()).toBe('b');
+    node('item').focus();
+    expect(await tab(true)).toBe('a');
   });
 
   it('keeps Tab inside even with nothing focusable in it', async () => {

@@ -677,6 +677,14 @@ declare module 'soundor:ui' {
     debugId: string;
     /** Whether the node takes focus when pressed or tabbed to. */
     focusable: boolean;
+    /**
+     * Whether Tab and Shift+Tab stop at the node when it is focusable; true
+     * by default. False keeps it focusable by a press, `focus()` and
+     * assistive technology, and skipped by Tab: the items of a composite
+     * widget (a list, a radio group, a toolbar) that moves focus among
+     * them with the arrow keys and keeps one of them a Tab stop.
+     */
+    tabStop: boolean;
     readonly focused: boolean;
     /**
      * Whether it has focus and should show it, as CSS's `:focus-visible`:

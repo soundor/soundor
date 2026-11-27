@@ -107,6 +107,14 @@ export interface ViewProps extends EventProps, AccessibilityProps, DebugProps {
   style?: StyleProp;
   /** Takes focus when pressed or tabbed to. */
   focusable?: boolean;
+  /**
+   * Whether Tab and Shift+Tab stop at it when it is focusable; true by
+   * default. `false` keeps it focusable by a press, `focus()` and
+   * assistive technology, while Tab skips it: for the items of a composite
+   * widget that moves focus among them with the arrow keys and keeps one
+   * of them a Tab stop.
+   */
+  tabStop?: boolean;
   /** The view's `soundor:ui` node: its layout, bounds, focus, animations. */
   ref?: Ref<UiNode>;
   /**

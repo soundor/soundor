@@ -262,6 +262,7 @@ export class UiNode extends TreeEventTarget {
   #styleView: Style | null = null;
   #text = '';
   #focusable = false;
+  #tabStop = true;
   #source = '';
   #accessibility: Readonly<Accessibility> = Object.freeze({});
   #semantics: NormalizedAccessibility = normalizeAccessibility({});
@@ -1088,6 +1089,18 @@ export class UiNode extends TreeEventTarget {
     if (this.#focusable) this.#element.tabIndex = -1;
     else if (!this.#root) this.#element.removeAttribute('tabindex');
     this.#view.semanticsChanged();
+  }
+
+  /**
+   * Whether Tab and Shift+Tab stop at the node when it is focusable; true
+   * by default. False keeps it focusable by a press or focus() only.
+   */
+  get tabStop(): boolean {
+    return this.#tabStop;
+  }
+
+  set tabStop(value: boolean) {
+    this.#tabStop = Boolean(value);
   }
 
   get focused(): boolean {

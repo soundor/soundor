@@ -539,6 +539,7 @@ export class UiNode extends EventTarget {
   #styleView = null;
   #text = '';
   #focusable = false;
+  #tabStop = true;
   #scrollIndicators = true;
   #source = '';
   #placeholder = '';
@@ -979,6 +980,19 @@ export class UiNode extends EventTarget {
   set focusable(value) {
     this.#focusable = Boolean(value);
     native.setFocusable(this.#id, this.#focusable);
+  }
+
+  /**
+   * Whether Tab and Shift+Tab stop at the node when it is focusable; true
+   * by default. False keeps it focusable by a press or focus() only.
+   */
+  get tabStop() {
+    return this.#tabStop;
+  }
+
+  set tabStop(value) {
+    this.#tabStop = Boolean(value);
+    native.setTabStop(this.#id, this.#tabStop);
   }
 
   get focused() {

@@ -13,6 +13,9 @@ default, as in React Native.
   `flex`, sizes, margins and padding: see [Style](/docs/primitives/style).
 - **Focus:** `focusable` makes it take keyboard focus when pressed or tabbed
   to; then it receives key events ([Events](/docs/primitives/events)).
+  With `tabStop={false}` as well, Tab skips it while a press and `focus()`
+  still focus it: the items of a list or a toolbar that the arrow keys move
+  between ([Roving focus](/docs/primitives/events#roving-focus)).
 - **To assistive technology** a view is not an element itself; what it
   contains is, unless it is given a role or `accessible`
   ([Accessibility](/docs/primitives/accessibility)).

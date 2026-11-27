@@ -54,8 +54,9 @@ put node event handlers on the content they render.
   own, a waveform say, handle `onWheel` when `event.ctrlKey` is set and call
   `preventDefault()`.
 - **Focus:** a press focuses the nearest `focusable` node, unless its
-  `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
-  Keys go to the focused node. Show focus with `focusVisible`, not `focused`
+  `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes,
+  in tree order, except those with `tabStop={false}`
+  ([Roving focus](#roving-focus)). Keys go to the focused node. Show focus with `focusVisible`, not `focused`
   ([Focus rings](#focus-rings)).
 - **`key` and `code`:** `key` is what a press types, which depends on the
   layout and the modifiers; `code` is the physical key, as the Web names it
@@ -306,6 +307,56 @@ const [ring, setRing] = useState(false);
 
 Both runtimes decide it by these rules, the web runtime too, rather than
 by the browser's own.
+
+## Roving focus
+
+A composite widget (a list, a radio group, a toolbar, a group of plot
+handles) is one Tab stop, and the arrow keys move focus among its items:
+the WAI-ARIA [roving tabindex](https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/#kbd_roving_tabindex).
+Give every item `focusable` and all but one `tabStop={false}`: Tab and
+Shift+Tab skip those, in every runtime and in a
+[`FocusScope`](/docs/primitives/focus-scope), while a press, `focus()` and
+assistive technology still focus them. A focused item still receives keys
+and has `focusVisible`, and assistive technology is told the same about it
+as about any other. From an item that is not a Tab stop, Tab goes on to the
+next Tab stop after it in the tree, and Shift+Tab to the one before, so
+focus leaves the widget either way:
+
+```tsx
+const [active, setActive] = useState(0);
+const items = useRef<(UiNode | null)[]>([]);
+
+const move = (index: number) => {
+  const next = Math.max(0, Math.min(presets.length - 1, index));
+  setActive(next);
+  items.current[next]?.focus();
+};
+
+<View accessibilityRole="listbox" accessibilityLabel="Presets">
+  {presets.map((name, index) => (
+    <Pressable
+      key={name}
+      ref={(node) => {
+        items.current[index] = node;
+      }}
+      accessibilityRole="option"
+      accessibilityState={{ selected: index === active }}
+      tabStop={index === active}
+      onFocus={() => setActive(index)}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowDown') move(index + 1);
+        if (event.key === 'ArrowUp') move(index - 1);
+      }}
+      onPress={() => load(name)}
+    >
+      <Text>{name}</Text>
+    </Pressable>
+  ))}
+</View>;
+```
+
+The item that stays a Tab stop is where Tab enters the widget: the selected
+one, or the one that last had focus.
 
 ## Coordinates
 

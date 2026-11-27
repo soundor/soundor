@@ -190,6 +190,8 @@ export class TestNode {
   width = 300;
   height = 150;
   focusable: boolean;
+  /** Whether Tab stops at it when it is focusable. */
+  tabStop = true;
   #accessibility: Accessibility = {};
   get accessibility(): Accessibility {
     return this.#accessibility;

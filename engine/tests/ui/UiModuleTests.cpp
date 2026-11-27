@@ -476,6 +476,22 @@ TEST_SUITE("soundor:ui")
         CHECK(f.log() == "keydown@root:bubble");
     }
 
+    TEST_CASE("tabStop takes a focusable node out of the Tab order only")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            a.focusable = b.focusable = true;
+            globalThis.initial = a.tabStop;
+            a.tabStop = false;
+            globalThis.focusedName = () => focusedNode()?.name;
+        )");
+        CHECK(f.eval("JSON.stringify([initial, a.tabStop])").asString() == "[true,false]");
+        f.host.surface().key({ .down = true, .key = "Tab" });
+        CHECK(f.eval("focusedName()").asString() == "b");
+        f.run("a.focus();");
+        CHECK(f.eval("focusedName()").asString() == "a");
+    }
+
     TEST_CASE("keyboard events carry the physical key as code")
     {
         UiFixture f;
