@@ -1,3 +1,4 @@
+import { FactoryPresets, StateStore } from '@soundor/runtime-sdk/client';
 // @vitest-environment happy-dom
 import {
   findByRole,
@@ -21,7 +22,7 @@ afterEach(() => document.body.replaceChildren());
 
 function setup(
   props: Partial<
-    Pick<PanelProps, 'open' | 'inspect' | 'parameters' | 'notices'>
+    Pick<PanelProps, 'open' | 'inspect' | 'parameters' | 'notices' | 'presets'>
   > & {
     inputs?: readonly { id: string; label: string }[];
   } = {},
@@ -43,6 +44,7 @@ function setup(
       parameters={props.parameters ?? createParameterStore([], [])}
       inspect={props.inspect ?? false}
       {...(props.notices === undefined ? {} : { notices: props.notices })}
+      {...(props.presets === undefined ? {} : { presets: props.presets })}
     />,
   );
   const panel = container.querySelector<HTMLElement>('#panel')!;
@@ -203,4 +205,110 @@ it('shows microphone startup, capture and failure state, with a retry', () => {
   );
   fireEvent.click(getByRole(panel, 'button', { name: 'Retry input' }));
   expect(fake.calls.setSource).toEqual([['microphone']]);
+});
+
+describe('the presets section', () => {
+  function presets() {
+    const parameters = storeOf({
+      gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+    });
+    const state = new StateStore({ fields: [], types: [] }, parameters.history);
+    const catalog = new FactoryPresets(
+      [
+        { id: 'init', name: 'Init', parameters: { gain: 0.5 }, state: {} },
+        { id: 'warm', name: 'Warm', parameters: { gain: 0.75 }, state: {} },
+      ],
+      parameters.list,
+      state,
+    );
+    return { parameters, catalog };
+  }
+  const selectOf = (panel: HTMLElement) =>
+    getByLabelText<HTMLSelectElement>(panel, 'Preset');
+  const shown = (select: HTMLSelectElement) =>
+    select.options[select.selectedIndex]?.textContent;
+
+  it('is absent without factory presets', () => {
+    expect(
+      queryByRole(setup().panel, 'heading', { name: 'Presets' }),
+    ).toBeNull();
+    const parameters = storeOf({});
+    const empty = new FactoryPresets(
+      [],
+      parameters.list,
+      new StateStore({ fields: [], types: [] }, parameters.history),
+    );
+    expect(
+      queryByRole(setup({ presets: empty }).panel, 'heading', {
+        name: 'Presets',
+      }),
+    ).toBeNull();
+  });
+
+  it('shows the selected preset, and loads one without a History entry', () => {
+    const { parameters, catalog } = presets();
+    const { panel } = setup({ parameters, presets: catalog });
+    const select = selectOf(panel);
+    expect(shown(select)).toBe('Init');
+    expect([...select.options].map((option) => option.textContent)).toEqual([
+      'Init',
+      'Warm',
+    ]);
+    act(() => {
+      fireEvent.change(select, { target: { value: 'warm' } });
+    });
+    expect(parameters.byId['gain']!.get()).toBe(0.75);
+    expect(catalog.getSnapshot()).toEqual({
+      factoryId: 'warm',
+      modified: false,
+    });
+    expect(shown(select)).toBe('Warm');
+    expect(parameters.history.canUndo()).toBe(false);
+  });
+
+  it('marks a changed preset, and loads it again when chosen', () => {
+    const { parameters, catalog } = presets();
+    const { panel } = setup({ parameters, presets: catalog });
+    const select = selectOf(panel);
+    act(() => parameters.byId['gain']!.set(0.25));
+    expect(shown(select)).toBe('Init (modified)');
+    act(() => {
+      fireEvent.change(select, { target: { value: 'init' } });
+    });
+    expect(parameters.byId['gain']!.get()).toBe(0.5);
+    expect(shown(select)).toBe('Init');
+  });
+
+  it('shows Custom when no factory preset is selected', () => {
+    const { parameters, catalog } = presets();
+    const { panel } = setup({ parameters, presets: catalog });
+    act(() => parameters.byId['gain']!.set(0.25));
+    act(() => catalog.restored());
+    expect(shown(selectOf(panel))).toBe('Custom');
+  });
+
+  it('says why a preset could not be loaded, and keeps the selection', () => {
+    const { parameters, catalog } = presets();
+    const failing = {
+      ...catalog,
+      factory: {
+        list: catalog.factory.list,
+        load: () => {
+          throw new Error('A gesture is in progress');
+        },
+      },
+    };
+    const { panel } = setup({ parameters, presets: failing });
+    const report = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const select = selectOf(panel);
+    act(() => {
+      fireEvent.change(select, { target: { value: 'warm' } });
+    });
+    expect(getByRole(panel, 'alert').textContent).toBe(
+      'A gesture is in progress',
+    );
+    expect(report).toHaveBeenCalledOnce();
+    expect(shown(select)).toBe('Init');
+    report.mockRestore();
+  });
 });

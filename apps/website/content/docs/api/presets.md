@@ -142,3 +142,6 @@ are not assumed to be available to the plugin.
 This API does not enumerate a DAW's preset files, generate/install `.vstpreset`
 files, or save user presets. Those are separate storage/distribution features.
 The Web and simulated runtimes use the same catalog and loading/history semantics.
+The [Web runtime's host](/docs/web-runtime#the-host-ui) has a program selector
+of its own, in its panel, which loads presets as a DAW's does: without a
+History entry, and showing the one the UI, the controller or History selected.

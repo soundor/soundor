@@ -80,3 +80,29 @@ test('the Rust controller answers, and the processor streams what it plays', asy
     /^Scope 64 samples, first -?[01]\.\d{3}$/,
   );
 });
+
+test("the host's preset selector loads a factory preset and follows the plugin's", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await openPlugin(page);
+  await page
+    .getByRole('button', { name: 'Host settings', exact: true })
+    .click();
+  const preset = page.getByLabel('Preset', { exact: true });
+  await expect(preset).toHaveValue('unity');
+
+  await preset.selectOption('quiet-invert');
+  await expect(byDebugId(page, 'preset.current')).toHaveText('Quiet invert');
+  await expect(byDebugId(page, 'note')).toHaveText('Note: Quiet invert');
+
+  // Loaded by the plugin, the host shows it; changed after, modified.
+  await page.getByRole('button', { name: 'Unity', exact: true }).click();
+  await expect(preset).toHaveValue('unity');
+  await page.getByRole('button', { name: 'Bypass', exact: true }).click();
+  await expect(byDebugId(page, 'preset.current')).toHaveText(
+    'Unity (modified)',
+  );
+  await expect(preset.locator('option:checked')).toHaveText('Unity (modified)');
+  expect(errors).toEqual([]);
+});

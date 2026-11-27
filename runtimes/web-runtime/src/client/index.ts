@@ -130,6 +130,7 @@ export async function startSoundorWebHost(
       host: context.host,
       parameters: context.parameters,
       parameterGroups: context.manifest.parameterGroups,
+      presets: context.state.presets,
       audio,
       midi: context.midi,
     });

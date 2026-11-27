@@ -31,6 +31,7 @@ import type { WebMidiHost } from '../midi';
 import type { ParameterStore } from '../parameters';
 import { Dock } from './dock';
 import { startAudioOnGesture } from './gesture';
+import type { PresetCatalog } from './hooks';
 import { Panel } from './panel';
 import {
   canResize,
@@ -98,6 +99,8 @@ export interface ShellOptions {
     Record<string, { readonly label: string }>
   >;
   readonly parameters: ParameterStore;
+  /** The factory presets, which the panel selects. */
+  readonly presets?: PresetCatalog;
   readonly audio: WebAudioHost;
 }
 
@@ -233,6 +236,7 @@ function Shell(options: ShellOptions & { readonly requests: EditorRequests }) {
         midi={options.midi}
         parameters={options.parameters}
         parameterGroups={options.parameterGroups}
+        {...(options.presets === undefined ? {} : { presets: options.presets })}
         inspect={options.presentation === 'dev'}
         {...(options.presentation === 'dev'
           ? {}

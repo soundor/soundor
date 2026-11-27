@@ -4,8 +4,14 @@ import type { AudioSource, WebAudioHost } from '../audio';
 import type { HostSnapshot, WebHost } from '../host';
 import type { WebMidiHost } from '../midi';
 import type { ParameterStore } from '../parameters';
+import { report } from '../report';
 import { IconButton, Row, Section } from './controls';
-import { useAudioStatus, useHostSnapshot } from './hooks';
+import {
+  type PresetCatalog,
+  useAudioStatus,
+  useHostSnapshot,
+  usePresetSelection,
+} from './hooks';
 import { ParameterControl } from './parameter';
 
 const TIME_SIGNATURES = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '12/8'];
@@ -22,6 +28,11 @@ export interface PanelProps {
     Record<string, { readonly label: string }>
   >;
   readonly parameters: ParameterStore;
+  /**
+   * The factory presets, which the panel selects as a DAW's program
+   * selector does; none shown without any.
+   */
+  readonly presets?: PresetCatalog;
   /** Shows the host state (the `dev` presentation). */
   readonly inspect: boolean;
   /**
@@ -33,7 +44,7 @@ export interface PanelProps {
 
 /**
  * Host settings beside the plugin: the transport, the audio, the
- * parameters and, in `dev`, the host state. Hidden rather than unmounted
+ * factory presets, the parameters and, in `dev`, the host state. Hidden rather than unmounted
  * when closed, so it keeps what was open in it.
  */
 export function Panel(props: PanelProps) {
@@ -62,6 +73,9 @@ export function Panel(props: PanelProps) {
         <Audio audio={audio} snapshot={snapshot} />
         {props.midi && (props.midi.inputEnabled || props.midi.outputEnabled) ? (
           <MidiDevices host={props.midi} />
+        ) : null}
+        {props.presets && props.presets.factory.list().length > 0 ? (
+          <Presets presets={props.presets} />
         ) : null}
         <Section title="Parameters">
           {parameters.list.length === 0 ? (
@@ -285,6 +299,71 @@ function Audio({
           </span>
         )}
       </div>
+    </Section>
+  );
+}
+
+/** What the select shows while no factory preset is, as it was loaded. */
+const CHANGED = '';
+
+/**
+ * The factory presets, as a DAW's program selector shows them: the one
+ * selected, marked when its values changed since, or Custom. Loading one
+ * records no History entry, as a host's program change does not; choosing
+ * the selected preset again while it is modified loads it again.
+ */
+function Presets({ presets }: { readonly presets: PresetCatalog }) {
+  const id = useId();
+  const selection = usePresetSelection(presets);
+  const [failure, setFailure] = useState<string | null>(null);
+  const list = presets.factory.list();
+  const selected = list.find((preset) => preset.id === selection.factoryId);
+  const value =
+    selected === undefined || selection.modified ? CHANGED : selected.id;
+  return (
+    <Section title="Presets">
+      <Row label="Preset" id={id}>
+        <select
+          id={id}
+          class="soundor-field"
+          value={value}
+          onChange={(event) => {
+            const chosen = event.currentTarget.value;
+            // A failed load leaves the selection as it was.
+            event.currentTarget.value = value;
+            if (chosen === CHANGED) return;
+            try {
+              presets.factory.load(chosen);
+              setFailure(null);
+            } catch (error) {
+              setFailure(
+                error instanceof Error ? error.message : String(error),
+              );
+              report(error);
+            }
+          }}
+        >
+          {value === CHANGED ? (
+            <option value={CHANGED} disabled>
+              {selected === undefined
+                ? 'Custom'
+                : `${selected.name} (modified)`}
+            </option>
+          ) : null}
+          {list.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.name}
+            </option>
+          ))}
+        </select>
+      </Row>
+      {failure === null ? null : (
+        <div class="soundor-status">
+          <span class="soundor-audio-error" role="alert">
+            {failure}
+          </span>
+        </div>
+      )}
     </Section>
   );
 }

@@ -520,9 +520,11 @@ docs, a phone, the panel open). The host stays out of its way:
 │        │                           │        │  Tempo, 4/4, ↻   │
 │        │         plugin UI         │        │ AUDIO            │
 │        │                           │        │  Input, format   │
-│        └───────────────────────────┘        │ PARAMETERS       │
+│        └───────────────────────────┘        │ PRESETS          │
+│                                             │  Factory preset  │
+│        [🔊 ──●─ │ ▶ ■ 1.1 │ ⚙]               │ PARAMETERS       │
 │                                             │  live controls   │
-│        [🔊 ──●─ │ ▶ ■ 1.1 │ ⚙]               │ ▸ HOST STATE     │
+│                                             │ ▸ HOST STATE     │
 └─────────────────────────────────────────────┴──────────────────┘
                dock                               panel (closed by default)
 ```
@@ -533,8 +535,11 @@ docs, a phone, the panel open). The host stays out of its way:
   starts with the first gesture.
 - **Panel:** the transport's tempo, time signature and loop (four bars); the
   input source (an oscillator, an audio file, a microphone, a custom input, or no input; a source
-  plays while the transport does), the audio format and status; and a control
-  per parameter, moving the same values the plugin does. The transport drives
+  plays while the transport does), the audio format and status; the
+  [factory presets](/docs/api/presets), when the config declares any, as a
+  DAW's program selector shows them (the selected one, marked modified once
+  its values change, or Custom), loading one without a History entry; and a
+  control per parameter, moving the same values the plugin does. The transport drives
   the same `WebHost` that `soundor:host` reports to the plugin; the plugin
   observes the transport and never controls it.
 - **Resizing:** with `editor.resizable`, a handle just outside the view's
