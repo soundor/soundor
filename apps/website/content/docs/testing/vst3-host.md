@@ -87,6 +87,9 @@ await host.openEditor({ scale: 2 });
 `openEditor`, `closeEditor`, `resizeEditor` and `getEditor` report the
 editor's size, whether it can be resized, and its content scale. Sizes are in
 pixels on Windows and Linux and in points on macOS, as VST3 defines them.
+On Windows and Linux, an explicit `scale` stays fixed for the editor.
+Without one, the editor follows the display scale. Switching presentations
+keeps that preference unless you supply a new `scale`.
 Resizes the plugin asks for itself are followed and reported as
 `editorResized`. `presentation: 'editor'` shows the editor alone, and its
 window's border resizes it through the plugin's own answers, within its limits

@@ -289,7 +289,7 @@ namespace soundor::vst3host
         if (! presentation.empty() && presentation != "editor" && presentation != "host")
             throw Failure("invalid-request", where + R"(.presentation must be "editor" or "host")");
         // An editor already open in another presentation opens again in this
-        // one, at the same size and scale.
+        // one, at the same size and with the same scale preference by default.
         if (! presentation.empty() && presentation != presentation_)
         {
             presentation_ = presentation;
@@ -297,7 +297,7 @@ namespace soundor::vst3host
             {
                 const Json before = plugin_.editorInfo();
                 if (! scale)
-                    scale = plugin_.editorScale();
+                    scale = plugin_.requestedEditorScale();
                 plugin_.closeEditor();
                 plugin_.openEditor(scale);
                 if (plugin_.editorOpen())
